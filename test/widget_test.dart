@@ -72,4 +72,44 @@ void main() {
 
     expect(find.text('Soldes des caisses'), findsOneWidget);
   });
+  testWidgets('permet de changer d’onglet après la connexion', (
+    WidgetTester tester,
+  ) async {
+    await openLoginPage(tester);
+
+    final Finder fields = find.byType(TextFormField);
+
+    await tester.enterText(fields.at(0), 'marc');
+
+    await tester.enterText(fields.at(1), '1234');
+
+    await tester.tap(find.text('Se connecter'));
+
+    await tester.pump(const Duration(milliseconds: 1100));
+
+    await tester.pumpAndSettle();
+
+    await tester.pump(const Duration(milliseconds: 900));
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('28 commandes à traiter'), findsOneWidget);
+
+    await tester.tap(find.text('Commandes'));
+
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'La liste complète des commandes sera construite à la prochaine étape.',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Accueil'));
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('28 commandes à traiter'), findsOneWidget);
+  });
 }

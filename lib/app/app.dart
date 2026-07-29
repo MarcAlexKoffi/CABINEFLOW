@@ -4,9 +4,10 @@ import 'package:cabine_flow/features/auth/data/repositories/fake_auth_repository
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/presentation/pages/login_page.dart';
 import 'package:cabine_flow/features/dashboard/data/repositories/fake_dashboard_repository.dart';
-import 'package:cabine_flow/features/dashboard/presentation/pages/dashboard_page.dart';
+import 'package:cabine_flow/features/navigation/presentation/pages/main_shell_page.dart';
 import 'package:cabine_flow/features/splash/presentation/pages/splash_page.dart';
 import 'package:flutter/material.dart';
+import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
 
 class CabineFlowApp extends StatelessWidget {
   const CabineFlowApp({super.key});
@@ -27,6 +28,8 @@ class CabineFlowApp extends StatelessWidget {
 
     const FakeDashboardRepository dashboardRepository =
         FakeDashboardRepository();
+
+    final FakeOrdersRepository ordersRepository = FakeOrdersRepository();
 
     return MaterialApp(
       title: 'CabineFlow',
@@ -63,9 +66,10 @@ class CabineFlowApp extends StatelessWidget {
             return MaterialPageRoute<void>(
               settings: settings,
               builder: (BuildContext context) {
-                return DashboardPage(
+                return MainShellPage(
                   user: arguments,
                   dashboardRepository: dashboardRepository,
+                  ordersRepository: ordersRepository,
                 );
               },
             );

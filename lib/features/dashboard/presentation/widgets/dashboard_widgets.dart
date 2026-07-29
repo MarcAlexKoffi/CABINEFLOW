@@ -610,3 +610,142 @@ String formatCfa(int amount) {
 
   return '${result.toString()} F';
 }
+
+class CabineBottomNavigationBar extends StatelessWidget {
+  const CabineBottomNavigationBar({
+    super.key,
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+
+  static const List<_CabineNavigationItem> _items = [
+    _CabineNavigationItem(
+      label: 'Accueil',
+      icon: Icons.home_outlined,
+      selectedIcon: Icons.home_rounded,
+    ),
+    _CabineNavigationItem(
+      label: 'Commandes',
+      icon: Icons.receipt_long_outlined,
+      selectedIcon: Icons.receipt_long_rounded,
+    ),
+    _CabineNavigationItem(
+      label: 'Paiements',
+      icon: Icons.payments_outlined,
+      selectedIcon: Icons.payments_rounded,
+    ),
+    _CabineNavigationItem(
+      label: 'Finances',
+      icon: Icons.account_balance_wallet_outlined,
+      selectedIcon: Icons.account_balance_wallet_rounded,
+    ),
+    _CabineNavigationItem(
+      label: 'Plus',
+      icon: Icons.more_horiz_rounded,
+      selectedIcon: Icons.more_horiz_rounded,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: 74,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceContainer,
+          border: Border(
+            top: BorderSide(color: AppColors.outlineVariant.withAlpha(80)),
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x66000000),
+              blurRadius: 18,
+              offset: Offset(0, -5),
+            ),
+          ],
+        ),
+        child: Row(
+          children: List<Widget>.generate(_items.length, (int index) {
+            final _CabineNavigationItem item = _items[index];
+            final bool isSelected = index == selectedIndex;
+
+            final Color itemColor = isSelected
+                ? AppColors.primary
+                : AppColors.onSurfaceVariant;
+
+            return Expanded(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () {
+                    onDestinationSelected(index);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 2,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.primaryContainer.withAlpha(30)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          isSelected ? item.selectedIcon : item.icon,
+                          size: 23,
+                          color: itemColor,
+                        ),
+                        const SizedBox(height: 4),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              item.label,
+                              maxLines: 1,
+                              softWrap: false,
+                              style: TextStyle(
+                                color: itemColor,
+                                fontSize: 11,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+}
+
+class _CabineNavigationItem {
+  const _CabineNavigationItem({
+    required this.label,
+    required this.icon,
+    required this.selectedIcon,
+  });
+
+  final String label;
+  final IconData icon;
+  final IconData selectedIcon;
+}
