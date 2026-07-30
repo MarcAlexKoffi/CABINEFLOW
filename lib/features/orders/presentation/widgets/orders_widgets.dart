@@ -9,8 +9,10 @@ class OrdersTopBar extends StatelessWidget {
     super.key,
     required this.user,
     required this.onNotificationsPressed,
+    this.subtitle,
   });
 
+  final String? subtitle;
   final AppUser user;
   final VoidCallback onNotificationsPressed;
 
@@ -38,11 +40,11 @@ class OrdersTopBar extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        const Expanded(
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'CabineFlow',
                 style: TextStyle(
                   color: AppColors.onBackground,
@@ -50,13 +52,14 @@ class OrdersTopBar extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              Text(
-                'File d’attente',
-                style: TextStyle(
-                  color: AppColors.onSurfaceVariant,
-                  fontSize: 12,
+              if (subtitle?.trim().isNotEmpty == true)
+                Text(
+                  subtitle!,
+                  style: const TextStyle(
+                    color: AppColors.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
                 ),
-              ),
             ],
           ),
         ),

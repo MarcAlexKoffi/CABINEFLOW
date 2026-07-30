@@ -5,6 +5,8 @@ import 'package:cabine_flow/features/orders/domain/repositories/orders_repositor
 import 'package:cabine_flow/features/orders/presentation/view_models/orders_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/orders_widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:cabine_flow/features/orders/presentation/pages/order_processing_page.dart';
+import 'package:cabine_flow/features/orders/presentation/pages/customer_confirmation_page.dart';
 
 class OrdersPage extends StatefulWidget {
   const OrdersPage({
@@ -24,6 +26,103 @@ class OrdersPage extends StatefulWidget {
 
 class _OrdersPageState extends State<OrdersPage> {
   late final OrdersViewModel _viewModel;
+  Future<void> _markTransactionSuccessful() async {
+    final bool isSuccessful = await _viewModel.markActiveOrderSuccessful();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (!isSuccessful) {
+      final String message =
+          _viewModel.errorMessage ?? 'Impossible de terminer la commande.';
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
+
+      return;
+    }
+
+    final QueueOrder? confirmationOrder = _viewModel.activeOrder;
+
+    if (confirmationOrder == null) {
+      return;
+    }
+
+    final bool? messageWasSent = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        fullscreenDialog: true,
+        builder: (BuildContext routeContext) {
+          return CustomerConfirmationPage(
+            order: confirmationOrder,
+            onComplete: (bool messageSent) {
+              return _viewModel.completeCustomerConfirmation(
+                messageSent: messageSent,
+              );
+            },
+          );
+        },
+      ),
+    );
+
+    if (!mounted || messageWasSent == null) {
+      return;
+    }
+
+    final String message = messageWasSent
+        ? 'La commande ${confirmationOrder.reference} est terminée '
+              'et le message client est enregistré comme envoyé.'
+        : 'La commande ${confirmationOrder.reference} est terminée '
+              'sans envoi du message client.';
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _markTransactionFailed(
+    OrderFailureReason reason,
+    String? observation,
+  ) async {
+    final QueueOrder? order = _viewModel.activeOrder;
+
+    final bool isSuccessful = await _viewModel.markActiveOrderFailed(
+      reason: reason,
+      observation: observation,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    final String message = isSuccessful
+        ? 'L’échec de la commande ${order?.reference ?? ''} est enregistré.'
+        : _viewModel.errorMessage ?? 'Impossible d’enregistrer l’échec.';
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _putTransactionOnHold() async {
+    final QueueOrder? order = _viewModel.activeOrder;
+
+    final bool isSuccessful = await _viewModel.putActiveOrderOnHold();
+
+    if (!mounted) {
+      return;
+    }
+
+    final String message = isSuccessful
+        ? 'La commande ${order?.reference ?? ''} retourne dans la file.'
+        : _viewModel.errorMessage ??
+              'Impossible de mettre la commande en attente.';
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   void initState() {
@@ -127,7 +226,36 @@ class _OrdersPageState extends State<OrdersPage> {
       listenable: _viewModel,
       builder: (BuildContext context, Widget? child) {
         final List<QueueOrder> orders = _viewModel.filteredOrders;
+        final QueueOrder? activeOrder = _viewModel.activeOrder;
 
+        if (activeOrder != null &&
+            activeOrder.status == QueueOrderStatus.inProgress) {
+          return OrderProcessingPage(
+            user: widget.user,
+            order: activeOrder,
+            isSubmitting: _viewModel.isProcessingAction,
+            onTransactionSucceeded: _markTransactionSuccessful,
+            onTransactionFailed: _markTransactionFailed,
+            onPutOnHold: _putTransactionOnHold,
+            onNotificationsPressed: () {
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'L’écran des notifications sera ajouté ultérieurement.',
+                    ),
+                  ),
+                );
+            },
+          );
+        }
+
+        if (activeOrder != null &&
+            activeOrder.status ==
+                QueueOrderStatus.awaitingCustomerConfirmation) {
+          return const Center(child: CircularProgressIndicator());
+        }
         return SafeArea(
           bottom: false,
           child: Column(
@@ -137,6 +265,7 @@ class _OrdersPageState extends State<OrdersPage> {
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 13),
                 child: OrdersTopBar(
                   user: widget.user,
+                  subtitle: 'File d’attente',
                   onNotificationsPressed: () {
                     ScaffoldMessenger.of(context)
                       ..hideCurrentSnackBar()

@@ -49,4 +49,5 @@ class AppColors {
   static const Color mtn = Color(0xFFFFCC00);
   static const Color moov = Color(0xFF0055A5);
   static const Color wave = Color(0xFF16D9FF);
+  static const Color onError = Color(0xFF690005);
 }

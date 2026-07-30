@@ -18,6 +18,13 @@ class OrdersViewModel extends ChangeNotifier {
 
   Timer? _clockTimer;
 
+  QueueOrder? _activeOrder;
+  bool _isProcessingAction = false;
+
+  QueueOrder? get activeOrder => _activeOrder;
+
+  bool get isProcessingAction => _isProcessingAction;
+
   bool _isLoading = false;
   String? _errorMessage;
   QueueFilter _selectedFilter = QueueFilter.all;
@@ -32,6 +39,151 @@ class OrdersViewModel extends ChangeNotifier {
   QueueFilter get selectedFilter => _selectedFilter;
 
   bool get hasOrders => allReadyOrders.isNotEmpty;
+
+  Future<bool> markActiveOrderSuccessful() async {
+    final QueueOrder? order = _activeOrder;
+
+    if (order == null || _isProcessingAction) {
+      return false;
+    }
+
+    _isProcessingAction = true;
+    _errorMessage = null;
+
+    notifyListeners();
+
+    try {
+      final QueueOrder updatedOrder = await _ordersRepository.markSuccessful(
+        orderId: order.id,
+      );
+
+      // La commande reste disponible pour l’écran
+      // de confirmation du client.
+      _activeOrder = updatedOrder;
+
+      return true;
+    } catch (error) {
+      _errorMessage = error is StateError
+          ? error.message.toString()
+          : 'Impossible de terminer cette commande.';
+
+      return false;
+    } finally {
+      _isProcessingAction = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> completeCustomerConfirmation({required bool messageSent}) async {
+    final QueueOrder? order = _activeOrder;
+
+    if (order == null || _isProcessingAction) {
+      return false;
+    }
+
+    if (order.status != QueueOrderStatus.awaitingCustomerConfirmation) {
+      _errorMessage = 'Cette commande n’attend pas de confirmation client.';
+
+      notifyListeners();
+
+      return false;
+    }
+
+    _isProcessingAction = true;
+    _errorMessage = null;
+
+    notifyListeners();
+
+    try {
+      await _ordersRepository.completeCustomerConfirmation(
+        orderId: order.id,
+        messageSent: messageSent,
+      );
+
+      // Le parcours opérationnel est maintenant terminé.
+      _activeOrder = null;
+
+      return true;
+    } catch (error) {
+      _errorMessage = error is StateError
+          ? error.message.toString()
+          : 'Impossible de clôturer la confirmation client.';
+
+      return false;
+    } finally {
+      _isProcessingAction = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> markActiveOrderFailed({
+    required OrderFailureReason reason,
+    String? observation,
+  }) async {
+    final QueueOrder? order = _activeOrder;
+
+    if (order == null || _isProcessingAction) {
+      return false;
+    }
+
+    _isProcessingAction = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _ordersRepository.markFailed(
+        orderId: order.id,
+        reason: reason,
+        observation: observation,
+      );
+
+      _activeOrder = null;
+
+      return true;
+    } catch (error) {
+      _errorMessage = error is StateError
+          ? error.message.toString()
+          : 'Impossible d’enregistrer l’échec.';
+
+      return false;
+    } finally {
+      _isProcessingAction = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> putActiveOrderOnHold() async {
+    final QueueOrder? order = _activeOrder;
+
+    if (order == null || _isProcessingAction) {
+      return false;
+    }
+
+    _isProcessingAction = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final QueueOrder updatedOrder = await _ordersRepository.putOnHold(
+        orderId: order.id,
+      );
+
+      _orders = [..._orders, updatedOrder];
+
+      _activeOrder = null;
+
+      return true;
+    } catch (error) {
+      _errorMessage = error is StateError
+          ? error.message.toString()
+          : 'Impossible de remettre la commande en attente.';
+
+      return false;
+    } finally {
+      _isProcessingAction = false;
+      notifyListeners();
+    }
+  }
 
   List<QueueOrder> get allReadyOrders {
     final List<QueueOrder> readyOrders = _orders.where((QueueOrder order) {
@@ -178,10 +330,12 @@ class OrdersViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _ordersRepository.takeCharge(
+      final QueueOrder updatedOrder = await _ordersRepository.takeCharge(
         orderId: orderId,
         operatorId: operatorId,
       );
+
+      _activeOrder = updatedOrder;
 
       _orders = _orders.where((QueueOrder order) {
         return order.id != orderId;
