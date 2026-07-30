@@ -6,6 +6,119 @@ class FakeOrdersRepository implements OrdersRepository {
   List<QueueOrder>? _orders;
 
   @override
+  Future<QueueOrder> markPaymentRequestSent({
+    required String orderId,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+
+    final int index = _findOrderIndex(orderId);
+    final QueueOrder currentOrder = _orders![index];
+
+    if (currentOrder.status != QueueOrderStatus.awaitingPayment) {
+      throw StateError('Cette commande n’est pas en attente de paiement.');
+    }
+
+    final QueueOrder updatedOrder = currentOrder.copyWith(
+      paymentRequestSentAt: DateTime.now(),
+    );
+
+    _orders![index] = updatedOrder;
+
+    return updatedOrder;
+  }
+
+  @override
+  Future<List<QueueOrder>> fetchPaymentTrackingOrders() async {
+    await Future<void>.delayed(
+      const Duration(milliseconds: 450),
+    );
+
+    _orders ??= _createInitialOrders();
+
+    final List<QueueOrder> paymentOrders = _orders!.where(
+      (QueueOrder order) {
+        final bool isAwaitingPayment =
+            order.status == QueueOrderStatus.awaitingPayment;
+
+        final bool wasManuallyConfirmed =
+            order.paymentReference != null &&
+                order.paymentReference!.trim().isNotEmpty;
+
+        return isAwaitingPayment || wasManuallyConfirmed;
+      },
+    ).toList();
+
+    paymentOrders.sort(
+      (
+        QueueOrder firstOrder,
+        QueueOrder secondOrder,
+      ) {
+        final DateTime firstDate = firstOrder.paidAt ??
+            firstOrder.paymentRequestSentAt ??
+            firstOrder.createdAt;
+
+        final DateTime secondDate = secondOrder.paidAt ??
+            secondOrder.paymentRequestSentAt ??
+            secondOrder.createdAt;
+
+        return secondDate.compareTo(firstDate);
+      },
+    );
+
+    return List<QueueOrder>.unmodifiable(
+      paymentOrders,
+    );
+  }
+
+  @override
+  Future<QueueOrder> confirmPayment({
+    required String orderId,
+    required DateTime paidAt,
+    String? paymentReference,
+  }) async {
+    await Future<void>.delayed(
+      const Duration(milliseconds: 650),
+    );
+
+    final int index = _findOrderIndex(orderId);
+    final QueueOrder currentOrder = _orders![index];
+
+    if (currentOrder.status != QueueOrderStatus.awaitingPayment) {
+      throw StateError(
+        'Cette commande n’est plus en attente de paiement.',
+      );
+    }
+
+    final String cleanedReference = paymentReference?.trim() ?? '';
+
+    final String finalReference;
+
+    if (cleanedReference.isNotEmpty) {
+      finalReference = cleanedReference.toUpperCase();
+    } else {
+      final String timestamp = paidAt.millisecondsSinceEpoch.toString();
+
+      final String shortTimestamp = timestamp.length > 8
+          ? timestamp.substring(
+              timestamp.length - 8,
+            )
+          : timestamp;
+
+      finalReference = 'MAN-$shortTimestamp';
+    }
+
+    final QueueOrder updatedOrder = currentOrder.copyWith(
+      status: QueueOrderStatus.paidReady,
+      paidAt: paidAt,
+      paymentReference: finalReference,
+    );
+
+    _orders![index] = updatedOrder;
+
+    return updatedOrder;
+  }
+
+  @override
   Future<List<QueueOrder>> fetchPaidQueue() async {
     await Future<void>.delayed(const Duration(milliseconds: 700));
 
@@ -184,6 +297,8 @@ class FakeOrdersRepository implements OrdersRepository {
       internalNotes: request.internalNotes?.trim(),
       createdAt: now,
       paidAt: null,
+      paymentRequestSentAt: null,
+      paymentReference: null,
       status: QueueOrderStatus.awaitingPayment,
     );
 

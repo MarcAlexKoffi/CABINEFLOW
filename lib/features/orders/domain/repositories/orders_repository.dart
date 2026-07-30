@@ -6,6 +6,18 @@ abstract class OrdersRepository {
     required CreateOrderRequest request,
   });
 
+  Future<QueueOrder> markPaymentRequestSent({
+    required String orderId,
+  });
+
+  Future<List<QueueOrder>> fetchPaymentTrackingOrders();
+
+  Future<QueueOrder> confirmPayment({
+    required String orderId,
+    required DateTime paidAt,
+    String? paymentReference,
+  });
+
   Future<List<QueueOrder>> fetchPaidQueue();
 
   Future<QueueOrder> takeCharge({

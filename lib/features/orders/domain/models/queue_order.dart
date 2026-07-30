@@ -54,6 +54,8 @@ class QueueOrder {
     this.originalWhatsappMessage,
     this.internalNotes,
     this.paidAt,
+    this.paymentRequestSentAt,
+    this.paymentReference,
     this.takenByUserId,
     this.takenAt,
     this.completedAt,
@@ -80,6 +82,8 @@ class QueueOrder {
 
   final DateTime createdAt;
   final DateTime? paidAt;
+  final DateTime? paymentRequestSentAt;
+  final String? paymentReference;
 
   final QueueOrderStatus status;
 
@@ -96,6 +100,8 @@ class QueueOrder {
   QueueOrder copyWith({
     QueueOrderStatus? status,
     DateTime? paidAt,
+    DateTime? paymentRequestSentAt,
+    String? paymentReference,
     String? takenByUserId,
     DateTime? takenAt,
     DateTime? completedAt,
@@ -119,6 +125,9 @@ class QueueOrder {
       internalNotes: internalNotes,
       createdAt: createdAt,
       paidAt: paidAt ?? this.paidAt,
+      paymentRequestSentAt:
+          paymentRequestSentAt ?? this.paymentRequestSentAt,
+      paymentReference: paymentReference ?? this.paymentReference,
       status: status ?? this.status,
       takenByUserId: clearAssignment
           ? null

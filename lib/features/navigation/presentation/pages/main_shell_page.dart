@@ -6,6 +6,8 @@ import 'package:cabine_flow/features/dashboard/presentation/widgets/dashboard_wi
 import 'package:cabine_flow/features/finances/presentation/pages/finances_page.dart';
 import 'package:cabine_flow/features/more/presentation/pages/more_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/orders_page.dart';
+import 'package:cabine_flow/features/payments/domain/repositories/payment_link_repository.dart';
+import 'package:cabine_flow/features/payments/presentation/pages/send_wave_link_page.dart';
 import 'package:cabine_flow/features/payments/presentation/pages/payments_page.dart';
 import 'package:flutter/material.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
@@ -19,12 +21,14 @@ class MainShellPage extends StatefulWidget {
     required this.dashboardRepository,
     required this.ordersRepository,
     required this.offerCatalogRepository,
+    required this.paymentLinkRepository,
   });
 
   final AppUser user;
   final DashboardRepository dashboardRepository;
   final OrdersRepository ordersRepository;
   final OfferCatalogRepository offerCatalogRepository;
+  final PaymentLinkRepository paymentLinkRepository;
 
   @override
   State<MainShellPage> createState() {
@@ -35,22 +39,19 @@ class MainShellPage extends StatefulWidget {
 class _MainShellPageState extends State<MainShellPage> {
   int _selectedIndex = 0;
 
-  late final List<Widget> _pages;
+  int _ordersPageVersion = 0;
+  int _paymentsPageVersion = 0;
 
-  @override
-  void initState() {
-    super.initState();
+  void _handlePaymentConfirmed() {
+    setState(() {
+      _ordersPageVersion++;
+    });
+  }
 
-    _pages = [
-      DashboardPage(
-        user: widget.user,
-        dashboardRepository: widget.dashboardRepository,
-      ),
-      OrdersPage(user: widget.user, ordersRepository: widget.ordersRepository),
-      const PaymentsPage(),
-      const FinancesPage(),
-      const MorePage(),
-    ];
+  void _openOrdersTab() {
+    setState(() {
+      _selectedIndex = 1;
+    });
   }
 
   void _selectDestination(int index) {
@@ -67,6 +68,7 @@ class _MainShellPageState extends State<MainShellPage> {
     final CreateOrderPageResult? result =
         await Navigator.of(context).push<CreateOrderPageResult>(
       MaterialPageRoute<CreateOrderPageResult>(
+        fullscreenDialog: true,
         builder: (BuildContext routeContext) {
           return CreateOrderPage(
             user: widget.user,
@@ -81,11 +83,11 @@ class _MainShellPageState extends State<MainShellPage> {
       return;
     }
 
-    if (result.preparePayment) {
-      setState(() {
-        _selectedIndex = 2;
-      });
-    } else {
+    setState(() {
+      _paymentsPageVersion++;
+    });
+
+    if (!result.preparePayment) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
@@ -95,7 +97,50 @@ class _MainShellPageState extends State<MainShellPage> {
             ),
           ),
         );
+
+      return;
     }
+
+    final bool? paymentRequestWasSent = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        fullscreenDialog: true,
+        builder: (BuildContext routeContext) {
+          return SendWaveLinkPage(
+            order: result.order,
+            ordersRepository: widget.ordersRepository,
+            paymentLinkRepository: widget.paymentLinkRepository,
+          );
+        },
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (paymentRequestWasSent == true) {
+      setState(() {
+        _paymentsPageVersion++;
+      });
+    }
+
+    final String message;
+
+    if (paymentRequestWasSent == true) {
+      message =
+          'Le lien Wave de la commande ${result.order.reference} a été envoyé.';
+    } else {
+      message =
+          'La commande ${result.order.reference} est enregistrée. Le lien Wave reste à envoyer.';
+    }
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+        ),
+      );
   }
 
   bool get _showCreateOrderButton {
@@ -104,8 +149,30 @@ class _MainShellPageState extends State<MainShellPage> {
 
   @override
   Widget build(BuildContext context) {
+    final List<Widget> pages = [
+      DashboardPage(
+        user: widget.user,
+        dashboardRepository: widget.dashboardRepository,
+      ),
+      OrdersPage(
+        key: ValueKey<int>(_ordersPageVersion),
+        user: widget.user,
+        ordersRepository: widget.ordersRepository,
+      ),
+      PaymentsPage(
+        key: ValueKey<int>(_paymentsPageVersion),
+        user: widget.user,
+        ordersRepository: widget.ordersRepository,
+        paymentLinkRepository: widget.paymentLinkRepository,
+        onPaymentConfirmed: _handlePaymentConfirmed,
+        onOpenOrders: _openOrdersTab,
+      ),
+      const FinancesPage(),
+      const MorePage(),
+    ];
+
     return Scaffold(
-      body: IndexedStack(index: _selectedIndex, children: _pages),
+      body: IndexedStack(index: _selectedIndex, children: pages),
       floatingActionButton: _showCreateOrderButton
           ? FloatingActionButton(
               tooltip: 'Créer une commande',
