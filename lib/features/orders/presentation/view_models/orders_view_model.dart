@@ -191,7 +191,11 @@ class OrdersViewModel extends ChangeNotifier {
     }).toList();
 
     readyOrders.sort((QueueOrder firstOrder, QueueOrder secondOrder) {
-      return firstOrder.paidAt.compareTo(secondOrder.paidAt);
+      final DateTime firstDate = firstOrder.paidAt ?? firstOrder.createdAt;
+
+      final DateTime secondDate = secondOrder.paidAt ?? secondOrder.createdAt;
+
+      return firstDate.compareTo(secondDate);
     });
 
     return readyOrders;
@@ -287,7 +291,13 @@ class OrdersViewModel extends ChangeNotifier {
   }
 
   int waitingMinutes(QueueOrder order) {
-    final int minutes = DateTime.now().difference(order.paidAt).inMinutes;
+    final DateTime? paidAt = order.paidAt;
+
+    if (paidAt == null) {
+      return 0;
+    }
+
+    final int minutes = DateTime.now().difference(paidAt).inMinutes;
 
     if (minutes < 0) {
       return 0;

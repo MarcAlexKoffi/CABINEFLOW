@@ -8,6 +8,7 @@ import 'package:cabine_flow/features/navigation/presentation/pages/main_shell_pa
 import 'package:cabine_flow/features/splash/presentation/pages/splash_page.dart';
 import 'package:flutter/material.dart';
 import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
+import 'package:cabine_flow/features/orders/data/repositories/fake_offer_catalog_repository.dart';
 
 class CabineFlowApp extends StatelessWidget {
   const CabineFlowApp({super.key});
@@ -30,6 +31,9 @@ class CabineFlowApp extends StatelessWidget {
         FakeDashboardRepository();
 
     final FakeOrdersRepository ordersRepository = FakeOrdersRepository();
+
+    const FakeOfferCatalogRepository offerCatalogRepository =
+        FakeOfferCatalogRepository();
 
     return MaterialApp(
       title: 'CabineFlow',
@@ -70,6 +74,7 @@ class CabineFlowApp extends StatelessWidget {
                   user: arguments,
                   dashboardRepository: dashboardRepository,
                   ordersRepository: ordersRepository,
+                  offerCatalogRepository: offerCatalogRepository,
                 );
               },
             );

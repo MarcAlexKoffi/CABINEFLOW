@@ -9,6 +9,8 @@ import 'package:cabine_flow/features/orders/presentation/pages/orders_page.dart'
 import 'package:cabine_flow/features/payments/presentation/pages/payments_page.dart';
 import 'package:flutter/material.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/offer_catalog_repository.dart';
+import 'package:cabine_flow/features/orders/presentation/pages/create_order_page.dart';
 
 class MainShellPage extends StatefulWidget {
   const MainShellPage({
@@ -16,11 +18,13 @@ class MainShellPage extends StatefulWidget {
     required this.user,
     required this.dashboardRepository,
     required this.ordersRepository,
+    required this.offerCatalogRepository,
   });
 
   final AppUser user;
   final DashboardRepository dashboardRepository;
   final OrdersRepository ordersRepository;
+  final OfferCatalogRepository offerCatalogRepository;
 
   @override
   State<MainShellPage> createState() {
@@ -59,16 +63,39 @@ class _MainShellPageState extends State<MainShellPage> {
     });
   }
 
-  void _showCreateOrderMessage() {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Le formulaire de création d’une commande sera ajouté prochainement.',
+  Future<void> _openCreateOrderPage() async {
+    final CreateOrderPageResult? result =
+        await Navigator.of(context).push<CreateOrderPageResult>(
+      MaterialPageRoute<CreateOrderPageResult>(
+        builder: (BuildContext routeContext) {
+          return CreateOrderPage(
+            user: widget.user,
+            ordersRepository: widget.ordersRepository,
+            offerCatalogRepository: widget.offerCatalogRepository,
+          );
+        },
+      ),
+    );
+
+    if (!mounted || result == null) {
+      return;
+    }
+
+    if (result.preparePayment) {
+      setState(() {
+        _selectedIndex = 2;
+      });
+    } else {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'Commande ${result.order.reference} enregistrée.',
+            ),
           ),
-        ),
-      );
+        );
+    }
   }
 
   bool get _showCreateOrderButton {
@@ -82,7 +109,7 @@ class _MainShellPageState extends State<MainShellPage> {
       floatingActionButton: _showCreateOrderButton
           ? FloatingActionButton(
               tooltip: 'Créer une commande',
-              onPressed: _showCreateOrderMessage,
+              onPressed: _openCreateOrderPage,
               backgroundColor: AppColors.primary,
               foregroundColor: AppColors.onPrimary,
               shape: RoundedRectangleBorder(

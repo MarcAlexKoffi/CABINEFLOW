@@ -1,6 +1,11 @@
+import 'package:cabine_flow/features/orders/domain/models/create_order_request.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 
 abstract class OrdersRepository {
+  Future<QueueOrder> createOrder({
+    required CreateOrderRequest request,
+  });
+
   Future<List<QueueOrder>> fetchPaidQueue();
 
   Future<QueueOrder> takeCharge({

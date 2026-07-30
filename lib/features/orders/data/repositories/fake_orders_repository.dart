@@ -1,3 +1,4 @@
+import 'package:cabine_flow/features/orders/domain/models/create_order_request.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 
@@ -153,8 +154,86 @@ class FakeOrdersRepository implements OrdersRepository {
     }
   }
 
+  @override
+  Future<QueueOrder> createOrder({
+    required CreateOrderRequest request,
+  }) async {
+    await Future<void>.delayed(
+      const Duration(milliseconds: 700),
+    );
+
+    _orders ??= _createInitialOrders();
+
+    final DateTime now = DateTime.now();
+    final int nextReference = _nextReferenceNumber();
+
+    final QueueOrder order = QueueOrder(
+      id: 'order-$nextReference',
+      reference: 'ORD-$nextReference',
+      clientName: request.clientName.trim(),
+      clientWhatsappPhone:
+          request.clientWhatsappPhone.trim(),
+      network: request.network,
+      beneficiaryPhone:
+          request.beneficiaryPhone.trim(),
+      operationType: request.operationType,
+      offerLabel: request.offerLabel.trim(),
+      amount: request.amount,
+      originalWhatsappMessage:
+          request.originalWhatsappMessage?.trim(),
+      internalNotes: request.internalNotes?.trim(),
+      createdAt: now,
+      paidAt: null,
+      status: QueueOrderStatus.awaitingPayment,
+    );
+
+    _orders!.insert(0, order);
+
+    return order;
+  }
+
+  int _nextReferenceNumber() {
+    _orders ??= _createInitialOrders();
+
+    int highestReference = 9822;
+
+    for (final QueueOrder order in _orders!) {
+      final List<String> parts =
+          order.reference.split('-');
+
+      if (parts.isEmpty) {
+        continue;
+      }
+
+      final int? number = int.tryParse(parts.last);
+
+      if (number != null && number > highestReference) {
+        highestReference = number;
+      }
+    }
+
+    return highestReference + 1;
+  }
+
   List<QueueOrder> _createInitialOrders() {
     final DateTime now = DateTime.now();
+
+    const List<OrderOperationType> operationTypes = [
+      OrderOperationType.internetSubscription,
+      OrderOperationType.unitTransfer,
+      OrderOperationType.internetSubscription,
+      OrderOperationType.mixedBundle,
+      OrderOperationType.callBundle,
+      OrderOperationType.internetSubscription,
+      OrderOperationType.unitTransfer,
+      OrderOperationType.internetSubscription,
+      OrderOperationType.mixedBundle,
+      OrderOperationType.internetSubscription,
+      OrderOperationType.unitTransfer,
+      OrderOperationType.callBundle,
+      OrderOperationType.internetSubscription,
+      OrderOperationType.mixedBundle,
+    ];
 
     const List<MobileNetwork> networks = [
       MobileNetwork.orange,
@@ -276,6 +355,12 @@ class FakeOrdersRepository implements OrdersRepository {
     ];
 
     return List<QueueOrder>.generate(networks.length, (int index) {
+      final DateTime paidAt = now.subtract(
+        Duration(
+          minutes: waitingMinutes[index],
+        ),
+      );
+
       return QueueOrder(
         id: 'order-${index + 1}',
         reference: 'ORD-${9823 + index}',
@@ -283,9 +368,13 @@ class FakeOrdersRepository implements OrdersRepository {
         clientWhatsappPhone: clientWhatsappPhones[index],
         network: networks[index],
         beneficiaryPhone: phones[index],
+        operationType: operationTypes[index],
         offerLabel: offers[index],
         amount: amounts[index],
-        paidAt: now.subtract(Duration(minutes: waitingMinutes[index])),
+        createdAt: paidAt.subtract(
+          const Duration(minutes: 2),
+        ),
+        paidAt: paidAt,
         status: QueueOrderStatus.paidReady,
       );
     });

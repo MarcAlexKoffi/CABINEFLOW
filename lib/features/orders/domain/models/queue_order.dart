@@ -1,11 +1,25 @@
-enum MobileNetwork { orange, mtn, moov }
+enum MobileNetwork {
+  orange,
+  mtn,
+  moov,
+}
+
+enum OrderOperationType {
+  internetSubscription,
+  unitTransfer,
+  callBundle,
+  mixedBundle,
+  other,
+}
 
 enum QueueOrderStatus {
+  awaitingPayment,
   paidReady,
   inProgress,
   awaitingCustomerConfirmation,
   completed,
   failed,
+  cancelled,
 }
 
 enum OrderFailureReason {
@@ -18,7 +32,11 @@ enum OrderFailureReason {
   other,
 }
 
-enum CustomerConfirmationStatus { pending, sent, skipped }
+enum CustomerConfirmationStatus {
+  pending,
+  sent,
+  skipped,
+}
 
 class QueueOrder {
   const QueueOrder({
@@ -28,10 +46,14 @@ class QueueOrder {
     required this.clientWhatsappPhone,
     required this.network,
     required this.beneficiaryPhone,
+    required this.operationType,
     required this.offerLabel,
     required this.amount,
-    required this.paidAt,
+    required this.createdAt,
     required this.status,
+    this.originalWhatsappMessage,
+    this.internalNotes,
+    this.paidAt,
     this.takenByUserId,
     this.takenAt,
     this.completedAt,
@@ -45,34 +67,35 @@ class QueueOrder {
   final String reference;
 
   final String clientName;
-
-  // Numéro WhatsApp du client ayant passé la commande.
   final String clientWhatsappPhone;
 
-  // Numéro qui reçoit réellement le forfait ou les unités.
-  final String beneficiaryPhone;
-
   final MobileNetwork network;
+  final String beneficiaryPhone;
+  final OrderOperationType operationType;
   final String offerLabel;
   final int amount;
-  final DateTime paidAt;
+
+  final String? originalWhatsappMessage;
+  final String? internalNotes;
+
+  final DateTime createdAt;
+  final DateTime? paidAt;
+
   final QueueOrderStatus status;
 
   final String? takenByUserId;
   final DateTime? takenAt;
-
-  // Heure à laquelle la transaction réseau a été terminée.
   final DateTime? completedAt;
 
   final OrderFailureReason? failureReason;
   final String? observation;
 
   final CustomerConfirmationStatus? customerConfirmationStatus;
-
   final DateTime? customerConfirmationCompletedAt;
 
   QueueOrder copyWith({
     QueueOrderStatus? status,
+    DateTime? paidAt,
     String? takenByUserId,
     DateTime? takenAt,
     DateTime? completedAt,
@@ -89,9 +112,13 @@ class QueueOrder {
       clientWhatsappPhone: clientWhatsappPhone,
       network: network,
       beneficiaryPhone: beneficiaryPhone,
+      operationType: operationType,
       offerLabel: offerLabel,
       amount: amount,
-      paidAt: paidAt,
+      originalWhatsappMessage: originalWhatsappMessage,
+      internalNotes: internalNotes,
+      createdAt: createdAt,
+      paidAt: paidAt ?? this.paidAt,
       status: status ?? this.status,
       takenByUserId: clearAssignment
           ? null
@@ -101,10 +128,11 @@ class QueueOrder {
       failureReason: failureReason ?? this.failureReason,
       observation: observation ?? this.observation,
       customerConfirmationStatus:
-          customerConfirmationStatus ?? this.customerConfirmationStatus,
+          customerConfirmationStatus ??
+              this.customerConfirmationStatus,
       customerConfirmationCompletedAt:
           customerConfirmationCompletedAt ??
-          this.customerConfirmationCompletedAt,
+              this.customerConfirmationCompletedAt,
     );
   }
 }
