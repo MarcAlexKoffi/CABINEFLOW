@@ -101,8 +101,6 @@ class _PaymentsPageState extends State<PaymentsPage> {
         return;
       }
 
-      widget.onPaymentConfirmed();
-
       _showMessage(
         'Le lien Wave de la commande ${order.reference} a été envoyé.',
       );

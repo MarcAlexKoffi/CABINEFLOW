@@ -2,17 +2,11 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:flutter/foundation.dart';
 
-enum PaymentOrderFilter {
-  all,
-  linkToSend,
-  awaitingPayment,
-  confirmed,
-}
+enum PaymentOrderFilter { all, linkToSend, awaitingPayment, confirmed }
 
 class PaymentsViewModel extends ChangeNotifier {
-  PaymentsViewModel({
-    required OrdersRepository ordersRepository,
-  }) : _ordersRepository = ordersRepository;
+  PaymentsViewModel({required OrdersRepository ordersRepository})
+    : _ordersRepository = ordersRepository;
 
   final OrdersRepository _ordersRepository;
 

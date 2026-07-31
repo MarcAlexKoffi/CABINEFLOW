@@ -4,9 +4,8 @@ import 'package:cabine_flow/features/payments/domain/models/payment_link_data.da
 import 'package:cabine_flow/features/payments/domain/repositories/payment_link_repository.dart';
 
 class WavePaymentLinkRepository implements PaymentLinkRepository {
-  const WavePaymentLinkRepository({
-    required WavePaymentLinkBuilder linkBuilder,
-  }) : _linkBuilder = linkBuilder;
+  const WavePaymentLinkRepository({required WavePaymentLinkBuilder linkBuilder})
+    : _linkBuilder = linkBuilder;
 
   final WavePaymentLinkBuilder _linkBuilder;
 
@@ -18,13 +17,9 @@ class WavePaymentLinkRepository implements PaymentLinkRepository {
       throw StateError('Cette commande n’est pas en attente de paiement.');
     }
 
-    await Future<void>.delayed(
-      const Duration(milliseconds: 350),
-    );
+    await Future<void>.delayed(const Duration(milliseconds: 350));
 
-    final Uri paymentUri = _linkBuilder.build(
-      amount: order.amount,
-    );
+    final Uri paymentUri = _linkBuilder.build(amount: order.amount);
 
     return PaymentLinkData(
       uri: paymentUri,

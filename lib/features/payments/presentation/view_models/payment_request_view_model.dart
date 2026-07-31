@@ -10,8 +10,8 @@ class PaymentRequestViewModel extends ChangeNotifier {
     required this.order,
     required PaymentLinkRepository paymentLinkRepository,
     required OrdersRepository ordersRepository,
-  })  : _paymentLinkRepository = paymentLinkRepository,
-        _ordersRepository = ordersRepository;
+  }) : _paymentLinkRepository = paymentLinkRepository,
+       _ordersRepository = ordersRepository;
 
   final QueueOrder order;
 
@@ -108,9 +108,7 @@ class PaymentRequestViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _ordersRepository.markPaymentRequestSent(
-        orderId: order.id,
-      );
+      await _ordersRepository.markPaymentRequestSent(orderId: order.id);
 
       return true;
     } catch (error) {
