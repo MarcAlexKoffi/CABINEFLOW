@@ -5,8 +5,7 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  const FakeCustomerOfferRepository repository =
-      FakeCustomerOfferRepository();
+  const FakeCustomerOfferRepository repository = FakeCustomerOfferRepository();
 
   group('FakeCustomerOfferRepository', () {
     test('retourne uniquement les offres Internet Orange', () async {
@@ -50,19 +49,21 @@ void main() {
       expect(offers, isEmpty);
     });
 
-    test('n’expose pas les offres MTN C’CHIC dans le catalogue public',
-        () async {
-      final List<CustomerOffer> offers = await repository.fetchOffers(
-        service: CustomerService.internetSubscription,
-        network: MobileNetwork.mtn,
-      );
+    test(
+      'n’expose pas les offres MTN C’CHIC dans le catalogue public',
+      () async {
+        final List<CustomerOffer> offers = await repository.fetchOffers(
+          service: CustomerService.internetSubscription,
+          network: MobileNetwork.mtn,
+        );
 
-      expect(
-        offers.any((CustomerOffer offer) {
-          return offer.catalogLabel.toLowerCase().contains('chic');
-        }),
-        isFalse,
-      );
-    });
+        expect(
+          offers.any((CustomerOffer offer) {
+            return offer.catalogLabel.toLowerCase().contains('chic');
+          }),
+          isFalse,
+        );
+      },
+    );
   });
 }

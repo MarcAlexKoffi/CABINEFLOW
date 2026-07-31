@@ -5,10 +5,7 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:flutter/material.dart';
 
 class CustomerNetworkPage extends StatelessWidget {
-  const CustomerNetworkPage({
-    super.key,
-    required this.viewModel,
-  });
+  const CustomerNetworkPage({super.key, required this.viewModel});
 
   final CustomerOrderViewModel viewModel;
 
@@ -144,13 +141,10 @@ class _NetworkOptionCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       label,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyLarge
-                          ?.copyWith(
-                            color: CustomerAppColors.onSurface,
-                            fontWeight: FontWeight.w600,
-                          ),
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: CustomerAppColors.onSurface,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),

@@ -7,11 +7,7 @@ class WhatsappPhoneNumber {
   final String normalized;
   final String localDigits;
 
-  static const Set<String> _mobilePrefixes = {
-    '01',
-    '05',
-    '07',
-  };
+  static const Set<String> _mobilePrefixes = {'01', '05', '07'};
 
   factory WhatsappPhoneNumber.parse(String input) {
     final String? validationError = validate(input);

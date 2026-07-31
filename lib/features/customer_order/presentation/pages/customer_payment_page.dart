@@ -29,9 +29,7 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
   bool _isOpeningWave = false;
 
   Uri get _paymentUri {
-    return widget.linkBuilder.build(
-      amount: widget.viewModel.draft.amount!,
-    );
+    return widget.linkBuilder.build(amount: widget.viewModel.draft.amount!);
   }
 
   Future<void> _openWave() async {
@@ -110,8 +108,8 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
       return;
     }
 
-    final bool successful =
-        await widget.viewModel.declarePaymentAndSubmitOrder();
+    final bool successful = await widget.viewModel
+        .declarePaymentAndSubmitOrder();
 
     if (!mounted || successful) {
       return;
@@ -126,9 +124,7 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
   void _showMessage(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -144,46 +140,33 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
             decoration: const BoxDecoration(
               color: CustomerAppColors.surface,
               border: Border.symmetric(
-                vertical: BorderSide(
-                  color: Color(0x33C2C6D8),
-                ),
+                vertical: BorderSide(color: Color(0x33C2C6D8)),
               ),
             ),
             child: SafeArea(
               child: Column(
                 children: [
-                  _PaymentTopBar(
-                    onBack: widget.viewModel.goBack,
-                  ),
+                  _PaymentTopBar(onBack: widget.viewModel.goBack),
                   Expanded(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(
-                        20,
-                        18,
-                        20,
-                        28,
-                      ),
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           const CustomerProgressIndicator(
                             currentStep: 7,
-                            totalSteps:
-                                CustomerOrderViewModel.totalSteps,
+                            totalSteps: CustomerOrderViewModel.totalSteps,
                           ),
                           const SizedBox(height: 34),
                           Text(
                             'Paiement de la commande',
-                            style: Theme.of(context)
-                                .textTheme
-                                .displaySmall,
+                            style: Theme.of(context).textTheme.displaySmall,
                           ),
                           const SizedBox(height: 8),
                           const Text(
                             'Vérifiez les détails avant de procéder au paiement.',
                             style: TextStyle(
-                              color:
-                                  CustomerAppColors.onSurfaceVariant,
+                              color: CustomerAppColors.onSurfaceVariant,
                               fontSize: 15,
                               height: 1.5,
                             ),
@@ -199,13 +182,11 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
                           Container(
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
-                              color: CustomerAppColors
-                                  .surfaceContainerLow,
+                              color: CustomerAppColors.surfaceContainerLow,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Row(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Icon(
                                   Icons.schedule_rounded,
@@ -219,8 +200,7 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
                                     'Après ce délai, une commande non validée '
                                     'pourra être annulée.',
                                     style: TextStyle(
-                                      color: CustomerAppColors
-                                          .onSurfaceVariant,
+                                      color: CustomerAppColors.onSurfaceVariant,
                                       fontSize: 12,
                                       height: 1.45,
                                     ),
@@ -248,8 +228,7 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
                   ),
                   _PaymentBottomActions(
                     isSubmitting: widget.viewModel.isSubmitting,
-                    isPaymentDeclarationEnabled:
-                        _paymentLinkWasOpened,
+                    isPaymentDeclarationEnabled: _paymentLinkWasOpened,
                     onBack: widget.viewModel.goBack,
                     onConfirm: _confirmPaymentDeclaration,
                   ),
@@ -333,14 +312,8 @@ class _PaymentSummaryCard extends StatelessWidget {
             value: '${formatCfa(draft.amount!)} CFA',
             isAmount: true,
           ),
-          _PaymentRow(
-            label: 'Réseau',
-            value: draft.network!.customerLabel,
-          ),
-          _PaymentRow(
-            label: 'Offre',
-            value: draft.selectedOfferLabel!,
-          ),
+          _PaymentRow(label: 'Réseau', value: draft.network!.customerLabel),
+          _PaymentRow(label: 'Offre', value: draft.selectedOfferLabel!),
           _PaymentRow(
             label: 'Numéro bénéficiaire',
             value: draft.beneficiaryNumber!.displayValue,
@@ -413,10 +386,7 @@ class _PaymentRow extends StatelessWidget {
 }
 
 class _WavePaymentButton extends StatelessWidget {
-  const _WavePaymentButton({
-    required this.isLoading,
-    required this.onPressed,
-  });
+  const _WavePaymentButton({required this.isLoading, required this.onPressed});
 
   final bool isLoading;
   final VoidCallback onPressed;
@@ -431,10 +401,7 @@ class _WavePaymentButton extends StatelessWidget {
         onTap: isLoading ? null : onPressed,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 24,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           child: Column(
             children: [
               if (isLoading)
@@ -515,8 +482,7 @@ class _PaymentBottomActions extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: FilledButton(
-                onPressed: isSubmitting ||
-                        !isPaymentDeclarationEnabled
+                onPressed: isSubmitting || !isPaymentDeclarationEnabled
                     ? null
                     : onConfirm,
                 child: isSubmitting

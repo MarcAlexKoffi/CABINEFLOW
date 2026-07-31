@@ -1,8 +1,4 @@
-enum CustomerService {
-  unitTransfer,
-  internetSubscription,
-  calls,
-}
+enum CustomerService { unitTransfer, internetSubscription, calls }
 
 extension CustomerServicePresentation on CustomerService {
   String get label {

@@ -11,9 +11,7 @@ class FakeCustomerOrderRepository implements CustomerOrderRepository {
   }) async {
     _validateDraft(draft);
 
-    await Future<void>.delayed(
-      const Duration(milliseconds: 650),
-    );
+    await Future<void>.delayed(const Duration(milliseconds: 650));
 
     final DateTime now = DateTime.now();
     _sequence++;
@@ -44,9 +42,7 @@ class FakeCustomerOrderRepository implements CustomerOrderRepository {
         draft.selectedOfferLabel == null ||
         (draft.amount ?? 0) <= 0 ||
         draft.beneficiaryNumber == null) {
-      throw StateError(
-        'La commande est incomplète. Revenez au récapitulatif.',
-      );
+      throw StateError('La commande est incomplète. Revenez au récapitulatif.');
     }
   }
 }

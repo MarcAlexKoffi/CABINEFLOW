@@ -54,8 +54,7 @@ class CustomerOrderReceipt {
       status: status ?? this.status,
       paymentConfirmedAt: paymentConfirmedAt ?? this.paymentConfirmedAt,
       transmittedAt: transmittedAt ?? this.transmittedAt,
-      processingStartedAt:
-          processingStartedAt ?? this.processingStartedAt,
+      processingStartedAt: processingStartedAt ?? this.processingStartedAt,
       completedAt: completedAt ?? this.completedAt,
       failureMessage: failureMessage ?? this.failureMessage,
     );

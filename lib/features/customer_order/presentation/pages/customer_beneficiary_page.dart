@@ -6,10 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class CustomerBeneficiaryPage extends StatefulWidget {
-  const CustomerBeneficiaryPage({
-    super.key,
-    required this.viewModel,
-  });
+  const CustomerBeneficiaryPage({super.key, required this.viewModel});
 
   final CustomerOrderViewModel viewModel;
 
@@ -19,8 +16,7 @@ class CustomerBeneficiaryPage extends StatefulWidget {
   }
 }
 
-class _CustomerBeneficiaryPageState
-    extends State<CustomerBeneficiaryPage> {
+class _CustomerBeneficiaryPageState extends State<CustomerBeneficiaryPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   late final TextEditingController _beneficiaryController;
@@ -35,13 +31,9 @@ class _CustomerBeneficiaryPageState
     final String initialValue =
         widget.viewModel.draft.beneficiaryNumber?.displayValue ?? '';
 
-    _beneficiaryController = TextEditingController(
-      text: initialValue,
-    );
+    _beneficiaryController = TextEditingController(text: initialValue);
 
-    _confirmationController = TextEditingController(
-      text: initialValue,
-    );
+    _confirmationController = TextEditingController(text: initialValue);
 
     _canContinue = _fieldsAreValidAndMatching();
   }
@@ -67,20 +59,17 @@ class _CustomerBeneficiaryPageState
       return formatError;
     }
 
-    if (BeneficiaryPhoneNumber.validate(
-          _beneficiaryController.text,
-        ) !=
-        null) {
+    if (BeneficiaryPhoneNumber.validate(_beneficiaryController.text) != null) {
       return null;
     }
 
-    final BeneficiaryPhoneNumber beneficiary =
-        BeneficiaryPhoneNumber.parse(
+    final BeneficiaryPhoneNumber beneficiary = BeneficiaryPhoneNumber.parse(
       _beneficiaryController.text,
     );
 
-    final BeneficiaryPhoneNumber confirmation =
-        BeneficiaryPhoneNumber.parse(value!);
+    final BeneficiaryPhoneNumber confirmation = BeneficiaryPhoneNumber.parse(
+      value!,
+    );
 
     if (beneficiary.normalized != confirmation.normalized) {
       return 'Les deux numéros ne correspondent pas.';
@@ -90,10 +79,7 @@ class _CustomerBeneficiaryPageState
   }
 
   bool _fieldsAreValidAndMatching() {
-    if (BeneficiaryPhoneNumber.validate(
-          _beneficiaryController.text,
-        ) !=
-        null) {
+    if (BeneficiaryPhoneNumber.validate(_beneficiaryController.text) != null) {
       return false;
     }
 
@@ -105,13 +91,11 @@ class _CustomerBeneficiaryPageState
       return false;
     }
 
-    final BeneficiaryPhoneNumber beneficiary =
-        BeneficiaryPhoneNumber.parse(
+    final BeneficiaryPhoneNumber beneficiary = BeneficiaryPhoneNumber.parse(
       _beneficiaryController.text,
     );
 
-    final BeneficiaryPhoneNumber confirmation =
-        BeneficiaryPhoneNumber.parse(
+    final BeneficiaryPhoneNumber confirmation = BeneficiaryPhoneNumber.parse(
       _confirmationController.text,
     );
 
@@ -147,11 +131,7 @@ class _CustomerBeneficiaryPageState
     } on FormatException catch (error) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(error.message.toString()),
-          ),
-        );
+        ..showSnackBar(SnackBar(content: Text(error.message.toString())));
     }
   }
 
@@ -161,8 +141,7 @@ class _CustomerBeneficiaryPageState
       currentStep: 5,
       totalSteps: CustomerOrderViewModel.totalSteps,
       title: 'Quel numéro doit recevoir la commande ?',
-      subtitle:
-          'Vérifiez attentivement le numéro avant de continuer.',
+      subtitle: 'Vérifiez attentivement le numéro avant de continuer.',
       onTopBack: widget.viewModel.goBack,
       onBottomBack: widget.viewModel.goBack,
       onContinue: _continue,
@@ -189,30 +168,22 @@ class _CustomerBeneficiaryPageState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const _FieldLabel(
-                text: 'Numéro bénéficiaire',
-              ),
+              const _FieldLabel(text: 'Numéro bénéficiaire'),
               TextFormField(
                 controller: _beneficiaryController,
                 keyboardType: TextInputType.phone,
                 textInputAction: TextInputAction.next,
-                autofillHints: const [
-                  AutofillHints.telephoneNumber,
-                ],
+                autofillHints: const [AutofillHints.telephoneNumber],
                 inputFormatters: _phoneInputFormatters,
                 decoration: const InputDecoration(
                   hintText: 'Ex. 07 00 00 00 00',
-                  prefixIcon: Icon(
-                    Icons.phone_android_rounded,
-                  ),
+                  prefixIcon: Icon(Icons.phone_android_rounded),
                 ),
                 validator: _validateBeneficiary,
                 onChanged: _refreshContinueAvailability,
               ),
               const SizedBox(height: 22),
-              const _FieldLabel(
-                text: 'Confirmez le numéro',
-              ),
+              const _FieldLabel(text: 'Confirmez le numéro'),
               TextFormField(
                 controller: _confirmationController,
                 keyboardType: TextInputType.phone,
@@ -220,9 +191,7 @@ class _CustomerBeneficiaryPageState
                 inputFormatters: _phoneInputFormatters,
                 decoration: const InputDecoration(
                   hintText: 'Saisissez à nouveau le numéro',
-                  prefixIcon: Icon(
-                    Icons.dialpad_rounded,
-                  ),
+                  prefixIcon: Icon(Icons.dialpad_rounded),
                 ),
                 validator: _validateConfirmation,
                 onChanged: _refreshContinueAvailability,
@@ -242,17 +211,13 @@ class _CustomerBeneficiaryPageState
   }
 
   static final List<TextInputFormatter> _phoneInputFormatters = [
-    FilteringTextInputFormatter.allow(
-      RegExp(r'[0-9+ ()-]'),
-    ),
+    FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ()-]')),
     LengthLimitingTextInputFormatter(24),
   ];
 }
 
 class _FieldLabel extends StatelessWidget {
-  const _FieldLabel({
-    required this.text,
-  });
+  const _FieldLabel({required this.text});
 
   final String text;
 
@@ -260,10 +225,7 @@ class _FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        text,
-        style: Theme.of(context).textTheme.labelLarge,
-      ),
+      child: Text(text, style: Theme.of(context).textTheme.labelLarge),
     );
   }
 }

@@ -9,10 +9,7 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:flutter/material.dart';
 
 class CustomerStepPlaceholderPage extends StatelessWidget {
-  const CustomerStepPlaceholderPage({
-    super.key,
-    required this.viewModel,
-  });
+  const CustomerStepPlaceholderPage({super.key, required this.viewModel});
 
   final CustomerOrderViewModel viewModel;
 
@@ -37,12 +34,9 @@ class CustomerStepPlaceholderPage extends StatelessWidget {
     final CustomerOffer? offer = viewModel.draft.offer;
     final int? amount = viewModel.draft.amount;
 
-    final String selectedProduct =
-        service == CustomerService.unitTransfer
-            ? 'Transfert d’unités'
-            : viewModel.draft.selectedOfferLabel ??
-                offer?.catalogLabel ??
-                '—';
+    final String selectedProduct = service == CustomerService.unitTransfer
+        ? 'Transfert d’unités'
+        : viewModel.draft.selectedOfferLabel ?? offer?.catalogLabel ?? '—';
 
     return CustomerFlowScaffold(
       currentStep: 6,
@@ -59,9 +53,7 @@ class CustomerStepPlaceholderPage extends StatelessWidget {
         decoration: BoxDecoration(
           color: CustomerAppColors.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: CustomerAppColors.surfaceContainerHighest,
-          ),
+          border: Border.all(color: CustomerAppColors.surfaceContainerHighest),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,26 +67,14 @@ class CustomerStepPlaceholderPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 14),
-            _DraftLine(
-              label: 'Nom',
-              value: identity?.name ?? '—',
-            ),
+            _DraftLine(label: 'Nom', value: identity?.name ?? '—'),
             _DraftLine(
               label: 'WhatsApp',
               value: identity?.whatsappNumber.displayValue ?? '—',
             ),
-            _DraftLine(
-              label: 'Service',
-              value: service?.label ?? '—',
-            ),
-            _DraftLine(
-              label: 'Réseau',
-              value: _networkLabel(network),
-            ),
-            _DraftLine(
-              label: 'Offre',
-              value: selectedProduct,
-            ),
+            _DraftLine(label: 'Service', value: service?.label ?? '—'),
+            _DraftLine(label: 'Réseau', value: _networkLabel(network)),
+            _DraftLine(label: 'Offre', value: selectedProduct),
             _DraftLine(
               label: 'Montant',
               value: amount == null ? '—' : '${formatCfa(amount)} CFA',
@@ -128,9 +108,7 @@ class _DraftLine extends StatelessWidget {
       padding: EdgeInsets.only(bottom: isLast ? 0 : 8),
       child: Text(
         '$label : $value',
-        style: const TextStyle(
-          color: CustomerAppColors.onSurfaceVariant,
-        ),
+        style: const TextStyle(color: CustomerAppColors.onSurfaceVariant),
       ),
     );
   }

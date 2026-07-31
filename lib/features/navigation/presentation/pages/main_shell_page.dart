@@ -65,19 +65,19 @@ class _MainShellPageState extends State<MainShellPage> {
   }
 
   Future<void> _openCreateOrderPage() async {
-    final CreateOrderPageResult? result =
-        await Navigator.of(context).push<CreateOrderPageResult>(
-      MaterialPageRoute<CreateOrderPageResult>(
-        fullscreenDialog: true,
-        builder: (BuildContext routeContext) {
-          return CreateOrderPage(
-            user: widget.user,
-            ordersRepository: widget.ordersRepository,
-            offerCatalogRepository: widget.offerCatalogRepository,
-          );
-        },
-      ),
-    );
+    final CreateOrderPageResult? result = await Navigator.of(context)
+        .push<CreateOrderPageResult>(
+          MaterialPageRoute<CreateOrderPageResult>(
+            fullscreenDialog: true,
+            builder: (BuildContext routeContext) {
+              return CreateOrderPage(
+                user: widget.user,
+                ordersRepository: widget.ordersRepository,
+                offerCatalogRepository: widget.offerCatalogRepository,
+              );
+            },
+          ),
+        );
 
     if (!mounted || result == null) {
       return;
@@ -92,9 +92,7 @@ class _MainShellPageState extends State<MainShellPage> {
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
-            content: Text(
-              'Commande ${result.order.reference} enregistrée.',
-            ),
+            content: Text('Commande ${result.order.reference} enregistrée.'),
           ),
         );
 
@@ -136,11 +134,7 @@ class _MainShellPageState extends State<MainShellPage> {
 
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-        ),
-      );
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   bool get _showCreateOrderButton {

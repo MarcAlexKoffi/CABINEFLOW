@@ -1,5 +1,5 @@
 import 'package:cabine_flow/features/customer_order/data/repositories/fake_customer_offer_repository.dart';
-import 'package:cabine_flow/features/customer_order/data/repositories/fake_customer_order_repository.dart';
+import 'package:cabine_flow/features/customer_order/data/repositories/firestore_customer_order_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_offer_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_repository.dart';
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_beneficiary_page.dart';
@@ -29,14 +29,12 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
       const FakeCustomerOfferRepository();
 
   final CustomerOrderRepository _orderRepository =
-      FakeCustomerOrderRepository();
+      FirestoreCustomerOrderRepository();
 
   @override
   void initState() {
     super.initState();
-    _viewModel = CustomerOrderViewModel(
-      orderRepository: _orderRepository,
-    );
+    _viewModel = CustomerOrderViewModel(orderRepository: _orderRepository);
   }
 
   @override

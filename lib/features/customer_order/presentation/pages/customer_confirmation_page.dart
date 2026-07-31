@@ -6,10 +6,7 @@ import 'package:cabine_flow/features/customer_order/presentation/widgets/custome
 import 'package:flutter/material.dart';
 
 class CustomerConfirmationPage extends StatelessWidget {
-  const CustomerConfirmationPage({
-    super.key,
-    required this.viewModel,
-  });
+  const CustomerConfirmationPage({super.key, required this.viewModel});
 
   final CustomerOrderViewModel viewModel;
 
@@ -26,9 +23,7 @@ class CustomerConfirmationPage extends StatelessWidget {
             decoration: const BoxDecoration(
               color: CustomerAppColors.surface,
               border: Border.symmetric(
-                vertical: BorderSide(
-                  color: Color(0x33C2C6D8),
-                ),
+                vertical: BorderSide(color: Color(0x33C2C6D8)),
               ),
             ),
             child: SafeArea(
@@ -37,12 +32,7 @@ class CustomerConfirmationPage extends StatelessWidget {
                   const _ConfirmationTopBar(),
                   Expanded(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(
-                        20,
-                        18,
-                        20,
-                        34,
-                      ),
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 34),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -243,14 +233,8 @@ class _TransactionDetailsCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          _DetailRow(
-            label: 'Réseau',
-            value: draft.network!.customerLabel,
-          ),
-          _DetailRow(
-            label: 'Offre',
-            value: draft.selectedOfferLabel!,
-          ),
+          _DetailRow(label: 'Réseau', value: draft.network!.customerLabel),
+          _DetailRow(label: 'Offre', value: draft.selectedOfferLabel!),
           _DetailRow(
             label: 'Numéro bénéficiaire',
             value: draft.beneficiaryNumber!.displayValue,
@@ -353,14 +337,12 @@ class _TrackingCard extends StatelessWidget {
           ),
           const _TrackingStep(
             title: 'Vérification du paiement',
-            subtitle:
-                'L’opérateur vérifie la transaction dans Wave.',
+            subtitle: 'L’opérateur vérifie la transaction dans Wave.',
             state: _TrackingStepState.active,
           ),
           const _TrackingStep(
             title: 'Commande transmise',
-            subtitle:
-                'La commande sera ajoutée à la file après validation.',
+            subtitle: 'La commande sera ajoutée à la file après validation.',
             state: _TrackingStepState.pending,
           ),
           const _TrackingStep(
@@ -425,27 +407,26 @@ class _TrackingStep extends StatelessWidget {
                           color: Colors.white,
                         )
                       : active
-                          ? const Center(
-                              child: SizedBox(
-                                width: 7,
-                                height: 7,
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
+                      ? const Center(
+                          child: SizedBox(
+                            width: 7,
+                            height: 7,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
                               ),
-                            )
-                          : null,
+                            ),
+                          ),
+                        )
+                      : null,
                 ),
                 if (!isLast)
                   Expanded(
                     child: Container(
                       width: 2,
                       margin: const EdgeInsets.symmetric(vertical: 4),
-                      color: CustomerAppColors
-                          .surfaceContainerHighest,
+                      color: CustomerAppColors.surfaceContainerHighest,
                     ),
                   ),
               ],
@@ -454,9 +435,7 @@ class _TrackingStep extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Padding(
-              padding: EdgeInsets.only(
-                bottom: isLast ? 0 : 24,
-              ),
+              padding: EdgeInsets.only(bottom: isLast ? 0 : 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -466,8 +445,8 @@ class _TrackingStep extends StatelessWidget {
                       color: active
                           ? CustomerAppColors.success
                           : state == _TrackingStepState.pending
-                              ? CustomerAppColors.onSurfaceVariant
-                              : CustomerAppColors.onSurface,
+                          ? CustomerAppColors.onSurfaceVariant
+                          : CustomerAppColors.onSurface,
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                     ),
@@ -477,8 +456,7 @@ class _TrackingStep extends StatelessWidget {
                     Text(
                       subtitle!,
                       style: const TextStyle(
-                        color:
-                            CustomerAppColors.onSurfaceVariant,
+                        color: CustomerAppColors.onSurfaceVariant,
                         fontSize: 11,
                         height: 1.4,
                       ),

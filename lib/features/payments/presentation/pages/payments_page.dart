@@ -39,9 +39,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
   void initState() {
     super.initState();
 
-    _viewModel = PaymentsViewModel(
-      ordersRepository: widget.ordersRepository,
-    );
+    _viewModel = PaymentsViewModel(ordersRepository: widget.ordersRepository);
 
     _viewModel.loadPayments();
   }
@@ -71,9 +69,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
   void _showMessage(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _openPaymentLinkPage(QueueOrder order) async {
@@ -117,11 +113,10 @@ class _PaymentsPageState extends State<PaymentsPage> {
       backgroundColor: Colors.transparent,
       builder: (BuildContext sheetContext) {
         return StatefulBuilder(
-          builder: (
-            BuildContext context,
-            StateSetter setSheetState,
-          ) {
-            final double keyboardHeight = MediaQuery.viewInsetsOf(context).bottom;
+          builder: (BuildContext context, StateSetter setSheetState) {
+            final double keyboardHeight = MediaQuery.viewInsetsOf(
+              context,
+            ).bottom;
 
             return AnimatedPadding(
               duration: const Duration(milliseconds: 180),
@@ -251,9 +246,9 @@ class _PaymentsPageState extends State<PaymentsPage> {
                       FilledButton.icon(
                         onPressed: paymentWasChecked
                             ? () {
-                                Navigator.of(sheetContext).pop(
-                                  referenceController.text.trim(),
-                                );
+                                Navigator.of(
+                                  sheetContext,
+                                ).pop(referenceController.text.trim());
                               }
                             : null,
                         icon: const Icon(Icons.verified_rounded),
@@ -284,8 +279,9 @@ class _PaymentsPageState extends State<PaymentsPage> {
 
     final bool successful = await _viewModel.confirmPayment(
       order: order,
-      paymentReference:
-          paymentReference.trim().isEmpty ? null : paymentReference,
+      paymentReference: paymentReference.trim().isEmpty
+          ? null
+          : paymentReference,
     );
 
     if (!mounted) {
@@ -330,10 +326,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                   },
                 ),
               ),
-              Divider(
-                height: 1,
-                color: AppColors.outlineVariant.withAlpha(70),
-              ),
+              Divider(height: 1, color: AppColors.outlineVariant.withAlpha(70)),
               Expanded(
                 child: RefreshIndicator(
                   onRefresh: _viewModel.loadPayments,
@@ -343,45 +336,40 @@ class _PaymentsPageState extends State<PaymentsPage> {
                     children: [
                       Text(
                         'Suivi des paiements',
-                        style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
+                        style: Theme.of(context).textTheme.headlineLarge
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 5),
                       const Text(
                         'Vérification manuelle des paiements Wave',
-                        style: TextStyle(
-                          color: AppColors.onSurfaceVariant,
-                        ),
+                        style: TextStyle(color: AppColors.onSurfaceVariant),
                       ),
                       const SizedBox(height: 16),
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Row(
-                          children: PaymentOrderFilter.values.map(
-                            (PaymentOrderFilter filter) {
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: PaymentFilterPill(
-                                  label: _filterLabel(filter),
-                                  count: _viewModel.countForFilter(filter),
-                                  isSelected: _viewModel.selectedFilter == filter,
-                                  onPressed: () {
-                                    _viewModel.selectFilter(filter);
-                                  },
-                                ),
-                              );
-                            },
-                          ).toList(),
+                          children: PaymentOrderFilter.values.map((
+                            PaymentOrderFilter filter,
+                          ) {
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: PaymentFilterPill(
+                                label: _filterLabel(filter),
+                                count: _viewModel.countForFilter(filter),
+                                isSelected: _viewModel.selectedFilter == filter,
+                                onPressed: () {
+                                  _viewModel.selectFilter(filter);
+                                },
+                              ),
+                            );
+                          }).toList(),
                         ),
                       ),
                       const SizedBox(height: 18),
                       if (_viewModel.isLoading && _viewModel.allOrders.isEmpty)
                         const SizedBox(
                           height: 300,
-                          child: Center(
-                            child: CircularProgressIndicator(),
-                          ),
+                          child: Center(child: CircularProgressIndicator()),
                         )
                       else if (_viewModel.errorMessage != null &&
                           _viewModel.allOrders.isEmpty)
@@ -421,10 +409,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
 }
 
 class _PaymentsErrorState extends StatelessWidget {
-  const _PaymentsErrorState({
-    required this.message,
-    required this.onRetry,
-  });
+  const _PaymentsErrorState({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;
@@ -439,21 +424,11 @@ class _PaymentsErrorState extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Icon(
-            Icons.cloud_off_rounded,
-            size: 46,
-            color: AppColors.error,
-          ),
+          const Icon(Icons.cloud_off_rounded, size: 46, color: AppColors.error),
           const SizedBox(height: 12),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-          ),
+          Text(message, textAlign: TextAlign.center),
           const SizedBox(height: 14),
-          FilledButton(
-            onPressed: onRetry,
-            child: const Text('Réessayer'),
-          ),
+          FilledButton(onPressed: onRetry, child: const Text('Réessayer')),
         ],
       ),
     );
@@ -470,17 +445,11 @@ class _PaymentsEmptyState extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(
-          color: AppColors.outlineVariant.withAlpha(70),
-        ),
+        border: Border.all(color: AppColors.outlineVariant.withAlpha(70)),
       ),
       child: const Column(
         children: [
-          Icon(
-            Icons.payments_outlined,
-            size: 46,
-            color: AppColors.primary,
-          ),
+          Icon(Icons.payments_outlined, size: 46, color: AppColors.primary),
           SizedBox(height: 12),
           Text(
             'Aucun paiement dans cette catégorie.',

@@ -7,10 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class CustomerIdentificationPage extends StatefulWidget {
-  const CustomerIdentificationPage({
-    super.key,
-    required this.viewModel,
-  });
+  const CustomerIdentificationPage({super.key, required this.viewModel});
 
   final CustomerOrderViewModel viewModel;
 
@@ -33,9 +30,7 @@ class _CustomerIdentificationPageState
 
     final CustomerIdentity? identity = widget.viewModel.draft.identity;
 
-    _nameController = TextEditingController(
-      text: identity?.name ?? '',
-    );
+    _nameController = TextEditingController(text: identity?.name ?? '');
 
     _whatsappController = TextEditingController(
       text: identity?.whatsappNumber.displayValue ?? '',
@@ -88,8 +83,7 @@ class _CustomerIdentificationPageState
       currentStep: 1,
       totalSteps: CustomerOrderViewModel.totalSteps,
       title: 'Passez votre commande',
-      subtitle:
-          'Indiquez simplement votre nom et votre numéro WhatsApp.',
+      subtitle: 'Indiquez simplement votre nom et votre numéro WhatsApp.',
       onTopBack: () {
         Navigator.of(context).maybePop();
       },
@@ -138,9 +132,7 @@ class _CustomerIdentificationPageState
                 textInputAction: TextInputAction.done,
                 autofillHints: const [AutofillHints.telephoneNumber],
                 inputFormatters: [
-                  FilteringTextInputFormatter.allow(
-                    RegExp(r'[0-9+ ()-]'),
-                  ),
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ()-]')),
                   LengthLimitingTextInputFormatter(24),
                 ],
                 decoration: const InputDecoration(
@@ -161,9 +153,7 @@ class _CustomerIdentificationPageState
 }
 
 class _FieldLabel extends StatelessWidget {
-  const _FieldLabel({
-    required this.text,
-  });
+  const _FieldLabel({required this.text});
 
   final String text;
 
@@ -171,10 +161,7 @@ class _FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        text,
-        style: Theme.of(context).textTheme.labelLarge,
-      ),
+      child: Text(text, style: Theme.of(context).textTheme.labelLarge),
     );
   }
 }

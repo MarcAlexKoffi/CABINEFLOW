@@ -1,0 +1,118 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isStaff() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+          in ['operator', 'admin'];
+    }
+
+    function isOrderOwner() {
+      return isSignedIn()
+        && resource.data.customerAuthUid == request.auth.uid;
+    }
+
+    function hasValidCustomerOrderKeys() {
+      return request.resource.data.keys().hasOnly([
+        'schemaVersion',
+        'reference',
+        'source',
+        'customerAuthUid',
+        'clientName',
+        'clientWhatsappPhone',
+        'service',
+        'network',
+        'operationType',
+        'offerId',
+        'offerLabel',
+        'isCustomOffer',
+        'amount',
+        'beneficiaryPhone',
+        'status',
+        'paymentStatus',
+        'createdAt',
+        'updatedAt',
+        'paymentRequestSentAt',
+        'paymentDeclaredAt',
+        'expiresAt',
+        'paymentConfirmedAt',
+        'paidAt',
+        'paymentReference',
+        'originalWhatsappMessage',
+        'internalNotes',
+        'takenByUserId',
+        'takenAt',
+        'completedAt',
+        'failureReason',
+        'observation',
+        'customerConfirmationStatus',
+        'customerConfirmationCompletedAt'
+      ]);
+    }
+
+    function isValidCustomerOrderCreation() {
+      return isSignedIn()
+        && hasValidCustomerOrderKeys()
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.source == 'customerWeb'
+        && request.resource.data.customerAuthUid == request.auth.uid
+        && request.resource.data.reference is string
+        && request.resource.data.reference.size() >= 12
+        && request.resource.data.clientName is string
+        && request.resource.data.clientName.size() >= 2
+        && request.resource.data.clientName.size() <= 80
+        && request.resource.data.clientWhatsappPhone is string
+        && request.resource.data.service
+          in ['unitTransfer', 'internetSubscription', 'calls']
+        && request.resource.data.network in ['orange', 'mtn', 'moov']
+        && request.resource.data.operationType
+          in ['unitTransfer', 'internetSubscription', 'callBundle', 'mixedBundle']
+        && request.resource.data.offerLabel is string
+        && request.resource.data.offerLabel.size() >= 2
+        && request.resource.data.offerLabel.size() <= 200
+        && request.resource.data.isCustomOffer is bool
+        && request.resource.data.amount is int
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 1000000
+        && request.resource.data.beneficiaryPhone is string
+        && request.resource.data.status == 'awaitingPayment'
+        && request.resource.data.paymentStatus == 'declared'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.paymentRequestSentAt == request.time
+        && request.resource.data.paymentDeclaredAt == request.time
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.paymentConfirmedAt == null
+        && request.resource.data.paidAt == null
+        && request.resource.data.paymentReference == null
+        && request.resource.data.takenByUserId == null
+        && request.resource.data.takenAt == null
+        && request.resource.data.completedAt == null
+        && request.resource.data.failureReason == null
+        && request.resource.data.observation == null
+        && request.resource.data.customerConfirmationStatus == 'pending'
+        && request.resource.data.customerConfirmationCompletedAt == null;
+    }
+
+    match /orders/{orderId} {
+      allow create: if isValidCustomerOrderCreation();
+      allow get: if isOrderOwner() || isStaff();
+      allow list: if isStaff();
+      allow update: if isStaff();
+      allow delete: if false;
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn()
+        && (request.auth.uid == userId || isStaff());
+      allow list: if isStaff();
+      allow create, update, delete: if false;
+    }
+  }
+}

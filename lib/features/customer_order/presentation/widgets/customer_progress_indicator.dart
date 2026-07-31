@@ -31,10 +31,7 @@ class CustomerProgressIndicator extends StatelessWidget {
         const SizedBox(height: 8),
         ClipRRect(
           borderRadius: BorderRadius.circular(999),
-          child: LinearProgressIndicator(
-            minHeight: 4,
-            value: progress,
-          ),
+          child: LinearProgressIndicator(minHeight: 4, value: progress),
         ),
       ],
     );

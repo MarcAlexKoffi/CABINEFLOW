@@ -40,8 +40,8 @@ class CustomerFlowScaffold extends StatelessWidget {
     final String? normalizedSubtitle = subtitle?.trim();
     final String? visibleSubtitle =
         normalizedSubtitle == null || normalizedSubtitle.isEmpty
-            ? null
-            : normalizedSubtitle;
+        ? null
+        : normalizedSubtitle;
 
     return Scaffold(
       backgroundColor: CustomerAppColors.background,
@@ -52,9 +52,7 @@ class CustomerFlowScaffold extends StatelessWidget {
             decoration: const BoxDecoration(
               color: CustomerAppColors.surface,
               border: Border.symmetric(
-                vertical: BorderSide(
-                  color: Color(0x33C2C6D8),
-                ),
+                vertical: BorderSide(color: Color(0x33C2C6D8)),
               ),
             ),
             child: SafeArea(
@@ -63,61 +61,59 @@ class CustomerFlowScaffold extends StatelessWidget {
                   _CustomerTopBar(onBack: onTopBack),
                   Expanded(
                     child: LayoutBuilder(
-                      builder: (
-                        BuildContext context,
-                        BoxConstraints constraints,
-                      ) {
-                        return SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(
-                            20,
-                            18,
-                            20,
-                            24,
-                          ),
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              minHeight: constraints.maxHeight - 42,
-                            ),
-                            child: IntrinsicHeight(
-                              child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.stretch,
-                                children: [
-                                  CustomerProgressIndicator(
-                                    currentStep: currentStep,
-                                    totalSteps: totalSteps,
-                                  ),
-                                  const SizedBox(height: 34),
-                                  Text(
-                                    title,
-                                    textAlign: titleTextAlign,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .displaySmall,
-                                  ),
-                                  if (visibleSubtitle != null) ...[
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      visibleSubtitle,
-                                      textAlign: titleTextAlign,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyLarge,
-                                    ),
-                                  ],
-                                  const SizedBox(height: 26),
-                                  content,
-                                  if (footer != null) ...[
-                                    const Spacer(),
-                                    const SizedBox(height: 36),
-                                    footer!,
-                                  ],
-                                ],
+                      builder:
+                          (BuildContext context, BoxConstraints constraints) {
+                            return SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(
+                                20,
+                                18,
+                                20,
+                                24,
                               ),
-                            ),
-                          ),
-                        );
-                      },
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minHeight: constraints.maxHeight - 42,
+                                ),
+                                child: IntrinsicHeight(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      CustomerProgressIndicator(
+                                        currentStep: currentStep,
+                                        totalSteps: totalSteps,
+                                      ),
+                                      const SizedBox(height: 34),
+                                      Text(
+                                        title,
+                                        textAlign: titleTextAlign,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.displaySmall,
+                                      ),
+                                      if (visibleSubtitle != null) ...[
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          visibleSubtitle,
+                                          textAlign: titleTextAlign,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodyLarge,
+                                        ),
+                                      ],
+                                      const SizedBox(height: 26),
+                                      content,
+                                      if (footer != null) ...[
+                                        const Spacer(),
+                                        const SizedBox(height: 36),
+                                        footer!,
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                     ),
                   ),
                   CustomerBottomActions(
@@ -138,9 +134,7 @@ class CustomerFlowScaffold extends StatelessWidget {
 }
 
 class _CustomerTopBar extends StatelessWidget {
-  const _CustomerTopBar({
-    required this.onBack,
-  });
+  const _CustomerTopBar({required this.onBack});
 
   final VoidCallback? onBack;
 

@@ -73,11 +73,7 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
       return;
     }
 
-    await Clipboard.setData(
-      ClipboardData(
-        text: paymentLink,
-      ),
-    );
+    await Clipboard.setData(ClipboardData(text: paymentLink));
 
     if (!mounted) {
       return;
@@ -87,11 +83,7 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
   }
 
   Future<void> _copyPaymentMessage() async {
-    await Clipboard.setData(
-      ClipboardData(
-        text: _viewModel.paymentMessage,
-      ),
-    );
+    await Clipboard.setData(ClipboardData(text: _viewModel.paymentMessage));
 
     if (!mounted) {
       return;
@@ -104,9 +96,7 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
     final Uri whatsappUri = Uri.https(
       'wa.me',
       '/$_normalizedWhatsappPhone',
-      <String, String>{
-        'text': _viewModel.paymentMessage,
-      },
+      <String, String>{'text': _viewModel.paymentMessage},
     );
 
     final bool wasOpened = await launchUrl(
@@ -119,9 +109,7 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
     }
 
     if (!wasOpened) {
-      _showMessage(
-        'Impossible d’ouvrir WhatsApp.',
-      );
+      _showMessage('Impossible d’ouvrir WhatsApp.');
     }
   }
 
@@ -130,9 +118,7 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text(
-            'Lien envoyé',
-          ),
+          title: const Text('Lien envoyé'),
           content: Text(
             'Confirme que le lien Wave de la commande '
             '${widget.order.reference} a bien été envoyé '
@@ -180,11 +166,7 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
   void _showMessage(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-        ),
-      );
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -206,9 +188,7 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
                   height: 1,
                   color: AppColors.outlineVariant.withAlpha(80),
                 ),
-                Expanded(
-                  child: _buildBody(),
-                ),
+                Expanded(child: _buildBody()),
               ],
             ),
           ),
@@ -219,13 +199,10 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
 
   Widget _buildBody() {
     if (_viewModel.isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
-    if (_viewModel.errorMessage != null &&
-        _viewModel.paymentLinkData == null) {
+    if (_viewModel.errorMessage != null && _viewModel.paymentLinkData == null) {
       return _WaveErrorState(
         message: _viewModel.errorMessage!,
         onRetry: _viewModel.initialize,
@@ -234,9 +211,7 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
 
     final String paymentLink = _viewModel.paymentLinkData?.url ?? '';
 
-    debugPrint(
-      'MESSAGE WAVE : ${_viewModel.paymentMessage}',
-    );
+    debugPrint('MESSAGE WAVE : ${_viewModel.paymentMessage}');
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
@@ -303,13 +278,8 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
               color: AppColors.surfaceContainerLow,
               borderRadius: BorderRadius.circular(14),
               border: Border(
-                left: const BorderSide(
-                  color: AppColors.primary,
-                  width: 4,
-                ),
-                top: BorderSide(
-                  color: AppColors.outlineVariant.withAlpha(80),
-                ),
+                left: const BorderSide(color: AppColors.primary, width: 4),
+                top: BorderSide(color: AppColors.outlineVariant.withAlpha(80)),
                 right: BorderSide(
                   color: AppColors.outlineVariant.withAlpha(80),
                 ),
@@ -342,34 +312,29 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(56),
               foregroundColor: const Color(0xFF25D366),
-              side: const BorderSide(
-                color: Color(0x6625D366),
-              ),
+              side: const BorderSide(color: Color(0x6625D366)),
             ),
-            icon: const Icon(
-              Icons.chat_rounded,
-            ),
-            label: const Text(
-              'Ouvrir WhatsApp',
-            ),
+            icon: const Icon(Icons.chat_rounded),
+            label: const Text('Ouvrir WhatsApp'),
           ),
           const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: _viewModel.isSubmitting ? null : _copyPaymentMessage,
-                  icon: const Icon(
-                    Icons.content_copy_rounded,
-                    size: 18,
-                  ),
+                  onPressed: _viewModel.isSubmitting
+                      ? null
+                      : _copyPaymentMessage,
+                  icon: const Icon(Icons.content_copy_rounded, size: 18),
                   label: const Text('Copier'),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: _viewModel.isSubmitting ? null : _confirmLinkWasSent,
+                  onPressed: _viewModel.isSubmitting
+                      ? null
+                      : _confirmLinkWasSent,
                   icon: _viewModel.isSubmitting
                       ? const SizedBox(
                           width: 18,
@@ -379,12 +344,11 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
                             color: AppColors.onPrimary,
                           ),
                         )
-                      : const Icon(
-                          Icons.check_circle_rounded,
-                          size: 18,
-                        ),
+                      : const Icon(Icons.check_circle_rounded, size: 18),
                   label: Text(
-                    _viewModel.isSubmitting ? 'Enregistrement...' : 'Marquer envoyé',
+                    _viewModel.isSubmitting
+                        ? 'Enregistrement...'
+                        : 'Marquer envoyé',
                   ),
                 ),
               ),
@@ -406,9 +370,7 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
 }
 
 class _WaveTopBar extends StatelessWidget {
-  const _WaveTopBar({
-    required this.onBackPressed,
-  });
+  const _WaveTopBar({required this.onBackPressed});
 
   final VoidCallback onBackPressed;
 
@@ -416,10 +378,7 @@ class _WaveTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: AppColors.background,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       child: Row(
         children: [
           IconButton(
@@ -435,9 +394,9 @@ class _WaveTopBar extends StatelessWidget {
               'Envoi du lien Wave',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w700,
-                  ),
+                color: AppColors.primary,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           const SizedBox(width: 48),
@@ -448,10 +407,7 @@ class _WaveTopBar extends StatelessWidget {
 }
 
 class _WaveLinkCard extends StatelessWidget {
-  const _WaveLinkCard({
-    required this.paymentLink,
-    required this.onCopyPressed,
-  });
+  const _WaveLinkCard({required this.paymentLink, required this.onCopyPressed});
 
   final String paymentLink;
   final VoidCallback onCopyPressed;
@@ -463,9 +419,7 @@ class _WaveLinkCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surfaceContainer,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: AppColors.outlineVariant,
-        ),
+        border: Border.all(color: AppColors.outlineVariant),
         boxShadow: const [
           BoxShadow(
             color: Color(0x55000000),
@@ -510,9 +464,7 @@ class _WaveLinkCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.surfaceContainerLowest,
               borderRadius: BorderRadius.circular(9),
-              border: Border.all(
-                color: AppColors.outlineVariant,
-              ),
+              border: Border.all(color: AppColors.outlineVariant),
             ),
             child: Row(
               children: [
@@ -547,10 +499,7 @@ class _WaveLinkCard extends StatelessWidget {
 }
 
 class _WaveErrorState extends StatelessWidget {
-  const _WaveErrorState({
-    required this.message,
-    required this.onRetry,
-  });
+  const _WaveErrorState({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;
@@ -569,15 +518,9 @@ class _WaveErrorState extends StatelessWidget {
               color: AppColors.error,
             ),
             const SizedBox(height: 14),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-            ),
+            Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 16),
-            FilledButton(
-              onPressed: onRetry,
-              child: const Text('Réessayer'),
-            ),
+            FilledButton(onPressed: onRetry, child: const Text('Réessayer')),
           ],
         ),
       ),

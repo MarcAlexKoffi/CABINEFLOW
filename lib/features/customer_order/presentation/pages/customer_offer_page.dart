@@ -208,8 +208,7 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
     FocusManager.instance.primaryFocus?.unfocus();
 
     if (_isTransfer) {
-      final bool isValid =
-          _transferFormKey.currentState?.validate() ?? false;
+      final bool isValid = _transferFormKey.currentState?.validate() ?? false;
 
       if (!isValid) {
         return;
@@ -249,10 +248,7 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SelectionContextCard(
-            service: _service,
-            network: _network,
-          ),
+          _SelectionContextCard(service: _service, network: _network),
           const SizedBox(height: 24),
           if (_isTransfer)
             _buildTransferAmountForm()
@@ -292,9 +288,7 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
               controller: _transferAmountController,
               keyboardType: TextInputType.number,
               textInputAction: TextInputAction.done,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-              ],
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: const InputDecoration(
                 hintText: 'Ex. 1500',
                 prefixIcon: Icon(Icons.payments_outlined),
@@ -387,7 +381,9 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
                       width: 42,
                       height: 42,
                       decoration: BoxDecoration(
-                        color: CustomerAppColors.primary.withValues(alpha: 0.10),
+                        color: CustomerAppColors.primary.withValues(
+                          alpha: 0.10,
+                        ),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -494,9 +490,7 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
                       controller: _customOfferAmountController,
                       keyboardType: TextInputType.number,
                       textInputAction: TextInputAction.done,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: const InputDecoration(
                         hintText: 'Ex. 1500',
                         prefixIcon: Icon(Icons.payments_outlined),
@@ -514,7 +508,9 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: CustomerAppColors.primary.withValues(alpha: 0.06),
+                        color: CustomerAppColors.primary.withValues(
+                          alpha: 0.06,
+                        ),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Row(
@@ -552,16 +548,11 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
   Widget _buildOfferList() {
     return FutureBuilder<List<CustomerOffer>>(
       future: _offersFuture,
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<List<CustomerOffer>> snapshot,
-      ) {
+      builder: (BuildContext context, AsyncSnapshot<List<CustomerOffer>> snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const SizedBox(
             height: 220,
-            child: Center(
-              child: CircularProgressIndicator(),
-            ),
+            child: Center(child: CircularProgressIndicator()),
           );
         }
 
@@ -578,19 +569,19 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
         if (offers.isEmpty) {
           return const _OfferLoadMessage(
             icon: Icons.inventory_2_outlined,
-            message: 'Aucune offre recommandée n’est disponible pour cette sélection.',
+            message:
+                'Aucune offre recommandée n’est disponible pour cette sélection.',
           );
         }
 
         return Column(
           children: offers.map((CustomerOffer offer) {
             return Padding(
-              padding: EdgeInsets.only(
-                bottom: offer == offers.last ? 0 : 16,
-              ),
+              padding: EdgeInsets.only(bottom: offer == offers.last ? 0 : 16),
               child: _OfferOptionCard(
                 offer: offer,
-                isSelected: widget.viewModel.draft.offer?.id == offer.id &&
+                isSelected:
+                    widget.viewModel.draft.offer?.id == offer.id &&
                     !_isUsingCustomOffer,
                 onTap: () {
                   widget.viewModel.selectOffer(offer);
@@ -605,10 +596,7 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
 }
 
 class _SelectionContextCard extends StatelessWidget {
-  const _SelectionContextCard({
-    required this.service,
-    required this.network,
-  });
+  const _SelectionContextCard({required this.service, required this.network});
 
   final CustomerService service;
   final MobileNetwork network;
@@ -627,10 +615,7 @@ class _SelectionContextCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 15,
-        vertical: 12,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
       decoration: BoxDecoration(
         color: CustomerAppColors.primary.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
@@ -688,9 +673,7 @@ class _OfferOptionCard extends StatelessWidget {
               : CustomerAppColors.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected
-                ? CustomerAppColors.primary
-                : Colors.transparent,
+            color: isSelected ? CustomerAppColors.primary : Colors.transparent,
             width: 2,
           ),
           boxShadow: const [
@@ -723,8 +706,9 @@ class _OfferOptionCard extends StatelessWidget {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: CustomerAppColors.primary
-                                  .withValues(alpha: 0.10),
+                              color: CustomerAppColors.primary.withValues(
+                                alpha: 0.10,
+                              ),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
@@ -754,16 +738,16 @@ class _OfferOptionCard extends StatelessWidget {
                                   child: Icon(
                                     Icons.circle,
                                     size: 5,
-                                    color:
-                                        CustomerAppColors.onSurfaceVariant,
+                                    color: CustomerAppColors.onSurfaceVariant,
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     detail,
-                                    style:
-                                        Theme.of(context).textTheme.bodyMedium,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
                                   ),
                                 ),
                               ],
@@ -818,10 +802,7 @@ class _OfferOptionCard extends StatelessWidget {
 }
 
 class _OfferLoadMessage extends StatelessWidget {
-  const _OfferLoadMessage({
-    required this.icon,
-    required this.message,
-  });
+  const _OfferLoadMessage({required this.icon, required this.message});
 
   final IconData icon;
   final String message;
@@ -836,11 +817,7 @@ class _OfferLoadMessage extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(
-            icon,
-            size: 42,
-            color: CustomerAppColors.onSurfaceVariant,
-          ),
+          Icon(icon, size: 42, color: CustomerAppColors.onSurfaceVariant),
           const SizedBox(height: 12),
           Text(
             message,

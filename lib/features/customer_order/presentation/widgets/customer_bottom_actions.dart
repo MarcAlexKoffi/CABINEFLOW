@@ -37,10 +37,7 @@ class CustomerBottomActions extends StatelessWidget {
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: onBack,
-                icon: const Icon(
-                  Icons.chevron_left_rounded,
-                  size: 20,
-                ),
+                icon: const Icon(Icons.chevron_left_rounded, size: 20),
                 label: Text(backLabel),
               ),
             ),
@@ -49,10 +46,7 @@ class CustomerBottomActions extends StatelessWidget {
               child: FilledButton.icon(
                 onPressed: isContinueEnabled ? onContinue : null,
                 iconAlignment: IconAlignment.end,
-                icon: const Icon(
-                  Icons.arrow_forward_rounded,
-                  size: 20,
-                ),
+                icon: const Icon(Icons.arrow_forward_rounded, size: 20),
                 label: Text(continueLabel),
               ),
             ),

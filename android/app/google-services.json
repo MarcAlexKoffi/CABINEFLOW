@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "542869507309",
+    "project_id": "cabineflow-4bca7",
+    "storage_bucket": "cabineflow-4bca7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:542869507309:android:127acb5d3519466f2f10e4",
+        "android_client_info": {
+          "package_name": "com.cabineflow.cabine_flow"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAo-GlziqJS2vQrIkV58bbvtCUu8_8DI0U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

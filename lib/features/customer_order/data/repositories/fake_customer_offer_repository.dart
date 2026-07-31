@@ -344,10 +344,7 @@ class FakeCustomerOfferRepository implements CustomerOfferRepository {
       title: 'Moov Folie 70 min',
       catalogLabel: 'Moov Folie Appels 70 min - 5 jours',
       amount: 500,
-      details: <String>[
-        '70 min tous réseaux',
-        'Validité : 5 jours',
-      ],
+      details: <String>['70 min tous réseaux', 'Validité : 5 jours'],
       badgeLabel: 'Appels seuls',
     ),
     CustomerOffer(
@@ -357,10 +354,7 @@ class FakeCustomerOfferRepository implements CustomerOfferRepository {
       title: 'Moov Folie 140 min',
       catalogLabel: 'Moov Folie Appels 140 min - 15 jours',
       amount: 1000,
-      details: <String>[
-        '140 min tous réseaux',
-        'Validité : 15 jours',
-      ],
+      details: <String>['140 min tous réseaux', 'Validité : 15 jours'],
       badgeLabel: 'Appels seuls',
     ),
     CustomerOffer(
@@ -370,10 +364,7 @@ class FakeCustomerOfferRepository implements CustomerOfferRepository {
       title: 'Moov Folie 210 min',
       catalogLabel: 'Moov Folie Appels 210 min - 21 jours',
       amount: 1500,
-      details: <String>[
-        '210 min tous réseaux',
-        'Validité : 21 jours',
-      ],
+      details: <String>['210 min tous réseaux', 'Validité : 21 jours'],
       badgeLabel: 'Appels seuls',
     ),
     CustomerOffer(
@@ -383,10 +374,7 @@ class FakeCustomerOfferRepository implements CustomerOfferRepository {
       title: 'Moov Folie 350 min',
       catalogLabel: 'Moov Folie Appels 350 min - 30 jours',
       amount: 2500,
-      details: <String>[
-        '350 min tous réseaux',
-        'Validité : 30 jours',
-      ],
+      details: <String>['350 min tous réseaux', 'Validité : 30 jours'],
       badgeLabel: 'Appels seuls',
     ),
     CustomerOffer(
@@ -396,10 +384,7 @@ class FakeCustomerOfferRepository implements CustomerOfferRepository {
       title: 'Moov Folie 700 min',
       catalogLabel: 'Moov Folie Appels 700 min - 30 jours',
       amount: 5000,
-      details: <String>[
-        '700 min tous réseaux',
-        'Validité : 30 jours',
-      ],
+      details: <String>['700 min tous réseaux', 'Validité : 30 jours'],
       badgeLabel: 'Appels seuls',
     ),
   ];

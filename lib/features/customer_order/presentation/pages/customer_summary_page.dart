@@ -8,10 +8,7 @@ import 'package:cabine_flow/features/customer_order/presentation/widgets/custome
 import 'package:flutter/material.dart';
 
 class CustomerSummaryPage extends StatefulWidget {
-  const CustomerSummaryPage({
-    super.key,
-    required this.viewModel,
-  });
+  const CustomerSummaryPage({super.key, required this.viewModel});
 
   final CustomerOrderViewModel viewModel;
 
@@ -76,9 +73,7 @@ class _CustomerSummaryPageState extends State<CustomerSummaryPage> {
 }
 
 class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({
-    required this.draft,
-  });
+  const _SummaryCard({required this.draft});
 
   final CustomerOrderDraft draft;
 
@@ -99,26 +94,14 @@ class _SummaryCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _SummaryRow(
-            label: 'Nom',
-            value: draft.identity!.name,
-          ),
+          _SummaryRow(label: 'Nom', value: draft.identity!.name),
           _SummaryRow(
             label: 'Numéro WhatsApp',
             value: draft.identity!.whatsappNumber.displayValue,
           ),
-          _SummaryRow(
-            label: 'Service',
-            value: draft.service!.label,
-          ),
-          _SummaryRow(
-            label: 'Réseau',
-            value: draft.network!.customerLabel,
-          ),
-          _SummaryRow(
-            label: 'Offre',
-            value: draft.selectedOfferLabel!,
-          ),
+          _SummaryRow(label: 'Service', value: draft.service!.label),
+          _SummaryRow(label: 'Réseau', value: draft.network!.customerLabel),
+          _SummaryRow(label: 'Offre', value: draft.selectedOfferLabel!),
           _SummaryRow(
             label: 'Numéro bénéficiaire',
             value: draft.beneficiaryNumber!.displayValue,
@@ -151,10 +134,7 @@ class _SummaryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.only(
-        top: 17,
-        bottom: isLast ? 19 : 17,
-      ),
+      padding: EdgeInsets.only(top: 17, bottom: isLast ? 19 : 17),
       decoration: BoxDecoration(
         border: isLast
             ? null

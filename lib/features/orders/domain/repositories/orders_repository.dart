@@ -2,13 +2,9 @@ import 'package:cabine_flow/features/orders/domain/models/create_order_request.d
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 
 abstract class OrdersRepository {
-  Future<QueueOrder> createOrder({
-    required CreateOrderRequest request,
-  });
+  Future<QueueOrder> createOrder({required CreateOrderRequest request});
 
-  Future<QueueOrder> markPaymentRequestSent({
-    required String orderId,
-  });
+  Future<QueueOrder> markPaymentRequestSent({required String orderId});
 
   Future<List<QueueOrder>> fetchPaymentTrackingOrders();
 

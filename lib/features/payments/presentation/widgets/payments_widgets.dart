@@ -198,9 +198,7 @@ class PaymentTrackingCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: AppColors.outlineVariant.withAlpha(90),
-        ),
+        border: Border.all(color: AppColors.outlineVariant.withAlpha(90)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -326,7 +324,8 @@ class PaymentTrackingCard extends StatelessWidget {
       color = _successColor;
       icon = Icons.check_circle_rounded;
       title = 'Paiement confirmé';
-      subtitle = 'Réf. ${order.paymentReference} • ${_formatDate(order.paidAt!)}';
+      subtitle =
+          'Réf. ${order.paymentReference} • ${_formatDate(order.paidAt!)}';
     } else if (wasPaymentLinkSent) {
       color = _waitingColor;
       icon = Icons.hourglass_top_rounded;
@@ -399,10 +398,7 @@ class PaymentTrackingCard extends StatelessWidget {
                   color: AppColors.onPrimary,
                 ),
               )
-            : const Icon(
-                Icons.link_rounded,
-                size: 19,
-              ),
+            : const Icon(Icons.link_rounded, size: 19),
         label: const Text('Préparer le lien Wave'),
       );
     }
@@ -421,10 +417,7 @@ class PaymentTrackingCard extends StatelessWidget {
                     color: AppColors.onPrimary,
                   ),
                 )
-              : const Icon(
-                  Icons.verified_rounded,
-                  size: 19,
-                ),
+              : const Icon(Icons.verified_rounded, size: 19),
           label: const Text('Confirmer le paiement'),
         ),
         const SizedBox(height: 8),

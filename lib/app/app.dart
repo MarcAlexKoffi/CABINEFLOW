@@ -38,9 +38,7 @@ class CabineFlowApp extends StatelessWidget {
         FakeOfferCatalogRepository();
 
     const WavePaymentLinkRepository paymentLinkRepository =
-        WavePaymentLinkRepository(
-      linkBuilder: WavePaymentLinkBuilder(),
-    );
+        WavePaymentLinkRepository(linkBuilder: WavePaymentLinkBuilder());
 
     return MaterialApp(
       title: 'CabineFlow',

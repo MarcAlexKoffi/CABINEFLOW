@@ -1,9 +1,6 @@
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 
-enum CustomerOfferType {
-  internet,
-  calls,
-}
+enum CustomerOfferType { internet, calls }
 
 class CustomerOffer {
   const CustomerOffer({

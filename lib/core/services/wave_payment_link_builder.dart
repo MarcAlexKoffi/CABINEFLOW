@@ -7,9 +7,7 @@ class WavePaymentLinkBuilder {
   final String merchantId;
   final String countryCode;
 
-  Uri build({
-    required int amount,
-  }) {
+  Uri build({required int amount}) {
     if (amount <= 0) {
       throw ArgumentError.value(
         amount,
@@ -21,9 +19,7 @@ class WavePaymentLinkBuilder {
     return Uri.https(
       'pay.wave.com',
       '/m/$merchantId/c/$countryCode/',
-      <String, String>{
-        'amount': amount.toString(),
-      },
+      <String, String>{'amount': amount.toString()},
     );
   }
 }

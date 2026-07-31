@@ -5,10 +5,7 @@ import 'package:cabine_flow/features/customer_order/presentation/widgets/custome
 import 'package:flutter/material.dart';
 
 class CustomerServicePage extends StatelessWidget {
-  const CustomerServicePage({
-    super.key,
-    required this.viewModel,
-  });
+  const CustomerServicePage({super.key, required this.viewModel});
 
   final CustomerOrderViewModel viewModel;
 
@@ -83,9 +80,7 @@ class _ServiceOptionCard extends StatelessWidget {
               : CustomerAppColors.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected
-                ? CustomerAppColors.primary
-                : Colors.transparent,
+            color: isSelected ? CustomerAppColors.primary : Colors.transparent,
             width: 2,
           ),
           boxShadow: const [

@@ -12,9 +12,8 @@ import 'package:flutter/foundation.dart';
 class CustomerOrderViewModel extends ChangeNotifier {
   static const int totalSteps = 8;
 
-  CustomerOrderViewModel({
-    required CustomerOrderRepository orderRepository,
-  }) : _orderRepository = orderRepository;
+  CustomerOrderViewModel({required CustomerOrderRepository orderRepository})
+    : _orderRepository = orderRepository;
 
   final CustomerOrderRepository _orderRepository;
 
@@ -33,8 +32,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
   bool get canGoBack => _currentStep > 1 && _currentStep < 8;
   bool get canContinueFromService => _draft.service != null;
   bool get canContinueFromNetwork => _draft.network != null;
-  bool get canContinueFromBeneficiary =>
-      _draft.beneficiaryNumber != null;
+  bool get canContinueFromBeneficiary => _draft.beneficiaryNumber != null;
   bool get isUsingCustomOffer => _draft.usesCustomOffer;
 
   bool get canContinueFromOffer {
@@ -49,20 +47,17 @@ class CustomerOrderViewModel extends ChangeNotifier {
               (_draft.amount ?? 0) > 0;
         }
 
-        return _draft.offer != null &&
-            _draft.amount == _draft.offer!.amount;
+        return _draft.offer != null && _draft.amount == _draft.offer!.amount;
 
       case null:
         return false;
     }
   }
 
-  void saveIdentity({
-    required String name,
-    required String whatsappInput,
-  }) {
-    final WhatsappPhoneNumber whatsappNumber =
-        WhatsappPhoneNumber.parse(whatsappInput);
+  void saveIdentity({required String name, required String whatsappInput}) {
+    final WhatsappPhoneNumber whatsappNumber = WhatsappPhoneNumber.parse(
+      whatsappInput,
+    );
 
     _draft = _draft.copyWith(
       identity: CustomerIdentity(
@@ -144,10 +139,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void useCustomOffer({
-    String label = '',
-    int? amount,
-  }) {
+  void useCustomOffer({String label = '', int? amount}) {
     if (_draft.service == CustomerService.unitTransfer ||
         _draft.service == null ||
         _draft.network == null) {
@@ -163,20 +155,15 @@ class CustomerOrderViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateCustomOffer({
-    required String label,
-    required int? amount,
-  }) {
+  void updateCustomOffer({required String label, required int? amount}) {
     if (_draft.service == CustomerService.unitTransfer ||
         !_draft.usesCustomOffer) {
       return;
     }
 
-    final String normalizedLabel =
-        label.replaceAll(RegExp(r'\s+'), ' ');
+    final String normalizedLabel = label.replaceAll(RegExp(r'\s+'), ' ');
 
-    if (_draft.customOfferLabel == normalizedLabel &&
-        _draft.amount == amount) {
+    if (_draft.customOfferLabel == normalizedLabel && _draft.amount == amount) {
       return;
     }
 
@@ -198,8 +185,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
     }
 
     final CustomerOfferType? expectedType = switch (service) {
-      CustomerService.internetSubscription =>
-        CustomerOfferType.internet,
+      CustomerService.internetSubscription => CustomerOfferType.internet,
       CustomerService.calls => CustomerOfferType.calls,
       CustomerService.unitTransfer => null,
     };
@@ -245,16 +231,13 @@ class CustomerOrderViewModel extends ChangeNotifier {
     final BeneficiaryPhoneNumber confirmationNumber =
         BeneficiaryPhoneNumber.parse(confirmationInput);
 
-    if (beneficiaryNumber.normalized !=
-        confirmationNumber.normalized) {
+    if (beneficiaryNumber.normalized != confirmationNumber.normalized) {
       throw const FormatException(
         'Les deux numéros bénéficiaires ne correspondent pas.',
       );
     }
 
-    _draft = _draft.copyWith(
-      beneficiaryNumber: beneficiaryNumber,
-    );
+    _draft = _draft.copyWith(beneficiaryNumber: beneficiaryNumber);
 
     _currentStep = 6;
     notifyListeners();
@@ -280,9 +263,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _receipt = await _orderRepository.declarePayment(
-        draft: _draft,
-      );
+      _receipt = await _orderRepository.declarePayment(draft: _draft);
       _currentStep = 8;
       return true;
     } catch (error) {

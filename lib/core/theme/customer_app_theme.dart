@@ -25,9 +25,7 @@ class CustomerAppTheme {
 
     final OutlineInputBorder defaultBorder = OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(
-        color: CustomerAppColors.outlineVariant,
-      ),
+      borderSide: const BorderSide(color: CustomerAppColors.outlineVariant),
     );
 
     return baseTheme.copyWith(
@@ -99,9 +97,7 @@ class CustomerAppTheme {
           ),
         ),
         errorBorder: defaultBorder.copyWith(
-          borderSide: const BorderSide(
-            color: CustomerAppColors.error,
-          ),
+          borderSide: const BorderSide(color: CustomerAppColors.error),
         ),
         focusedErrorBorder: defaultBorder.copyWith(
           borderSide: const BorderSide(
@@ -119,39 +115,31 @@ class CustomerAppTheme {
           minimumSize: const Size.fromHeight(54),
           backgroundColor: CustomerAppColors.primary,
           foregroundColor: CustomerAppColors.onPrimary,
-          disabledBackgroundColor:
-              CustomerAppColors.primary.withValues(alpha: 0.42),
-          disabledForegroundColor:
-              CustomerAppColors.onPrimary.withValues(alpha: 0.78),
+          disabledBackgroundColor: CustomerAppColors.primary.withValues(
+            alpha: 0.42,
+          ),
+          disabledForegroundColor: CustomerAppColors.onPrimary.withValues(
+            alpha: 0.78,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-          ),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           minimumSize: const Size.fromHeight(54),
           foregroundColor: CustomerAppColors.onSurfaceVariant,
-          side: const BorderSide(
-            color: CustomerAppColors.outlineVariant,
-          ),
+          side: const BorderSide(color: CustomerAppColors.outlineVariant),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(
-          foregroundColor: CustomerAppColors.primary,
-        ),
+        style: TextButton.styleFrom(foregroundColor: CustomerAppColors.primary),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
         color: CustomerAppColors.primary,
@@ -163,9 +151,7 @@ class CustomerAppTheme {
         contentTextStyle: const TextStyle(
           color: CustomerAppColors.surfaceContainerLowest,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }

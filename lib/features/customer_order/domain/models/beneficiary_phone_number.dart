@@ -7,11 +7,7 @@ class BeneficiaryPhoneNumber {
   final String normalized;
   final String localDigits;
 
-  static const Set<String> _mobilePrefixes = {
-    '01',
-    '05',
-    '07',
-  };
+  static const Set<String> _mobilePrefixes = {'01', '05', '07'};
 
   factory BeneficiaryPhoneNumber.parse(String input) {
     final String? validationError = validate(input);

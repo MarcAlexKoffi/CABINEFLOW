@@ -12,20 +12,14 @@ void main() {
         orderRepository: FakeCustomerOrderRepository(),
       );
 
-      viewModel.saveIdentity(
-        name: 'Alex',
-        whatsappInput: '07 00 00 00 00',
-      );
+      viewModel.saveIdentity(name: 'Alex', whatsappInput: '07 00 00 00 00');
 
       expect(viewModel.currentStep, 2);
       expect(viewModel.canContinueFromService, isFalse);
 
       viewModel.selectService(CustomerService.internetSubscription);
 
-      expect(
-        viewModel.draft.service,
-        CustomerService.internetSubscription,
-      );
+      expect(viewModel.draft.service, CustomerService.internetSubscription);
       expect(viewModel.canContinueFromService, isTrue);
 
       viewModel.continueFromService();
@@ -63,10 +57,7 @@ void main() {
         orderRepository: FakeCustomerOrderRepository(),
       );
 
-      viewModel.saveIdentity(
-        name: 'Serge',
-        whatsappInput: '01 02 03 04 05',
-      );
+      viewModel.saveIdentity(name: 'Serge', whatsappInput: '01 02 03 04 05');
       viewModel.selectService(CustomerService.unitTransfer);
       viewModel.continueFromService();
       viewModel.selectNetwork(MobileNetwork.orange);
@@ -82,10 +73,7 @@ void main() {
         orderRepository: FakeCustomerOrderRepository(),
       );
 
-      viewModel.saveIdentity(
-        name: 'Awa',
-        whatsappInput: '07 10 20 30 40',
-      );
+      viewModel.saveIdentity(name: 'Awa', whatsappInput: '07 10 20 30 40');
       viewModel.selectService(CustomerService.internetSubscription);
       viewModel.continueFromService();
       viewModel.selectNetwork(MobileNetwork.moov);
@@ -117,10 +105,7 @@ void main() {
         orderRepository: FakeCustomerOrderRepository(),
       );
 
-      viewModel.saveIdentity(
-        name: 'Koffi',
-        whatsappInput: '07 00 00 00 01',
-      );
+      viewModel.saveIdentity(name: 'Koffi', whatsappInput: '07 00 00 00 01');
       viewModel.selectService(CustomerService.unitTransfer);
       viewModel.continueFromService();
       viewModel.selectNetwork(MobileNetwork.orange);
@@ -155,10 +140,7 @@ void main() {
         details: <String>['Validité : 7 jours'],
       );
 
-      viewModel.saveIdentity(
-        name: 'Mireille',
-        whatsappInput: '05 00 00 00 02',
-      );
+      viewModel.saveIdentity(name: 'Mireille', whatsappInput: '05 00 00 00 02');
       viewModel.selectService(CustomerService.internetSubscription);
       viewModel.continueFromService();
       viewModel.selectNetwork(MobileNetwork.orange);
@@ -189,10 +171,7 @@ void main() {
         details: <String>['55 min tous réseaux'],
       );
 
-      viewModel.saveIdentity(
-        name: 'Yao',
-        whatsappInput: '01 00 00 00 03',
-      );
+      viewModel.saveIdentity(name: 'Yao', whatsappInput: '01 00 00 00 03');
       viewModel.selectService(CustomerService.calls);
       viewModel.continueFromService();
       viewModel.selectNetwork(MobileNetwork.mtn);
@@ -214,10 +193,7 @@ void main() {
         orderRepository: FakeCustomerOrderRepository(),
       );
 
-      viewModel.saveIdentity(
-        name: 'Fatou',
-        whatsappInput: '07 00 00 00 04',
-      );
+      viewModel.saveIdentity(name: 'Fatou', whatsappInput: '07 00 00 00 04');
       viewModel.selectService(CustomerService.internetSubscription);
       viewModel.continueFromService();
       viewModel.selectNetwork(MobileNetwork.mtn);
@@ -235,11 +211,11 @@ void main() {
       );
 
       expect(viewModel.draft.offer, isNull);
+      expect(viewModel.draft.customOfferLabel, 'Pass Internet 8 Go - 15 jours');
       expect(
-        viewModel.draft.customOfferLabel,
+        viewModel.draft.selectedOfferLabel,
         'Pass Internet 8 Go - 15 jours',
       );
-      expect(viewModel.draft.selectedOfferLabel, 'Pass Internet 8 Go - 15 jours');
       expect(viewModel.draft.amount, 3000);
       expect(viewModel.canContinueFromOffer, isTrue);
 
@@ -248,53 +224,47 @@ void main() {
       expect(viewModel.currentStep, 5);
     });
 
-    test('sélectionner une offre du catalogue efface l’offre personnalisée', () {
-      final CustomerOrderViewModel viewModel = CustomerOrderViewModel(
-        orderRepository: FakeCustomerOrderRepository(),
-      );
+    test(
+      'sélectionner une offre du catalogue efface l’offre personnalisée',
+      () {
+        final CustomerOrderViewModel viewModel = CustomerOrderViewModel(
+          orderRepository: FakeCustomerOrderRepository(),
+        );
 
-      const CustomerOffer offer = CustomerOffer(
-        id: 'orange-calls-1000',
-        network: MobileNetwork.orange,
-        type: CustomerOfferType.calls,
-        title: 'Pass Mix 1 000',
-        catalogLabel: 'Orange Pass Mix 1 000',
-        amount: 1000,
-        details: <String>['100 min tous réseaux'],
-      );
+        const CustomerOffer offer = CustomerOffer(
+          id: 'orange-calls-1000',
+          network: MobileNetwork.orange,
+          type: CustomerOfferType.calls,
+          title: 'Pass Mix 1 000',
+          catalogLabel: 'Orange Pass Mix 1 000',
+          amount: 1000,
+          details: <String>['100 min tous réseaux'],
+        );
 
-      viewModel.saveIdentity(
-        name: 'Konan',
-        whatsappInput: '05 00 00 00 05',
-      );
-      viewModel.selectService(CustomerService.calls);
-      viewModel.continueFromService();
-      viewModel.selectNetwork(MobileNetwork.orange);
-      viewModel.continueFromNetwork();
-      viewModel.useCustomOffer(
-        label: 'Pack appels spécial',
-        amount: 2000,
-      );
+        viewModel.saveIdentity(name: 'Konan', whatsappInput: '05 00 00 00 05');
+        viewModel.selectService(CustomerService.calls);
+        viewModel.continueFromService();
+        viewModel.selectNetwork(MobileNetwork.orange);
+        viewModel.continueFromNetwork();
+        viewModel.useCustomOffer(label: 'Pack appels spécial', amount: 2000);
 
-      expect(viewModel.isUsingCustomOffer, isTrue);
+        expect(viewModel.isUsingCustomOffer, isTrue);
 
-      viewModel.selectOffer(offer);
+        viewModel.selectOffer(offer);
 
-      expect(viewModel.isUsingCustomOffer, isFalse);
-      expect(viewModel.draft.customOfferLabel, isNull);
-      expect(viewModel.draft.offer, same(offer));
-      expect(viewModel.draft.amount, 1000);
-    });
+        expect(viewModel.isUsingCustomOffer, isFalse);
+        expect(viewModel.draft.customOfferLabel, isNull);
+        expect(viewModel.draft.offer, same(offer));
+        expect(viewModel.draft.amount, 1000);
+      },
+    );
 
     test('changer de réseau efface aussi l’offre personnalisée', () {
       final CustomerOrderViewModel viewModel = CustomerOrderViewModel(
         orderRepository: FakeCustomerOrderRepository(),
       );
 
-      viewModel.saveIdentity(
-        name: 'Aminata',
-        whatsappInput: '01 00 00 00 06',
-      );
+      viewModel.saveIdentity(name: 'Aminata', whatsappInput: '01 00 00 00 06');
       viewModel.selectService(CustomerService.internetSubscription);
       viewModel.continueFromService();
       viewModel.selectNetwork(MobileNetwork.moov);
@@ -312,16 +282,12 @@ void main() {
       expect(viewModel.draft.amount, isNull);
     });
 
-
     test('enregistre le numéro bénéficiaire et avance vers l’étape 6', () {
       final CustomerOrderViewModel viewModel = CustomerOrderViewModel(
         orderRepository: FakeCustomerOrderRepository(),
       );
 
-      viewModel.saveIdentity(
-        name: 'Alex',
-        whatsappInput: '07 00 00 00 00',
-      );
+      viewModel.saveIdentity(name: 'Alex', whatsappInput: '07 00 00 00 00');
       viewModel.selectService(CustomerService.unitTransfer);
       viewModel.continueFromService();
       viewModel.selectNetwork(MobileNetwork.orange);
@@ -339,10 +305,7 @@ void main() {
 
       expect(viewModel.currentStep, 6);
       expect(viewModel.canContinueFromBeneficiary, isTrue);
-      expect(
-        viewModel.draft.beneficiaryNumber?.normalized,
-        '+2250512345678',
-      );
+      expect(viewModel.draft.beneficiaryNumber?.normalized, '+2250512345678');
     });
 
     test('refuse deux numéros bénéficiaires différents', () {
@@ -350,18 +313,12 @@ void main() {
         orderRepository: FakeCustomerOrderRepository(),
       );
 
-      viewModel.saveIdentity(
-        name: 'Mariam',
-        whatsappInput: '05 00 00 00 00',
-      );
+      viewModel.saveIdentity(name: 'Mariam', whatsappInput: '05 00 00 00 00');
       viewModel.selectService(CustomerService.calls);
       viewModel.continueFromService();
       viewModel.selectNetwork(MobileNetwork.mtn);
       viewModel.continueFromNetwork();
-      viewModel.useCustomOffer(
-        label: 'Pack appels spécial',
-        amount: 1500,
-      );
+      viewModel.useCustomOffer(label: 'Pack appels spécial', amount: 1500);
       viewModel.continueFromOffer();
 
       expect(
@@ -381,10 +338,7 @@ void main() {
         orderRepository: FakeCustomerOrderRepository(),
       );
 
-      viewModel.saveIdentity(
-        name: 'Koffi',
-        whatsappInput: '01 00 00 00 00',
-      );
+      viewModel.saveIdentity(name: 'Koffi', whatsappInput: '01 00 00 00 00');
       viewModel.selectService(CustomerService.unitTransfer);
       viewModel.continueFromService();
       viewModel.selectNetwork(MobileNetwork.orange);
@@ -409,10 +363,7 @@ void main() {
 }
 
 void completeCustomerDraft(CustomerOrderViewModel viewModel) {
-  viewModel.saveIdentity(
-    name: 'Client test',
-    whatsappInput: '07 00 00 00 00',
-  );
+  viewModel.saveIdentity(name: 'Client test', whatsappInput: '07 00 00 00 00');
   viewModel.selectService(CustomerService.unitTransfer);
   viewModel.continueFromService();
   viewModel.selectNetwork(MobileNetwork.orange);

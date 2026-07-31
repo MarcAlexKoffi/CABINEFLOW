@@ -1,8 +1,4 @@
-enum MobileNetwork {
-  orange,
-  mtn,
-  moov,
-}
+enum MobileNetwork { orange, mtn, moov }
 
 enum OrderOperationType {
   internetSubscription,
@@ -32,11 +28,7 @@ enum OrderFailureReason {
   other,
 }
 
-enum CustomerConfirmationStatus {
-  pending,
-  sent,
-  skipped,
-}
+enum CustomerConfirmationStatus { pending, sent, skipped }
 
 class QueueOrder {
   const QueueOrder({
@@ -125,8 +117,7 @@ class QueueOrder {
       internalNotes: internalNotes,
       createdAt: createdAt,
       paidAt: paidAt ?? this.paidAt,
-      paymentRequestSentAt:
-          paymentRequestSentAt ?? this.paymentRequestSentAt,
+      paymentRequestSentAt: paymentRequestSentAt ?? this.paymentRequestSentAt,
       paymentReference: paymentReference ?? this.paymentReference,
       status: status ?? this.status,
       takenByUserId: clearAssignment
@@ -137,11 +128,10 @@ class QueueOrder {
       failureReason: failureReason ?? this.failureReason,
       observation: observation ?? this.observation,
       customerConfirmationStatus:
-          customerConfirmationStatus ??
-              this.customerConfirmationStatus,
+          customerConfirmationStatus ?? this.customerConfirmationStatus,
       customerConfirmationCompletedAt:
           customerConfirmationCompletedAt ??
-              this.customerConfirmationCompletedAt,
+          this.customerConfirmationCompletedAt,
     );
   }
 }

@@ -6,9 +6,7 @@ class FakeOrdersRepository implements OrdersRepository {
   List<QueueOrder>? _orders;
 
   @override
-  Future<QueueOrder> markPaymentRequestSent({
-    required String orderId,
-  }) async {
+  Future<QueueOrder> markPaymentRequestSent({required String orderId}) async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
 
     final int index = _findOrderIndex(orderId);
@@ -29,45 +27,36 @@ class FakeOrdersRepository implements OrdersRepository {
 
   @override
   Future<List<QueueOrder>> fetchPaymentTrackingOrders() async {
-    await Future<void>.delayed(
-      const Duration(milliseconds: 450),
-    );
+    await Future<void>.delayed(const Duration(milliseconds: 450));
 
     _orders ??= _createInitialOrders();
 
-    final List<QueueOrder> paymentOrders = _orders!.where(
-      (QueueOrder order) {
-        final bool isAwaitingPayment =
-            order.status == QueueOrderStatus.awaitingPayment;
+    final List<QueueOrder> paymentOrders = _orders!.where((QueueOrder order) {
+      final bool isAwaitingPayment =
+          order.status == QueueOrderStatus.awaitingPayment;
 
-        final bool wasManuallyConfirmed =
-            order.paymentReference != null &&
-                order.paymentReference!.trim().isNotEmpty;
+      final bool wasManuallyConfirmed =
+          order.paymentReference != null &&
+          order.paymentReference!.trim().isNotEmpty;
 
-        return isAwaitingPayment || wasManuallyConfirmed;
-      },
-    ).toList();
+      return isAwaitingPayment || wasManuallyConfirmed;
+    }).toList();
 
-    paymentOrders.sort(
-      (
-        QueueOrder firstOrder,
-        QueueOrder secondOrder,
-      ) {
-        final DateTime firstDate = firstOrder.paidAt ??
-            firstOrder.paymentRequestSentAt ??
-            firstOrder.createdAt;
+    paymentOrders.sort((QueueOrder firstOrder, QueueOrder secondOrder) {
+      final DateTime firstDate =
+          firstOrder.paidAt ??
+          firstOrder.paymentRequestSentAt ??
+          firstOrder.createdAt;
 
-        final DateTime secondDate = secondOrder.paidAt ??
-            secondOrder.paymentRequestSentAt ??
-            secondOrder.createdAt;
+      final DateTime secondDate =
+          secondOrder.paidAt ??
+          secondOrder.paymentRequestSentAt ??
+          secondOrder.createdAt;
 
-        return secondDate.compareTo(firstDate);
-      },
-    );
+      return secondDate.compareTo(firstDate);
+    });
 
-    return List<QueueOrder>.unmodifiable(
-      paymentOrders,
-    );
+    return List<QueueOrder>.unmodifiable(paymentOrders);
   }
 
   @override
@@ -76,17 +65,13 @@ class FakeOrdersRepository implements OrdersRepository {
     required DateTime paidAt,
     String? paymentReference,
   }) async {
-    await Future<void>.delayed(
-      const Duration(milliseconds: 650),
-    );
+    await Future<void>.delayed(const Duration(milliseconds: 650));
 
     final int index = _findOrderIndex(orderId);
     final QueueOrder currentOrder = _orders![index];
 
     if (currentOrder.status != QueueOrderStatus.awaitingPayment) {
-      throw StateError(
-        'Cette commande n’est plus en attente de paiement.',
-      );
+      throw StateError('Cette commande n’est plus en attente de paiement.');
     }
 
     final String cleanedReference = paymentReference?.trim() ?? '';
@@ -99,9 +84,7 @@ class FakeOrdersRepository implements OrdersRepository {
       final String timestamp = paidAt.millisecondsSinceEpoch.toString();
 
       final String shortTimestamp = timestamp.length > 8
-          ? timestamp.substring(
-              timestamp.length - 8,
-            )
+          ? timestamp.substring(timestamp.length - 8)
           : timestamp;
 
       finalReference = 'MAN-$shortTimestamp';
@@ -268,12 +251,8 @@ class FakeOrdersRepository implements OrdersRepository {
   }
 
   @override
-  Future<QueueOrder> createOrder({
-    required CreateOrderRequest request,
-  }) async {
-    await Future<void>.delayed(
-      const Duration(milliseconds: 700),
-    );
+  Future<QueueOrder> createOrder({required CreateOrderRequest request}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 700));
 
     _orders ??= _createInitialOrders();
 
@@ -284,16 +263,13 @@ class FakeOrdersRepository implements OrdersRepository {
       id: 'order-$nextReference',
       reference: 'ORD-$nextReference',
       clientName: request.clientName.trim(),
-      clientWhatsappPhone:
-          request.clientWhatsappPhone.trim(),
+      clientWhatsappPhone: request.clientWhatsappPhone.trim(),
       network: request.network,
-      beneficiaryPhone:
-          request.beneficiaryPhone.trim(),
+      beneficiaryPhone: request.beneficiaryPhone.trim(),
       operationType: request.operationType,
       offerLabel: request.offerLabel.trim(),
       amount: request.amount,
-      originalWhatsappMessage:
-          request.originalWhatsappMessage?.trim(),
+      originalWhatsappMessage: request.originalWhatsappMessage?.trim(),
       internalNotes: request.internalNotes?.trim(),
       createdAt: now,
       paidAt: null,
@@ -313,8 +289,7 @@ class FakeOrdersRepository implements OrdersRepository {
     int highestReference = 9822;
 
     for (final QueueOrder order in _orders!) {
-      final List<String> parts =
-          order.reference.split('-');
+      final List<String> parts = order.reference.split('-');
 
       if (parts.isEmpty) {
         continue;
@@ -471,9 +446,7 @@ class FakeOrdersRepository implements OrdersRepository {
 
     return List<QueueOrder>.generate(networks.length, (int index) {
       final DateTime paidAt = now.subtract(
-        Duration(
-          minutes: waitingMinutes[index],
-        ),
+        Duration(minutes: waitingMinutes[index]),
       );
 
       return QueueOrder(
@@ -486,9 +459,7 @@ class FakeOrdersRepository implements OrdersRepository {
         operationType: operationTypes[index],
         offerLabel: offers[index],
         amount: amounts[index],
-        createdAt: paidAt.subtract(
-          const Duration(minutes: 2),
-        ),
+        createdAt: paidAt.subtract(const Duration(minutes: 2)),
         paidAt: paidAt,
         status: QueueOrderStatus.paidReady,
       );
