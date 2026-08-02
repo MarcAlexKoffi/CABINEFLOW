@@ -73,8 +73,8 @@ void main() {
       firstViewModel.receipt?.reference,
     );
 
-    restoredViewModel.resumeOrder(restoredViewModel.activeOrder!);
-
+    // La restauration est automatique dès que la commande sauvegardée est
+    // retrouvée dans l'historique Firestore.
     expect(restoredViewModel.currentStep, 7);
     expect(
       restoredViewModel.receipt?.paymentStatus,

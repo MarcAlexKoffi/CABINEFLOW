@@ -39,6 +39,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
   CustomerOrderSession? _savedSession;
   bool _isLoadingHistory = false;
   bool _isHistoryInitialized = false;
+  bool _hasAttemptedAutomaticRestore = false;
   String? _historyErrorMessage;
 
   CustomerOrderDraft get draft => _draft;
@@ -116,6 +117,8 @@ class CustomerOrderViewModel extends ChangeNotifier {
                 break;
               }
             }
+          } else {
+            _restoreSavedActiveOrderOnce(orders);
           }
 
           notifyListeners();
@@ -136,6 +139,34 @@ class CustomerOrderViewModel extends ChangeNotifier {
   }
 
   void resumeOrder(CustomerOrderReceipt order) {
+    _applyResumedOrder(order, rememberLocally: true);
+    notifyListeners();
+  }
+
+  void _restoreSavedActiveOrderOnce(List<CustomerOrderReceipt> orders) {
+    if (_hasAttemptedAutomaticRestore) {
+      return;
+    }
+
+    _hasAttemptedAutomaticRestore = true;
+    final CustomerOrderSession? session = _savedSession;
+
+    if (session == null) {
+      return;
+    }
+
+    for (final CustomerOrderReceipt order in orders) {
+      if (order.id == session.orderId && _isActiveOrder(order)) {
+        _applyResumedOrder(order, rememberLocally: false);
+        return;
+      }
+    }
+  }
+
+  void _applyResumedOrder(
+    CustomerOrderReceipt order, {
+    required bool rememberLocally,
+  }) {
     _receipt = order;
     _draft = order.draft;
     _submissionErrorMessage = null;
@@ -147,8 +178,10 @@ class CustomerOrderViewModel extends ChangeNotifier {
         ? 7
         : 8;
     _startOrderTracking(order);
-    unawaited(_rememberOrder(order));
-    notifyListeners();
+
+    if (rememberLocally) {
+      unawaited(_rememberOrder(order));
+    }
   }
 
   bool get canGoBack => _currentStep > 1 && _currentStep < 8;

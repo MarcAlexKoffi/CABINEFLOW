@@ -21,6 +21,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _firebaseAuth;
+  Future<User>? _anonymousCustomerFuture;
 
   CollectionReference<Map<String, dynamic>> get _ordersCollection {
     return _firestore.collection('orders');
@@ -168,11 +169,31 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
         });
   }
 
-  Future<User> _ensureAnonymousCustomer() async {
+  Future<User> _ensureAnonymousCustomer() {
     final User? currentUser = _firebaseAuth.currentUser;
 
     if (currentUser != null) {
-      return currentUser;
+      return Future<User>.value(currentUser);
+    }
+
+    // Plusieurs appels peuvent arriver presque simultanément au démarrage
+    // (historique, création de commande, suivi). Ils doivent tous partager la
+    // même tentative afin de ne jamais créer deux utilisateurs anonymes.
+    return _anonymousCustomerFuture ??= _resolveAnonymousCustomer().whenComplete(
+      () {
+        _anonymousCustomerFuture = null;
+      },
+    );
+  }
+
+  Future<User> _resolveAnonymousCustomer() async {
+    // Firebase Auth restaure sa session de façon asynchrone sur le Web. Il faut
+    // attendre le premier état résolu avant de conclure qu'aucun client
+    // anonyme n'existe encore.
+    final User? restoredUser = await _firebaseAuth.authStateChanges().first;
+
+    if (restoredUser != null) {
+      return restoredUser;
     }
 
     final UserCredential credential = await _firebaseAuth.signInAnonymously();

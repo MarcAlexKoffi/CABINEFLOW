@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:cabine_flow/core/theme/app_colors.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
@@ -106,19 +105,6 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
     final String seconds = takenAt.second.toString().padLeft(2, '0');
 
     return '$hours:$minutes:$seconds';
-  }
-
-  String get _networkLabel {
-    switch (widget.order.network) {
-      case MobileNetwork.orange:
-        return 'Orange';
-
-      case MobileNetwork.mtn:
-        return 'MTN';
-
-      case MobileNetwork.moov:
-        return 'Moov';
-    }
   }
 
   String get _networkCode {

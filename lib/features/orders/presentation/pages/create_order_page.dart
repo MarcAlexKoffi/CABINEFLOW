@@ -317,7 +317,7 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
                             const SizedBox(height: 14),
                             const _FormLabel(text: 'Type d’opération'),
                             DropdownButtonFormField<OrderOperationType>(
-                              value: _viewModel.selectedOperationType,
+                              initialValue: _viewModel.selectedOperationType,
                               dropdownColor: AppColors.surfaceContainer,
                               decoration: _inputDecoration(
                                 hintText: 'Sélectionner...',
@@ -342,7 +342,7 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
                             const SizedBox(height: 14),
                             const _FormLabel(text: 'Offre proposée'),
                             DropdownButtonFormField<String>(
-                              value: _viewModel.selectedOfferId,
+                              initialValue: _viewModel.selectedOfferId,
                               dropdownColor: AppColors.surfaceContainer,
                               decoration: _inputDecoration(
                                 hintText: _viewModel.isLoadingOffers
