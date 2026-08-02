@@ -312,7 +312,7 @@ service cloud.firestore {
       allow create: if isValidCustomerOrderCreation()
         || isValidStaffOrderCreation();
       allow get: if isOrderOwner() || isStaff();
-      allow list: if isStaff();
+      allow list: if isStaff() || isOrderOwner();
       allow update: if isValidCustomerPaymentDeclaration()
         || isValidStaffOrderUpdate();
       allow delete: if false;

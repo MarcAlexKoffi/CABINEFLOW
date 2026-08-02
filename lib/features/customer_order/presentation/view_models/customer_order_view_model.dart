@@ -5,20 +5,26 @@ import 'package:cabine_flow/features/customer_order/domain/models/customer_ident
 import 'package:cabine_flow/features/customer_order/domain/models/customer_offer.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/customer_order_session.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/payment_declaration.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_repository.dart';
+import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_session_store.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:flutter/foundation.dart';
 
 class CustomerOrderViewModel extends ChangeNotifier {
   static const int totalSteps = 8;
 
-  CustomerOrderViewModel({required CustomerOrderRepository orderRepository})
-    : _orderRepository = orderRepository;
+  CustomerOrderViewModel({
+    required CustomerOrderRepository orderRepository,
+    CustomerOrderSessionStore? sessionStore,
+  }) : _orderRepository = orderRepository,
+       _sessionStore = sessionStore ?? _NoopCustomerOrderSessionStore();
 
   final CustomerOrderRepository _orderRepository;
+  final CustomerOrderSessionStore _sessionStore;
 
   CustomerOrderDraft _draft = const CustomerOrderDraft();
   CustomerOrderReceipt? _receipt;
@@ -28,6 +34,12 @@ class CustomerOrderViewModel extends ChangeNotifier {
   String? _submissionErrorMessage;
   String? _trackingErrorMessage;
   StreamSubscription<CustomerOrderReceipt>? _trackingSubscription;
+  StreamSubscription<List<CustomerOrderReceipt>>? _historySubscription;
+  List<CustomerOrderReceipt> _customerOrders = <CustomerOrderReceipt>[];
+  CustomerOrderSession? _savedSession;
+  bool _isLoadingHistory = false;
+  bool _isHistoryInitialized = false;
+  String? _historyErrorMessage;
 
   CustomerOrderDraft get draft => _draft;
   CustomerOrderReceipt? get receipt => _receipt;
@@ -37,6 +49,107 @@ class CustomerOrderViewModel extends ChangeNotifier {
   bool get hasCreatedOrder => _receipt != null;
   String? get submissionErrorMessage => _submissionErrorMessage;
   String? get trackingErrorMessage => _trackingErrorMessage;
+  List<CustomerOrderReceipt> get customerOrders =>
+      List<CustomerOrderReceipt>.unmodifiable(_customerOrders);
+  bool get isLoadingHistory => _isLoadingHistory;
+  String? get historyErrorMessage => _historyErrorMessage;
+
+  CustomerOrderReceipt? get activeOrder {
+    final CustomerOrderSession? session = _savedSession;
+
+    if (session != null) {
+      for (final CustomerOrderReceipt order in _customerOrders) {
+        if (order.id == session.orderId && _isActiveOrder(order)) {
+          return order;
+        }
+      }
+    }
+
+    for (final CustomerOrderReceipt order in _customerOrders) {
+      if (_isActiveOrder(order)) {
+        return order;
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> initialize() async {
+    if (_isHistoryInitialized) {
+      return;
+    }
+
+    _isHistoryInitialized = true;
+    await _subscribeToHistory(readSavedSession: true);
+  }
+
+  Future<void> reloadHistory() async {
+    await _historySubscription?.cancel();
+    _historySubscription = null;
+    await _subscribeToHistory(readSavedSession: false);
+  }
+
+  Future<void> _subscribeToHistory({
+    required bool readSavedSession,
+  }) async {
+    _isLoadingHistory = true;
+    _historyErrorMessage = null;
+    notifyListeners();
+
+    try {
+      if (readSavedSession) {
+        _savedSession = await _sessionStore.read();
+      }
+
+      _historySubscription = _orderRepository.watchCustomerOrders().listen(
+        (List<CustomerOrderReceipt> orders) {
+          _customerOrders = List<CustomerOrderReceipt>.of(orders);
+          _isLoadingHistory = false;
+          _historyErrorMessage = null;
+
+          final CustomerOrderReceipt? currentOrder = _receipt;
+          if (currentOrder != null) {
+            for (final CustomerOrderReceipt order in orders) {
+              if (order.id == currentOrder.id) {
+                _receipt = order;
+                _draft = order.draft;
+                break;
+              }
+            }
+          }
+
+          notifyListeners();
+        },
+        onError: (Object error) {
+          _isLoadingHistory = false;
+          _historyErrorMessage =
+              'Impossible de charger vos commandes pour le moment.';
+          notifyListeners();
+        },
+      );
+    } on Object {
+      _isLoadingHistory = false;
+      _historyErrorMessage =
+          'Impossible de restaurer votre dernière commande.';
+      notifyListeners();
+    }
+  }
+
+  void resumeOrder(CustomerOrderReceipt order) {
+    _receipt = order;
+    _draft = order.draft;
+    _submissionErrorMessage = null;
+    _trackingErrorMessage = null;
+    _paymentLinkWasOpened =
+        order.status == QueueOrderStatus.awaitingPayment;
+    _currentStep = order.status == QueueOrderStatus.awaitingPayment &&
+            order.paymentStatus == OrderPaymentStatus.notDeclared
+        ? 7
+        : 8;
+    _startOrderTracking(order);
+    unawaited(_rememberOrder(order));
+    notifyListeners();
+  }
 
   bool get canGoBack => _currentStep > 1 && _currentStep < 8;
   bool get canContinueFromService => _draft.service != null;
@@ -272,6 +385,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
       final CustomerOrderReceipt createdOrder = await _orderRepository
           .createOrder(draft: _draft);
       _receipt = createdOrder;
+      await _rememberOrder(createdOrder);
       _startOrderTracking(createdOrder);
       _currentStep = 7;
       return true;
@@ -351,7 +465,9 @@ class CustomerOrderViewModel extends ChangeNotifier {
     _trackingSubscription = _orderRepository.watchOrder(order: order).listen(
       (CustomerOrderReceipt updatedOrder) {
         _receipt = updatedOrder;
+        _draft = updatedOrder.draft;
         _trackingErrorMessage = null;
+        _replaceOrderInHistory(updatedOrder);
         notifyListeners();
       },
       onError: (Object error) {
@@ -360,6 +476,64 @@ class CustomerOrderViewModel extends ChangeNotifier {
         notifyListeners();
       },
     );
+  }
+
+  Future<void> _rememberOrder(CustomerOrderReceipt order) async {
+    final CustomerOrderSession session = CustomerOrderSession(
+      orderId: order.id,
+      reference: order.reference,
+      whatsappPhone: order.draft.identity!.whatsappNumber.normalized,
+    );
+
+    _savedSession = session;
+
+    try {
+      await _sessionStore.save(session);
+    } on Object {
+      // Firestore remains the source of truth if browser storage is unavailable.
+    }
+  }
+
+  void _replaceOrderInHistory(CustomerOrderReceipt updatedOrder) {
+    final int index = _customerOrders.indexWhere(
+      (CustomerOrderReceipt order) => order.id == updatedOrder.id,
+    );
+
+    if (index < 0) {
+      _customerOrders = <CustomerOrderReceipt>[
+        updatedOrder,
+        ..._customerOrders,
+      ];
+    } else {
+      final List<CustomerOrderReceipt> updatedOrders =
+          List<CustomerOrderReceipt>.of(_customerOrders);
+      updatedOrders[index] = updatedOrder;
+      _customerOrders = updatedOrders;
+    }
+
+    _customerOrders.sort(
+      (CustomerOrderReceipt first, CustomerOrderReceipt second) =>
+          second.createdAt.compareTo(first.createdAt),
+    );
+  }
+
+  bool _isActiveOrder(CustomerOrderReceipt order) {
+    switch (order.status) {
+      case QueueOrderStatus.awaitingPayment:
+      case QueueOrderStatus.paymentToVerify:
+      case QueueOrderStatus.paidReady:
+      case QueueOrderStatus.inProgress:
+      case QueueOrderStatus.onHold:
+      case QueueOrderStatus.awaitingCustomerConfirmation:
+      case QueueOrderStatus.refundPending:
+        return true;
+      case QueueOrderStatus.completed:
+      case QueueOrderStatus.failed:
+      case QueueOrderStatus.expired:
+      case QueueOrderStatus.cancelled:
+      case QueueOrderStatus.refunded:
+        return false;
+    }
   }
 
   void goBack() {
@@ -387,6 +561,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
   @override
   void dispose() {
     unawaited(_trackingSubscription?.cancel());
+    unawaited(_historySubscription?.cancel());
     super.dispose();
   }
 
@@ -398,4 +573,15 @@ class CustomerOrderViewModel extends ChangeNotifier {
         (_draft.amount ?? 0) > 0 &&
         _draft.beneficiaryNumber != null;
   }
+}
+
+class _NoopCustomerOrderSessionStore implements CustomerOrderSessionStore {
+  @override
+  Future<void> clear() async {}
+
+  @override
+  Future<CustomerOrderSession?> read() async => null;
+
+  @override
+  Future<void> save(CustomerOrderSession session) async {}
 }

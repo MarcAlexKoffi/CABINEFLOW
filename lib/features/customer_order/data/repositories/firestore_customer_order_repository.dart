@@ -1,7 +1,10 @@
+import 'package:cabine_flow/features/customer_order/domain/models/beneficiary_phone_number.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/customer_identity.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/payment_declaration.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -92,7 +95,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
 
       if (currentStatus == QueueOrderStatus.paymentToVerify &&
           currentPaymentStatus == OrderPaymentStatus.declared) {
-        return _receiptFromData(order: order, data: data);
+        return _receiptFromData(fallbackOrder: order, data: data);
       }
 
       if (currentStatus != QueueOrderStatus.awaitingPayment ||
@@ -135,8 +138,34 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
         throw StateError('La commande suivie est introuvable.');
       }
 
-      return _receiptFromData(order: order, data: data);
+      return _receiptFromData(fallbackOrder: order, data: data);
     });
+  }
+
+  @override
+  Stream<List<CustomerOrderReceipt>> watchCustomerOrders() async* {
+    final User customer = await _ensureAnonymousCustomer();
+
+    yield* _ordersCollection
+        .where('customerAuthUid', isEqualTo: customer.uid)
+        .snapshots()
+        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
+          final List<CustomerOrderReceipt> orders = snapshot.docs
+              .map((QueryDocumentSnapshot<Map<String, dynamic>> document) {
+                return _receiptFromDocument(
+                  id: document.id,
+                  data: document.data(),
+                );
+              })
+              .whereType<CustomerOrderReceipt>()
+              .toList();
+
+          orders.sort((CustomerOrderReceipt first, CustomerOrderReceipt second) {
+            return second.createdAt.compareTo(first.createdAt);
+          });
+
+          return orders;
+        });
   }
 
   Future<User> _ensureAnonymousCustomer() async {
@@ -206,33 +235,74 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
   }
 
   CustomerOrderReceipt _receiptFromData({
-    required CustomerOrderReceipt order,
+    required CustomerOrderReceipt fallbackOrder,
     required Map<String, dynamic> data,
   }) {
-    final String? failureReason = _readNullableString(data['failureReason']);
-    final String? observation = _readNullableString(data['observation']);
-
-    return CustomerOrderReceipt(
-      id: order.id,
-      reference: _readString(data['reference']) ?? order.reference,
-      draft: order.draft,
-      createdAt: _readDate(data['createdAt']) ?? order.createdAt,
-      expiresAt: _readDate(data['expiresAt']) ?? order.expiresAt,
-      paymentDeclaredAt:
-          _readDate(data['paymentDeclaredAt']) ?? order.paymentDeclaredAt,
-      paymentDeclaration:
-          _readPaymentDeclaration(data) ?? order.paymentDeclaration,
-      paymentConfirmedAt:
-          _readDate(data['paymentConfirmedAt']) ?? order.paymentConfirmedAt,
-      processingStartedAt:
-          _readDate(data['takenAt']) ?? order.processingStartedAt,
-      completedAt: _readDate(data['completedAt']) ?? order.completedAt,
-      status: _readOrderStatus(data['status']),
-      paymentStatus: _readPaymentStatus(data['paymentStatus']),
-      failureMessage: observation ?? failureReason ?? order.failureMessage,
-    );
+    return _receiptFromDocument(id: fallbackOrder.id, data: data) ??
+        fallbackOrder;
   }
 
+  CustomerOrderReceipt? _receiptFromDocument({
+    required String id,
+    required Map<String, dynamic> data,
+  }) {
+    try {
+      final CustomerService service = CustomerService.values.firstWhere(
+        (CustomerService item) => item.name == data['service'],
+      );
+      final MobileNetwork network = MobileNetwork.values.firstWhere(
+        (MobileNetwork item) => item.name == data['network'],
+      );
+      final String clientName = _readString(data['clientName'])!;
+      final WhatsappPhoneNumber whatsappNumber = WhatsappPhoneNumber.parse(
+        _readString(data['clientWhatsappPhone'])!,
+      );
+      final BeneficiaryPhoneNumber beneficiaryNumber =
+          BeneficiaryPhoneNumber.parse(
+            _readString(data['beneficiaryPhone'])!,
+          );
+      final String offerLabel =
+          _readString(data['offerLabel']) ?? service.label;
+      final int amount = _readInt(data['amount']);
+      final DateTime createdAt = _readDate(data['createdAt']) ?? DateTime.now();
+      final DateTime expiresAt =
+          _readDate(data['expiresAt']) ?? createdAt.add(paymentValidity);
+      final String? failureReason = _readNullableString(data['failureReason']);
+      final String? observation = _readNullableString(data['observation']);
+
+      final CustomerOrderDraft draft = CustomerOrderDraft(
+        identity: CustomerIdentity(
+          name: clientName,
+          whatsappNumber: whatsappNumber,
+        ),
+        service: service,
+        network: network,
+        customOfferLabel: service == CustomerService.unitTransfer
+            ? null
+            : offerLabel,
+        amount: amount,
+        beneficiaryNumber: beneficiaryNumber,
+      );
+
+      return CustomerOrderReceipt(
+        id: id,
+        reference: _readString(data['reference']) ?? id,
+        draft: draft,
+        createdAt: createdAt,
+        expiresAt: expiresAt,
+        paymentDeclaredAt: _readDate(data['paymentDeclaredAt']),
+        paymentDeclaration: _readPaymentDeclaration(data),
+        paymentConfirmedAt: _readDate(data['paymentConfirmedAt']),
+        processingStartedAt: _readDate(data['takenAt']),
+        completedAt: _readDate(data['completedAt']),
+        status: _readOrderStatus(data['status']),
+        paymentStatus: _readPaymentStatus(data['paymentStatus']),
+        failureMessage: observation ?? failureReason,
+      );
+    } on Object {
+      return null;
+    }
+  }
 
   PaymentDeclaration? _readPaymentDeclaration(Map<String, dynamic> data) {
     final String? payerName = _readNullableString(data['paymentPayerName']);
@@ -301,6 +371,18 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
     }
 
     return null;
+  }
+
+  int _readInt(Object? value) {
+    if (value is int) {
+      return value;
+    }
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    return 0;
   }
 
   String? _readString(Object? value) {

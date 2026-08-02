@@ -13,6 +13,8 @@ class FakeCustomerOrderRepository implements CustomerOrderRepository {
       <String, CustomerOrderReceipt>{};
   final Map<String, StreamController<CustomerOrderReceipt>> _controllers =
       <String, StreamController<CustomerOrderReceipt>>{};
+  final StreamController<List<CustomerOrderReceipt>> _historyController =
+      StreamController<List<CustomerOrderReceipt>>.broadcast();
 
   @override
   Future<CustomerOrderReceipt> createOrder({
@@ -37,6 +39,7 @@ class FakeCustomerOrderRepository implements CustomerOrderRepository {
 
     _orders[receipt.id] = receipt;
     _controllers[receipt.id] = StreamController<CustomerOrderReceipt>.broadcast();
+    _emitHistory();
 
     return receipt;
   }
@@ -75,8 +78,15 @@ class FakeCustomerOrderRepository implements CustomerOrderRepository {
 
     _orders[order.id] = updatedOrder;
     _controllers[order.id]?.add(updatedOrder);
+    _emitHistory();
 
     return updatedOrder;
+  }
+
+  @override
+  Stream<List<CustomerOrderReceipt>> watchCustomerOrders() async* {
+    yield _sortedOrders();
+    yield* _historyController.stream;
   }
 
   @override
@@ -100,6 +110,21 @@ class FakeCustomerOrderRepository implements CustomerOrderRepository {
 
     _orders[order.id] = order;
     _controllers[order.id]?.add(order);
+    _emitHistory();
+  }
+
+  List<CustomerOrderReceipt> _sortedOrders() {
+    final List<CustomerOrderReceipt> orders = _orders.values.toList();
+    orders.sort((CustomerOrderReceipt first, CustomerOrderReceipt second) {
+      return second.createdAt.compareTo(first.createdAt);
+    });
+    return orders;
+  }
+
+  void _emitHistory() {
+    if (!_historyController.isClosed) {
+      _historyController.add(_sortedOrders());
+    }
   }
 
   String _buildReference(DateTime date, int sequence) {

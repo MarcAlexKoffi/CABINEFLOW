@@ -15,4 +15,6 @@ abstract class CustomerOrderRepository {
   Stream<CustomerOrderReceipt> watchOrder({
     required CustomerOrderReceipt order,
   });
+
+  Stream<List<CustomerOrderReceipt>> watchCustomerOrders();
 }

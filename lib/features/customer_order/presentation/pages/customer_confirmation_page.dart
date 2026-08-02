@@ -7,9 +7,14 @@ import 'package:cabine_flow/features/customer_order/presentation/widgets/custome
 import 'package:flutter/material.dart';
 
 class CustomerConfirmationPage extends StatelessWidget {
-  const CustomerConfirmationPage({super.key, required this.viewModel});
+  const CustomerConfirmationPage({
+    super.key,
+    required this.viewModel,
+    required this.onOpenHistory,
+  });
 
   final CustomerOrderViewModel viewModel;
+  final VoidCallback onOpenHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +58,10 @@ class CustomerConfirmationPage extends StatelessWidget {
                       ),
                     ),
                   ),
-                  _NewOrderAction(onPressed: viewModel.restart),
+                  _NewOrderAction(
+                    onNewOrder: viewModel.restart,
+                    onOpenHistory: onOpenHistory,
+                  ),
                 ],
               ),
             ),
@@ -733,9 +741,13 @@ class _WhiteCard extends StatelessWidget {
 }
 
 class _NewOrderAction extends StatelessWidget {
-  const _NewOrderAction({required this.onPressed});
+  const _NewOrderAction({
+    required this.onNewOrder,
+    required this.onOpenHistory,
+  });
 
-  final VoidCallback onPressed;
+  final VoidCallback onNewOrder;
+  final VoidCallback onOpenHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -752,9 +764,23 @@ class _NewOrderAction extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
-        child: FilledButton(
-          onPressed: onPressed,
-          child: const Text('Nouvelle commande'),
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: onOpenHistory,
+                icon: const Icon(Icons.history_rounded),
+                label: const Text('Historique'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton(
+                onPressed: onNewOrder,
+                child: const Text('Nouvelle commande'),
+              ),
+            ),
+          ],
         ),
       ),
     );

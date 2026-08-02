@@ -1,15 +1,25 @@
 import 'package:cabine_flow/core/theme/customer_app_colors.dart';
+import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_identity.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_flow_scaffold.dart';
+import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class CustomerIdentificationPage extends StatefulWidget {
-  const CustomerIdentificationPage({super.key, required this.viewModel});
+  const CustomerIdentificationPage({
+    super.key,
+    required this.viewModel,
+    required this.onOpenHistory,
+    required this.onResumeOrder,
+  });
 
   final CustomerOrderViewModel viewModel;
+  final VoidCallback onOpenHistory;
+  final ValueChanged<CustomerOrderReceipt> onResumeOrder;
 
   @override
   State<CustomerIdentificationPage> createState() {
@@ -79,6 +89,8 @@ class _CustomerIdentificationPageState
 
   @override
   Widget build(BuildContext context) {
+    final CustomerOrderReceipt? activeOrder = widget.viewModel.activeOrder;
+
     return CustomerFlowScaffold(
       currentStep: 1,
       totalSteps: CustomerOrderViewModel.totalSteps,
@@ -89,66 +101,219 @@ class _CustomerIdentificationPageState
       },
       onBottomBack: null,
       onContinue: _continue,
-      footer: const _NoAccountMessage(),
-      content: Form(
-        key: _formKey,
-        autovalidateMode: AutovalidateMode.onUserInteraction,
-        child: Container(
-          padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            color: CustomerAppColors.surfaceContainerLowest,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: CustomerAppColors.surfaceContainerHighest,
+      footer: _IdentificationFooter(
+        onOpenHistory: widget.onOpenHistory,
+        hasHistory: widget.viewModel.customerOrders.isNotEmpty,
+      ),
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (widget.viewModel.isLoadingHistory) ...[
+            const LinearProgressIndicator(minHeight: 3),
+            const SizedBox(height: 18),
+          ],
+          if (activeOrder != null) ...[
+            _ActiveOrderCard(
+              order: activeOrder,
+              onResume: () => widget.onResumeOrder(activeOrder),
             ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x0D000000),
-                blurRadius: 20,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const _FieldLabel(text: 'Nom ou surnom'),
-              TextFormField(
-                controller: _nameController,
-                textInputAction: TextInputAction.next,
-                textCapitalization: TextCapitalization.words,
-                autofillHints: const [AutofillHints.name],
-                decoration: const InputDecoration(
-                  hintText: 'Ex. Jean Dupont',
-                  prefixIcon: Icon(Icons.person_outline_rounded),
+            const SizedBox(height: 20),
+          ],
+          Form(
+            key: _formKey,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            child: Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: CustomerAppColors.surfaceContainerLowest,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: CustomerAppColors.surfaceContainerHighest,
                 ),
-                validator: _validateName,
-              ),
-              const SizedBox(height: 22),
-              const _FieldLabel(text: 'Numéro WhatsApp'),
-              TextFormField(
-                controller: _whatsappController,
-                keyboardType: TextInputType.phone,
-                textInputAction: TextInputAction.done,
-                autofillHints: const [AutofillHints.telephoneNumber],
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ()-]')),
-                  LengthLimitingTextInputFormatter(24),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x0D000000),
+                    blurRadius: 20,
+                    offset: Offset(0, 4),
+                  ),
                 ],
-                decoration: const InputDecoration(
-                  hintText: '+225 07 00 00 00 00',
-                  prefixIcon: Icon(Icons.phone_outlined),
-                ),
-                validator: WhatsappPhoneNumber.validate,
-                onFieldSubmitted: (_) {
-                  _continue();
-                },
               ),
-            ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const _FieldLabel(text: 'Nom ou surnom'),
+                  TextFormField(
+                    controller: _nameController,
+                    textInputAction: TextInputAction.next,
+                    textCapitalization: TextCapitalization.words,
+                    autofillHints: const [AutofillHints.name],
+                    decoration: const InputDecoration(
+                      hintText: 'Ex. Jean Dupont',
+                      prefixIcon: Icon(Icons.person_outline_rounded),
+                    ),
+                    validator: _validateName,
+                  ),
+                  const SizedBox(height: 22),
+                  const _FieldLabel(text: 'Numéro WhatsApp'),
+                  TextFormField(
+                    controller: _whatsappController,
+                    keyboardType: TextInputType.phone,
+                    textInputAction: TextInputAction.done,
+                    autofillHints: const [AutofillHints.telephoneNumber],
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ()-]')),
+                      LengthLimitingTextInputFormatter(24),
+                    ],
+                    decoration: const InputDecoration(
+                      hintText: '+225 07 00 00 00 00',
+                      prefixIcon: Icon(Icons.phone_outlined),
+                    ),
+                    validator: WhatsappPhoneNumber.validate,
+                    onFieldSubmitted: (_) {
+                      _continue();
+                    },
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
+  }
+}
+
+class _ActiveOrderCard extends StatelessWidget {
+  const _ActiveOrderCard({required this.order, required this.onResume});
+
+  final CustomerOrderReceipt order;
+  final VoidCallback onResume;
+
+  @override
+  Widget build(BuildContext context) {
+    final (String statusLabel, IconData statusIcon) = _activeStatus(order.status);
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF5FF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFBFD3FF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: const BoxDecoration(
+                  color: CustomerAppColors.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(statusIcon, color: Colors.white, size: 22),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Vous avez une commande en cours',
+                      style: TextStyle(
+                        color: CustomerAppColors.onSurface,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Reprenez exactement là où vous vous êtes arrêté.',
+                      style: TextStyle(
+                        color: CustomerAppColors.onSurfaceVariant,
+                        fontSize: 12,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(
+              color: CustomerAppColors.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        order.reference,
+                        style: const TextStyle(
+                          color: CustomerAppColors.primary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$statusLabel · ${formatCfa(order.draft.amount!)} CFA',
+                        style: const TextStyle(
+                          color: CustomerAppColors.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: CustomerAppColors.primary,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: onResume,
+            icon: const Icon(Icons.play_arrow_rounded),
+            label: const Text('Reprendre le suivi'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  (String, IconData) _activeStatus(QueueOrderStatus status) {
+    switch (status) {
+      case QueueOrderStatus.awaitingPayment:
+        return ('Paiement à effectuer', Icons.account_balance_wallet_outlined);
+      case QueueOrderStatus.paymentToVerify:
+        return ('Paiement à vérifier', Icons.schedule_rounded);
+      case QueueOrderStatus.paidReady:
+        return ('Paiement confirmé', Icons.verified_rounded);
+      case QueueOrderStatus.inProgress:
+        return ('En cours de traitement', Icons.sync_rounded);
+      case QueueOrderStatus.onHold:
+        return ('Temporairement en attente', Icons.pause_circle_outline_rounded);
+      case QueueOrderStatus.awaitingCustomerConfirmation:
+        return ('Transaction effectuée', Icons.task_alt_rounded);
+      case QueueOrderStatus.refundPending:
+        return ('Remboursement en cours', Icons.currency_exchange_rounded);
+      case QueueOrderStatus.completed:
+      case QueueOrderStatus.failed:
+      case QueueOrderStatus.expired:
+      case QueueOrderStatus.cancelled:
+      case QueueOrderStatus.refunded:
+        return ('Commande mise à jour', Icons.receipt_long_outlined);
+    }
   }
 }
 
@@ -162,6 +327,31 @@ class _FieldLabel extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(text, style: Theme.of(context).textTheme.labelLarge),
+    );
+  }
+}
+
+class _IdentificationFooter extends StatelessWidget {
+  const _IdentificationFooter({
+    required this.onOpenHistory,
+    required this.hasHistory,
+  });
+
+  final VoidCallback onOpenHistory;
+  final bool hasHistory;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        OutlinedButton.icon(
+          onPressed: onOpenHistory,
+          icon: const Icon(Icons.history_rounded),
+          label: Text(hasHistory ? 'Voir mes commandes' : 'Historique'),
+        ),
+        const SizedBox(height: 14),
+        const _NoAccountMessage(),
+      ],
     );
   }
 }
