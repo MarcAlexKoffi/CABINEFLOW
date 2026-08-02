@@ -66,6 +66,10 @@ class QueueOrder {
     this.paidAt,
     this.paymentRequestSentAt,
     this.paymentDeclaredAt,
+    this.paymentPayerName,
+    this.paymentPayerPhone,
+    this.paymentApproximateTime,
+    this.paymentDeclaredReference,
     this.paymentConfirmedAt,
     this.expiresAt,
     this.paymentReference,
@@ -99,6 +103,10 @@ class QueueOrder {
   final DateTime? paidAt;
   final DateTime? paymentRequestSentAt;
   final DateTime? paymentDeclaredAt;
+  final String? paymentPayerName;
+  final String? paymentPayerPhone;
+  final String? paymentApproximateTime;
+  final String? paymentDeclaredReference;
   final DateTime? paymentConfirmedAt;
   final DateTime? expiresAt;
   final String? paymentReference;
@@ -122,6 +130,10 @@ class QueueOrder {
     DateTime? paidAt,
     DateTime? paymentRequestSentAt,
     DateTime? paymentDeclaredAt,
+    String? paymentPayerName,
+    String? paymentPayerPhone,
+    String? paymentApproximateTime,
+    String? paymentDeclaredReference,
     DateTime? paymentConfirmedAt,
     DateTime? expiresAt,
     String? paymentReference,
@@ -151,6 +163,12 @@ class QueueOrder {
       paidAt: paidAt ?? this.paidAt,
       paymentRequestSentAt: paymentRequestSentAt ?? this.paymentRequestSentAt,
       paymentDeclaredAt: paymentDeclaredAt ?? this.paymentDeclaredAt,
+      paymentPayerName: paymentPayerName ?? this.paymentPayerName,
+      paymentPayerPhone: paymentPayerPhone ?? this.paymentPayerPhone,
+      paymentApproximateTime:
+          paymentApproximateTime ?? this.paymentApproximateTime,
+      paymentDeclaredReference:
+          paymentDeclaredReference ?? this.paymentDeclaredReference,
       paymentConfirmedAt: paymentConfirmedAt ?? this.paymentConfirmedAt,
       expiresAt: expiresAt ?? this.expiresAt,
       paymentReference: paymentReference ?? this.paymentReference,

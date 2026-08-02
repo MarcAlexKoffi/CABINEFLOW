@@ -2,6 +2,7 @@ import 'package:cabine_flow/core/services/wave_payment_link_builder.dart';
 import 'package:cabine_flow/core/theme/customer_app_colors.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_order_labels.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_progress_indicator.dart';
@@ -74,38 +75,30 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
   }
 
   Future<void> _confirmPaymentDeclaration() async {
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Avez-vous terminé le paiement ?'),
-          content: const Text(
-            'Confirmez uniquement après avoir validé le paiement '
-            'dans Wave. CabineFlow vérifiera ensuite la transaction.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(false);
-              },
-              child: const Text('Pas encore'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(true);
-              },
-              child: const Text('J’ai payé'),
-            ),
-          ],
+    final CustomerOrderDraft draft = widget.viewModel.draft;
+    final _PaymentDeclarationFormData? declaration =
+        await showModalBottomSheet<_PaymentDeclarationFormData>(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (BuildContext sheetContext) {
+            return _PaymentDeclarationSheet(
+              initialName: draft.identity!.name,
+              initialPhone: draft.identity!.whatsappNumber.displayValue,
+            );
+          },
         );
-      },
-    );
 
-    if (confirmed != true || !mounted) {
+    if (declaration == null || !mounted) {
       return;
     }
 
-    final bool successful = await widget.viewModel.declarePayment();
+    final bool successful = await widget.viewModel.declarePayment(
+      waveAccountName: declaration.waveAccountName,
+      wavePayerPhoneInput: declaration.wavePayerPhone,
+      approximatePaymentTime: declaration.approximatePaymentTime,
+      declaredWaveReference: declaration.declaredWaveReference,
+    );
 
     if (!mounted || successful) {
       return;
@@ -503,3 +496,262 @@ class _PaymentBottomActions extends StatelessWidget {
     );
   }
 }
+
+class _PaymentDeclarationFormData {
+  const _PaymentDeclarationFormData({
+    required this.waveAccountName,
+    required this.wavePayerPhone,
+    required this.approximatePaymentTime,
+    this.declaredWaveReference,
+  });
+
+  final String waveAccountName;
+  final String wavePayerPhone;
+  final String approximatePaymentTime;
+  final String? declaredWaveReference;
+}
+
+class _PaymentDeclarationSheet extends StatefulWidget {
+  const _PaymentDeclarationSheet({
+    required this.initialName,
+    required this.initialPhone,
+  });
+
+  final String initialName;
+  final String initialPhone;
+
+  @override
+  State<_PaymentDeclarationSheet> createState() {
+    return _PaymentDeclarationSheetState();
+  }
+}
+
+class _PaymentDeclarationSheetState extends State<_PaymentDeclarationSheet> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late final TextEditingController _phoneController;
+  late final TextEditingController _referenceController;
+  late TimeOfDay _approximateTime;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.initialName);
+    _phoneController = TextEditingController(text: widget.initialPhone);
+    _referenceController = TextEditingController();
+    _approximateTime = TimeOfDay.now();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _referenceController.dispose();
+    super.dispose();
+  }
+
+  String get _formattedTime {
+    final String hour = _approximateTime.hour.toString().padLeft(2, '0');
+    final String minute = _approximateTime.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  Future<void> _selectTime() async {
+    final TimeOfDay? selectedTime = await showTimePicker(
+      context: context,
+      initialTime: _approximateTime,
+      helpText: 'Heure approximative du paiement',
+      cancelText: 'Annuler',
+      confirmText: 'Valider',
+    );
+
+    if (selectedTime == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _approximateTime = selectedTime;
+    });
+  }
+
+  void _submit() {
+    final FormState? form = _formKey.currentState;
+
+    if (form == null || !form.validate()) {
+      return;
+    }
+
+    final String reference = _referenceController.text.trim();
+
+    Navigator.of(context).pop(
+      _PaymentDeclarationFormData(
+        waveAccountName: _nameController.text.trim(),
+        wavePayerPhone: _phoneController.text.trim(),
+        approximatePaymentTime: _formattedTime,
+        declaredWaveReference: reference.isEmpty ? null : reference,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double keyboardHeight = MediaQuery.viewInsetsOf(context).bottom;
+
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      padding: EdgeInsets.only(bottom: keyboardHeight),
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.92,
+        ),
+        decoration: const BoxDecoration(
+          color: CustomerAppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Align(
+                    alignment: Alignment.center,
+                    child: Container(
+                      width: 46,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: CustomerAppColors.surfaceContainerHigh,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Déclarer le paiement Wave',
+                    style: TextStyle(
+                      color: CustomerAppColors.onSurface,
+                      fontSize: 21,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  const Text(
+                    'Ces informations aideront l’opérateur à retrouver '
+                    'votre transaction. Elles ne confirment pas '
+                    'automatiquement le paiement.',
+                    style: TextStyle(
+                      color: CustomerAppColors.onSurfaceVariant,
+                      fontSize: 13,
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: _nameController,
+                    textCapitalization: TextCapitalization.words,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const <String>[AutofillHints.name],
+                    decoration: const InputDecoration(
+                      labelText: 'Nom affiché sur le compte Wave',
+                      hintText: 'Ex. KOFFI MARC',
+                      prefixIcon: Icon(Icons.person_outline_rounded),
+                    ),
+                    validator: (String? value) {
+                      final String cleaned = value?.trim() ?? '';
+
+                      if (cleaned.length < 2) {
+                        return 'Saisissez le nom affiché sur le compte Wave.';
+                      }
+
+                      if (cleaned.length > 80) {
+                        return 'Maximum 80 caractères.';
+                      }
+
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const <String>[AutofillHints.telephoneNumber],
+                    decoration: const InputDecoration(
+                      labelText: 'Numéro Wave utilisé',
+                      hintText: 'Ex. 07 00 00 00 00',
+                      prefixIcon: Icon(Icons.phone_android_rounded),
+                    ),
+                    validator: (String? value) {
+                      final String? error = WhatsappPhoneNumber.validate(value);
+                      return error?.replaceAll(
+                        'votre numéro WhatsApp',
+                        'le numéro Wave',
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  InkWell(
+                    onTap: _selectTime,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Heure approximative du paiement',
+                        prefixIcon: Icon(Icons.schedule_rounded),
+                        suffixIcon: Icon(Icons.edit_outlined),
+                      ),
+                      child: Text(
+                        _formattedTime,
+                        style: const TextStyle(
+                          color: CustomerAppColors.onSurface,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: _referenceController,
+                    textCapitalization: TextCapitalization.characters,
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _submit(),
+                    decoration: const InputDecoration(
+                      labelText: 'Référence Wave éventuelle',
+                      hintText: 'Facultatif',
+                      prefixIcon: Icon(Icons.tag_rounded),
+                    ),
+                    validator: (String? value) {
+                      if ((value?.trim().length ?? 0) > 80) {
+                        return 'Maximum 80 caractères.';
+                      }
+
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton.icon(
+                    onPressed: _submit,
+                    icon: const Icon(Icons.check_circle_outline_rounded),
+                    label: const Text('Confirmer ma déclaration'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text('Annuler'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+

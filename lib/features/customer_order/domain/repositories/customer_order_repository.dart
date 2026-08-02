@@ -1,11 +1,15 @@
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/payment_declaration.dart';
 
 abstract class CustomerOrderRepository {
-  Future<CustomerOrderReceipt> createOrder({required CustomerOrderDraft draft});
+  Future<CustomerOrderReceipt> createOrder({
+    required CustomerOrderDraft draft,
+  });
 
   Future<CustomerOrderReceipt> declarePayment({
     required CustomerOrderReceipt order,
+    required PaymentDeclaration declaration,
   });
 
   Stream<CustomerOrderReceipt> watchOrder({

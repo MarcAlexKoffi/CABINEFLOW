@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/payment_declaration.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 
@@ -35,8 +36,7 @@ class FakeCustomerOrderRepository implements CustomerOrderRepository {
     );
 
     _orders[receipt.id] = receipt;
-    _controllers[receipt.id] =
-        StreamController<CustomerOrderReceipt>.broadcast();
+    _controllers[receipt.id] = StreamController<CustomerOrderReceipt>.broadcast();
 
     return receipt;
   }
@@ -44,6 +44,7 @@ class FakeCustomerOrderRepository implements CustomerOrderRepository {
   @override
   Future<CustomerOrderReceipt> declarePayment({
     required CustomerOrderReceipt order,
+    required PaymentDeclaration declaration,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 150));
 
@@ -69,6 +70,7 @@ class FakeCustomerOrderRepository implements CustomerOrderRepository {
       status: QueueOrderStatus.paymentToVerify,
       paymentStatus: OrderPaymentStatus.declared,
       paymentDeclaredAt: DateTime.now(),
+      paymentDeclaration: declaration,
     );
 
     _orders[order.id] = updatedOrder;

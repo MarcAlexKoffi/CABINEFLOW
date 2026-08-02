@@ -1,5 +1,6 @@
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/payment_declaration.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
@@ -62,6 +63,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
   @override
   Future<CustomerOrderReceipt> declarePayment({
     required CustomerOrderReceipt order,
+    required PaymentDeclaration declaration,
   }) async {
     final User customer = await _ensureAnonymousCustomer();
     final DocumentReference<Map<String, dynamic>> document = _ordersCollection
@@ -104,6 +106,10 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
         'status': QueueOrderStatus.paymentToVerify.name,
         'paymentStatus': OrderPaymentStatus.declared.name,
         'paymentDeclaredAt': FieldValue.serverTimestamp(),
+        'paymentPayerName': declaration.waveAccountName,
+        'paymentPayerPhone': declaration.wavePayerPhone.normalized,
+        'paymentApproximateTime': declaration.approximatePaymentTime,
+        'paymentDeclaredReference': declaration.declaredWaveReference,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
@@ -111,6 +117,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
         status: QueueOrderStatus.paymentToVerify,
         paymentStatus: OrderPaymentStatus.declared,
         paymentDeclaredAt: declaredAt,
+        paymentDeclaration: declaration,
       );
     });
   }
@@ -178,6 +185,10 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
       'updatedAt': FieldValue.serverTimestamp(),
       'paymentRequestSentAt': null,
       'paymentDeclaredAt': null,
+      'paymentPayerName': null,
+      'paymentPayerPhone': null,
+      'paymentApproximateTime': null,
+      'paymentDeclaredReference': null,
       'expiresAt': Timestamp.fromDate(expiresAt.toUtc()),
       'paymentConfirmedAt': null,
       'paidAt': null,
@@ -209,6 +220,8 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
       expiresAt: _readDate(data['expiresAt']) ?? order.expiresAt,
       paymentDeclaredAt:
           _readDate(data['paymentDeclaredAt']) ?? order.paymentDeclaredAt,
+      paymentDeclaration:
+          _readPaymentDeclaration(data) ?? order.paymentDeclaration,
       paymentConfirmedAt:
           _readDate(data['paymentConfirmedAt']) ?? order.paymentConfirmedAt,
       processingStartedAt:
@@ -218,6 +231,32 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
       paymentStatus: _readPaymentStatus(data['paymentStatus']),
       failureMessage: observation ?? failureReason ?? order.failureMessage,
     );
+  }
+
+
+  PaymentDeclaration? _readPaymentDeclaration(Map<String, dynamic> data) {
+    final String? payerName = _readNullableString(data['paymentPayerName']);
+    final String? payerPhone = _readNullableString(data['paymentPayerPhone']);
+    final String? approximateTime = _readNullableString(
+      data['paymentApproximateTime'],
+    );
+
+    if (payerName == null || payerPhone == null || approximateTime == null) {
+      return null;
+    }
+
+    try {
+      return PaymentDeclaration.parse(
+        waveAccountName: payerName,
+        wavePayerPhoneInput: payerPhone,
+        approximatePaymentTime: approximateTime,
+        declaredWaveReference: _readNullableString(
+          data['paymentDeclaredReference'],
+        ),
+      );
+    } on FormatException {
+      return null;
+    }
   }
 
   String _operationTypeValue(CustomerOrderDraft draft) {
@@ -282,7 +321,10 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
     final String year = localDate.year.toString().padLeft(4, '0');
     final String month = localDate.month.toString().padLeft(2, '0');
     final String day = localDate.day.toString().padLeft(2, '0');
-    final String cleanedId = documentId.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
+    final String cleanedId = documentId.replaceAll(
+      RegExp(r'[^A-Za-z0-9]'),
+      '',
+    );
     final String suffix = cleanedId
         .substring(0, cleanedId.length < 6 ? cleanedId.length : 6)
         .toUpperCase();

@@ -1,4 +1,5 @@
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/payment_declaration.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 
 class CustomerOrderReceipt {
@@ -11,6 +12,7 @@ class CustomerOrderReceipt {
     required this.status,
     required this.paymentStatus,
     this.paymentDeclaredAt,
+    this.paymentDeclaration,
     this.paymentConfirmedAt,
     this.processingStartedAt,
     this.completedAt,
@@ -24,6 +26,7 @@ class CustomerOrderReceipt {
   final DateTime createdAt;
   final DateTime expiresAt;
   final DateTime? paymentDeclaredAt;
+  final PaymentDeclaration? paymentDeclaration;
   final DateTime? paymentConfirmedAt;
   final DateTime? processingStartedAt;
   final DateTime? completedAt;
@@ -45,6 +48,7 @@ class CustomerOrderReceipt {
     QueueOrderStatus? status,
     OrderPaymentStatus? paymentStatus,
     DateTime? paymentDeclaredAt,
+    PaymentDeclaration? paymentDeclaration,
     DateTime? paymentConfirmedAt,
     DateTime? processingStartedAt,
     DateTime? completedAt,
@@ -57,6 +61,7 @@ class CustomerOrderReceipt {
       createdAt: createdAt,
       expiresAt: expiresAt,
       paymentDeclaredAt: paymentDeclaredAt ?? this.paymentDeclaredAt,
+      paymentDeclaration: paymentDeclaration ?? this.paymentDeclaration,
       paymentConfirmedAt: paymentConfirmedAt ?? this.paymentConfirmedAt,
       processingStartedAt: processingStartedAt ?? this.processingStartedAt,
       completedAt: completedAt ?? this.completedAt,

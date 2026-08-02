@@ -48,6 +48,10 @@ service cloud.firestore {
         'updatedAt',
         'paymentRequestSentAt',
         'paymentDeclaredAt',
+        'paymentPayerName',
+        'paymentPayerPhone',
+        'paymentApproximateTime',
+        'paymentDeclaredReference',
         'expiresAt',
         'paymentConfirmedAt',
         'paidAt',
@@ -147,6 +151,10 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time
         && request.resource.data.paymentRequestSentAt == null
         && request.resource.data.paymentDeclaredAt == null
+        && request.resource.data.paymentPayerName == null
+        && request.resource.data.paymentPayerPhone == null
+        && request.resource.data.paymentApproximateTime == null
+        && request.resource.data.paymentDeclaredReference == null
         && request.resource.data.paymentConfirmedAt == null
         && request.resource.data.paidAt == null
         && request.resource.data.paymentReference == null
@@ -170,6 +178,10 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time
         && request.resource.data.paymentRequestSentAt == null
         && request.resource.data.paymentDeclaredAt == null
+        && request.resource.data.paymentPayerName == null
+        && request.resource.data.paymentPayerPhone == null
+        && request.resource.data.paymentApproximateTime == null
+        && request.resource.data.paymentDeclaredReference == null
         && request.resource.data.paymentConfirmedAt == null
         && request.resource.data.paidAt == null
         && request.resource.data.paymentReference == null
@@ -238,7 +250,11 @@ service cloud.firestore {
           'updatedAt',
           'status',
           'paymentStatus',
-          'paymentDeclaredAt'
+          'paymentDeclaredAt',
+          'paymentPayerName',
+          'paymentPayerPhone',
+          'paymentApproximateTime',
+          'paymentDeclaredReference'
         ])
         && resource.data.source == 'customerWeb'
         && resource.data.status == 'awaitingPayment'
@@ -247,6 +263,20 @@ service cloud.firestore {
         && request.resource.data.status == 'paymentToVerify'
         && request.resource.data.paymentStatus == 'declared'
         && request.resource.data.paymentDeclaredAt == request.time
+        && request.resource.data.paymentPayerName is string
+        && request.resource.data.paymentPayerName.size() >= 2
+        && request.resource.data.paymentPayerName.size() <= 80
+        && request.resource.data.paymentPayerPhone is string
+        && request.resource.data.paymentPayerPhone.matches('^[+]225(01|05|07)[0-9]{8}$')
+        && request.resource.data.paymentApproximateTime is string
+        && request.resource.data.paymentApproximateTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
+        && (
+          request.resource.data.paymentDeclaredReference == null
+          || (
+            request.resource.data.paymentDeclaredReference is string
+            && request.resource.data.paymentDeclaredReference.size() <= 80
+          )
+        )
         && request.resource.data.updatedAt == request.time;
     }
 

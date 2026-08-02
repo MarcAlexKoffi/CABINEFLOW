@@ -5,6 +5,7 @@ import 'package:cabine_flow/features/customer_order/domain/models/customer_ident
 import 'package:cabine_flow/features/customer_order/domain/models/customer_offer.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/payment_declaration.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_repository.dart';
@@ -294,7 +295,12 @@ class CustomerOrderViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> declarePayment() async {
+  Future<bool> declarePayment({
+    required String waveAccountName,
+    required String wavePayerPhoneInput,
+    required String approximatePaymentTime,
+    String? declaredWaveReference,
+  }) async {
     final CustomerOrderReceipt? currentOrder = _receipt;
 
     if (_isSubmitting || currentOrder == null) {
@@ -312,13 +318,25 @@ class CustomerOrderViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _receipt = await _orderRepository.declarePayment(order: currentOrder);
+      final PaymentDeclaration declaration = PaymentDeclaration.parse(
+        waveAccountName: waveAccountName,
+        wavePayerPhoneInput: wavePayerPhoneInput,
+        approximatePaymentTime: approximatePaymentTime,
+        declaredWaveReference: declaredWaveReference,
+      );
+
+      _receipt = await _orderRepository.declarePayment(
+        order: currentOrder,
+        declaration: declaration,
+      );
       _currentStep = 8;
       return true;
     } catch (error) {
-      _submissionErrorMessage = error is StateError
-          ? error.message.toString()
-          : 'Impossible d’enregistrer la déclaration de paiement.';
+      _submissionErrorMessage = switch (error) {
+        FormatException exception => exception.message.toString(),
+        StateError exception => exception.message.toString(),
+        _ => 'Impossible d’enregistrer la déclaration de paiement.',
+      };
       return false;
     } finally {
       _isSubmitting = false;
@@ -330,20 +348,18 @@ class CustomerOrderViewModel extends ChangeNotifier {
     unawaited(_trackingSubscription?.cancel());
     _trackingErrorMessage = null;
 
-    _trackingSubscription = _orderRepository
-        .watchOrder(order: order)
-        .listen(
-          (CustomerOrderReceipt updatedOrder) {
-            _receipt = updatedOrder;
-            _trackingErrorMessage = null;
-            notifyListeners();
-          },
-          onError: (Object error) {
-            _trackingErrorMessage =
-                'Le suivi en temps réel est momentanément indisponible.';
-            notifyListeners();
-          },
-        );
+    _trackingSubscription = _orderRepository.watchOrder(order: order).listen(
+      (CustomerOrderReceipt updatedOrder) {
+        _receipt = updatedOrder;
+        _trackingErrorMessage = null;
+        notifyListeners();
+      },
+      onError: (Object error) {
+        _trackingErrorMessage =
+            'Le suivi en temps réel est momentanément indisponible.';
+        notifyListeners();
+      },
+    );
   }
 
   void goBack() {

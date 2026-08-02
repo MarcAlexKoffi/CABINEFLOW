@@ -25,6 +25,10 @@ void main() {
           'paidAt': Timestamp.fromDate(paidAt),
           'paymentRequestSentAt': Timestamp.fromDate(createdAt),
           'paymentDeclaredAt': Timestamp.fromDate(createdAt),
+          'paymentPayerName': 'Alex Koffi',
+          'paymentPayerPhone': '+2250700000000',
+          'paymentApproximateTime': '09:34',
+          'paymentDeclaredReference': 'DECL-123',
           'paymentConfirmedAt': Timestamp.fromDate(paidAt),
           'paymentReference': 'W-ABC123',
           'status': 'paidReady',
@@ -48,6 +52,10 @@ void main() {
       expect(order.paymentStatus, OrderPaymentStatus.confirmed);
       expect(order.amount, 1000);
       expect(order.paymentReference, 'W-ABC123');
+      expect(order.paymentPayerName, 'Alex Koffi');
+      expect(order.paymentPayerPhone, '+2250700000000');
+      expect(order.paymentApproximateTime, '09:34');
+      expect(order.paymentDeclaredReference, 'DECL-123');
       expect(order.paidAt, paidAt);
     });
 

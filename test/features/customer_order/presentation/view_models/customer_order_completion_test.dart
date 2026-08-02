@@ -37,15 +37,40 @@ void main() {
       expect(orderCreated, isTrue);
       expect(viewModel.currentStep, 7);
       expect(viewModel.receipt, isNotNull);
-      expect(viewModel.receipt?.status, QueueOrderStatus.awaitingPayment);
-      expect(viewModel.receipt?.paymentStatus, OrderPaymentStatus.notDeclared);
+      expect(
+        viewModel.receipt?.status,
+        QueueOrderStatus.awaitingPayment,
+      );
+      expect(
+        viewModel.receipt?.paymentStatus,
+        OrderPaymentStatus.notDeclared,
+      );
 
-      final bool paymentDeclared = await viewModel.declarePayment();
+      final bool paymentDeclared = await viewModel.declarePayment(
+        waveAccountName: 'Client test',
+        wavePayerPhoneInput: '07 00 00 00 00',
+        approximatePaymentTime: '19:05',
+        declaredWaveReference: 'W-12345',
+      );
 
       expect(paymentDeclared, isTrue);
       expect(viewModel.currentStep, 8);
-      expect(viewModel.receipt?.status, QueueOrderStatus.paymentToVerify);
-      expect(viewModel.receipt?.paymentStatus, OrderPaymentStatus.declared);
+      expect(
+        viewModel.receipt?.status,
+        QueueOrderStatus.paymentToVerify,
+      );
+      expect(
+        viewModel.receipt?.paymentStatus,
+        OrderPaymentStatus.declared,
+      );
+      expect(
+        viewModel.receipt?.paymentDeclaration?.waveAccountName,
+        'Client test',
+      );
+      expect(
+        viewModel.receipt?.paymentDeclaration?.approximatePaymentTime,
+        '19:05',
+      );
 
       final currentReceipt = viewModel.receipt!;
       repository.simulateOrderUpdate(
@@ -58,7 +83,10 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(viewModel.receipt?.status, QueueOrderStatus.paidReady);
-      expect(viewModel.receipt?.paymentStatus, OrderPaymentStatus.confirmed);
+      expect(
+        viewModel.receipt?.paymentStatus,
+        OrderPaymentStatus.confirmed,
+      );
 
       viewModel.restart();
 

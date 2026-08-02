@@ -103,6 +103,25 @@ class _PaymentsPageState extends State<PaymentsPage> {
     }
   }
 
+  String _formatIvorianPhone(String value) {
+    final String digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+    final String localDigits = digits.startsWith('225')
+        ? digits.substring(3)
+        : digits;
+
+    if (localDigits.length != 10) {
+      return value;
+    }
+
+    return '+225 ${<String>[
+      localDigits.substring(0, 2),
+      localDigits.substring(2, 4),
+      localDigits.substring(4, 6),
+      localDigits.substring(6, 8),
+      localDigits.substring(8, 10),
+    ].join(' ')}';
+  }
+
   Future<void> _openPaymentConfirmation(QueueOrder order) async {
     final TextEditingController referenceController = TextEditingController();
     bool paymentWasChecked = false;
@@ -194,6 +213,58 @@ class _PaymentsPageState extends State<PaymentsPage> {
                           ],
                         ),
                       ),
+                      if (order.paymentPayerName != null ||
+                          order.paymentPayerPhone != null ||
+                          order.paymentApproximateTime != null ||
+                          order.paymentDeclaredReference != null) ...[
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.all(13),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF7E6),
+                            borderRadius: BorderRadius.circular(11),
+                            border: Border.all(
+                              color: const Color(0xFFF59E0B).withAlpha(100),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Text(
+                                'Déclaration du client',
+                                style: TextStyle(
+                                  color: Color(0xFFB45309),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              if (order.paymentPayerName != null)
+                                _PaymentDeclarationCheckRow(
+                                  label: 'Nom Wave',
+                                  value: order.paymentPayerName!,
+                                ),
+                              if (order.paymentPayerPhone != null)
+                                _PaymentDeclarationCheckRow(
+                                  label: 'Numéro',
+                                  value: _formatIvorianPhone(
+                                    order.paymentPayerPhone!,
+                                  ),
+                                ),
+                              if (order.paymentApproximateTime != null)
+                                _PaymentDeclarationCheckRow(
+                                  label: 'Heure annoncée',
+                                  value: order.paymentApproximateTime!,
+                                ),
+                              if (order.paymentDeclaredReference != null)
+                                _PaymentDeclarationCheckRow(
+                                  label: 'Référence déclarée',
+                                  value: order.paymentDeclaredReference!,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 18),
                       const Text(
                         'Référence Wave',
@@ -464,3 +535,48 @@ class _PaymentsEmptyState extends StatelessWidget {
     );
   }
 }
+
+class _PaymentDeclarationCheckRow extends StatelessWidget {
+  const _PaymentDeclarationCheckRow({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 115,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.onSurfaceVariant,
+                fontSize: 11,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: const TextStyle(
+                color: AppColors.onSurface,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

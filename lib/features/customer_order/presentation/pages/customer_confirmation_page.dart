@@ -566,8 +566,7 @@ class _TrackingCard extends StatelessWidget {
           ),
           _TrackingStep(
             title: _finalTitle,
-            subtitle:
-                receipt.failureMessage ?? _formatDate(receipt.completedAt),
+            subtitle: receipt.failureMessage ?? _formatDate(receipt.completedAt),
             state: _finalState,
             isLast: true,
           ),

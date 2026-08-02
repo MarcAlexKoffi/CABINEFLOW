@@ -218,6 +218,10 @@ class PaymentTrackingCard extends StatelessWidget {
           _buildOperationInformation(),
           const SizedBox(height: 14),
           _buildPaymentStatus(),
+          if (isCustomerPaymentDeclared && _hasDeclaredPaymentDetails) ...[
+            const SizedBox(height: 10),
+            _buildDeclaredPaymentDetails(),
+          ],
           const SizedBox(height: 13),
           _buildActions(),
         ],
@@ -392,6 +396,105 @@ class PaymentTrackingCard extends StatelessWidget {
     );
   }
 
+  bool get _hasDeclaredPaymentDetails {
+    return order.paymentPayerName != null ||
+        order.paymentPayerPhone != null ||
+        order.paymentApproximateTime != null ||
+        order.paymentDeclaredReference != null;
+  }
+
+  Widget _buildDeclaredPaymentDetails() {
+    final List<Widget> rows = <Widget>[
+      if (order.paymentPayerName != null)
+        _DeclaredPaymentRow(
+          label: 'Nom Wave',
+          value: order.paymentPayerName!,
+        ),
+      if (order.paymentPayerPhone != null)
+        _DeclaredPaymentRow(
+          label: 'Numéro payeur',
+          value: _formatIvorianPhone(order.paymentPayerPhone!),
+        ),
+      if (order.paymentApproximateTime != null)
+        _DeclaredPaymentRow(
+          label: 'Heure annoncée',
+          value: order.paymentApproximateTime!,
+        ),
+      if (order.paymentDeclaredReference != null)
+        _DeclaredPaymentRow(
+          label: 'Référence déclarée',
+          value: order.paymentDeclaredReference!,
+          isLast: true,
+        ),
+    ];
+
+    if (rows.isNotEmpty && rows.last is _DeclaredPaymentRow) {
+      final _DeclaredPaymentRow last = rows.removeLast() as _DeclaredPaymentRow;
+      rows.add(
+        _DeclaredPaymentRow(
+          label: last.label,
+          value: last.value,
+          isLast: true,
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.outlineVariant.withAlpha(80)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.receipt_long_outlined,
+                color: AppColors.primary,
+                size: 17,
+              ),
+              SizedBox(width: 7),
+              Text(
+                'Informations déclarées par le client',
+                style: TextStyle(
+                  color: AppColors.onSurface,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          ...rows,
+        ],
+      ),
+    );
+  }
+
+  String _formatIvorianPhone(String value) {
+    final String digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+    final String localDigits = digits.startsWith('225')
+        ? digits.substring(3)
+        : digits;
+
+    if (localDigits.length != 10) {
+      return value;
+    }
+
+    final List<String> groups = <String>[
+      localDigits.substring(0, 2),
+      localDigits.substring(2, 4),
+      localDigits.substring(4, 6),
+      localDigits.substring(6, 8),
+      localDigits.substring(8, 10),
+    ];
+
+    return '+225 ${groups.join(' ')}';
+  }
+
   Widget _buildActions() {
     if (isConfirmed) {
       return OutlinedButton.icon(
@@ -462,3 +565,59 @@ class PaymentTrackingCard extends StatelessWidget {
     );
   }
 }
+
+class _DeclaredPaymentRow extends StatelessWidget {
+  const _DeclaredPaymentRow({
+    required this.label,
+    required this.value,
+    this.isLast = false,
+  });
+
+  final String label;
+  final String value;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      decoration: BoxDecoration(
+        border: isLast
+            ? null
+            : Border(
+                bottom: BorderSide(
+                  color: AppColors.outlineVariant.withAlpha(45),
+                ),
+              ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 112,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.onSurfaceVariant,
+                fontSize: 10,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: const TextStyle(
+                color: AppColors.onSurface,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
