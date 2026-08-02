@@ -1,5 +1,4 @@
 import 'package:cabine_flow/features/customer_order/data/repositories/fake_customer_order_repository.dart';
-import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
@@ -7,10 +6,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
-    'le récapitulatif, le paiement et la confirmation terminent le flux',
+    'crée la commande avant Wave puis déclare le paiement séparément',
     () async {
+      final FakeCustomerOrderRepository repository =
+          FakeCustomerOrderRepository();
       final CustomerOrderViewModel viewModel = CustomerOrderViewModel(
-        orderRepository: FakeCustomerOrderRepository(),
+        orderRepository: repository,
       );
 
       viewModel.saveIdentity(
@@ -30,18 +31,34 @@ void main() {
 
       expect(viewModel.currentStep, 6);
 
-      viewModel.continueFromSummary();
+      final bool orderCreated = await viewModel
+          .createOrderAndContinueToPayment();
+
+      expect(orderCreated, isTrue);
       expect(viewModel.currentStep, 7);
-
-      final bool successful = await viewModel.declarePaymentAndSubmitOrder();
-
-      expect(successful, isTrue);
-      expect(viewModel.currentStep, 8);
       expect(viewModel.receipt, isNotNull);
-      expect(
-        viewModel.receipt?.status,
-        CustomerOrderTrackingStatus.paymentDeclared,
+      expect(viewModel.receipt?.status, QueueOrderStatus.awaitingPayment);
+      expect(viewModel.receipt?.paymentStatus, OrderPaymentStatus.notDeclared);
+
+      final bool paymentDeclared = await viewModel.declarePayment();
+
+      expect(paymentDeclared, isTrue);
+      expect(viewModel.currentStep, 8);
+      expect(viewModel.receipt?.status, QueueOrderStatus.paymentToVerify);
+      expect(viewModel.receipt?.paymentStatus, OrderPaymentStatus.declared);
+
+      final currentReceipt = viewModel.receipt!;
+      repository.simulateOrderUpdate(
+        currentReceipt.copyWith(
+          status: QueueOrderStatus.paidReady,
+          paymentStatus: OrderPaymentStatus.confirmed,
+          paymentConfirmedAt: DateTime.now(),
+        ),
       );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(viewModel.receipt?.status, QueueOrderStatus.paidReady);
+      expect(viewModel.receipt?.paymentStatus, OrderPaymentStatus.confirmed);
 
       viewModel.restart();
 

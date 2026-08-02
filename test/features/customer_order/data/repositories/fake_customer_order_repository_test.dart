@@ -9,30 +9,37 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test(
-    'enregistre une déclaration de paiement avec une référence CF',
-    () async {
-      final FakeCustomerOrderRepository repository =
-          FakeCustomerOrderRepository();
+  test('crée la commande avant la déclaration du paiement', () async {
+    final FakeCustomerOrderRepository repository =
+        FakeCustomerOrderRepository();
 
-      final CustomerOrderDraft draft = CustomerOrderDraft(
-        identity: CustomerIdentity(
-          name: 'Alex',
-          whatsappNumber: WhatsappPhoneNumber.parse('07 00 00 00 00'),
-        ),
-        service: CustomerService.unitTransfer,
-        network: MobileNetwork.orange,
-        amount: 2000,
-        beneficiaryNumber: BeneficiaryPhoneNumber.parse('05 12 34 56 78'),
-      );
+    final CustomerOrderDraft draft = CustomerOrderDraft(
+      identity: CustomerIdentity(
+        name: 'Alex',
+        whatsappNumber: WhatsappPhoneNumber.parse('07 00 00 00 00'),
+      ),
+      service: CustomerService.unitTransfer,
+      network: MobileNetwork.orange,
+      amount: 2000,
+      beneficiaryNumber: BeneficiaryPhoneNumber.parse('05 12 34 56 78'),
+    );
 
-      final CustomerOrderReceipt receipt = await repository.declarePayment(
-        draft: draft,
-      );
+    final CustomerOrderReceipt createdOrder = await repository.createOrder(
+      draft: draft,
+    );
 
-      expect(receipt.reference, startsWith('CF-'));
-      expect(receipt.status, CustomerOrderTrackingStatus.paymentDeclared);
-      expect(receipt.draft.amount, 2000);
-    },
-  );
+    expect(createdOrder.reference, startsWith('CF-'));
+    expect(createdOrder.status, QueueOrderStatus.awaitingPayment);
+    expect(createdOrder.paymentStatus, OrderPaymentStatus.notDeclared);
+    expect(createdOrder.paymentDeclaredAt, isNull);
+
+    final CustomerOrderReceipt declaredOrder = await repository.declarePayment(
+      order: createdOrder,
+    );
+
+    expect(declaredOrder.status, QueueOrderStatus.paymentToVerify);
+    expect(declaredOrder.paymentStatus, OrderPaymentStatus.declared);
+    expect(declaredOrder.paymentDeclaredAt, isNotNull);
+    expect(declaredOrder.draft.amount, 2000);
+  });
 }

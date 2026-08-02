@@ -9,6 +9,7 @@ class CustomerBottomActions extends StatelessWidget {
     this.backLabel = 'Retour',
     this.continueLabel = 'Continuer',
     this.isContinueEnabled = true,
+    this.isLoading = false,
   });
 
   final VoidCallback? onBack;
@@ -16,6 +17,7 @@ class CustomerBottomActions extends StatelessWidget {
   final String backLabel;
   final String continueLabel;
   final bool isContinueEnabled;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +38,7 @@ class CustomerBottomActions extends StatelessWidget {
           children: [
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: onBack,
+                onPressed: isLoading ? null : onBack,
                 icon: const Icon(Icons.chevron_left_rounded, size: 20),
                 label: Text(backLabel),
               ),
@@ -44,9 +46,18 @@ class CustomerBottomActions extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: FilledButton.icon(
-                onPressed: isContinueEnabled ? onContinue : null,
+                onPressed: isContinueEnabled && !isLoading ? onContinue : null,
                 iconAlignment: IconAlignment.end,
-                icon: const Icon(Icons.arrow_forward_rounded, size: 20),
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.arrow_forward_rounded, size: 20),
                 label: Text(continueLabel),
               ),
             ),

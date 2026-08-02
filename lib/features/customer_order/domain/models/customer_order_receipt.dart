@@ -1,13 +1,5 @@
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
-
-enum CustomerOrderTrackingStatus {
-  paymentDeclared,
-  paymentConfirmed,
-  transmitted,
-  inProgress,
-  completed,
-  failed,
-}
+import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 
 class CustomerOrderReceipt {
   const CustomerOrderReceipt({
@@ -15,10 +7,11 @@ class CustomerOrderReceipt {
     required this.reference,
     required this.draft,
     required this.createdAt,
-    required this.paymentDeclaredAt,
+    required this.expiresAt,
     required this.status,
+    required this.paymentStatus,
+    this.paymentDeclaredAt,
     this.paymentConfirmedAt,
-    this.transmittedAt,
     this.processingStartedAt,
     this.completedAt,
     this.failureMessage,
@@ -27,20 +20,32 @@ class CustomerOrderReceipt {
   final String id;
   final String reference;
   final CustomerOrderDraft draft;
-  final DateTime createdAt;
-  final DateTime paymentDeclaredAt;
-  final CustomerOrderTrackingStatus status;
 
+  final DateTime createdAt;
+  final DateTime expiresAt;
+  final DateTime? paymentDeclaredAt;
   final DateTime? paymentConfirmedAt;
-  final DateTime? transmittedAt;
   final DateTime? processingStartedAt;
   final DateTime? completedAt;
+
+  final QueueOrderStatus status;
+  final OrderPaymentStatus paymentStatus;
   final String? failureMessage;
 
+  bool get isPaymentDeclared {
+    return paymentStatus == OrderPaymentStatus.declared ||
+        paymentStatus == OrderPaymentStatus.confirmed;
+  }
+
+  bool get isPaymentConfirmed {
+    return paymentStatus == OrderPaymentStatus.confirmed;
+  }
+
   CustomerOrderReceipt copyWith({
-    CustomerOrderTrackingStatus? status,
+    QueueOrderStatus? status,
+    OrderPaymentStatus? paymentStatus,
+    DateTime? paymentDeclaredAt,
     DateTime? paymentConfirmedAt,
-    DateTime? transmittedAt,
     DateTime? processingStartedAt,
     DateTime? completedAt,
     String? failureMessage,
@@ -50,12 +55,13 @@ class CustomerOrderReceipt {
       reference: reference,
       draft: draft,
       createdAt: createdAt,
-      paymentDeclaredAt: paymentDeclaredAt,
-      status: status ?? this.status,
+      expiresAt: expiresAt,
+      paymentDeclaredAt: paymentDeclaredAt ?? this.paymentDeclaredAt,
       paymentConfirmedAt: paymentConfirmedAt ?? this.paymentConfirmedAt,
-      transmittedAt: transmittedAt ?? this.transmittedAt,
       processingStartedAt: processingStartedAt ?? this.processingStartedAt,
       completedAt: completedAt ?? this.completedAt,
+      status: status ?? this.status,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
       failureMessage: failureMessage ?? this.failureMessage,
     );
   }

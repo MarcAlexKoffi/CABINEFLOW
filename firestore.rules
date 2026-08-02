@@ -73,7 +73,12 @@ service cloud.firestore {
         && request.resource.data.clientName.size() >= 2
         && request.resource.data.clientName.size() <= 80
         && request.resource.data.clientWhatsappPhone is string
-        && request.resource.data.service in ['unitTransfer', 'internetSubscription', 'calls', 'other']
+        && request.resource.data.service in [
+          'unitTransfer',
+          'internetSubscription',
+          'calls',
+          'other'
+        ]
         && request.resource.data.network in ['orange', 'mtn', 'moov']
         && request.resource.data.operationType in [
           'unitTransfer',
@@ -93,14 +98,20 @@ service cloud.firestore {
         && request.resource.data.expiresAt is timestamp
         && request.resource.data.status in [
           'awaitingPayment',
+          'paymentToVerify',
           'paidReady',
           'inProgress',
+          'onHold',
           'awaitingCustomerConfirmation',
           'completed',
           'failed',
-          'cancelled'
+          'expired',
+          'cancelled',
+          'refundPending',
+          'refunded'
         ]
         && request.resource.data.paymentStatus in [
+          'notDeclared',
           'pending',
           'declared',
           'confirmed',
@@ -119,7 +130,11 @@ service cloud.firestore {
         && hasValidCommonOrderValues()
         && request.resource.data.source == 'customerWeb'
         && request.resource.data.customerAuthUid == request.auth.uid
-        && request.resource.data.service in ['unitTransfer', 'internetSubscription', 'calls']
+        && request.resource.data.service in [
+          'unitTransfer',
+          'internetSubscription',
+          'calls'
+        ]
         && request.resource.data.operationType in [
           'unitTransfer',
           'internetSubscription',
@@ -127,11 +142,11 @@ service cloud.firestore {
           'mixedBundle'
         ]
         && request.resource.data.status == 'awaitingPayment'
-        && request.resource.data.paymentStatus == 'declared'
+        && request.resource.data.paymentStatus == 'notDeclared'
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time
-        && request.resource.data.paymentRequestSentAt == request.time
-        && request.resource.data.paymentDeclaredAt == request.time
+        && request.resource.data.paymentRequestSentAt == null
+        && request.resource.data.paymentDeclaredAt == null
         && request.resource.data.paymentConfirmedAt == null
         && request.resource.data.paidAt == null
         && request.resource.data.paymentReference == null
@@ -167,7 +182,7 @@ service cloud.firestore {
         && request.resource.data.customerConfirmationCompletedAt == null;
     }
 
-    function immutableOrderFieldsAreUnchanged() {
+    function immutableCoreOrderFieldsAreUnchanged() {
       return request.resource.data.schemaVersion == resource.data.schemaVersion
         && request.resource.data.reference == resource.data.reference
         && request.resource.data.source == resource.data.source
@@ -183,7 +198,6 @@ service cloud.firestore {
         && request.resource.data.amount == resource.data.amount
         && request.resource.data.beneficiaryPhone == resource.data.beneficiaryPhone
         && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.paymentDeclaredAt == resource.data.paymentDeclaredAt
         && request.resource.data.expiresAt == resource.data.expiresAt
         && request.resource.data.originalWhatsappMessage == resource.data.originalWhatsappMessage;
     }
@@ -211,11 +225,30 @@ service cloud.firestore {
     function isValidStaffOrderUpdate() {
       return isStaff()
         && hasValidCommonOrderValues()
-        && immutableOrderFieldsAreUnchanged()
+        && immutableCoreOrderFieldsAreUnchanged()
         && onlyStaffMutableFieldsChanged()
         && request.resource.data.updatedAt == request.time;
     }
 
+    function isValidCustomerPaymentDeclaration() {
+      return isOrderOwner()
+        && hasValidCommonOrderValues()
+        && immutableCoreOrderFieldsAreUnchanged()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'updatedAt',
+          'status',
+          'paymentStatus',
+          'paymentDeclaredAt'
+        ])
+        && resource.data.source == 'customerWeb'
+        && resource.data.status == 'awaitingPayment'
+        && resource.data.paymentStatus == 'notDeclared'
+        && resource.data.paymentDeclaredAt == null
+        && request.resource.data.status == 'paymentToVerify'
+        && request.resource.data.paymentStatus == 'declared'
+        && request.resource.data.paymentDeclaredAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
 
     function isValidPendingStaffProfileCreation(userId) {
       return isSignedIn()
@@ -250,7 +283,8 @@ service cloud.firestore {
         || isValidStaffOrderCreation();
       allow get: if isOrderOwner() || isStaff();
       allow list: if isStaff();
-      allow update: if isValidStaffOrderUpdate();
+      allow update: if isValidCustomerPaymentDeclaration()
+        || isValidStaffOrderUpdate();
       allow delete: if false;
     }
 

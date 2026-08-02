@@ -48,6 +48,7 @@ class FirestoreOrdersRepository implements OrdersRepository {
     return QueueOrder(
       id: document.id,
       reference: reference,
+      source: OrderSource.operatorApp,
       clientName: request.clientName.trim(),
       clientWhatsappPhone: request.clientWhatsappPhone.trim(),
       network: request.network,
@@ -59,6 +60,8 @@ class FirestoreOrdersRepository implements OrdersRepository {
       internalNotes: _cleanNullable(request.internalNotes),
       createdAt: now,
       status: QueueOrderStatus.awaitingPayment,
+      paymentStatus: OrderPaymentStatus.pending,
+      expiresAt: now.add(paymentValidity),
       customerConfirmationStatus: CustomerConfirmationStatus.pending,
     );
   }
@@ -89,20 +92,35 @@ class FirestoreOrdersRepository implements OrdersRepository {
     final List<QueueOrder> orders = await _fetchRecentOrders();
 
     final List<QueueOrder> paymentOrders = orders.where((QueueOrder order) {
-      final bool isAwaitingPayment =
+      final bool isOperatorPaymentInProgress =
+          order.source == OrderSource.operatorApp &&
           order.status == QueueOrderStatus.awaitingPayment;
+      final bool isCustomerPaymentToVerify =
+          order.source == OrderSource.customerWeb &&
+          order.paymentStatus == OrderPaymentStatus.declared &&
+          (order.status == QueueOrderStatus.paymentToVerify ||
+              order.status == QueueOrderStatus.awaitingPayment);
       final bool wasConfirmed =
+          order.paymentStatus == OrderPaymentStatus.confirmed &&
           order.paymentReference != null &&
           order.paymentReference!.trim().isNotEmpty;
 
-      return isAwaitingPayment || wasConfirmed;
+      return isOperatorPaymentInProgress ||
+          isCustomerPaymentToVerify ||
+          wasConfirmed;
     }).toList();
 
     paymentOrders.sort((QueueOrder first, QueueOrder second) {
       final DateTime firstDate =
-          first.paidAt ?? first.paymentRequestSentAt ?? first.createdAt;
+          first.paidAt ??
+          first.paymentDeclaredAt ??
+          first.paymentRequestSentAt ??
+          first.createdAt;
       final DateTime secondDate =
-          second.paidAt ?? second.paymentRequestSentAt ?? second.createdAt;
+          second.paidAt ??
+          second.paymentDeclaredAt ??
+          second.paymentRequestSentAt ??
+          second.createdAt;
 
       return secondDate.compareTo(firstDate);
     });
@@ -124,13 +142,18 @@ class FirestoreOrdersRepository implements OrdersRepository {
     return _updateOrderInTransaction(
       orderId: orderId,
       validate: (QueueOrder order) {
-        if (order.status != QueueOrderStatus.awaitingPayment) {
+        final bool canConfirm =
+            order.status == QueueOrderStatus.awaitingPayment ||
+            order.status == QueueOrderStatus.paymentToVerify;
+
+        if (!canConfirm ||
+            order.paymentStatus == OrderPaymentStatus.confirmed) {
           throw StateError('Cette commande n’est plus en attente de paiement.');
         }
       },
       firestoreUpdate: <String, dynamic>{
         'status': QueueOrderStatus.paidReady.name,
-        'paymentStatus': 'confirmed',
+        'paymentStatus': OrderPaymentStatus.confirmed.name,
         'paidAt': Timestamp.fromDate(paidAt.toUtc()),
         'paymentConfirmedAt': FieldValue.serverTimestamp(),
         'paymentReference': finalReference,
@@ -139,7 +162,9 @@ class FirestoreOrdersRepository implements OrdersRepository {
       localUpdate: (QueueOrder order) {
         return order.copyWith(
           status: QueueOrderStatus.paidReady,
+          paymentStatus: OrderPaymentStatus.confirmed,
           paidAt: paidAt,
+          paymentConfirmedAt: paidAt,
           paymentReference: finalReference,
         );
       },

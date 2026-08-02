@@ -59,7 +59,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
         return 'Liens à envoyer';
 
       case PaymentOrderFilter.awaitingPayment:
-        return 'En attente';
+        return 'À vérifier';
 
       case PaymentOrderFilter.confirmed:
         return 'Confirmés';

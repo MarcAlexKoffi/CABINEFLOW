@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cabine_flow/features/customer_order/domain/models/beneficiary_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_identity.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_offer.dart';
@@ -21,13 +23,19 @@ class CustomerOrderViewModel extends ChangeNotifier {
   CustomerOrderReceipt? _receipt;
   int _currentStep = 1;
   bool _isSubmitting = false;
+  bool _paymentLinkWasOpened = false;
   String? _submissionErrorMessage;
+  String? _trackingErrorMessage;
+  StreamSubscription<CustomerOrderReceipt>? _trackingSubscription;
 
   CustomerOrderDraft get draft => _draft;
   CustomerOrderReceipt? get receipt => _receipt;
   int get currentStep => _currentStep;
   bool get isSubmitting => _isSubmitting;
+  bool get paymentLinkWasOpened => _paymentLinkWasOpened;
+  bool get hasCreatedOrder => _receipt != null;
   String? get submissionErrorMessage => _submissionErrorMessage;
+  String? get trackingErrorMessage => _trackingErrorMessage;
 
   bool get canGoBack => _currentStep > 1 && _currentStep < 8;
   bool get canContinueFromService => _draft.service != null;
@@ -243,19 +251,16 @@ class CustomerOrderViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void continueFromSummary() {
-    if (!_isDraftComplete) {
-      return;
-    }
-
-    _submissionErrorMessage = null;
-    _currentStep = 7;
-    notifyListeners();
-  }
-
-  Future<bool> declarePaymentAndSubmitOrder() async {
+  Future<bool> createOrderAndContinueToPayment() async {
     if (_isSubmitting || !_isDraftComplete) {
       return false;
+    }
+
+    if (_receipt != null) {
+      _submissionErrorMessage = null;
+      _currentStep = 7;
+      notifyListeners();
+      return true;
     }
 
     _isSubmitting = true;
@@ -263,18 +268,82 @@ class CustomerOrderViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _receipt = await _orderRepository.declarePayment(draft: _draft);
-      _currentStep = 8;
+      final CustomerOrderReceipt createdOrder = await _orderRepository
+          .createOrder(draft: _draft);
+      _receipt = createdOrder;
+      _startOrderTracking(createdOrder);
+      _currentStep = 7;
       return true;
     } catch (error) {
       _submissionErrorMessage = error is StateError
           ? error.message.toString()
-          : 'Impossible d’enregistrer la commande.';
+          : 'Impossible de créer la commande avant le paiement.';
       return false;
     } finally {
       _isSubmitting = false;
       notifyListeners();
     }
+  }
+
+  void markPaymentLinkOpened() {
+    if (_paymentLinkWasOpened) {
+      return;
+    }
+
+    _paymentLinkWasOpened = true;
+    notifyListeners();
+  }
+
+  Future<bool> declarePayment() async {
+    final CustomerOrderReceipt? currentOrder = _receipt;
+
+    if (_isSubmitting || currentOrder == null) {
+      return false;
+    }
+
+    if (currentOrder.isPaymentDeclared) {
+      _currentStep = 8;
+      notifyListeners();
+      return true;
+    }
+
+    _isSubmitting = true;
+    _submissionErrorMessage = null;
+    notifyListeners();
+
+    try {
+      _receipt = await _orderRepository.declarePayment(order: currentOrder);
+      _currentStep = 8;
+      return true;
+    } catch (error) {
+      _submissionErrorMessage = error is StateError
+          ? error.message.toString()
+          : 'Impossible d’enregistrer la déclaration de paiement.';
+      return false;
+    } finally {
+      _isSubmitting = false;
+      notifyListeners();
+    }
+  }
+
+  void _startOrderTracking(CustomerOrderReceipt order) {
+    unawaited(_trackingSubscription?.cancel());
+    _trackingErrorMessage = null;
+
+    _trackingSubscription = _orderRepository
+        .watchOrder(order: order)
+        .listen(
+          (CustomerOrderReceipt updatedOrder) {
+            _receipt = updatedOrder;
+            _trackingErrorMessage = null;
+            notifyListeners();
+          },
+          onError: (Object error) {
+            _trackingErrorMessage =
+                'Le suivi en temps réel est momentanément indisponible.';
+            notifyListeners();
+          },
+        );
   }
 
   void goBack() {
@@ -287,12 +356,22 @@ class CustomerOrderViewModel extends ChangeNotifier {
   }
 
   void restart() {
+    unawaited(_trackingSubscription?.cancel());
+    _trackingSubscription = null;
     _draft = const CustomerOrderDraft();
     _receipt = null;
     _currentStep = 1;
     _isSubmitting = false;
+    _paymentLinkWasOpened = false;
     _submissionErrorMessage = null;
+    _trackingErrorMessage = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    unawaited(_trackingSubscription?.cancel());
+    super.dispose();
   }
 
   bool get _isDraftComplete {

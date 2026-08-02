@@ -52,7 +52,8 @@ class CabineFlowApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isFirebaseInitialized = Firebase.apps.isNotEmpty;
 
-    final AuthRepository effectiveAuthRepository = authRepository ??
+    final AuthRepository effectiveAuthRepository =
+        authRepository ??
         (isFirebaseInitialized
             ? FirebaseAuthRepository()
             : FakeAuthRepository());
@@ -60,7 +61,8 @@ class CabineFlowApp extends StatelessWidget {
     final DashboardRepository effectiveDashboardRepository =
         dashboardRepository ?? const FakeDashboardRepository();
 
-    final OrdersRepository effectiveOrdersRepository = ordersRepository ??
+    final OrdersRepository effectiveOrdersRepository =
+        ordersRepository ??
         (isFirebaseInitialized
             ? FirestoreOrdersRepository()
             : FakeOrdersRepository());
@@ -70,9 +72,7 @@ class CabineFlowApp extends StatelessWidget {
 
     final PaymentLinkRepository effectivePaymentLinkRepository =
         paymentLinkRepository ??
-            const WavePaymentLinkRepository(
-              linkBuilder: WavePaymentLinkBuilder(),
-            );
+        const WavePaymentLinkRepository(linkBuilder: WavePaymentLinkBuilder());
 
     return MaterialApp(
       title: 'CabineFlow',

@@ -11,6 +11,7 @@ class FirestoreOrderMapper {
     return QueueOrder(
       id: id,
       reference: _readString(data, 'reference', fallback: id),
+      source: _readSource(data['source']),
       clientName: _readString(data, 'clientName', fallback: 'Client'),
       clientWhatsappPhone: _readString(
         data,
@@ -33,8 +34,12 @@ class FirestoreOrderMapper {
       createdAt: _readDate(data['createdAt']) ?? DateTime.now(),
       paidAt: _readDate(data['paidAt']),
       paymentRequestSentAt: _readDate(data['paymentRequestSentAt']),
+      paymentDeclaredAt: _readDate(data['paymentDeclaredAt']),
+      paymentConfirmedAt: _readDate(data['paymentConfirmedAt']),
+      expiresAt: _readDate(data['expiresAt']),
       paymentReference: _readNullableString(data['paymentReference']),
       status: _readStatus(data['status']),
+      paymentStatus: _readPaymentStatus(data['paymentStatus']),
       takenByUserId: _readNullableString(data['takenByUserId']),
       takenAt: _readDate(data['takenAt']),
       completedAt: _readDate(data['completedAt']),
@@ -65,7 +70,7 @@ class FirestoreOrderMapper {
     return <String, dynamic>{
       'schemaVersion': 1,
       'reference': reference,
-      'source': 'operatorApp',
+      'source': OrderSource.operatorApp.name,
       'customerAuthUid': null,
       'clientName': clientName.trim(),
       'clientWhatsappPhone': clientWhatsappPhone.trim(),
@@ -78,7 +83,7 @@ class FirestoreOrderMapper {
       'amount': amount,
       'beneficiaryPhone': beneficiaryPhone.trim(),
       'status': QueueOrderStatus.awaitingPayment.name,
-      'paymentStatus': 'pending',
+      'paymentStatus': OrderPaymentStatus.pending.name,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
       'paymentRequestSentAt': null,
@@ -174,10 +179,24 @@ class FirestoreOrderMapper {
     );
   }
 
+  static OrderSource _readSource(Object? value) {
+    return OrderSource.values.firstWhere(
+      (OrderSource item) => item.name == value,
+      orElse: () => OrderSource.operatorApp,
+    );
+  }
+
   static QueueOrderStatus _readStatus(Object? value) {
     return QueueOrderStatus.values.firstWhere(
       (QueueOrderStatus item) => item.name == value,
       orElse: () => QueueOrderStatus.awaitingPayment,
+    );
+  }
+
+  static OrderPaymentStatus _readPaymentStatus(Object? value) {
+    return OrderPaymentStatus.values.firstWhere(
+      (OrderPaymentStatus item) => item.name == value,
+      orElse: () => OrderPaymentStatus.pending,
     );
   }
 

@@ -19,6 +19,7 @@ class CustomerFlowScaffold extends StatelessWidget {
     this.backLabel = 'Retour',
     this.continueLabel = 'Continuer',
     this.isContinueEnabled = true,
+    this.isContinueLoading = false,
   });
 
   final int currentStep;
@@ -34,6 +35,7 @@ class CustomerFlowScaffold extends StatelessWidget {
   final String backLabel;
   final String continueLabel;
   final bool isContinueEnabled;
+  final bool isContinueLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -122,6 +124,7 @@ class CustomerFlowScaffold extends StatelessWidget {
                     backLabel: backLabel,
                     continueLabel: continueLabel,
                     isContinueEnabled: isContinueEnabled,
+                    isLoading: isContinueLoading,
                   ),
                 ],
               ),

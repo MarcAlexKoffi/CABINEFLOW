@@ -21,20 +21,47 @@ class CustomerSummaryPage extends StatefulWidget {
 class _CustomerSummaryPageState extends State<CustomerSummaryPage> {
   bool _beneficiaryConfirmed = false;
 
+  Future<void> _continue() async {
+    final bool successful = await widget.viewModel
+        .createOrderAndContinueToPayment();
+
+    if (!mounted || successful) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.viewModel.submissionErrorMessage ??
+                'Impossible de créer la commande.',
+          ),
+        ),
+      );
+  }
+
   @override
   Widget build(BuildContext context) {
     final CustomerOrderDraft draft = widget.viewModel.draft;
+
+    final bool orderCreated = widget.viewModel.hasCreatedOrder;
 
     return CustomerFlowScaffold(
       currentStep: 6,
       totalSteps: CustomerOrderViewModel.totalSteps,
       title: 'Vérifiez votre commande',
-      onTopBack: widget.viewModel.goBack,
-      onBottomBack: widget.viewModel.goBack,
-      backLabel: 'Modifier la commande',
-      continueLabel: 'Payer avec Wave',
-      onContinue: widget.viewModel.continueFromSummary,
-      isContinueEnabled: _beneficiaryConfirmed,
+      onTopBack: orderCreated || widget.viewModel.isSubmitting
+          ? null
+          : widget.viewModel.goBack,
+      onBottomBack: orderCreated || widget.viewModel.isSubmitting
+          ? null
+          : widget.viewModel.goBack,
+      backLabel: orderCreated ? 'Commande enregistrée' : 'Modifier la commande',
+      continueLabel: orderCreated ? 'Revenir au paiement' : 'Payer avec Wave',
+      onContinue: _continue,
+      isContinueEnabled: orderCreated || _beneficiaryConfirmed,
+      isContinueLoading: widget.viewModel.isSubmitting,
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

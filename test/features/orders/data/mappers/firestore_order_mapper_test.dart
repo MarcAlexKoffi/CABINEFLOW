@@ -13,6 +13,7 @@ void main() {
         id: 'order-123',
         data: <String, dynamic>{
           'reference': 'CF-20260731-ABC123',
+          'source': 'customerWeb',
           'clientName': 'Alex',
           'clientWhatsappPhone': '+2250700000000',
           'network': 'mtn',
@@ -23,8 +24,11 @@ void main() {
           'createdAt': Timestamp.fromDate(createdAt),
           'paidAt': Timestamp.fromDate(paidAt),
           'paymentRequestSentAt': Timestamp.fromDate(createdAt),
+          'paymentDeclaredAt': Timestamp.fromDate(createdAt),
+          'paymentConfirmedAt': Timestamp.fromDate(paidAt),
           'paymentReference': 'W-ABC123',
           'status': 'paidReady',
+          'paymentStatus': 'confirmed',
           'takenByUserId': null,
           'takenAt': null,
           'completedAt': null,
@@ -39,7 +43,9 @@ void main() {
       expect(order.reference, 'CF-20260731-ABC123');
       expect(order.network, MobileNetwork.mtn);
       expect(order.operationType, OrderOperationType.internetSubscription);
+      expect(order.source, OrderSource.customerWeb);
       expect(order.status, QueueOrderStatus.paidReady);
+      expect(order.paymentStatus, OrderPaymentStatus.confirmed);
       expect(order.amount, 1000);
       expect(order.paymentReference, 'W-ABC123');
       expect(order.paidAt, paidAt);

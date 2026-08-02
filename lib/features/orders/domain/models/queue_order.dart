@@ -8,14 +8,30 @@ enum OrderOperationType {
   other,
 }
 
+enum OrderSource { customerWeb, operatorApp }
+
+enum OrderPaymentStatus {
+  notDeclared,
+  pending,
+  declared,
+  confirmed,
+  rejected,
+  expired,
+}
+
 enum QueueOrderStatus {
   awaitingPayment,
+  paymentToVerify,
   paidReady,
   inProgress,
+  onHold,
   awaitingCustomerConfirmation,
   completed,
   failed,
+  expired,
   cancelled,
+  refundPending,
+  refunded,
 }
 
 enum OrderFailureReason {
@@ -43,10 +59,15 @@ class QueueOrder {
     required this.amount,
     required this.createdAt,
     required this.status,
+    this.source = OrderSource.operatorApp,
+    this.paymentStatus = OrderPaymentStatus.pending,
     this.originalWhatsappMessage,
     this.internalNotes,
     this.paidAt,
     this.paymentRequestSentAt,
+    this.paymentDeclaredAt,
+    this.paymentConfirmedAt,
+    this.expiresAt,
     this.paymentReference,
     this.takenByUserId,
     this.takenAt,
@@ -59,6 +80,8 @@ class QueueOrder {
 
   final String id;
   final String reference;
+
+  final OrderSource source;
 
   final String clientName;
   final String clientWhatsappPhone;
@@ -75,9 +98,13 @@ class QueueOrder {
   final DateTime createdAt;
   final DateTime? paidAt;
   final DateTime? paymentRequestSentAt;
+  final DateTime? paymentDeclaredAt;
+  final DateTime? paymentConfirmedAt;
+  final DateTime? expiresAt;
   final String? paymentReference;
 
   final QueueOrderStatus status;
+  final OrderPaymentStatus paymentStatus;
 
   final String? takenByUserId;
   final DateTime? takenAt;
@@ -91,8 +118,12 @@ class QueueOrder {
 
   QueueOrder copyWith({
     QueueOrderStatus? status,
+    OrderPaymentStatus? paymentStatus,
     DateTime? paidAt,
     DateTime? paymentRequestSentAt,
+    DateTime? paymentDeclaredAt,
+    DateTime? paymentConfirmedAt,
+    DateTime? expiresAt,
     String? paymentReference,
     String? takenByUserId,
     DateTime? takenAt,
@@ -106,6 +137,7 @@ class QueueOrder {
     return QueueOrder(
       id: id,
       reference: reference,
+      source: source,
       clientName: clientName,
       clientWhatsappPhone: clientWhatsappPhone,
       network: network,
@@ -118,8 +150,12 @@ class QueueOrder {
       createdAt: createdAt,
       paidAt: paidAt ?? this.paidAt,
       paymentRequestSentAt: paymentRequestSentAt ?? this.paymentRequestSentAt,
+      paymentDeclaredAt: paymentDeclaredAt ?? this.paymentDeclaredAt,
+      paymentConfirmedAt: paymentConfirmedAt ?? this.paymentConfirmedAt,
+      expiresAt: expiresAt ?? this.expiresAt,
       paymentReference: paymentReference ?? this.paymentReference,
       status: status ?? this.status,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
       takenByUserId: clearAssignment
           ? null
           : takenByUserId ?? this.takenByUserId,

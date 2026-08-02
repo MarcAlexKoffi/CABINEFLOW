@@ -126,9 +126,17 @@ class PaymentTrackingCard extends StatelessWidget {
   static const Color _waitingColor = Color(0xFF60A5FA);
 
   bool get isConfirmed {
-    return order.status == QueueOrderStatus.paidReady &&
+    return order.paymentStatus == OrderPaymentStatus.confirmed &&
+        order.status == QueueOrderStatus.paidReady &&
         order.paidAt != null &&
         order.paymentReference != null;
+  }
+
+  bool get isCustomerPaymentDeclared {
+    return order.source == OrderSource.customerWeb &&
+        order.paymentStatus == OrderPaymentStatus.declared &&
+        (order.status == QueueOrderStatus.paymentToVerify ||
+            order.status == QueueOrderStatus.awaitingPayment);
   }
 
   bool get wasPaymentLinkSent {
@@ -326,6 +334,13 @@ class PaymentTrackingCard extends StatelessWidget {
       title = 'Paiement confirmé';
       subtitle =
           'Réf. ${order.paymentReference} • ${_formatDate(order.paidAt!)}';
+    } else if (isCustomerPaymentDeclared) {
+      color = _warningColor;
+      icon = Icons.manage_search_rounded;
+      title = 'Paiement déclaré — à vérifier';
+      subtitle = order.paymentDeclaredAt == null
+          ? 'Déclaration reçue depuis l’espace client.'
+          : 'Déclaré ${_formatDate(order.paymentDeclaredAt!)}';
     } else if (wasPaymentLinkSent) {
       color = _waitingColor;
       icon = Icons.hourglass_top_rounded;
@@ -383,6 +398,23 @@ class PaymentTrackingCard extends StatelessWidget {
         onPressed: onOpenOrders,
         icon: const Icon(Icons.receipt_long_outlined, size: 18),
         label: const Text('Voir dans les commandes'),
+      );
+    }
+
+    if (isCustomerPaymentDeclared) {
+      return FilledButton.icon(
+        onPressed: isProcessing ? null : onConfirmPayment,
+        icon: isProcessing
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.onPrimary,
+                ),
+              )
+            : const Icon(Icons.verified_rounded, size: 19),
+        label: const Text('Vérifier et confirmer'),
       );
     }
 

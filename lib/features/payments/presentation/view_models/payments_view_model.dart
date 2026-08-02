@@ -36,21 +36,33 @@ class PaymentsViewModel extends ChangeNotifier {
 
       case PaymentOrderFilter.linkToSend:
         result = result.where((QueueOrder order) {
-          return order.status == QueueOrderStatus.awaitingPayment &&
+          return order.source == OrderSource.operatorApp &&
+              order.status == QueueOrderStatus.awaitingPayment &&
               order.paymentRequestSentAt == null;
         });
         break;
 
       case PaymentOrderFilter.awaitingPayment:
         result = result.where((QueueOrder order) {
-          return order.status == QueueOrderStatus.awaitingPayment &&
+          final bool operatorAwaitingPayment =
+              order.source == OrderSource.operatorApp &&
+              order.status == QueueOrderStatus.awaitingPayment &&
               order.paymentRequestSentAt != null;
+          final bool customerPaymentToVerify =
+              order.source == OrderSource.customerWeb &&
+              order.paymentStatus == OrderPaymentStatus.declared &&
+              (order.status == QueueOrderStatus.paymentToVerify ||
+                  order.status == QueueOrderStatus.awaitingPayment);
+
+          return operatorAwaitingPayment || customerPaymentToVerify;
         });
         break;
 
       case PaymentOrderFilter.confirmed:
         result = result.where((QueueOrder order) {
-          return order.paidAt != null && order.paymentReference != null;
+          return order.paymentStatus == OrderPaymentStatus.confirmed &&
+              order.paidAt != null &&
+              order.paymentReference != null;
         });
         break;
     }
@@ -65,19 +77,31 @@ class PaymentsViewModel extends ChangeNotifier {
 
       case PaymentOrderFilter.linkToSend:
         return _orders.where((QueueOrder order) {
-          return order.status == QueueOrderStatus.awaitingPayment &&
+          return order.source == OrderSource.operatorApp &&
+              order.status == QueueOrderStatus.awaitingPayment &&
               order.paymentRequestSentAt == null;
         }).length;
 
       case PaymentOrderFilter.awaitingPayment:
         return _orders.where((QueueOrder order) {
-          return order.status == QueueOrderStatus.awaitingPayment &&
+          final bool operatorAwaitingPayment =
+              order.source == OrderSource.operatorApp &&
+              order.status == QueueOrderStatus.awaitingPayment &&
               order.paymentRequestSentAt != null;
+          final bool customerPaymentToVerify =
+              order.source == OrderSource.customerWeb &&
+              order.paymentStatus == OrderPaymentStatus.declared &&
+              (order.status == QueueOrderStatus.paymentToVerify ||
+                  order.status == QueueOrderStatus.awaitingPayment);
+
+          return operatorAwaitingPayment || customerPaymentToVerify;
         }).length;
 
       case PaymentOrderFilter.confirmed:
         return _orders.where((QueueOrder order) {
-          return order.paidAt != null && order.paymentReference != null;
+          return order.paymentStatus == OrderPaymentStatus.confirmed &&
+              order.paidAt != null &&
+              order.paymentReference != null;
         }).length;
     }
   }

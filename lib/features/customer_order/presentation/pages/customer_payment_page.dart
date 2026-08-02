@@ -25,7 +25,6 @@ class CustomerPaymentPage extends StatefulWidget {
 }
 
 class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
-  bool _paymentLinkWasOpened = false;
   bool _isOpeningWave = false;
 
   Uri get _paymentUri {
@@ -58,9 +57,7 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
         return;
       }
 
-      setState(() {
-        _paymentLinkWasOpened = true;
-      });
+      widget.viewModel.markPaymentLinkOpened();
     } catch (_) {
       if (mounted) {
         _showMessage(
@@ -108,8 +105,7 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
       return;
     }
 
-    final bool successful = await widget.viewModel
-        .declarePaymentAndSubmitOrder();
+    final bool successful = await widget.viewModel.declarePayment();
 
     if (!mounted || successful) {
       return;
@@ -117,7 +113,7 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
 
     _showMessage(
       widget.viewModel.submissionErrorMessage ??
-          'Impossible d’enregistrer la commande.',
+          'Impossible d’enregistrer la déclaration de paiement.',
     );
   }
 
@@ -209,7 +205,7 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
                               ],
                             ),
                           ),
-                          if (_paymentLinkWasOpened) ...[
+                          if (widget.viewModel.paymentLinkWasOpened) ...[
                             const SizedBox(height: 18),
                             const Text(
                               'Revenez sur cette page après le paiement '
@@ -228,7 +224,8 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
                   ),
                   _PaymentBottomActions(
                     isSubmitting: widget.viewModel.isSubmitting,
-                    isPaymentDeclarationEnabled: _paymentLinkWasOpened,
+                    isPaymentDeclarationEnabled:
+                        widget.viewModel.paymentLinkWasOpened,
                     onBack: widget.viewModel.goBack,
                     onConfirm: _confirmPaymentDeclaration,
                   ),

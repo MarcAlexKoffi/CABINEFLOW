@@ -2,6 +2,7 @@ import 'package:cabine_flow/core/theme/customer_app_colors.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
+import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_order_labels.dart';
 import 'package:flutter/material.dart';
 
@@ -38,13 +39,16 @@ class CustomerConfirmationPage extends StatelessWidget {
                         children: [
                           const _CompletedProgress(),
                           const SizedBox(height: 30),
-                          const _SuccessHeader(),
+                          _StatusHeader(receipt: receipt),
                           const SizedBox(height: 30),
                           _ReferenceCard(receipt: receipt),
                           const SizedBox(height: 24),
                           _TransactionDetailsCard(receipt: receipt),
                           const SizedBox(height: 24),
-                          _TrackingCard(receipt: receipt),
+                          _TrackingCard(
+                            receipt: receipt,
+                            errorMessage: viewModel.trackingErrorMessage,
+                          ),
                         ],
                       ),
                     ),
@@ -113,49 +117,150 @@ class _CompletedProgress extends StatelessWidget {
   }
 }
 
-class _SuccessHeader extends StatelessWidget {
-  const _SuccessHeader();
+class _StatusHeader extends StatelessWidget {
+  const _StatusHeader({required this.receipt});
+
+  final CustomerOrderReceipt receipt;
+
+  Color get _color {
+    switch (receipt.status) {
+      case QueueOrderStatus.failed:
+      case QueueOrderStatus.expired:
+      case QueueOrderStatus.cancelled:
+        return CustomerAppColors.error;
+      case QueueOrderStatus.onHold:
+      case QueueOrderStatus.refundPending:
+        return const Color(0xFFF59E0B);
+      case QueueOrderStatus.awaitingPayment:
+      case QueueOrderStatus.paymentToVerify:
+      case QueueOrderStatus.paidReady:
+      case QueueOrderStatus.inProgress:
+      case QueueOrderStatus.awaitingCustomerConfirmation:
+      case QueueOrderStatus.completed:
+      case QueueOrderStatus.refunded:
+        return CustomerAppColors.success;
+    }
+  }
+
+  IconData get _icon {
+    switch (receipt.status) {
+      case QueueOrderStatus.failed:
+      case QueueOrderStatus.expired:
+      case QueueOrderStatus.cancelled:
+        return Icons.error_rounded;
+      case QueueOrderStatus.onHold:
+      case QueueOrderStatus.refundPending:
+        return Icons.schedule_rounded;
+      case QueueOrderStatus.inProgress:
+        return Icons.sync_rounded;
+      case QueueOrderStatus.awaitingPayment:
+      case QueueOrderStatus.paymentToVerify:
+      case QueueOrderStatus.paidReady:
+      case QueueOrderStatus.awaitingCustomerConfirmation:
+      case QueueOrderStatus.completed:
+      case QueueOrderStatus.refunded:
+        return Icons.check_circle_rounded;
+    }
+  }
+
+  String get _title {
+    switch (receipt.status) {
+      case QueueOrderStatus.awaitingPayment:
+        return 'Commande enregistrée';
+      case QueueOrderStatus.paymentToVerify:
+        return 'Commande reçue';
+      case QueueOrderStatus.paidReady:
+        return 'Paiement confirmé';
+      case QueueOrderStatus.inProgress:
+        return 'Commande en cours';
+      case QueueOrderStatus.onHold:
+        return 'Commande en attente';
+      case QueueOrderStatus.awaitingCustomerConfirmation:
+        return 'Transaction effectuée';
+      case QueueOrderStatus.completed:
+        return 'Commande terminée';
+      case QueueOrderStatus.failed:
+        return 'Traitement non abouti';
+      case QueueOrderStatus.expired:
+        return 'Commande expirée';
+      case QueueOrderStatus.cancelled:
+        return 'Commande annulée';
+      case QueueOrderStatus.refundPending:
+        return 'Remboursement en cours';
+      case QueueOrderStatus.refunded:
+        return 'Remboursement effectué';
+    }
+  }
+
+  String get _message {
+    switch (receipt.status) {
+      case QueueOrderStatus.awaitingPayment:
+        return 'Votre commande a été créée. Finalisez maintenant le paiement Wave.';
+      case QueueOrderStatus.paymentToVerify:
+        return 'Votre déclaration de paiement a été enregistrée et sera vérifiée.';
+      case QueueOrderStatus.paidReady:
+        return 'Votre paiement a été confirmé. La commande attend sa prise en charge.';
+      case QueueOrderStatus.inProgress:
+        return 'Un opérateur traite actuellement votre commande.';
+      case QueueOrderStatus.onHold:
+        return 'Le traitement est temporairement suspendu. Vous serez informé de la suite.';
+      case QueueOrderStatus.awaitingCustomerConfirmation:
+        return 'La transaction a été effectuée. La confirmation finale est en préparation.';
+      case QueueOrderStatus.completed:
+        return 'Votre commande a été entièrement traitée.';
+      case QueueOrderStatus.failed:
+        return receipt.failureMessage ??
+            'La transaction n’a pas pu être réalisée. Un opérateur examinera la situation.';
+      case QueueOrderStatus.expired:
+        return 'Le délai de paiement de six heures est dépassé.';
+      case QueueOrderStatus.cancelled:
+        return 'Cette commande a été annulée.';
+      case QueueOrderStatus.refundPending:
+        return 'Le remboursement est en cours de traitement.';
+      case QueueOrderStatus.refunded:
+        return 'Le remboursement lié à cette commande a été effectué.';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    final Color color = _color;
+
+    return Column(
       children: [
         DecoratedBox(
           decoration: BoxDecoration(
-            color: CustomerAppColors.success,
+            color: color,
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: Color(0x3322C55E),
+                color: color.withAlpha(50),
                 blurRadius: 18,
-                offset: Offset(0, 7),
+                offset: const Offset(0, 7),
               ),
             ],
           ),
           child: SizedBox(
             width: 76,
             height: 76,
-            child: Icon(
-              Icons.check_circle_rounded,
-              color: Colors.white,
-              size: 40,
-            ),
+            child: Icon(_icon, color: Colors.white, size: 40),
           ),
         ),
-        SizedBox(height: 22),
+        const SizedBox(height: 22),
         Text(
-          'Commande reçue',
-          style: TextStyle(
+          _title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
             color: CustomerAppColors.onSurface,
             fontSize: 28,
             fontWeight: FontWeight.w700,
           ),
         ),
-        SizedBox(height: 7),
+        const SizedBox(height: 7),
         Text(
-          'Merci ! Votre déclaration de paiement a été enregistrée.',
+          _message,
           textAlign: TextAlign.center,
-          style: TextStyle(
+          style: const TextStyle(
             color: CustomerAppColors.onSurfaceVariant,
             fontSize: 15,
             height: 1.45,
@@ -311,9 +416,107 @@ class _DetailRow extends StatelessWidget {
 }
 
 class _TrackingCard extends StatelessWidget {
-  const _TrackingCard({required this.receipt});
+  const _TrackingCard({required this.receipt, this.errorMessage});
 
   final CustomerOrderReceipt receipt;
+  final String? errorMessage;
+
+  bool get _paymentConfirmed =>
+      receipt.paymentStatus == OrderPaymentStatus.confirmed;
+
+  bool get _processingStarted {
+    return receipt.status == QueueOrderStatus.inProgress ||
+        receipt.status == QueueOrderStatus.onHold ||
+        receipt.status == QueueOrderStatus.awaitingCustomerConfirmation ||
+        receipt.status == QueueOrderStatus.completed ||
+        receipt.status == QueueOrderStatus.failed ||
+        receipt.status == QueueOrderStatus.refundPending ||
+        receipt.status == QueueOrderStatus.refunded;
+  }
+
+  bool get _processingFinished {
+    return receipt.status == QueueOrderStatus.awaitingCustomerConfirmation ||
+        receipt.status == QueueOrderStatus.completed ||
+        receipt.status == QueueOrderStatus.failed ||
+        receipt.status == QueueOrderStatus.refundPending ||
+        receipt.status == QueueOrderStatus.refunded;
+  }
+
+  _TrackingStepState get _verificationState {
+    if (_paymentConfirmed) {
+      return _TrackingStepState.done;
+    }
+
+    if (receipt.paymentStatus == OrderPaymentStatus.rejected ||
+        receipt.paymentStatus == OrderPaymentStatus.expired) {
+      return _TrackingStepState.error;
+    }
+
+    return receipt.status == QueueOrderStatus.paymentToVerify
+        ? _TrackingStepState.active
+        : _TrackingStepState.pending;
+  }
+
+  _TrackingStepState get _processingState {
+    if (receipt.status == QueueOrderStatus.failed) {
+      return _TrackingStepState.error;
+    }
+
+    if (_processingFinished) {
+      return _TrackingStepState.done;
+    }
+
+    if (_processingStarted) {
+      return _TrackingStepState.active;
+    }
+
+    return _TrackingStepState.pending;
+  }
+
+  _TrackingStepState get _finalState {
+    if (receipt.status == QueueOrderStatus.completed ||
+        receipt.status == QueueOrderStatus.refunded) {
+      return _TrackingStepState.done;
+    }
+
+    if (receipt.status == QueueOrderStatus.awaitingCustomerConfirmation ||
+        receipt.status == QueueOrderStatus.refundPending) {
+      return _TrackingStepState.active;
+    }
+
+    if (receipt.status == QueueOrderStatus.failed ||
+        receipt.status == QueueOrderStatus.expired ||
+        receipt.status == QueueOrderStatus.cancelled) {
+      return _TrackingStepState.error;
+    }
+
+    return _TrackingStepState.pending;
+  }
+
+  String get _finalTitle {
+    switch (receipt.status) {
+      case QueueOrderStatus.awaitingCustomerConfirmation:
+        return 'Transaction effectuée';
+      case QueueOrderStatus.completed:
+        return 'Commande terminée';
+      case QueueOrderStatus.failed:
+        return 'Traitement non abouti';
+      case QueueOrderStatus.expired:
+        return 'Commande expirée';
+      case QueueOrderStatus.cancelled:
+        return 'Commande annulée';
+      case QueueOrderStatus.refundPending:
+        return 'Remboursement en cours';
+      case QueueOrderStatus.refunded:
+        return 'Remboursement effectué';
+      case QueueOrderStatus.awaitingPayment:
+      case QueueOrderStatus.paymentToVerify:
+      case QueueOrderStatus.paidReady:
+      case QueueOrderStatus.inProgress:
+      case QueueOrderStatus.onHold:
+        return 'Traitement terminé';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -329,25 +532,43 @@ class _TrackingCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+          if (errorMessage != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              errorMessage!,
+              style: const TextStyle(
+                color: CustomerAppColors.error,
+                fontSize: 12,
+              ),
+            ),
+          ],
           const SizedBox(height: 22),
           _TrackingStep(
             title: 'Paiement déclaré',
             subtitle: _formatDate(receipt.paymentDeclaredAt),
-            state: _TrackingStepState.done,
+            state: receipt.isPaymentDeclared
+                ? _TrackingStepState.done
+                : _TrackingStepState.pending,
           ),
-          const _TrackingStep(
+          _TrackingStep(
             title: 'Vérification du paiement',
-            subtitle: 'L’opérateur vérifie la transaction dans Wave.',
-            state: _TrackingStepState.active,
+            subtitle: _paymentConfirmed
+                ? _formatDate(receipt.paymentConfirmedAt)
+                : 'L’opérateur vérifie la transaction dans Wave.',
+            state: _verificationState,
           ),
-          const _TrackingStep(
-            title: 'Commande transmise',
-            subtitle: 'La commande sera ajoutée à la file après validation.',
-            state: _TrackingStepState.pending,
+          _TrackingStep(
+            title: 'Traitement de la commande',
+            subtitle: receipt.status == QueueOrderStatus.onHold
+                ? 'Le traitement est temporairement en attente.'
+                : _formatDate(receipt.processingStartedAt),
+            state: _processingState,
           ),
-          const _TrackingStep(
-            title: 'Traitement terminé',
-            state: _TrackingStepState.pending,
+          _TrackingStep(
+            title: _finalTitle,
+            subtitle:
+                receipt.failureMessage ?? _formatDate(receipt.completedAt),
+            state: _finalState,
             isLast: true,
           ),
         ],
@@ -355,14 +576,18 @@ class _TrackingCard extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime date) {
+  String? _formatDate(DateTime? date) {
+    if (date == null) {
+      return null;
+    }
+
     final String hours = date.hour.toString().padLeft(2, '0');
     final String minutes = date.minute.toString().padLeft(2, '0');
     return 'Aujourd’hui, $hours:$minutes';
   }
 }
 
-enum _TrackingStepState { done, active, pending }
+enum _TrackingStepState { done, active, pending, error }
 
 class _TrackingStep extends StatelessWidget {
   const _TrackingStep({
@@ -381,7 +606,10 @@ class _TrackingStep extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool done = state == _TrackingStepState.done;
     final bool active = state == _TrackingStepState.active;
-    final Color color = done || active
+    final bool hasError = state == _TrackingStepState.error;
+    final Color color = hasError
+        ? CustomerAppColors.error
+        : done || active
         ? CustomerAppColors.success
         : CustomerAppColors.surfaceContainerHighest;
 
@@ -403,6 +631,12 @@ class _TrackingStep extends StatelessWidget {
                   child: done
                       ? const Icon(
                           Icons.check_rounded,
+                          size: 13,
+                          color: Colors.white,
+                        )
+                      : hasError
+                      ? const Icon(
+                          Icons.close_rounded,
                           size: 13,
                           color: Colors.white,
                         )
@@ -442,7 +676,9 @@ class _TrackingStep extends StatelessWidget {
                   Text(
                     title,
                     style: TextStyle(
-                      color: active
+                      color: hasError
+                          ? CustomerAppColors.error
+                          : active
                           ? CustomerAppColors.success
                           : state == _TrackingStepState.pending
                           ? CustomerAppColors.onSurfaceVariant

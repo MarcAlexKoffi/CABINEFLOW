@@ -32,24 +32,34 @@ class FakeOrdersRepository implements OrdersRepository {
     _orders ??= _createInitialOrders();
 
     final List<QueueOrder> paymentOrders = _orders!.where((QueueOrder order) {
-      final bool isAwaitingPayment =
+      final bool isOperatorPaymentInProgress =
+          order.source == OrderSource.operatorApp &&
           order.status == QueueOrderStatus.awaitingPayment;
-
+      final bool isCustomerPaymentToVerify =
+          order.source == OrderSource.customerWeb &&
+          order.paymentStatus == OrderPaymentStatus.declared &&
+          (order.status == QueueOrderStatus.paymentToVerify ||
+              order.status == QueueOrderStatus.awaitingPayment);
       final bool wasManuallyConfirmed =
+          order.paymentStatus == OrderPaymentStatus.confirmed &&
           order.paymentReference != null &&
           order.paymentReference!.trim().isNotEmpty;
 
-      return isAwaitingPayment || wasManuallyConfirmed;
+      return isOperatorPaymentInProgress ||
+          isCustomerPaymentToVerify ||
+          wasManuallyConfirmed;
     }).toList();
 
     paymentOrders.sort((QueueOrder firstOrder, QueueOrder secondOrder) {
       final DateTime firstDate =
           firstOrder.paidAt ??
+          firstOrder.paymentDeclaredAt ??
           firstOrder.paymentRequestSentAt ??
           firstOrder.createdAt;
 
       final DateTime secondDate =
           secondOrder.paidAt ??
+          secondOrder.paymentDeclaredAt ??
           secondOrder.paymentRequestSentAt ??
           secondOrder.createdAt;
 
@@ -70,7 +80,12 @@ class FakeOrdersRepository implements OrdersRepository {
     final int index = _findOrderIndex(orderId);
     final QueueOrder currentOrder = _orders![index];
 
-    if (currentOrder.status != QueueOrderStatus.awaitingPayment) {
+    final bool canConfirm =
+        currentOrder.status == QueueOrderStatus.awaitingPayment ||
+        currentOrder.status == QueueOrderStatus.paymentToVerify;
+
+    if (!canConfirm ||
+        currentOrder.paymentStatus == OrderPaymentStatus.confirmed) {
       throw StateError('Cette commande n’est plus en attente de paiement.');
     }
 
@@ -92,7 +107,9 @@ class FakeOrdersRepository implements OrdersRepository {
 
     final QueueOrder updatedOrder = currentOrder.copyWith(
       status: QueueOrderStatus.paidReady,
+      paymentStatus: OrderPaymentStatus.confirmed,
       paidAt: paidAt,
+      paymentConfirmedAt: paidAt,
       paymentReference: finalReference,
     );
 
@@ -262,6 +279,7 @@ class FakeOrdersRepository implements OrdersRepository {
     final QueueOrder order = QueueOrder(
       id: 'order-$nextReference',
       reference: 'ORD-$nextReference',
+      source: OrderSource.operatorApp,
       clientName: request.clientName.trim(),
       clientWhatsappPhone: request.clientWhatsappPhone.trim(),
       network: request.network,
@@ -276,6 +294,8 @@ class FakeOrdersRepository implements OrdersRepository {
       paymentRequestSentAt: null,
       paymentReference: null,
       status: QueueOrderStatus.awaitingPayment,
+      paymentStatus: OrderPaymentStatus.pending,
+      expiresAt: now.add(const Duration(hours: 6)),
     );
 
     _orders!.insert(0, order);
@@ -452,6 +472,7 @@ class FakeOrdersRepository implements OrdersRepository {
       return QueueOrder(
         id: 'order-${index + 1}',
         reference: 'ORD-${9823 + index}',
+        source: OrderSource.operatorApp,
         clientName: clients[index],
         clientWhatsappPhone: clientWhatsappPhones[index],
         network: networks[index],
@@ -461,7 +482,9 @@ class FakeOrdersRepository implements OrdersRepository {
         amount: amounts[index],
         createdAt: paidAt.subtract(const Duration(minutes: 2)),
         paidAt: paidAt,
+        paymentConfirmedAt: paidAt,
         status: QueueOrderStatus.paidReady,
+        paymentStatus: OrderPaymentStatus.confirmed,
       );
     });
   }
