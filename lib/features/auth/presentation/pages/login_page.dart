@@ -1,6 +1,6 @@
 import 'package:cabine_flow/app/app_routes.dart';
 import 'package:cabine_flow/core/theme/app_colors.dart';
-import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:cabine_flow/features/auth/presentation/view_models/login_view_model.dart';
 import 'package:cabine_flow/shared/widgets/app_logo.dart';
@@ -45,14 +45,19 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   String? _validateIdentifier(String? value) {
-    final String identifier = value?.trim() ?? '';
+    final String email = value?.trim() ?? '';
 
-    if (identifier.isEmpty) {
-      return 'Saisis ton identifiant.';
+    if (email.isEmpty) {
+      return 'Saisis ton adresse e-mail.';
     }
 
-    if (identifier.length < 3) {
-      return 'L’identifiant doit contenir au moins 3 caractères.';
+    final int atIndex = email.indexOf('@');
+    final int dotIndex = email.lastIndexOf('.');
+    final bool isValidEmail =
+        atIndex > 0 && dotIndex > atIndex + 1 && dotIndex < email.length - 1;
+
+    if (!isValidEmail) {
+      return 'Saisis une adresse e-mail valide.';
     }
 
     return null;
@@ -81,24 +86,27 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    final bool isAuthenticated = await _viewModel.login(
+    final AuthLoginResult? result = await _viewModel.login(
       identifier: _identifierController.text,
       password: _passwordController.text,
     );
 
-    if (!mounted || !isAuthenticated) {
+    if (!mounted || result == null) {
       return;
     }
 
-    final AppUser? authenticatedUser = _viewModel.authenticatedUser;
-
-    if (authenticatedUser == null) {
+    if (result.isAuthenticated && result.user != null) {
+      Navigator.of(
+        context,
+      ).pushReplacementNamed(AppRoutes.dashboard, arguments: result.user);
       return;
     }
 
-    Navigator.of(
-      context,
-    ).pushReplacementNamed(AppRoutes.dashboard, arguments: authenticatedUser);
+    if (result.requiresAccessScreen) {
+      Navigator.of(
+        context,
+      ).pushReplacementNamed(AppRoutes.pendingAccount, arguments: result);
+    }
   }
 
   void _showForgotPasswordMessage() {
@@ -107,7 +115,7 @@ class _LoginPageState extends State<LoginPage> {
       ..showSnackBar(
         const SnackBar(
           content: Text(
-            'La récupération du mot de passe sera ajoutée avec le serveur.',
+            'Demande à l’administrateur de réinitialiser ton mot de passe.',
           ),
         ),
       );
@@ -183,9 +191,7 @@ class _LoginPageState extends State<LoginPage> {
                                       ),
                                       const SizedBox(height: 16),
                                     ],
-                                    const _FieldLabel(
-                                      text: 'Identifiant ou Téléphone',
-                                    ),
+                                    const _FieldLabel(text: 'Adresse e-mail'),
                                     const SizedBox(height: 6),
                                     TextFormField(
                                       controller: _identifierController,
@@ -193,15 +199,15 @@ class _LoginPageState extends State<LoginPage> {
                                         color: AppColors.inputText,
                                         fontSize: 15,
                                       ),
-                                      keyboardType: TextInputType.text,
+                                      keyboardType: TextInputType.emailAddress,
                                       textInputAction: TextInputAction.next,
                                       autofillHints: const [
-                                        AutofillHints.username,
+                                        AutofillHints.email,
                                       ],
                                       decoration: const InputDecoration(
-                                        hintText: 'ex: 06 12 34 56 78',
+                                        hintText: 'ex: marc@cabineflow.app',
                                         prefixIcon: Icon(
-                                          Icons.person_outline_rounded,
+                                          Icons.mail_outline_rounded,
                                         ),
                                       ),
                                       validator: _validateIdentifier,
@@ -325,9 +331,10 @@ class _LoginPageState extends State<LoginPage> {
                                       ),
                                     ),
                                     const SizedBox(height: 16),
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
+                                    Wrap(
+                                      alignment: WrapAlignment.center,
+                                      crossAxisAlignment:
+                                          WrapCrossAlignment.center,
                                       children: [
                                         Text(
                                           'Besoin d’aide ?',

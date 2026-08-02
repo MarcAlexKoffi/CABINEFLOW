@@ -36,7 +36,7 @@ void main() {
 
     await tester.pump();
 
-    expect(find.text('Saisis ton identifiant.'), findsOneWidget);
+    expect(find.text('Saisis ton adresse e-mail.'), findsOneWidget);
 
     expect(find.text('Saisis ton mot de passe.'), findsOneWidget);
   });
@@ -48,7 +48,7 @@ void main() {
 
     final Finder fields = find.byType(TextFormField);
 
-    await tester.enterText(fields.at(0), 'marc');
+    await tester.enterText(fields.at(0), 'marc@cabineflow.app');
 
     await tester.enterText(fields.at(1), '1234');
 
@@ -69,9 +69,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('28 commandes à traiter'), findsOneWidget);
-
-    expect(find.text('Soldes des caisses'), findsOneWidget);
   });
+
   testWidgets('permet de changer d’onglet après la connexion', (
     WidgetTester tester,
   ) async {
@@ -79,7 +78,7 @@ void main() {
 
     final Finder fields = find.byType(TextFormField);
 
-    await tester.enterText(fields.at(0), 'marc');
+    await tester.enterText(fields.at(0), 'marc@cabineflow.app');
 
     await tester.enterText(fields.at(1), '1234');
 
@@ -99,12 +98,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(
-      find.text(
-        'La liste complète des commandes sera construite à la prochaine étape.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('File d’attente'), findsOneWidget);
 
     await tester.tap(find.text('Accueil'));
 

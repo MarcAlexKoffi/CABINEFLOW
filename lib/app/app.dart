@@ -2,18 +2,41 @@ import 'package:cabine_flow/app/app_routes.dart';
 import 'package:cabine_flow/core/services/wave_payment_link_builder.dart';
 import 'package:cabine_flow/core/theme/app_theme.dart';
 import 'package:cabine_flow/features/auth/data/repositories/fake_auth_repository.dart';
+import 'package:cabine_flow/features/auth/data/repositories/firebase_auth_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
+import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:cabine_flow/features/auth/presentation/pages/login_page.dart';
+import 'package:cabine_flow/features/auth/presentation/pages/pending_account_page.dart';
 import 'package:cabine_flow/features/dashboard/data/repositories/fake_dashboard_repository.dart';
+import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_repository.dart';
 import 'package:cabine_flow/features/navigation/presentation/pages/main_shell_page.dart';
-import 'package:cabine_flow/features/payments/data/repositories/wave_payment_link_repository.dart';
-import 'package:cabine_flow/features/splash/presentation/pages/splash_page.dart';
-import 'package:flutter/material.dart';
-import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/fake_offer_catalog_repository.dart';
+import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
+import 'package:cabine_flow/features/orders/data/repositories/firestore_orders_repository.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/offer_catalog_repository.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/features/payments/data/repositories/wave_payment_link_repository.dart';
+import 'package:cabine_flow/features/payments/domain/repositories/payment_link_repository.dart';
+import 'package:cabine_flow/features/splash/presentation/pages/splash_page.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
 
 class CabineFlowApp extends StatelessWidget {
-  const CabineFlowApp({super.key});
+  const CabineFlowApp({
+    super.key,
+    this.authRepository,
+    this.dashboardRepository,
+    this.ordersRepository,
+    this.offerCatalogRepository,
+    this.paymentLinkRepository,
+  });
+
+  final AuthRepository? authRepository;
+  final DashboardRepository? dashboardRepository;
+  final OrdersRepository? ordersRepository;
+  final OfferCatalogRepository? offerCatalogRepository;
+  final PaymentLinkRepository? paymentLinkRepository;
 
   Route<dynamic> _createErrorRoute() {
     return MaterialPageRoute<void>(
@@ -27,18 +50,29 @@ class CabineFlowApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const FakeAuthRepository authRepository = FakeAuthRepository();
+    final bool isFirebaseInitialized = Firebase.apps.isNotEmpty;
 
-    const FakeDashboardRepository dashboardRepository =
-        FakeDashboardRepository();
+    final AuthRepository effectiveAuthRepository = authRepository ??
+        (isFirebaseInitialized
+            ? FirebaseAuthRepository()
+            : FakeAuthRepository());
 
-    final FakeOrdersRepository ordersRepository = FakeOrdersRepository();
+    final DashboardRepository effectiveDashboardRepository =
+        dashboardRepository ?? const FakeDashboardRepository();
 
-    const FakeOfferCatalogRepository offerCatalogRepository =
-        FakeOfferCatalogRepository();
+    final OrdersRepository effectiveOrdersRepository = ordersRepository ??
+        (isFirebaseInitialized
+            ? FirestoreOrdersRepository()
+            : FakeOrdersRepository());
 
-    const WavePaymentLinkRepository paymentLinkRepository =
-        WavePaymentLinkRepository(linkBuilder: WavePaymentLinkBuilder());
+    final OfferCatalogRepository effectiveOfferCatalogRepository =
+        offerCatalogRepository ?? const FakeOfferCatalogRepository();
+
+    final PaymentLinkRepository effectivePaymentLinkRepository =
+        paymentLinkRepository ??
+            const WavePaymentLinkRepository(
+              linkBuilder: WavePaymentLinkBuilder(),
+            );
 
     return MaterialApp(
       title: 'CabineFlow',
@@ -61,7 +95,25 @@ class CabineFlowApp extends StatelessWidget {
             return MaterialPageRoute<void>(
               settings: settings,
               builder: (BuildContext context) {
-                return const LoginPage(authRepository: authRepository);
+                return LoginPage(authRepository: effectiveAuthRepository);
+              },
+            );
+
+          case AppRoutes.pendingAccount:
+            final Object? arguments = settings.arguments;
+
+            if (arguments is! AuthLoginResult ||
+                !arguments.requiresAccessScreen) {
+              return _createErrorRoute();
+            }
+
+            return MaterialPageRoute<void>(
+              settings: settings,
+              builder: (BuildContext context) {
+                return PendingAccountPage(
+                  authRepository: effectiveAuthRepository,
+                  initialResult: arguments,
+                );
               },
             );
 
@@ -77,10 +129,10 @@ class CabineFlowApp extends StatelessWidget {
               builder: (BuildContext context) {
                 return MainShellPage(
                   user: arguments,
-                  dashboardRepository: dashboardRepository,
-                  ordersRepository: ordersRepository,
-                  offerCatalogRepository: offerCatalogRepository,
-                  paymentLinkRepository: paymentLinkRepository,
+                  dashboardRepository: effectiveDashboardRepository,
+                  ordersRepository: effectiveOrdersRepository,
+                  offerCatalogRepository: effectiveOfferCatalogRepository,
+                  paymentLinkRepository: effectivePaymentLinkRepository,
                 );
               },
             );

@@ -1,4 +1,4 @@
-import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:flutter/foundation.dart';
 
@@ -10,46 +10,58 @@ class LoginViewModel extends ChangeNotifier {
 
   bool _isLoading = false;
   String? _errorMessage;
-  AppUser? _authenticatedUser;
+  AuthLoginResult? _loginResult;
 
   bool get isLoading => _isLoading;
 
   String? get errorMessage => _errorMessage;
 
-  AppUser? get authenticatedUser => _authenticatedUser;
+  AuthLoginResult? get loginResult => _loginResult;
 
-  Future<bool> login({
+  Future<AuthLoginResult?> login({
     required String identifier,
     required String password,
   }) async {
     if (_isLoading) {
-      return false;
+      return null;
     }
 
     _isLoading = true;
     _errorMessage = null;
-    _authenticatedUser = null;
+    _loginResult = null;
 
     notifyListeners();
 
     try {
-      final AppUser? user = await _authRepository.login(
+      final AuthLoginResult result = await _authRepository.login(
         identifier: identifier,
         password: password,
       );
 
-      if (user == null) {
-        _errorMessage = 'Identifiant ou mot de passe incorrect.';
-        return false;
+      _loginResult = result;
+
+      switch (result.status) {
+        case AuthLoginStatus.authenticated:
+        case AuthLoginStatus.pendingActivation:
+        case AuthLoginStatus.inactive:
+          return result;
+
+        case AuthLoginStatus.invalidCredentials:
+          _errorMessage =
+              result.message ?? 'Adresse e-mail ou mot de passe incorrect.';
+          return result;
+
+        case AuthLoginStatus.unavailable:
+          _errorMessage =
+              result.message ??
+              'Impossible de se connecter. Vérifie Internet puis réessaie.';
+          return result;
       }
-
-      _authenticatedUser = user;
-
-      return true;
     } catch (_) {
-      _errorMessage = 'Une erreur inattendue est survenue. Réessaie plus tard.';
+      _errorMessage =
+          'Impossible de se connecter. Vérifie Internet puis réessaie.';
 
-      return false;
+      return null;
     } finally {
       _isLoading = false;
       notifyListeners();

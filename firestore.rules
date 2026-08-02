@@ -6,11 +6,19 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function staffProfile() {
+      return get(
+        /databases/$(database)/documents/users/$(request.auth.uid)
+      ).data;
+    }
+
     function isStaff() {
       return isSignedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
-          in ['operator', 'admin'];
+        && exists(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        )
+        && staffProfile().isActive == true
+        && staffProfile().role in ['operator', 'supervisor', 'admin'];
     }
 
     function isOrderOwner() {
@@ -18,7 +26,7 @@ service cloud.firestore {
         && resource.data.customerAuthUid == request.auth.uid;
     }
 
-    function hasValidCustomerOrderKeys() {
+    function hasValidOrderKeys() {
       return request.resource.data.keys().hasOnly([
         'schemaVersion',
         'reference',
@@ -56,23 +64,24 @@ service cloud.firestore {
       ]);
     }
 
-    function isValidCustomerOrderCreation() {
-      return isSignedIn()
-        && hasValidCustomerOrderKeys()
+    function hasValidCommonOrderValues() {
+      return hasValidOrderKeys()
         && request.resource.data.schemaVersion == 1
-        && request.resource.data.source == 'customerWeb'
-        && request.resource.data.customerAuthUid == request.auth.uid
         && request.resource.data.reference is string
         && request.resource.data.reference.size() >= 12
         && request.resource.data.clientName is string
         && request.resource.data.clientName.size() >= 2
         && request.resource.data.clientName.size() <= 80
         && request.resource.data.clientWhatsappPhone is string
-        && request.resource.data.service
-          in ['unitTransfer', 'internetSubscription', 'calls']
+        && request.resource.data.service in ['unitTransfer', 'internetSubscription', 'calls', 'other']
         && request.resource.data.network in ['orange', 'mtn', 'moov']
-        && request.resource.data.operationType
-          in ['unitTransfer', 'internetSubscription', 'callBundle', 'mixedBundle']
+        && request.resource.data.operationType in [
+          'unitTransfer',
+          'internetSubscription',
+          'callBundle',
+          'mixedBundle',
+          'other'
+        ]
         && request.resource.data.offerLabel is string
         && request.resource.data.offerLabel.size() >= 2
         && request.resource.data.offerLabel.size() <= 200
@@ -81,13 +90,48 @@ service cloud.firestore {
         && request.resource.data.amount > 0
         && request.resource.data.amount <= 1000000
         && request.resource.data.beneficiaryPhone is string
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.status in [
+          'awaitingPayment',
+          'paidReady',
+          'inProgress',
+          'awaitingCustomerConfirmation',
+          'completed',
+          'failed',
+          'cancelled'
+        ]
+        && request.resource.data.paymentStatus in [
+          'pending',
+          'declared',
+          'confirmed',
+          'rejected',
+          'expired'
+        ]
+        && request.resource.data.customerConfirmationStatus in [
+          'pending',
+          'sent',
+          'skipped'
+        ];
+    }
+
+    function isValidCustomerOrderCreation() {
+      return isSignedIn()
+        && hasValidCommonOrderValues()
+        && request.resource.data.source == 'customerWeb'
+        && request.resource.data.customerAuthUid == request.auth.uid
+        && request.resource.data.service in ['unitTransfer', 'internetSubscription', 'calls']
+        && request.resource.data.operationType in [
+          'unitTransfer',
+          'internetSubscription',
+          'callBundle',
+          'mixedBundle'
+        ]
         && request.resource.data.status == 'awaitingPayment'
         && request.resource.data.paymentStatus == 'declared'
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time
         && request.resource.data.paymentRequestSentAt == request.time
         && request.resource.data.paymentDeclaredAt == request.time
-        && request.resource.data.expiresAt is timestamp
         && request.resource.data.paymentConfirmedAt == null
         && request.resource.data.paidAt == null
         && request.resource.data.paymentReference == null
@@ -100,11 +144,113 @@ service cloud.firestore {
         && request.resource.data.customerConfirmationCompletedAt == null;
     }
 
+    function isValidStaffOrderCreation() {
+      return isStaff()
+        && hasValidCommonOrderValues()
+        && request.resource.data.source == 'operatorApp'
+        && request.resource.data.customerAuthUid == null
+        && request.resource.data.status == 'awaitingPayment'
+        && request.resource.data.paymentStatus == 'pending'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.paymentRequestSentAt == null
+        && request.resource.data.paymentDeclaredAt == null
+        && request.resource.data.paymentConfirmedAt == null
+        && request.resource.data.paidAt == null
+        && request.resource.data.paymentReference == null
+        && request.resource.data.takenByUserId == null
+        && request.resource.data.takenAt == null
+        && request.resource.data.completedAt == null
+        && request.resource.data.failureReason == null
+        && request.resource.data.observation == null
+        && request.resource.data.customerConfirmationStatus == 'pending'
+        && request.resource.data.customerConfirmationCompletedAt == null;
+    }
+
+    function immutableOrderFieldsAreUnchanged() {
+      return request.resource.data.schemaVersion == resource.data.schemaVersion
+        && request.resource.data.reference == resource.data.reference
+        && request.resource.data.source == resource.data.source
+        && request.resource.data.customerAuthUid == resource.data.customerAuthUid
+        && request.resource.data.clientName == resource.data.clientName
+        && request.resource.data.clientWhatsappPhone == resource.data.clientWhatsappPhone
+        && request.resource.data.service == resource.data.service
+        && request.resource.data.network == resource.data.network
+        && request.resource.data.operationType == resource.data.operationType
+        && request.resource.data.offerId == resource.data.offerId
+        && request.resource.data.offerLabel == resource.data.offerLabel
+        && request.resource.data.isCustomOffer == resource.data.isCustomOffer
+        && request.resource.data.amount == resource.data.amount
+        && request.resource.data.beneficiaryPhone == resource.data.beneficiaryPhone
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.paymentDeclaredAt == resource.data.paymentDeclaredAt
+        && request.resource.data.expiresAt == resource.data.expiresAt
+        && request.resource.data.originalWhatsappMessage == resource.data.originalWhatsappMessage;
+    }
+
+    function onlyStaffMutableFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'updatedAt',
+        'status',
+        'paymentStatus',
+        'paymentRequestSentAt',
+        'paymentConfirmedAt',
+        'paidAt',
+        'paymentReference',
+        'internalNotes',
+        'takenByUserId',
+        'takenAt',
+        'completedAt',
+        'failureReason',
+        'observation',
+        'customerConfirmationStatus',
+        'customerConfirmationCompletedAt'
+      ]);
+    }
+
+    function isValidStaffOrderUpdate() {
+      return isStaff()
+        && hasValidCommonOrderValues()
+        && immutableOrderFieldsAreUnchanged()
+        && onlyStaffMutableFieldsChanged()
+        && request.resource.data.updatedAt == request.time;
+    }
+
+
+    function isValidPendingStaffProfileCreation(userId) {
+      return isSignedIn()
+        && request.auth.uid == userId
+        && request.auth.token.email is string
+        && request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'name',
+          'email',
+          'phoneNumber',
+          'role',
+          'isActive',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.email is string
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.phoneNumber is string
+        && request.resource.data.phoneNumber == ''
+        && request.resource.data.role == 'pending'
+        && request.resource.data.isActive == false
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
     match /orders/{orderId} {
-      allow create: if isValidCustomerOrderCreation();
+      allow create: if isValidCustomerOrderCreation()
+        || isValidStaffOrderCreation();
       allow get: if isOrderOwner() || isStaff();
       allow list: if isStaff();
-      allow update: if isStaff();
+      allow update: if isValidStaffOrderUpdate();
       allow delete: if false;
     }
 
@@ -112,7 +258,8 @@ service cloud.firestore {
       allow get: if isSignedIn()
         && (request.auth.uid == userId || isStaff());
       allow list: if isStaff();
-      allow create, update, delete: if false;
+      allow create: if isValidPendingStaffProfileCreation(userId);
+      allow update, delete: if false;
     }
   }
 }
