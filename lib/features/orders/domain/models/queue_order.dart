@@ -72,6 +72,7 @@ class QueueOrder {
     this.paymentDeclaredReference,
     this.paymentConfirmedAt,
     this.expiresAt,
+    this.expiredAt,
     this.paymentReference,
     this.takenByUserId,
     this.takenAt,
@@ -109,6 +110,7 @@ class QueueOrder {
   final String? paymentDeclaredReference;
   final DateTime? paymentConfirmedAt;
   final DateTime? expiresAt;
+  final DateTime? expiredAt;
   final String? paymentReference;
 
   final QueueOrderStatus status;
@@ -124,6 +126,11 @@ class QueueOrder {
   final CustomerConfirmationStatus? customerConfirmationStatus;
   final DateTime? customerConfirmationCompletedAt;
 
+  bool get hasPaymentToReviewAfterExpiration {
+    return status == QueueOrderStatus.expired &&
+        paymentStatus == OrderPaymentStatus.declared;
+  }
+
   QueueOrder copyWith({
     QueueOrderStatus? status,
     OrderPaymentStatus? paymentStatus,
@@ -136,6 +143,7 @@ class QueueOrder {
     String? paymentDeclaredReference,
     DateTime? paymentConfirmedAt,
     DateTime? expiresAt,
+    DateTime? expiredAt,
     String? paymentReference,
     String? takenByUserId,
     DateTime? takenAt,
@@ -171,6 +179,7 @@ class QueueOrder {
           paymentDeclaredReference ?? this.paymentDeclaredReference,
       paymentConfirmedAt: paymentConfirmedAt ?? this.paymentConfirmedAt,
       expiresAt: expiresAt ?? this.expiresAt,
+      expiredAt: expiredAt ?? this.expiredAt,
       paymentReference: paymentReference ?? this.paymentReference,
       status: status ?? this.status,
       paymentStatus: paymentStatus ?? this.paymentStatus,

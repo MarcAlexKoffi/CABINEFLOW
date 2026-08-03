@@ -2,7 +2,13 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:flutter/foundation.dart';
 
-enum PaymentOrderFilter { all, linkToSend, awaitingPayment, confirmed }
+enum PaymentOrderFilter {
+  all,
+  linkToSend,
+  awaitingPayment,
+  afterExpiration,
+  confirmed,
+}
 
 class PaymentsViewModel extends ChangeNotifier {
   PaymentsViewModel({required OrdersRepository ordersRepository})
@@ -58,6 +64,12 @@ class PaymentsViewModel extends ChangeNotifier {
         });
         break;
 
+      case PaymentOrderFilter.afterExpiration:
+        result = result.where((QueueOrder order) {
+          return order.hasPaymentToReviewAfterExpiration;
+        });
+        break;
+
       case PaymentOrderFilter.confirmed:
         result = result.where((QueueOrder order) {
           return order.paymentStatus == OrderPaymentStatus.confirmed &&
@@ -95,6 +107,11 @@ class PaymentsViewModel extends ChangeNotifier {
                   order.status == QueueOrderStatus.awaitingPayment);
 
           return operatorAwaitingPayment || customerPaymentToVerify;
+        }).length;
+
+      case PaymentOrderFilter.afterExpiration:
+        return _orders.where((QueueOrder order) {
+          return order.hasPaymentToReviewAfterExpiration;
         }).length;
 
       case PaymentOrderFilter.confirmed:

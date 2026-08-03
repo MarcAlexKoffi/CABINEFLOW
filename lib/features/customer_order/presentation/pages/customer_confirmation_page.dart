@@ -190,7 +190,9 @@ class _StatusHeader extends StatelessWidget {
       case QueueOrderStatus.failed:
         return 'Traitement non abouti';
       case QueueOrderStatus.expired:
-        return 'Commande expirée';
+        return receipt.hasPaymentToReviewAfterExpiration
+            ? 'Paiement à examiner'
+            : 'Commande expirée';
       case QueueOrderStatus.cancelled:
         return 'Commande annulée';
       case QueueOrderStatus.refundPending:
@@ -220,7 +222,9 @@ class _StatusHeader extends StatelessWidget {
         return receipt.failureMessage ??
             'La transaction n’a pas pu être réalisée. Un opérateur examinera la situation.';
       case QueueOrderStatus.expired:
-        return 'Le délai de paiement de six heures est dépassé.';
+        return receipt.hasPaymentToReviewAfterExpiration
+            ? 'Votre paiement a été déclaré après l’expiration. Un opérateur doit maintenant l’examiner manuellement.'
+            : 'Le délai de paiement de six heures est dépassé. Aucun paiement confirmé n’a été retrouvé.';
       case QueueOrderStatus.cancelled:
         return 'Cette commande a été annulée.';
       case QueueOrderStatus.refundPending:
@@ -455,6 +459,10 @@ class _TrackingCard extends StatelessWidget {
       return _TrackingStepState.done;
     }
 
+    if (receipt.hasPaymentToReviewAfterExpiration) {
+      return _TrackingStepState.active;
+    }
+
     if (receipt.paymentStatus == OrderPaymentStatus.rejected ||
         receipt.paymentStatus == OrderPaymentStatus.expired) {
       return _TrackingStepState.error;
@@ -492,6 +500,11 @@ class _TrackingCard extends StatelessWidget {
       return _TrackingStepState.active;
     }
 
+    if (receipt.status == QueueOrderStatus.expired &&
+        receipt.hasPaymentToReviewAfterExpiration) {
+      return _TrackingStepState.pending;
+    }
+
     if (receipt.status == QueueOrderStatus.failed ||
         receipt.status == QueueOrderStatus.expired ||
         receipt.status == QueueOrderStatus.cancelled) {
@@ -510,7 +523,9 @@ class _TrackingCard extends StatelessWidget {
       case QueueOrderStatus.failed:
         return 'Traitement non abouti';
       case QueueOrderStatus.expired:
-        return 'Commande expirée';
+        return receipt.hasPaymentToReviewAfterExpiration
+            ? 'Décision de l’opérateur'
+            : 'Commande expirée';
       case QueueOrderStatus.cancelled:
         return 'Commande annulée';
       case QueueOrderStatus.refundPending:

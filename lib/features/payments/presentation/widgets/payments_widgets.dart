@@ -134,9 +134,11 @@ class PaymentTrackingCard extends StatelessWidget {
 
   bool get isCustomerPaymentDeclared {
     return order.source == OrderSource.customerWeb &&
-        order.paymentStatus == OrderPaymentStatus.declared &&
-        (order.status == QueueOrderStatus.paymentToVerify ||
-            order.status == QueueOrderStatus.awaitingPayment);
+        order.paymentStatus == OrderPaymentStatus.declared;
+  }
+
+  bool get isPaymentToReviewAfterExpiration {
+    return order.hasPaymentToReviewAfterExpiration;
   }
 
   bool get wasPaymentLinkSent {
@@ -338,6 +340,13 @@ class PaymentTrackingCard extends StatelessWidget {
       title = 'Paiement confirmé';
       subtitle =
           'Réf. ${order.paymentReference} • ${_formatDate(order.paidAt!)}';
+    } else if (isPaymentToReviewAfterExpiration) {
+      color = const Color(0xFFDC2626);
+      icon = Icons.timer_off_outlined;
+      title = 'Paiement déclaré après expiration';
+      subtitle = order.paymentDeclaredAt == null
+          ? 'Examen manuel obligatoire.'
+          : 'Déclaré ${_formatDate(order.paymentDeclaredAt!)}';
     } else if (isCustomerPaymentDeclared) {
       color = _warningColor;
       icon = Icons.manage_search_rounded;
@@ -517,7 +526,11 @@ class PaymentTrackingCard extends StatelessWidget {
                 ),
               )
             : const Icon(Icons.verified_rounded, size: 19),
-        label: const Text('Vérifier et confirmer'),
+        label: Text(
+          isPaymentToReviewAfterExpiration
+              ? 'Examiner et confirmer'
+              : 'Vérifier et confirmer',
+        ),
       );
     }
 

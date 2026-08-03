@@ -7,6 +7,7 @@ import 'package:cabine_flow/features/customer_order/domain/models/customer_servi
 import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/features/orders/domain/services/order_expiration_policy.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -94,20 +95,36 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
         data['paymentStatus'],
       );
 
-      if (currentStatus == QueueOrderStatus.paymentToVerify &&
+      if ((currentStatus == QueueOrderStatus.paymentToVerify ||
+              currentStatus == QueueOrderStatus.expired) &&
           currentPaymentStatus == OrderPaymentStatus.declared) {
         return _receiptFromData(fallbackOrder: order, data: data);
       }
 
-      if (currentStatus != QueueOrderStatus.awaitingPayment ||
-          currentPaymentStatus != OrderPaymentStatus.notDeclared) {
+      final bool canDeclareBeforeExpiration =
+          currentStatus == QueueOrderStatus.awaitingPayment &&
+          currentPaymentStatus == OrderPaymentStatus.notDeclared;
+      final bool canDeclareAfterExpiration =
+          currentStatus == QueueOrderStatus.expired &&
+          (currentPaymentStatus == OrderPaymentStatus.expired ||
+              currentPaymentStatus == OrderPaymentStatus.notDeclared);
+
+      if (!canDeclareBeforeExpiration && !canDeclareAfterExpiration) {
         throw StateError(
           'Le paiement de cette commande a déjà été déclaré ou son statut a changé.',
         );
       }
 
-      transaction.update(document, <String, dynamic>{
-        'status': QueueOrderStatus.paymentToVerify.name,
+      final DateTime expiresAt =
+          _readDate(data['expiresAt']) ?? order.expiresAt;
+      final bool declaredAfterExpiration =
+          currentStatus == QueueOrderStatus.expired ||
+          !declaredAt.toUtc().isBefore(expiresAt.toUtc());
+      final QueueOrderStatus nextStatus = declaredAfterExpiration
+          ? QueueOrderStatus.expired
+          : QueueOrderStatus.paymentToVerify;
+      final Map<String, dynamic> update = <String, dynamic>{
+        'status': nextStatus.name,
         'paymentStatus': OrderPaymentStatus.declared.name,
         'paymentDeclaredAt': FieldValue.serverTimestamp(),
         'paymentPayerName': declaration.waveAccountName,
@@ -115,31 +132,52 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
         'paymentApproximateTime': declaration.approximatePaymentTime,
         'paymentDeclaredReference': declaration.declaredWaveReference,
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      };
+
+      if (declaredAfterExpiration && data['expiredAt'] == null) {
+        update['expiredAt'] = FieldValue.serverTimestamp();
+      }
+
+      transaction.update(document, update);
 
       return order.copyWith(
-        status: QueueOrderStatus.paymentToVerify,
+        status: nextStatus,
         paymentStatus: OrderPaymentStatus.declared,
         paymentDeclaredAt: declaredAt,
         paymentDeclaration: declaration,
+        expiredAt: declaredAfterExpiration
+            ? order.expiredAt ?? declaredAt
+            : order.expiredAt,
       );
     });
+  }
+
+  @override
+  Future<CustomerOrderReceipt> synchronizeExpiration({
+    required CustomerOrderReceipt order,
+  }) {
+    return _synchronizeExpirationIfNeeded(order);
   }
 
   @override
   Stream<CustomerOrderReceipt> watchOrder({
     required CustomerOrderReceipt order,
   }) {
-    return _ordersCollection.doc(order.id).snapshots().map((
+    return _ordersCollection.doc(order.id).snapshots().asyncMap((
       DocumentSnapshot<Map<String, dynamic>> snapshot,
-    ) {
+    ) async {
       final Map<String, dynamic>? data = snapshot.data();
 
       if (!snapshot.exists || data == null) {
         throw StateError('La commande suivie est introuvable.');
       }
 
-      return _receiptFromData(fallbackOrder: order, data: data);
+      final CustomerOrderReceipt currentOrder = _receiptFromData(
+        fallbackOrder: order,
+        data: data,
+      );
+
+      return _synchronizeExpirationIfNeeded(currentOrder);
     });
   }
 
@@ -150,7 +188,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
     yield* _ordersCollection
         .where('customerAuthUid', isEqualTo: customer.uid)
         .snapshots()
-        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
+        .asyncMap((QuerySnapshot<Map<String, dynamic>> snapshot) async {
           final List<CustomerOrderReceipt> orders = snapshot.docs
               .map((QueryDocumentSnapshot<Map<String, dynamic>> document) {
                 return _receiptFromDocument(
@@ -161,12 +199,83 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
               .whereType<CustomerOrderReceipt>()
               .toList();
 
-          orders.sort((CustomerOrderReceipt first, CustomerOrderReceipt second) {
+          final List<CustomerOrderReceipt> synchronizedOrders =
+              await Future.wait(
+                orders.map(_synchronizeExpirationIfNeeded),
+              );
+
+          synchronizedOrders.sort((
+            CustomerOrderReceipt first,
+            CustomerOrderReceipt second,
+          ) {
             return second.createdAt.compareTo(first.createdAt);
           });
 
-          return orders;
+          return synchronizedOrders;
         });
+  }
+
+  Future<CustomerOrderReceipt> _synchronizeExpirationIfNeeded(
+    CustomerOrderReceipt order,
+  ) async {
+    final DateTime now = DateTime.now();
+
+    if (!OrderExpirationPolicy.shouldExpire(
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      expiresAt: order.expiresAt,
+      now: now,
+    )) {
+      return order;
+    }
+
+    final DocumentReference<Map<String, dynamic>> document = _ordersCollection
+        .doc(order.id);
+
+    return _firestore.runTransaction<CustomerOrderReceipt>((
+      Transaction transaction,
+    ) async {
+      final DocumentSnapshot<Map<String, dynamic>> snapshot = await transaction
+          .get(document);
+      final Map<String, dynamic>? data = snapshot.data();
+
+      if (!snapshot.exists || data == null) {
+        throw StateError('La commande suivie est introuvable.');
+      }
+
+      final CustomerOrderReceipt currentOrder = _receiptFromData(
+        fallbackOrder: order,
+        data: data,
+      );
+      final DateTime transactionTime = DateTime.now();
+
+      if (!OrderExpirationPolicy.shouldExpire(
+        status: currentOrder.status,
+        paymentStatus: currentOrder.paymentStatus,
+        expiresAt: currentOrder.expiresAt,
+        now: transactionTime,
+      )) {
+        return currentOrder;
+      }
+
+      final OrderPaymentStatus expiredPaymentStatus =
+          OrderExpirationPolicy.paymentStatusAfterExpiration(
+            currentOrder.paymentStatus,
+          );
+
+      transaction.update(document, <String, dynamic>{
+        'status': QueueOrderStatus.expired.name,
+        'paymentStatus': expiredPaymentStatus.name,
+        'expiredAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      return currentOrder.copyWith(
+        status: QueueOrderStatus.expired,
+        paymentStatus: expiredPaymentStatus,
+        expiredAt: transactionTime,
+      );
+    });
   }
 
   Future<User> _ensureAnonymousCustomer() {
@@ -240,6 +349,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
       'paymentApproximateTime': null,
       'paymentDeclaredReference': null,
       'expiresAt': Timestamp.fromDate(expiresAt.toUtc()),
+      'expiredAt': null,
       'paymentConfirmedAt': null,
       'paidAt': null,
       'paymentReference': null,
@@ -314,6 +424,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
         paymentDeclaredAt: _readDate(data['paymentDeclaredAt']),
         paymentDeclaration: _readPaymentDeclaration(data),
         paymentConfirmedAt: _readDate(data['paymentConfirmedAt']),
+        expiredAt: _readDate(data['expiredAt']),
         processingStartedAt: _readDate(data['takenAt']),
         completedAt: _readDate(data['completedAt']),
         status: _readOrderStatus(data['status']),

@@ -2,6 +2,7 @@ import 'package:cabine_flow/features/orders/data/mappers/firestore_order_mapper.
 import 'package:cabine_flow/features/orders/domain/models/create_order_request.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/features/orders/domain/services/order_expiration_policy.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FirestoreOrdersRepository implements OrdersRepository {
@@ -89,7 +90,9 @@ class FirestoreOrdersRepository implements OrdersRepository {
 
   @override
   Future<List<QueueOrder>> fetchPaymentTrackingOrders() async {
-    final List<QueueOrder> orders = await _fetchRecentOrders();
+    final List<QueueOrder> orders = await _synchronizeExpiredOrders(
+      await _fetchRecentOrders(),
+    );
 
     final List<QueueOrder> paymentOrders = orders.where((QueueOrder order) {
       final bool isOperatorPaymentInProgress =
@@ -99,7 +102,8 @@ class FirestoreOrdersRepository implements OrdersRepository {
           order.source == OrderSource.customerWeb &&
           order.paymentStatus == OrderPaymentStatus.declared &&
           (order.status == QueueOrderStatus.paymentToVerify ||
-              order.status == QueueOrderStatus.awaitingPayment);
+              order.status == QueueOrderStatus.awaitingPayment ||
+              order.status == QueueOrderStatus.expired);
       final bool wasConfirmed =
           order.paymentStatus == OrderPaymentStatus.confirmed &&
           order.paymentReference != null &&
@@ -144,7 +148,8 @@ class FirestoreOrdersRepository implements OrdersRepository {
       validate: (QueueOrder order) {
         final bool canConfirm =
             order.status == QueueOrderStatus.awaitingPayment ||
-            order.status == QueueOrderStatus.paymentToVerify;
+            order.status == QueueOrderStatus.paymentToVerify ||
+            order.hasPaymentToReviewAfterExpiration;
 
         if (!canConfirm ||
             order.paymentStatus == OrderPaymentStatus.confirmed) {
@@ -327,6 +332,75 @@ class FirestoreOrdersRepository implements OrdersRepository {
         );
       },
     );
+  }
+
+  Future<List<QueueOrder>> _synchronizeExpiredOrders(
+    List<QueueOrder> orders,
+  ) async {
+    return Future.wait(orders.map(_synchronizeExpirationIfNeeded));
+  }
+
+  Future<QueueOrder> _synchronizeExpirationIfNeeded(QueueOrder order) async {
+    final DateTime? expiresAt = order.expiresAt;
+    final DateTime now = DateTime.now();
+
+    if (expiresAt == null ||
+        !OrderExpirationPolicy.shouldExpire(
+          status: order.status,
+          paymentStatus: order.paymentStatus,
+          expiresAt: expiresAt,
+          now: now,
+        )) {
+      return order;
+    }
+
+    final DocumentReference<Map<String, dynamic>> reference = _ordersCollection
+        .doc(order.id);
+
+    return _firestore.runTransaction<QueueOrder>((Transaction transaction) async {
+      final DocumentSnapshot<Map<String, dynamic>> snapshot = await transaction
+          .get(reference);
+      final Map<String, dynamic>? data = snapshot.data();
+
+      if (!snapshot.exists || data == null) {
+        return order;
+      }
+
+      final QueueOrder currentOrder = FirestoreOrderMapper.fromMap(
+        id: snapshot.id,
+        data: data,
+      );
+      final DateTime? currentExpiresAt = currentOrder.expiresAt;
+      final DateTime transactionTime = DateTime.now();
+
+      if (currentExpiresAt == null ||
+          !OrderExpirationPolicy.shouldExpire(
+            status: currentOrder.status,
+            paymentStatus: currentOrder.paymentStatus,
+            expiresAt: currentExpiresAt,
+            now: transactionTime,
+          )) {
+        return currentOrder;
+      }
+
+      final OrderPaymentStatus expiredPaymentStatus =
+          OrderExpirationPolicy.paymentStatusAfterExpiration(
+            currentOrder.paymentStatus,
+          );
+
+      transaction.update(reference, <String, dynamic>{
+        'status': QueueOrderStatus.expired.name,
+        'paymentStatus': expiredPaymentStatus.name,
+        'expiredAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      return currentOrder.copyWith(
+        status: QueueOrderStatus.expired,
+        paymentStatus: expiredPaymentStatus,
+        expiredAt: transactionTime,
+      );
+    });
   }
 
   Future<List<QueueOrder>> _fetchRecentOrders() async {

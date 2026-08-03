@@ -33,6 +33,13 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
   }
 
   Future<void> _openWave() async {
+    if (widget.viewModel.receipt?.isExpired == true) {
+      _showMessage(
+        'Cette commande a expiré. N’effectuez plus un nouveau paiement pour cette référence.',
+      );
+      return;
+    }
+
     if (_isOpeningWave) {
       return;
     }
@@ -119,6 +126,9 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
   @override
   Widget build(BuildContext context) {
     final CustomerOrderDraft draft = widget.viewModel.draft;
+    final bool isExpiredWithoutDeclaration =
+        widget.viewModel.receipt?.isExpired == true &&
+        widget.viewModel.receipt?.isPaymentDeclared == false;
 
     return Scaffold(
       backgroundColor: CustomerAppColors.background,
@@ -163,41 +173,46 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
                           const SizedBox(height: 26),
                           _PaymentSummaryCard(draft: draft),
                           const SizedBox(height: 24),
-                          _WavePaymentButton(
-                            isLoading: _isOpeningWave,
-                            onPressed: _openWave,
-                          ),
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: CustomerAppColors.surfaceContainerLow,
-                              borderRadius: BorderRadius.circular(12),
+                          if (isExpiredWithoutDeclaration)
+                            const _ExpiredPaymentWarning()
+                          else
+                            _WavePaymentButton(
+                              isLoading: _isOpeningWave,
+                              onPressed: _openWave,
                             ),
-                            child: const Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Icon(
-                                  Icons.schedule_rounded,
-                                  color: CustomerAppColors.primary,
-                                  size: 20,
-                                ),
-                                SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    'Finalisez le paiement dans les 6 heures. '
-                                    'Après ce délai, une commande non validée '
-                                    'pourra être annulée.',
-                                    style: TextStyle(
-                                      color: CustomerAppColors.onSurfaceVariant,
-                                      fontSize: 12,
-                                      height: 1.45,
+                          if (!isExpiredWithoutDeclaration) ...[
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: CustomerAppColors.surfaceContainerLow,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    Icons.schedule_rounded,
+                                    color: CustomerAppColors.primary,
+                                    size: 20,
+                                  ),
+                                  SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'Finalisez le paiement dans les 6 heures. '
+                                      'Après ce délai, la commande expirera '
+                                      'automatiquement si le paiement n’est pas confirmé.',
+                                      style: TextStyle(
+                                        color: CustomerAppColors.onSurfaceVariant,
+                                        fontSize: 12,
+                                        height: 1.45,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
+                          ],
                           if (widget.viewModel.paymentLinkWasOpened) ...[
                             const SizedBox(height: 18),
                             const Text(
@@ -218,7 +233,9 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
                   _PaymentBottomActions(
                     isSubmitting: widget.viewModel.isSubmitting,
                     isPaymentDeclarationEnabled:
-                        widget.viewModel.paymentLinkWasOpened,
+                        widget.viewModel.paymentLinkWasOpened ||
+                        isExpiredWithoutDeclaration,
+                    isExpired: isExpiredWithoutDeclaration,
                     onBack: widget.viewModel.goBack,
                     onConfirm: _confirmPaymentDeclaration,
                   ),
@@ -375,6 +392,44 @@ class _PaymentRow extends StatelessWidget {
   }
 }
 
+class _ExpiredPaymentWarning extends StatelessWidget {
+  const _ExpiredPaymentWarning();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFE8E8),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFDC2626).withAlpha(90)),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.timer_off_outlined,
+            color: Color(0xFFB91C1C),
+            size: 24,
+          ),
+          SizedBox(width: 11),
+          Expanded(
+            child: Text(
+              'Cette commande a expiré. N’effectuez plus de nouveau paiement. Si vous aviez déjà payé avant de constater l’expiration, déclarez-le avec le bouton ci-dessous afin qu’un opérateur l’examine.',
+              style: TextStyle(
+                color: Color(0xFF991B1B),
+                fontSize: 12,
+                height: 1.45,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _WavePaymentButton extends StatelessWidget {
   const _WavePaymentButton({required this.isLoading, required this.onPressed});
 
@@ -434,12 +489,14 @@ class _PaymentBottomActions extends StatelessWidget {
   const _PaymentBottomActions({
     required this.isSubmitting,
     required this.isPaymentDeclarationEnabled,
+    required this.isExpired,
     required this.onBack,
     required this.onConfirm,
   });
 
   final bool isSubmitting;
   final bool isPaymentDeclarationEnabled;
+  final bool isExpired;
   final VoidCallback onBack;
   final VoidCallback onConfirm;
 
@@ -484,8 +541,10 @@ class _PaymentBottomActions extends StatelessWidget {
                           color: Colors.white,
                         ),
                       )
-                    : const Text(
-                        'J’ai effectué le paiement',
+                    : Text(
+                        isExpired
+                            ? 'J’ai déjà effectué le paiement'
+                            : 'J’ai effectué le paiement',
                         textAlign: TextAlign.center,
                       ),
               ),

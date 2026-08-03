@@ -1,1 +1,36 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"cabineflow-4bca7","appId":"1:542869507309:android:127acb5d3519466f2f10e4","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"cabineflow-4bca7","configurations":{"android":"1:542869507309:android:127acb5d3519466f2f10e4","web":"1:542869507309:web:0bff068e1c54a4182f10e4"}}}}}}
+﻿{
+    "flutter":  {
+                    "platforms":  {
+                                      "android":  {
+                                                      "default":  {
+                                                                      "projectId":  "cabineflow-4bca7",
+                                                                      "appId":  "1:542869507309:android:127acb5d3519466f2f10e4",
+                                                                      "fileOutput":  "android/app/google-services.json"
+                                                                  }
+                                                  },
+                                      "dart":  {
+                                                   "lib/firebase_options.dart":  {
+                                                                                     "projectId":  "cabineflow-4bca7",
+                                                                                     "configurations":  {
+                                                                                                            "android":  "1:542869507309:android:127acb5d3519466f2f10e4",
+                                                                                                            "web":  "1:542869507309:web:0bff068e1c54a4182f10e4"
+                                                                                                        }
+                                                                                 }
+                                               }
+                                  }
+                },
+    "hosting":  {
+                    "public":  "build/web",
+                    "ignore":  [
+                                   "firebase.json",
+                                   "**/.*",
+                                   "**/node_modules/**"
+                               ],
+                    "rewrites":  [
+                                     {
+                                         "source":  "**",
+                                         "destination":  "/index.html"
+                                     }
+                                 ]
+                }
+}

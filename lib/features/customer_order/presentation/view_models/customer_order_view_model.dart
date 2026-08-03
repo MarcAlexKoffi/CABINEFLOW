@@ -35,6 +35,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
   String? _trackingErrorMessage;
   StreamSubscription<CustomerOrderReceipt>? _trackingSubscription;
   StreamSubscription<List<CustomerOrderReceipt>>? _historySubscription;
+  Timer? _expirationTimer;
   List<CustomerOrderReceipt> _customerOrders = <CustomerOrderReceipt>[];
   CustomerOrderSession? _savedSession;
   bool _isLoadingHistory = false;
@@ -60,7 +61,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
 
     if (session != null) {
       for (final CustomerOrderReceipt order in _customerOrders) {
-        if (order.id == session.orderId && _isActiveOrder(order)) {
+        if (order.id == session.orderId && _isResumableOrder(order)) {
           return order;
         }
       }
@@ -156,7 +157,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
     }
 
     for (final CustomerOrderReceipt order in orders) {
-      if (order.id == session.orderId && _isActiveOrder(order)) {
+      if (order.id == session.orderId && _isResumableOrder(order)) {
         _applyResumedOrder(order, rememberLocally: false);
         return;
       }
@@ -171,12 +172,14 @@ class CustomerOrderViewModel extends ChangeNotifier {
     _draft = order.draft;
     _submissionErrorMessage = null;
     _trackingErrorMessage = null;
-    _paymentLinkWasOpened =
-        order.status == QueueOrderStatus.awaitingPayment;
-    _currentStep = order.status == QueueOrderStatus.awaitingPayment &&
-            order.paymentStatus == OrderPaymentStatus.notDeclared
-        ? 7
-        : 8;
+    final bool canStillDeclarePayment =
+        (order.status == QueueOrderStatus.awaitingPayment &&
+            order.paymentStatus == OrderPaymentStatus.notDeclared) ||
+        (order.status == QueueOrderStatus.expired &&
+            (order.paymentStatus == OrderPaymentStatus.expired ||
+                order.paymentStatus == OrderPaymentStatus.notDeclared));
+    _paymentLinkWasOpened = canStillDeclarePayment;
+    _currentStep = canStillDeclarePayment ? 7 : 8;
     _startOrderTracking(order);
 
     if (rememberLocally) {
@@ -494,12 +497,20 @@ class CustomerOrderViewModel extends ChangeNotifier {
   void _startOrderTracking(CustomerOrderReceipt order) {
     unawaited(_trackingSubscription?.cancel());
     _trackingErrorMessage = null;
+    _scheduleExpiration(order);
 
     _trackingSubscription = _orderRepository.watchOrder(order: order).listen(
       (CustomerOrderReceipt updatedOrder) {
         _receipt = updatedOrder;
         _draft = updatedOrder.draft;
         _trackingErrorMessage = null;
+
+        if (updatedOrder.status == QueueOrderStatus.expired &&
+            updatedOrder.paymentStatus == OrderPaymentStatus.declared) {
+          _currentStep = 8;
+        }
+
+        _scheduleExpiration(updatedOrder);
         _replaceOrderInHistory(updatedOrder);
         notifyListeners();
       },
@@ -509,6 +520,61 @@ class CustomerOrderViewModel extends ChangeNotifier {
         notifyListeners();
       },
     );
+  }
+
+  void _scheduleExpiration(CustomerOrderReceipt order) {
+    _expirationTimer?.cancel();
+    _expirationTimer = null;
+
+    final bool canExpire =
+        order.paymentStatus != OrderPaymentStatus.confirmed &&
+        (order.status == QueueOrderStatus.awaitingPayment ||
+            order.status == QueueOrderStatus.paymentToVerify);
+
+    if (!canExpire) {
+      return;
+    }
+
+    final Duration remaining = order.expiresAt.toUtc().difference(
+      DateTime.now().toUtc(),
+    );
+
+    if (remaining <= Duration.zero) {
+      unawaited(_synchronizeCurrentOrderExpiration(order));
+      return;
+    }
+
+    _expirationTimer = Timer(remaining, () {
+      unawaited(_synchronizeCurrentOrderExpiration(order));
+    });
+  }
+
+  Future<void> _synchronizeCurrentOrderExpiration(
+    CustomerOrderReceipt order,
+  ) async {
+    try {
+      final CustomerOrderReceipt synchronizedOrder = await _orderRepository
+          .synchronizeExpiration(order: order);
+
+      if (_receipt?.id != synchronizedOrder.id) {
+        return;
+      }
+
+      _receipt = synchronizedOrder;
+      _draft = synchronizedOrder.draft;
+
+      if (synchronizedOrder.status == QueueOrderStatus.expired &&
+          synchronizedOrder.paymentStatus == OrderPaymentStatus.declared) {
+        _currentStep = 8;
+      }
+
+      _replaceOrderInHistory(synchronizedOrder);
+      notifyListeners();
+    } on Object {
+      _trackingErrorMessage =
+          'Impossible d’actualiser automatiquement l’expiration.';
+      notifyListeners();
+    }
   }
 
   Future<void> _rememberOrder(CustomerOrderReceipt order) async {
@@ -560,13 +626,17 @@ class CustomerOrderViewModel extends ChangeNotifier {
       case QueueOrderStatus.awaitingCustomerConfirmation:
       case QueueOrderStatus.refundPending:
         return true;
+      case QueueOrderStatus.expired:
       case QueueOrderStatus.completed:
       case QueueOrderStatus.failed:
-      case QueueOrderStatus.expired:
       case QueueOrderStatus.cancelled:
       case QueueOrderStatus.refunded:
         return false;
     }
+  }
+
+  bool _isResumableOrder(CustomerOrderReceipt order) {
+    return _isActiveOrder(order) || order.status == QueueOrderStatus.expired;
   }
 
   void goBack() {
@@ -581,6 +651,8 @@ class CustomerOrderViewModel extends ChangeNotifier {
   void restart() {
     unawaited(_trackingSubscription?.cancel());
     _trackingSubscription = null;
+    _expirationTimer?.cancel();
+    _expirationTimer = null;
     _draft = const CustomerOrderDraft();
     _receipt = null;
     _currentStep = 1;
@@ -593,6 +665,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _expirationTimer?.cancel();
     unawaited(_trackingSubscription?.cancel());
     unawaited(_historySubscription?.cancel());
     super.dispose();

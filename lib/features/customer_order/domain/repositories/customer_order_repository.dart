@@ -12,6 +12,10 @@ abstract class CustomerOrderRepository {
     required PaymentDeclaration declaration,
   });
 
+  Future<CustomerOrderReceipt> synchronizeExpiration({
+    required CustomerOrderReceipt order,
+  });
+
   Stream<CustomerOrderReceipt> watchOrder({
     required CustomerOrderReceipt order,
   });

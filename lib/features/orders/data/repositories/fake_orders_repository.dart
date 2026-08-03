@@ -39,7 +39,8 @@ class FakeOrdersRepository implements OrdersRepository {
           order.source == OrderSource.customerWeb &&
           order.paymentStatus == OrderPaymentStatus.declared &&
           (order.status == QueueOrderStatus.paymentToVerify ||
-              order.status == QueueOrderStatus.awaitingPayment);
+              order.status == QueueOrderStatus.awaitingPayment ||
+              order.status == QueueOrderStatus.expired);
       final bool wasManuallyConfirmed =
           order.paymentStatus == OrderPaymentStatus.confirmed &&
           order.paymentReference != null &&
@@ -82,7 +83,8 @@ class FakeOrdersRepository implements OrdersRepository {
 
     final bool canConfirm =
         currentOrder.status == QueueOrderStatus.awaitingPayment ||
-        currentOrder.status == QueueOrderStatus.paymentToVerify;
+        currentOrder.status == QueueOrderStatus.paymentToVerify ||
+        currentOrder.hasPaymentToReviewAfterExpiration;
 
     if (!canConfirm ||
         currentOrder.paymentStatus == OrderPaymentStatus.confirmed) {

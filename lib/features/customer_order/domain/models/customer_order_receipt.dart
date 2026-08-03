@@ -14,6 +14,7 @@ class CustomerOrderReceipt {
     this.paymentDeclaredAt,
     this.paymentDeclaration,
     this.paymentConfirmedAt,
+    this.expiredAt,
     this.processingStartedAt,
     this.completedAt,
     this.failureMessage,
@@ -28,6 +29,7 @@ class CustomerOrderReceipt {
   final DateTime? paymentDeclaredAt;
   final PaymentDeclaration? paymentDeclaration;
   final DateTime? paymentConfirmedAt;
+  final DateTime? expiredAt;
   final DateTime? processingStartedAt;
   final DateTime? completedAt;
 
@@ -44,12 +46,21 @@ class CustomerOrderReceipt {
     return paymentStatus == OrderPaymentStatus.confirmed;
   }
 
+  bool get isExpired {
+    return status == QueueOrderStatus.expired;
+  }
+
+  bool get hasPaymentToReviewAfterExpiration {
+    return isExpired && paymentStatus == OrderPaymentStatus.declared;
+  }
+
   CustomerOrderReceipt copyWith({
     QueueOrderStatus? status,
     OrderPaymentStatus? paymentStatus,
     DateTime? paymentDeclaredAt,
     PaymentDeclaration? paymentDeclaration,
     DateTime? paymentConfirmedAt,
+    DateTime? expiredAt,
     DateTime? processingStartedAt,
     DateTime? completedAt,
     String? failureMessage,
@@ -63,6 +74,7 @@ class CustomerOrderReceipt {
       paymentDeclaredAt: paymentDeclaredAt ?? this.paymentDeclaredAt,
       paymentDeclaration: paymentDeclaration ?? this.paymentDeclaration,
       paymentConfirmedAt: paymentConfirmedAt ?? this.paymentConfirmedAt,
+      expiredAt: expiredAt ?? this.expiredAt,
       processingStartedAt: processingStartedAt ?? this.processingStartedAt,
       completedAt: completedAt ?? this.completedAt,
       status: status ?? this.status,

@@ -8,6 +8,8 @@ void main() {
     test('convertit un document Firestore en QueueOrder', () {
       final DateTime createdAt = DateTime(2026, 7, 31, 9, 30);
       final DateTime paidAt = DateTime(2026, 7, 31, 9, 35);
+      final DateTime expiresAt = DateTime(2026, 7, 31, 15, 30);
+      final DateTime expiredAt = DateTime(2026, 7, 31, 15, 31);
 
       final QueueOrder order = FirestoreOrderMapper.fromMap(
         id: 'order-123',
@@ -30,6 +32,8 @@ void main() {
           'paymentApproximateTime': '09:34',
           'paymentDeclaredReference': 'DECL-123',
           'paymentConfirmedAt': Timestamp.fromDate(paidAt),
+          'expiresAt': Timestamp.fromDate(expiresAt),
+          'expiredAt': Timestamp.fromDate(expiredAt),
           'paymentReference': 'W-ABC123',
           'status': 'paidReady',
           'paymentStatus': 'confirmed',
@@ -57,6 +61,8 @@ void main() {
       expect(order.paymentApproximateTime, '09:34');
       expect(order.paymentDeclaredReference, 'DECL-123');
       expect(order.paidAt, paidAt);
+      expect(order.expiresAt, expiresAt);
+      expect(order.expiredAt, expiredAt);
     });
 
     test('utilise des valeurs de repli pour un document incomplet', () {

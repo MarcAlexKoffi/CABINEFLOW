@@ -191,7 +191,8 @@ class _ActiveOrderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (String statusLabel, IconData statusIcon) = _activeStatus(order.status);
+    final (String statusLabel, IconData statusIcon) = _activeStatus(order);
+    final bool isExpired = order.status == QueueOrderStatus.expired;
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -215,22 +216,26 @@ class _ActiveOrderCard extends StatelessWidget {
                 child: Icon(statusIcon, color: Colors.white, size: 22),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Vous avez une commande en cours',
-                      style: TextStyle(
+                      isExpired
+                          ? 'Cette commande nécessite votre attention'
+                          : 'Vous avez une commande en cours',
+                      style: const TextStyle(
                         color: CustomerAppColors.onSurface,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    SizedBox(height: 3),
+                    const SizedBox(height: 3),
                     Text(
-                      'Reprenez exactement là où vous vous êtes arrêté.',
-                      style: TextStyle(
+                      isExpired
+                          ? 'Consultez son état ou déclarez un paiement déjà effectué.'
+                          : 'Reprenez exactement là où vous vous êtes arrêté.',
+                      style: const TextStyle(
                         color: CustomerAppColors.onSurfaceVariant,
                         fontSize: 12,
                         height: 1.35,
@@ -291,8 +296,8 @@ class _ActiveOrderCard extends StatelessWidget {
     );
   }
 
-  (String, IconData) _activeStatus(QueueOrderStatus status) {
-    switch (status) {
+  (String, IconData) _activeStatus(CustomerOrderReceipt order) {
+    switch (order.status) {
       case QueueOrderStatus.awaitingPayment:
         return ('Paiement à effectuer', Icons.account_balance_wallet_outlined);
       case QueueOrderStatus.paymentToVerify:
@@ -307,9 +312,12 @@ class _ActiveOrderCard extends StatelessWidget {
         return ('Transaction effectuée', Icons.task_alt_rounded);
       case QueueOrderStatus.refundPending:
         return ('Remboursement en cours', Icons.currency_exchange_rounded);
+      case QueueOrderStatus.expired:
+        return order.hasPaymentToReviewAfterExpiration
+            ? ('Paiement après expiration à examiner', Icons.manage_search_rounded)
+            : ('Commande expirée', Icons.timer_off_outlined);
       case QueueOrderStatus.completed:
       case QueueOrderStatus.failed:
-      case QueueOrderStatus.expired:
       case QueueOrderStatus.cancelled:
       case QueueOrderStatus.refunded:
         return ('Commande mise à jour', Icons.receipt_long_outlined);

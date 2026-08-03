@@ -285,7 +285,7 @@ class _OrderHistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final MobileNetwork network = order.draft.network!;
-    final _StatusPresentation status = _StatusPresentation.from(order.status);
+    final _StatusPresentation status = _StatusPresentation.from(order);
 
     return Material(
       color: CustomerAppColors.surfaceContainerLowest,
@@ -775,8 +775,8 @@ class _StatusPresentation {
   final Color foregroundColor;
   final Color backgroundColor;
 
-  factory _StatusPresentation.from(QueueOrderStatus status) {
-    switch (status) {
+  factory _StatusPresentation.from(CustomerOrderReceipt order) {
+    switch (order.status) {
       case QueueOrderStatus.awaitingPayment:
         return const _StatusPresentation(
           label: 'À payer',
@@ -834,6 +834,15 @@ class _StatusPresentation {
           backgroundColor: Color(0xFFFEE2E2),
         );
       case QueueOrderStatus.expired:
+        if (order.hasPaymentToReviewAfterExpiration) {
+          return const _StatusPresentation(
+            label: 'Paiement à examiner',
+            icon: Icons.manage_search_rounded,
+            foregroundColor: Color(0xFFB45309),
+            backgroundColor: Color(0xFFFFF3D6),
+          );
+        }
+
         return const _StatusPresentation(
           label: 'Expirée',
           icon: Icons.timer_off_outlined,

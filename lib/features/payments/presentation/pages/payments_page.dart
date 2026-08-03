@@ -61,6 +61,9 @@ class _PaymentsPageState extends State<PaymentsPage> {
       case PaymentOrderFilter.awaitingPayment:
         return 'À vérifier';
 
+      case PaymentOrderFilter.afterExpiration:
+        return 'Après expiration';
+
       case PaymentOrderFilter.confirmed:
         return 'Confirmés';
     }
@@ -179,6 +182,41 @@ class _PaymentsPageState extends State<PaymentsPage> {
                           color: AppColors.onSurfaceVariant,
                         ),
                       ),
+                      if (order.hasPaymentToReviewAfterExpiration) ...[
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFE8E8),
+                            borderRadius: BorderRadius.circular(11),
+                            border: Border.all(
+                              color: const Color(0xFFDC2626).withAlpha(90),
+                            ),
+                          ),
+                          child: const Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.timer_off_outlined,
+                                color: Color(0xFFB91C1C),
+                                size: 20,
+                              ),
+                              SizedBox(width: 9),
+                              Expanded(
+                                child: Text(
+                                  'Ce paiement a été déclaré après l’expiration de la commande. Vérifiez-le attentivement avant toute confirmation.',
+                                  style: TextStyle(
+                                    color: Color(0xFF991B1B),
+                                    fontSize: 11,
+                                    height: 1.4,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 18),
                       Container(
                         padding: const EdgeInsets.all(13),

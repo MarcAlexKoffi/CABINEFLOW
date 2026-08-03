@@ -1,7 +1,5 @@
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 
-import 'app_user.dart';
-
 enum AuthLoginStatus {
   authenticated,
   pendingActivation,
