@@ -40,40 +40,14 @@ class _CustomerConfirmationPageState extends State<CustomerConfirmationPage> {
     }
   }
 
-  String get _networkCode {
+  String get _networkLogoAsset {
     switch (widget.order.network) {
       case MobileNetwork.orange:
-        return 'O';
-
+        return 'assets/images/orange_logo.png';
       case MobileNetwork.mtn:
-        return 'M';
-
+        return 'assets/images/mtn_logo.png';
       case MobileNetwork.moov:
-        return 'Mv';
-    }
-  }
-
-  Color get _networkColor {
-    switch (widget.order.network) {
-      case MobileNetwork.orange:
-        return AppColors.orange;
-
-      case MobileNetwork.mtn:
-        return AppColors.mtn;
-
-      case MobileNetwork.moov:
-        return AppColors.moov;
-    }
-  }
-
-  Color get _networkTextColor {
-    switch (widget.order.network) {
-      case MobileNetwork.mtn:
-        return Colors.black;
-
-      case MobileNetwork.orange:
-      case MobileNetwork.moov:
-        return Colors.white;
+        return 'assets/images/moov_logo.png';
     }
   }
 
@@ -274,9 +248,7 @@ class _CustomerConfirmationPageState extends State<CustomerConfirmationPage> {
                       _OrderSummaryCard(
                         order: widget.order,
                         networkLabel: _networkLabel,
-                        networkCode: _networkCode,
-                        networkColor: _networkColor,
-                        networkTextColor: _networkTextColor,
+                        networkLogoAsset: _networkLogoAsset,
                       ),
                       const SizedBox(height: 20),
                       Text(
@@ -372,15 +344,19 @@ class _ConfirmationTopBar extends StatelessWidget {
           IconButton(
             tooltip: 'Retour',
             onPressed: onBackPressed,
-            icon: const Icon(Icons.arrow_back_rounded),
+            icon: const Icon(
+              Icons.arrow_back_rounded,
+              color: AppColors.primary,
+            ),
           ),
           Expanded(
             child: Text(
               'Confirmation Client',
               textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           const SizedBox(width: 48),
@@ -400,7 +376,7 @@ class _SuccessBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surfaceContainer,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.surfaceContainerHighest),
+        border: Border.all(color: AppColors.outlineVariant.withAlpha(50)),
       ),
       child: Column(
         children: [
@@ -440,16 +416,12 @@ class _OrderSummaryCard extends StatelessWidget {
   const _OrderSummaryCard({
     required this.order,
     required this.networkLabel,
-    required this.networkCode,
-    required this.networkColor,
-    required this.networkTextColor,
+    required this.networkLogoAsset,
   });
 
   final QueueOrder order;
   final String networkLabel;
-  final String networkCode;
-  final Color networkColor;
-  final Color networkTextColor;
+  final String networkLogoAsset;
 
   @override
   Widget build(BuildContext context) {
@@ -506,18 +478,13 @@ class _OrderSummaryCard extends StatelessWidget {
                       Container(
                         width: 24,
                         height: 24,
-                        alignment: Alignment.center,
+                        clipBehavior: Clip.antiAlias,
                         decoration: BoxDecoration(
-                          color: networkColor,
                           borderRadius: BorderRadius.circular(5),
                         ),
-                        child: Text(
-                          networkCode,
-                          style: TextStyle(
-                            color: networkTextColor,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                          ),
+                        child: Image.asset(
+                          networkLogoAsset,
+                          fit: BoxFit.cover,
                         ),
                       ),
                       const SizedBox(width: 7),

@@ -185,8 +185,8 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
     String? suffixText,
   }) {
     final OutlineInputBorder border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(9),
-      borderSide: BorderSide(color: AppColors.outlineVariant.withAlpha(110)),
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(color: AppColors.outlineVariant.withAlpha(50)),
     );
 
     return InputDecoration(
@@ -194,7 +194,7 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
       prefixIcon: prefixIcon == null ? null : Icon(prefixIcon),
       suffixText: suffixText,
       filled: true,
-      fillColor: AppColors.surfaceContainerLowest,
+      fillColor: AppColors.surfaceContainer,
       contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 13),
       border: border,
       enabledBorder: border,
@@ -472,6 +472,9 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
                               : () {
                                   _submit(preparePayment: false);
                                 },
+                          style: FilledButton.styleFrom(
+                            foregroundColor: Colors.white,
+                          ),
                           icon: const Icon(Icons.save_rounded),
                           label: const Text('Enregistrer la commande'),
                         ),
@@ -553,13 +556,23 @@ class _CreateOrderTopBar extends StatelessWidget {
               ),
             ),
           ),
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: AppColors.surfaceContainerHighest,
-            foregroundColor: AppColors.primary,
-            child: Text(
-              initial,
-              style: const TextStyle(fontWeight: FontWeight.w700),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withAlpha(40),
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.primary, width: 1.5),
+            ),
+            child: Center(
+              child: Text(
+                initial,
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -582,7 +595,7 @@ class _FormSection extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outlineVariant.withAlpha(75)),
+        border: Border.all(color: AppColors.outlineVariant.withAlpha(50)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -662,6 +675,17 @@ class _NetworkButton extends StatelessWidget {
     }
   }
 
+  String get assetPath {
+    switch (network) {
+      case MobileNetwork.orange:
+        return 'assets/images/orange_logo.png';
+      case MobileNetwork.mtn:
+        return 'assets/images/mtn_logo.png';
+      case MobileNetwork.moov:
+        return 'assets/images/moov_logo.png';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -679,16 +703,35 @@ class _NetworkButton extends StatelessWidget {
             border: Border.all(
               color: isSelected
                   ? color
-                  : AppColors.outlineVariant.withAlpha(100),
+                  : AppColors.outlineVariant.withAlpha(50),
             ),
           ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: isSelected ? color : AppColors.onSurface,
-              fontWeight: FontWeight.w700,
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Image.asset(
+                  assetPath,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isSelected ? color : AppColors.onSurface,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
         ),
       ),

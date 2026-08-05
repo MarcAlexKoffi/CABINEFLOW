@@ -30,25 +30,35 @@ class OrdersTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        CircleAvatar(
-          radius: 21,
-          backgroundColor: AppColors.surfaceContainerHighest,
-          foregroundColor: AppColors.primary,
-          child: Text(
-            initial,
-            style: const TextStyle(fontWeight: FontWeight.w700),
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withAlpha(40),
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.primary, width: 1.5),
+          ),
+          child: Center(
+            child: Text(
+              initial,
+              style: const TextStyle(
+                color: AppColors.primary,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'CabineFlow',
+                'Commandes',
                 style: TextStyle(
                   color: AppColors.onBackground,
-                  fontSize: 18,
+                  fontSize: 20,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -57,19 +67,217 @@ class OrdersTopBar extends StatelessWidget {
                   subtitle!,
                   style: const TextStyle(
                     color: AppColors.onSurfaceVariant,
-                    fontSize: 12,
+                    fontSize: 13,
                   ),
                 ),
             ],
           ),
         ),
         IconButton(
-          tooltip: 'Notifications',
-          onPressed: onNotificationsPressed,
-          color: AppColors.primary,
-          icon: const Icon(Icons.notifications_none_rounded),
+          tooltip: 'Recherche',
+          onPressed: () {},
+          color: AppColors.onBackground,
+          icon: const Icon(Icons.search_rounded),
+        ),
+        IconButton(
+          tooltip: 'Filtres',
+          onPressed: () {},
+          color: AppColors.onBackground,
+          icon: const Icon(Icons.tune_rounded),
         ),
       ],
+    );
+  }
+}
+
+class OrdersTabs extends StatelessWidget {
+  const OrdersTabs({
+    super.key,
+    required this.todoCount,
+    required this.inProgressCount,
+    required this.completedCount,
+    required this.activeTabIndex,
+    required this.onTabChanged,
+  });
+
+  final int todoCount;
+  final int inProgressCount;
+  final int completedCount;
+  final int activeTabIndex;
+  final ValueChanged<int> onTabChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainer,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.outlineVariant.withAlpha(50)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () => onTabChanged(0),
+              behavior: HitTestBehavior.opaque,
+              child: _TabItem(
+                label: 'À traiter',
+                count: todoCount,
+                isActive: activeTabIndex == 0,
+                activeColor: const Color(0xFFFF7900),
+              ),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => onTabChanged(1),
+              behavior: HitTestBehavior.opaque,
+              child: _TabItem(
+                label: 'En cours',
+                count: inProgressCount,
+                isActive: activeTabIndex == 1,
+                activeColor: const Color(0xFF1677FF),
+              ),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => onTabChanged(2),
+              behavior: HitTestBehavior.opaque,
+              child: _TabItem(
+                label: 'Terminées',
+                count: completedCount,
+                isActive: activeTabIndex == 2,
+                activeColor: AppColors.success,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TabItem extends StatelessWidget {
+  const _TabItem({
+    required this.label,
+    required this.count,
+    required this.isActive,
+    required this.activeColor,
+  });
+
+  final String label;
+  final int count;
+  final bool isActive;
+  final Color activeColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        border: isActive
+            ? Border(
+                bottom: BorderSide(
+                  color: activeColor,
+                  width: 3,
+                ),
+              )
+            : null,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: isActive ? activeColor : AppColors.primary,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: isActive ? activeColor : AppColors.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              count.toString(),
+              style: TextStyle(
+                color: isActive ? AppColors.onPrimary : AppColors.primary,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class OrdersSortBar extends StatelessWidget {
+  const OrdersSortBar({
+    super.key,
+    required this.oldestWaitMinutes,
+  });
+
+  final int oldestWaitMinutes;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainer,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.outlineVariant.withAlpha(50)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.hourglass_empty_rounded,
+            size: 16,
+            color: AppColors.onSurfaceVariant,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                  color: AppColors.onSurfaceVariant,
+                  fontSize: 12,
+                ),
+                children: [
+                  const TextSpan(text: 'La plus ancienne attend depuis '),
+                  TextSpan(
+                    text: '$oldestWaitMinutes min',
+                    style: const TextStyle(
+                      color: AppColors.error,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const Text(
+            'Par ancienneté',
+            style: TextStyle(
+              color: AppColors.onSurfaceVariant,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(width: 4),
+          const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            size: 16,
+            color: AppColors.onSurfaceVariant,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -154,26 +362,40 @@ class QueueFilterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color backgroundColor = isSelected
-        ? AppColors.primaryContainer
-        : AppColors.surfaceContainer;
+    Color borderColor = AppColors.outlineVariant.withAlpha(50);
+    Color foregroundColor = AppColors.onSurface;
+    Color badgeColor = AppColors.surfaceContainerHighest;
+    Color badgeTextColor = AppColors.onSurfaceVariant;
 
-    final Color foregroundColor = isSelected
-        ? Theme.of(context).colorScheme.onPrimaryContainer
-        : AppColors.onSurface;
+    if (isSelected) {
+      // Simulate the orange color if selected, or default based on label
+      borderColor = const Color(0xFFFF7900);
+      foregroundColor = AppColors.onBackground;
+      badgeColor = const Color(0xFFFF7900);
+      badgeTextColor = AppColors.onPrimary;
+    } else if (label == 'Orange') {
+      badgeColor = const Color(0xFFFF7900).withAlpha(50);
+      badgeTextColor = const Color(0xFFFF7900);
+    } else if (label == 'MTN') {
+      badgeColor = const Color(0xFFFFCC00).withAlpha(50);
+      badgeTextColor = const Color(0xFFFFCC00);
+    } else if (label == 'Moov') {
+      badgeColor = const Color(0xFF0055A5).withAlpha(50);
+      badgeTextColor = const Color(0xFF0055A5);
+    }
 
     return Material(
-      color: backgroundColor,
-      borderRadius: BorderRadius.circular(22),
+      color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(20),
         onTap: onPressed,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isSelected ? AppColors.primary : AppColors.outlineVariant,
+              color: borderColor,
+              width: 1,
             ),
           ),
           child: Row(
@@ -183,26 +405,22 @@ class QueueFilterButton extends StatelessWidget {
                 label,
                 style: TextStyle(
                   color: foregroundColor,
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(width: 7),
+              const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? AppColors.primary
-                      : AppColors.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(10),
+                  color: badgeColor,
+                  shape: BoxShape.circle,
                 ),
                 child: Text(
                   count.toString(),
                   style: TextStyle(
-                    color: isSelected
-                        ? AppColors.onPrimary
-                        : AppColors.onSurfaceVariant,
-                    fontSize: 10,
+                    color: badgeTextColor,
+                    fontSize: 11,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -237,21 +455,50 @@ class QueueOrderCard extends StatelessWidget {
     switch (order.network) {
       case MobileNetwork.orange:
         return 'Orange';
-
       case MobileNetwork.mtn:
         return 'MTN';
-
       case MobileNetwork.moov:
         return 'Moov';
     }
   }
 
-  Color get accentColor {
-    if (isUrgent) {
-      return AppColors.error;
+  Color get networkColor {
+    switch (order.network) {
+      case MobileNetwork.orange:
+        return const Color(0xFFFF7900);
+      case MobileNetwork.mtn:
+        return const Color(0xFFFFCC00);
+      case MobileNetwork.moov:
+        return const Color(0xFF0055A5);
+    }
+  }
+
+  Widget _buildOperatorLogo() {
+    String assetPath;
+    switch (order.network) {
+      case MobileNetwork.orange:
+        assetPath = 'assets/images/orange_logo.png';
+        break;
+      case MobileNetwork.mtn:
+        assetPath = 'assets/images/mtn_logo.png';
+        break;
+      case MobileNetwork.moov:
+        assetPath = 'assets/images/moov_logo.png';
+        break;
     }
 
-    return AppColors.success;
+    return Container(
+      width: 46,
+      height: 46,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Image.asset(
+        assetPath,
+        fit: BoxFit.cover,
+      ),
+    );
   }
 
   @override
@@ -259,159 +506,169 @@ class QueueOrderCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: isUrgent ? AppColors.error : AppColors.outlineVariant,
+          color: isUrgent ? AppColors.error : AppColors.outlineVariant.withAlpha(50),
         ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x33000000),
-            blurRadius: 12,
-            offset: Offset(0, 6),
-          ),
-        ],
       ),
       clipBehavior: Clip.antiAlias,
       child: IntrinsicHeight(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SizedBox(width: 4, child: ColoredBox(color: accentColor)),
+            Container(
+              width: 4,
+              decoration: BoxDecoration(
+                color: networkColor,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(10),
+                  bottomLeft: Radius.circular(10),
+                ),
+              ),
+            ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(16),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          '#$position',
-                          style: TextStyle(
-                            color: isUrgent
-                                ? AppColors.error
-                                : AppColors.onBackground,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                        _buildOperatorLogo(),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                '#${order.reference}',
-                                style: const TextStyle(
-                                  color: AppColors.onSurfaceVariant,
-                                  fontSize: 11,
-                                ),
-                              ),
-                              Text(
-                                networkLabel,
-                                style: const TextStyle(
-                                  color: AppColors.onBackground,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.success.withAlpha(0),
+                                    border: Border.all(color: AppColors.success),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.check_circle_outline_rounded,
+                                        size: 11,
+                                        color: AppColors.success,
+                                      ),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'PAIEMENT CONFIRMÉ',
+                                        style: TextStyle(
+                                          color: AppColors.success,
+                                          fontSize: 8,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ],
                           ),
                         ),
+                        const SizedBox(width: 6),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isUrgent
-                                    ? AppColors.errorContainer.withAlpha(65)
-                                    : AppColors.surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(18),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.timer_outlined,
-                                    size: 15,
-                                    color: isUrgent
-                                        ? AppColors.error
-                                        : AppColors.onSurfaceVariant,
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.timer_outlined,
+                                  size: 13,
+                                  color: isUrgent ? AppColors.error : const Color(0xFFFFCC00),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  isUrgent ? 'URGENTE • $waitingMinutes min' : '$waitingMinutes min',
+                                  style: TextStyle(
+                                    color: isUrgent ? AppColors.error : const Color(0xFFFFCC00),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Depuis $waitingMinutes min',
-                                    style: TextStyle(
-                                      color: isUrgent
-                                          ? AppColors.error
-                                          : AppColors.onSurfaceVariant,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 5),
-                            const Text(
-                              'Payée - À traiter',
-                              style: TextStyle(
-                                color: AppColors.success,
+                            const SizedBox(height: 6),
+                            Text(
+                              order.reference,
+                              style: const TextStyle(
+                                color: AppColors.onSurfaceVariant,
                                 fontSize: 10,
-                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
                         ),
                       ],
                     ),
-                    const SizedBox(height: 13),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceContainerLowest,
-                        borderRadius: BorderRadius.circular(9),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Bénéficiaire',
+                      style: TextStyle(
+                        color: AppColors.onSurfaceVariant,
+                        fontSize: 12,
                       ),
-                      child: Column(
-                        children: [
-                          Row(
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(
-                                child: _OrderInformation(
-                                  label: 'Bénéficiaire',
-                                  value: order.beneficiaryPhone,
+                              Text(
+                                order.beneficiaryPhone,
+                                style: const TextStyle(
+                                  color: AppColors.onBackground,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              _OrderInformation(
-                                label: 'Montant',
-                                value: formatCfa(order.amount),
-                                alignRight: true,
-                                bold: true,
+                              const SizedBox(height: 4),
+                              Text(
+                                order.offerLabel,
+                                style: const TextStyle(
+                                  color: AppColors.onSurfaceVariant,
+                                  fontSize: 13,
+                                ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 9),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: _OrderInformation(
-                              label: 'Offre',
-                              value: order.offerLabel,
-                              bold: true,
-                            ),
+                        ),
+                        Text(
+                          formatCfa(order.amount),
+                          style: const TextStyle(
+                            color: AppColors.onBackground,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
                         onPressed: isProcessing ? null : onTakeCharge,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF0F52BA), // Deep blue from image
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
                         child: isProcessing
                             ? const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -421,14 +678,26 @@ class QueueOrderCard extends StatelessWidget {
                                     height: 18,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      color: AppColors.onPrimary,
+                                      color: Colors.white,
                                     ),
                                   ),
                                   SizedBox(width: 10),
-                                  Text('Prise en charge...'),
+                                  Text(
+                                    'Prise en charge...',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                    ),
+                                  ),
                                 ],
                               )
-                            : const Text('Prendre en charge'),
+                            : const Text(
+                                'Prendre en charge',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
                       ),
                     ),
                   ],
@@ -442,48 +711,7 @@ class QueueOrderCard extends StatelessWidget {
   }
 }
 
-class _OrderInformation extends StatelessWidget {
-  const _OrderInformation({
-    required this.label,
-    required this.value,
-    this.alignRight = false,
-    this.bold = false,
-  });
 
-  final String label;
-  final String value;
-  final bool alignRight;
-  final bool bold;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: alignRight
-          ? CrossAxisAlignment.end
-          : CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          textAlign: alignRight ? TextAlign.right : TextAlign.left,
-          style: const TextStyle(
-            color: AppColors.onSurfaceVariant,
-            fontSize: 10,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          textAlign: alignRight ? TextAlign.right : TextAlign.left,
-          style: TextStyle(
-            color: AppColors.onBackground,
-            fontSize: 13,
-            fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 class QueueEmptyState extends StatelessWidget {
   const QueueEmptyState({super.key});

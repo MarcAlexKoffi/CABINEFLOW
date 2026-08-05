@@ -1,4 +1,5 @@
 import 'package:cabine_flow/core/theme/app_colors.dart';
+
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:flutter/material.dart';
 
@@ -30,9 +31,9 @@ class DashboardHeader extends StatelessWidget {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: const Color(0xFF1677FF).withAlpha(40),
+            color: AppColors.primary.withAlpha(40),
             shape: BoxShape.circle,
-            border: Border.all(color: const Color(0xFF1677FF), width: 1.5),
+            border: Border.all(color: AppColors.primary, width: 1.5),
           ),
           child: Center(
             child: Text(
@@ -166,9 +167,9 @@ class DailyActivityCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF070F22),
+        color: AppColors.surfaceContainer,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0x3343B5FF), width: 1),
+        border: Border.all(color: AppColors.outlineVariant, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,7 +250,7 @@ class _SparklinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final Paint linePaint = Paint()
-      ..color = const Color(0xFF43B5FF)
+      ..color = AppColors.primaryContainer
       ..strokeWidth = 2.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -284,13 +285,13 @@ class _SparklinePainter extends CustomPainter {
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [const Color(0xFF43B5FF).withAlpha(80), Colors.transparent],
+        colors: [AppColors.primaryContainer.withAlpha(80), Colors.transparent],
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
 
     canvas.drawPath(fillPath, fillPaint);
     canvas.drawPath(path, linePaint);
 
-    final Paint dotPaint = Paint()..color = const Color(0xFF43B5FF);
+    final Paint dotPaint = Paint()..color = AppColors.primaryContainer;
     canvas.drawCircle(points.last, 3.5, dotPaint);
   }
 
@@ -315,9 +316,9 @@ class OrderStatusCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF070F22),
+        color: AppColors.surfaceContainer,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0x3343B5FF), width: 1),
+        border: Border.all(color: AppColors.outlineVariant, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -376,13 +377,13 @@ class OrderStatusCard extends StatelessWidget {
             color: isActive ? const Color(0xFF132A53) : const Color(0xFF1F2937),
             shape: BoxShape.circle,
             border: Border.all(
-              color: isActive ? const Color(0xFF43B5FF) : Colors.transparent,
+              color: isActive ? AppColors.primaryContainer : Colors.transparent,
               width: 1.5,
             ),
           ),
           child: Icon(
             icon,
-            color: isActive ? const Color(0xFF43B5FF) : const Color(0xFF9CA3AF),
+            color: isActive ? AppColors.primaryContainer : const Color(0xFF9CA3AF),
             size: 24,
           ),
         ),
@@ -435,7 +436,7 @@ class _DashedLinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final Paint paint = Paint()
-      ..color = const Color(0xFF43B5FF).withAlpha(100)
+      ..color = AppColors.primaryContainer.withAlpha(100)
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 
@@ -464,7 +465,7 @@ class SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, color: const Color(0xFF43B5FF), size: 18),
+        Icon(icon, color: AppColors.primaryContainer, size: 18),
         const SizedBox(width: 8),
         Text(
           title,
@@ -512,7 +513,7 @@ class OperatorBalanceCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF070F22),
+        color: AppColors.surfaceContainer,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: accentColor.withAlpha(100), width: 1),
       ),
@@ -622,9 +623,9 @@ class WaveBalanceCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF070F22),
+        color: AppColors.surfaceContainer,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0x6643B5FF), width: 1),
+        border: Border.all(color: AppColors.outlineVariant, width: 1),
       ),
       child: Row(
         children: [
@@ -698,7 +699,7 @@ class PriorityAlertCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF0B1633),
+        color: AppColors.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -751,7 +752,7 @@ class PriorityAlertCard extends StatelessWidget {
           FilledButton(
             onPressed: onOpenQueue,
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF1677FF),
+              backgroundColor: AppColors.primary,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -830,7 +831,7 @@ class CabineBottomNavigationBar extends StatelessWidget {
             final bool isSelected = index == selectedIndex;
 
             final Color itemColor = isSelected
-                ? const Color(0xFF1677FF)
+                ? AppColors.primary
                 : const Color(0xFF9CA3AF);
 
             return Expanded(
@@ -849,7 +850,7 @@ class CabineBottomNavigationBar extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? const Color(0xFF1677FF).withAlpha(40)
+                          ? AppColors.primary.withAlpha(40)
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -948,7 +949,7 @@ class PriorityOrderItemCard extends StatelessWidget {
         case 'moov':
           return const Color(0xFF0055A5);
         case 'wave':
-          return const Color(0xFF43B5FF);
+          return AppColors.primaryContainer;
         default:
           return Colors.grey;
       }
@@ -958,9 +959,9 @@ class PriorityOrderItemCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF070F22),
+        color: AppColors.surfaceContainer,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0x3343B5FF), width: 1),
+        border: Border.all(color: AppColors.outlineVariant, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1042,7 +1043,7 @@ class PriorityOrderItemCard extends StatelessWidget {
               FilledButton(
                 onPressed: () {},
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF1677FF),
+                  backgroundColor: AppColors.primary,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 0,

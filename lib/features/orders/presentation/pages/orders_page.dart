@@ -26,6 +26,8 @@ class OrdersPage extends StatefulWidget {
 
 class _OrdersPageState extends State<OrdersPage> {
   late final OrdersViewModel _viewModel;
+  int _activeTabIndex = 0;
+
   Future<void> _markTransactionSuccessful() async {
     final bool isSuccessful = await _viewModel.markActiveOrderSuccessful();
 
@@ -287,26 +289,16 @@ class _OrdersPageState extends State<OrdersPage> {
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: QueueMetricCard(
-                              label: 'À traiter',
-                              value: _viewModel.allReadyOrders.length,
-                              unit: 'cmd',
-                              valueColor: AppColors.primary,
-                            ),
-                          ),
-                          const SizedBox(width: 9),
-                          Expanded(
-                            child: QueueMetricCard(
-                              label: 'Temps moyen',
-                              value: _viewModel.averageWaitingMinutes,
-                              unit: 'min',
-                              valueColor: AppColors.error,
-                            ),
-                          ),
-                        ],
+                      OrdersTabs(
+                        todoCount: _viewModel.allReadyOrders.length,
+                        inProgressCount: 5, // Adaptation visuelle
+                        completedCount: 42, // Adaptation visuelle
+                        activeTabIndex: _activeTabIndex,
+                        onTabChanged: (int index) {
+                          setState(() {
+                            _activeTabIndex = index;
+                          });
+                        },
                       ),
                       const SizedBox(height: 16),
                       SingleChildScrollView(
@@ -328,6 +320,12 @@ class _OrdersPageState extends State<OrdersPage> {
                             );
                           }).toList(),
                         ),
+                      ),
+                      const SizedBox(height: 16),
+                      OrdersSortBar(
+                        oldestWaitMinutes: _viewModel.allReadyOrders.isNotEmpty
+                            ? _viewModel.waitingMinutes(_viewModel.allReadyOrders.first)
+                            : 0,
                       ),
                       const SizedBox(height: 18),
                       if (_viewModel.errorMessage != null &&
@@ -365,6 +363,23 @@ class _OrdersPageState extends State<OrdersPage> {
                         const SizedBox(
                           height: 300,
                           child: Center(child: CircularProgressIndicator()),
+                        )
+                      else if (_activeTabIndex != 0)
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceContainer,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Text(
+                            _activeTabIndex == 1
+                                ? 'Les commandes en cours apparaîtront ici.'
+                                : 'L\'historique des commandes terminées apparaîtra ici.',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                          ),
                         )
                       else if (!_viewModel.hasOrders)
                         const QueueEmptyState()

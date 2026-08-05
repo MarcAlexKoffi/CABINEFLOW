@@ -95,7 +95,7 @@ class _DashboardPageState extends State<DashboardPage> {
         final DashboardData? dashboardData = _viewModel.dashboardData;
 
         return Scaffold(
-          backgroundColor: const Color(0xFF020713), // Fond ultra dark
+          backgroundColor: AppColors.background,
           body: SafeArea(
             bottom: false,
             child: Column(
@@ -116,8 +116,8 @@ class _DashboardPageState extends State<DashboardPage> {
                 Expanded(
                   child: RefreshIndicator(
                     onRefresh: _viewModel.loadDashboard,
-                    color: const Color(0xFF43B5FF),
-                    backgroundColor: const Color(0xFF070F22),
+                    color: AppColors.primaryContainer,
+                    backgroundColor: AppColors.surfaceContainer,
                     child: ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(
@@ -138,7 +138,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         else if (dashboardData != null) ...[
                           if (_viewModel.isLoading) ...[
                             const LinearProgressIndicator(
-                              color: Color(0xFF1677FF),
+                              color: AppColors.primary,
                             ),
                             const SizedBox(height: 12),
                           ],
@@ -275,7 +275,7 @@ class _DashboardLoadingState extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Padding(
       padding: EdgeInsets.symmetric(vertical: 48),
-      child: Center(child: CircularProgressIndicator(color: Color(0xFF1677FF))),
+      child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
     );
   }
 }
@@ -308,7 +308,7 @@ class _DashboardErrorState extends StatelessWidget {
           FilledButton.icon(
             onPressed: onRetry,
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF1677FF),
+              backgroundColor: AppColors.primary,
             ),
             icon: const Icon(Icons.refresh_rounded),
             label: const Text('Réessayer'),

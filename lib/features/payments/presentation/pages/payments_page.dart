@@ -136,87 +136,87 @@ class _PaymentsPageState extends State<PaymentsPage> {
       builder: (BuildContext sheetContext) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setSheetState) {
-            final double keyboardHeight = MediaQuery.viewInsetsOf(
-              context,
-            ).bottom;
+            // Using sheetContext for MediaQuery prevents dependent unmount crashes during pop
+            final double keyboardHeight = MediaQuery.viewInsetsOf(sheetContext).bottom;
 
-            return AnimatedPadding(
-              duration: const Duration(milliseconds: 180),
+            return Padding(
               padding: EdgeInsets.only(bottom: keyboardHeight),
               child: Container(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
                 decoration: const BoxDecoration(
                   color: AppColors.surfaceContainer,
                   borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                 ),
                 child: SafeArea(
                   top: false,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Align(
-                        alignment: Alignment.center,
-                        child: Container(
-                          width: 46,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: AppColors.outlineVariant,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      const Text(
-                        'Confirmer le paiement',
-                        style: TextStyle(
-                          color: AppColors.onSurface,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 7),
-                      Text(
-                        'Commande ${order.reference}',
-                        style: const TextStyle(
-                          color: AppColors.onSurfaceVariant,
-                        ),
-                      ),
-                      if (order.hasPaymentToReviewAfterExpiration) ...[
-                        const SizedBox(height: 14),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFE8E8),
-                            borderRadius: BorderRadius.circular(11),
-                            border: Border.all(
-                              color: const Color(0xFFDC2626).withAlpha(90),
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Align(
+                            alignment: Alignment.center,
+                            child: Container(
+                              width: 46,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: AppColors.outlineVariant,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
                             ),
                           ),
-                          child: const Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                Icons.timer_off_outlined,
-                                color: Color(0xFFB91C1C),
-                                size: 20,
-                              ),
-                              SizedBox(width: 9),
-                              Expanded(
-                                child: Text(
-                                  'Ce paiement a été déclaré après l’expiration de la commande. Vérifiez-le attentivement avant toute confirmation.',
-                                  style: TextStyle(
-                                    color: Color(0xFF991B1B),
-                                    fontSize: 11,
-                                    height: 1.4,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                          const SizedBox(height: 18),
+                          const Text(
+                            'Confirmer le paiement',
+                            style: TextStyle(
+                              color: AppColors.onSurface,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 7),
+                          Text(
+                            'Commande ${order.reference}',
+                            style: const TextStyle(
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                          ),
+                          if (order.hasPaymentToReviewAfterExpiration) ...[
+                            const SizedBox(height: 14),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.error.withAlpha(20),
+                                borderRadius: BorderRadius.circular(11),
+                                border: Border.all(
+                                  color: AppColors.error.withAlpha(90),
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ],
+                              child: const Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    Icons.timer_off_outlined,
+                                    color: AppColors.error,
+                                    size: 20,
+                                  ),
+                                  SizedBox(width: 9),
+                                  Expanded(
+                                    child: Text(
+                                      'Ce paiement a été déclaré après l’expiration de la commande. Vérifiez-le attentivement avant toute confirmation.',
+                                      style: TextStyle(
+                                        color: AppColors.error,
+                                        fontSize: 11,
+                                        height: 1.4,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                       const SizedBox(height: 18),
                       Container(
                         padding: const EdgeInsets.all(13),
@@ -251,126 +251,157 @@ class _PaymentsPageState extends State<PaymentsPage> {
                           ],
                         ),
                       ),
-                      if (order.paymentPayerName != null ||
-                          order.paymentPayerPhone != null ||
-                          order.paymentApproximateTime != null ||
-                          order.paymentDeclaredReference != null) ...[
-                        const SizedBox(height: 14),
-                        Container(
-                          padding: const EdgeInsets.all(13),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFF7E6),
-                            borderRadius: BorderRadius.circular(11),
-                            border: Border.all(
-                              color: const Color(0xFFF59E0B).withAlpha(100),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const Text(
-                                'Déclaration du client',
-                                style: TextStyle(
-                                  color: Color(0xFFB45309),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
+                          if (order.paymentPayerName != null ||
+                              order.paymentPayerPhone != null ||
+                              order.paymentApproximateTime != null ||
+                              order.paymentDeclaredReference != null) ...[
+                            const SizedBox(height: 14),
+                            Container(
+                              padding: const EdgeInsets.all(13),
+                              decoration: BoxDecoration(
+                                color: AppColors.warning.withAlpha(20),
+                                borderRadius: BorderRadius.circular(11),
+                                border: Border.all(
+                                  color: AppColors.warning.withAlpha(100),
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              if (order.paymentPayerName != null)
-                                _PaymentDeclarationCheckRow(
-                                  label: 'Nom Wave',
-                                  value: order.paymentPayerName!,
-                                ),
-                              if (order.paymentPayerPhone != null)
-                                _PaymentDeclarationCheckRow(
-                                  label: 'Numéro',
-                                  value: _formatIvorianPhone(
-                                    order.paymentPayerPhone!,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  const Text(
+                                    'Déclaration du client',
+                                    style: TextStyle(
+                                      color: AppColors.warning,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
-                                ),
-                              if (order.paymentApproximateTime != null)
-                                _PaymentDeclarationCheckRow(
-                                  label: 'Heure annoncée',
-                                  value: order.paymentApproximateTime!,
-                                ),
-                              if (order.paymentDeclaredReference != null)
-                                _PaymentDeclarationCheckRow(
-                                  label: 'Référence déclarée',
-                                  value: order.paymentDeclaredReference!,
-                                ),
-                            ],
+                                  const SizedBox(height: 8),
+                                  if (order.paymentPayerName != null)
+                                    _PaymentDeclarationCheckRow(
+                                      label: 'Nom Wave',
+                                      value: order.paymentPayerName!,
+                                    ),
+                                  if (order.paymentPayerPhone != null)
+                                    _PaymentDeclarationCheckRow(
+                                      label: 'Numéro',
+                                      value: _formatIvorianPhone(
+                                        order.paymentPayerPhone!,
+                                      ),
+                                    ),
+                                  if (order.paymentApproximateTime != null)
+                                    _PaymentDeclarationCheckRow(
+                                      label: 'Heure annoncée',
+                                      value: order.paymentApproximateTime!,
+                                    ),
+                                  if (order.paymentDeclaredReference != null)
+                                    _PaymentDeclarationCheckRow(
+                                      label: 'Référence déclarée',
+                                      value: order.paymentDeclaredReference!,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 18),
+                          const Text(
+                            'Référence Wave',
+                            style: TextStyle(
+                              color: AppColors.onSurfaceVariant,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                      ],
-                      const SizedBox(height: 18),
-                      const Text(
-                        'Référence Wave',
-                        style: TextStyle(
-                          color: AppColors.onSurfaceVariant,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 7),
-                      TextField(
-                        controller: referenceController,
-                        textCapitalization: TextCapitalization.characters,
-                        decoration: const InputDecoration(
-                          hintText: 'Facultatif — Ex. W-8942AB',
-                          prefixIcon: Icon(Icons.tag_rounded),
-                        ),
-                      ),
-                      const SizedBox(height: 7),
-                      const Text(
-                        'Sans référence, CabineFlow générera une référence MAN-...',
-                        style: TextStyle(
-                          color: AppColors.onSurfaceVariant,
-                          fontSize: 10,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      CheckboxListTile(
-                        value: paymentWasChecked,
-                        contentPadding: EdgeInsets.zero,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        title: const Text(
-                          'J’ai vérifié ce paiement dans mon compte Wave.',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
+                          const SizedBox(height: 7),
+                          TextField(
+                            controller: referenceController,
+                            textCapitalization: TextCapitalization.characters,
+                            style: const TextStyle(color: AppColors.onSurface),
+                            decoration: InputDecoration(
+                              hintText: 'Facultatif — Ex. W-8942AB',
+                              hintStyle: const TextStyle(color: AppColors.onSurfaceVariant),
+                              prefixIcon: const Icon(Icons.tag_rounded, color: AppColors.onSurfaceVariant),
+                              filled: true,
+                              fillColor: AppColors.surfaceContainerLowest,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: AppColors.outlineVariant),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: AppColors.outlineVariant),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: AppColors.primary),
+                              ),
+                            ),
                           ),
-                        ),
-                        subtitle: const Text(
-                          'Cette action enverra la commande dans la file à traiter.',
-                          style: TextStyle(fontSize: 10),
-                        ),
-                        onChanged: (bool? value) {
-                          setSheetState(() {
-                            paymentWasChecked = value ?? false;
-                          });
-                        },
+                          const SizedBox(height: 7),
+                          const Text(
+                            'Sans référence, CabineFlow générera une référence MAN-...',
+                            style: TextStyle(
+                              color: AppColors.onSurfaceVariant,
+                              fontSize: 10,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          CheckboxListTile(
+                            value: paymentWasChecked,
+                            contentPadding: EdgeInsets.zero,
+                            controlAffinity: ListTileControlAffinity.leading,
+                            checkColor: AppColors.onPrimary,
+                            activeColor: AppColors.primary,
+                            side: const BorderSide(color: AppColors.outlineVariant, width: 2),
+                            title: const Text(
+                              'J’ai vérifié ce paiement dans mon compte Wave.',
+                              style: TextStyle(
+                                color: AppColors.onSurface,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            subtitle: const Text(
+                              'Cette action enverra la commande dans la file à traiter.',
+                              style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 10),
+                            ),
+                            onChanged: (bool? value) {
+                              setSheetState(() {
+                                paymentWasChecked = value ?? false;
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 14),
+                          FilledButton.icon(
+                            onPressed: paymentWasChecked
+                                ? () {
+                                    Navigator.of(
+                                      sheetContext,
+                                    ).pop(referenceController.text.trim());
+                                  }
+                                : null,
+                            icon: const Icon(Icons.verified_rounded),
+                            label: const Text('Confirmer le paiement'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: AppColors.onPrimary,
+                              disabledBackgroundColor: AppColors.surfaceContainerLowest,
+                              disabledForegroundColor: AppColors.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(sheetContext).pop();
+                            },
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.onSurfaceVariant,
+                            ),
+                            child: const Text('Annuler'),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 14),
-                      FilledButton.icon(
-                        onPressed: paymentWasChecked
-                            ? () {
-                                Navigator.of(
-                                  sheetContext,
-                                ).pop(referenceController.text.trim());
-                              }
-                            : null,
-                        icon: const Icon(Icons.verified_rounded),
-                        label: const Text('Confirmer le paiement'),
-                      ),
-                      const SizedBox(height: 8),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(sheetContext).pop();
-                        },
-                        child: const Text('Annuler'),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),

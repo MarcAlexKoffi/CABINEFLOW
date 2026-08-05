@@ -107,29 +107,16 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
     return '$hours:$minutes:$seconds';
   }
 
-  String get _networkCode {
+
+
+  String get _networkLogoAsset {
     switch (widget.order.network) {
       case MobileNetwork.orange:
-        return 'O';
-
+        return 'assets/images/orange_logo.png';
       case MobileNetwork.mtn:
-        return 'M';
-
+        return 'assets/images/mtn_logo.png';
       case MobileNetwork.moov:
-        return 'Mv';
-    }
-  }
-
-  Color get _networkColor {
-    switch (widget.order.network) {
-      case MobileNetwork.orange:
-        return AppColors.orange;
-
-      case MobileNetwork.mtn:
-        return AppColors.mtn;
-
-      case MobileNetwork.moov:
-        return AppColors.moov;
+        return 'assets/images/moov_logo.png';
     }
   }
 
@@ -398,27 +385,25 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                   Center(
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
+                        horizontal: 10,
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.warningContainer.withAlpha(45),
-                        borderRadius: BorderRadius.circular(20),
+                        color: AppColors.warning.withAlpha(0),
+                        borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: AppColors.warningContainer.withAlpha(85),
+                          color: AppColors.warning,
                         ),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: AppColors.warning,
-                              shape: BoxShape.circle,
-                            ),
-                            child: SizedBox(width: 7, height: 7),
+                          Icon(
+                            Icons.schedule_rounded,
+                            size: 13,
+                            color: AppColors.warning,
                           ),
-                          SizedBox(width: 7),
+                          SizedBox(width: 6),
                           Text(
                             'EN COURS DE TRAITEMENT',
                             style: TextStyle(
@@ -494,20 +479,13 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                             Container(
                               width: 48,
                               height: 48,
-                              alignment: Alignment.center,
+                              clipBehavior: Clip.antiAlias,
                               decoration: BoxDecoration(
-                                color: _networkColor,
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: Text(
-                                _networkCode,
-                                style: TextStyle(
-                                  color:
-                                      widget.order.network == MobileNetwork.mtn
-                                      ? Colors.black
-                                      : Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                ),
+                              child: Image.asset(
+                                _networkLogoAsset,
+                                fit: BoxFit.cover,
                               ),
                             ),
                             const SizedBox(width: 11),
@@ -595,6 +573,9 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                   const SizedBox(height: 24),
                   FilledButton.icon(
                     onPressed: widget.isSubmitting ? null : _confirmSuccess,
+                    style: FilledButton.styleFrom(
+                      foregroundColor: Colors.white,
+                    ),
                     icon: const Icon(Icons.check_circle_outline_rounded),
                     label: const Text('Transaction réussie'),
                   ),
@@ -603,7 +584,7 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                     onPressed: widget.isSubmitting ? null : _openFailureSheet,
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.error,
-                      foregroundColor: AppColors.onError,
+                      foregroundColor: Colors.white,
                     ),
                     icon: const Icon(Icons.cancel_outlined),
                     label: const Text('Transaction échouée'),
@@ -613,7 +594,7 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                     onPressed: widget.isSubmitting ? null : _confirmPutOnHold,
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.surfaceContainerHighest,
-                      foregroundColor: AppColors.onSurfaceVariant,
+                      foregroundColor: Colors.white,
                     ),
                     icon: const Icon(Icons.pause_rounded),
                     label: const Text('Mettre en attente'),
