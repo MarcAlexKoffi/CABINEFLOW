@@ -28,18 +28,15 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-
     _viewModel = DashboardViewModel(
       dashboardRepository: widget.dashboardRepository,
     );
-
     _viewModel.loadDashboard();
   }
 
   @override
   void dispose() {
     _viewModel.dispose();
-
     super.dispose();
   }
 
@@ -58,11 +55,22 @@ class _DashboardPageState extends State<DashboardPage> {
       'novembre',
       'décembre',
     ];
-
     final DateTime currentDate = DateTime.now();
     final String month = months[currentDate.month - 1];
 
-    return '${currentDate.day} $month ${currentDate.year}';
+    // Pour coller à la maquette "Mercredi 5 août 2026"
+    final List<String> days = [
+      'Lundi',
+      'Mardi',
+      'Mercredi',
+      'Jeudi',
+      'Vendredi',
+      'Samedi',
+      'Dimanche',
+    ];
+    final String dayName = days[currentDate.weekday - 1];
+
+    return '$dayName ${currentDate.day} $month ${currentDate.year}';
   }
 
   void _showTemporaryMessage(String message) {
@@ -71,10 +79,12 @@ class _DashboardPageState extends State<DashboardPage> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _openOrder(PriorityOrder order) {
-    _showTemporaryMessage(
-      'Ouverture prochaine de la commande ${order.reference}.',
-    );
+  int _getBalanceForOperator(DashboardData data, ServiceChannel channel) {
+    try {
+      return data.balances.firstWhere((b) => b.channel == channel).amount;
+    } catch (_) {
+      return 0; // Fallback
+    }
   }
 
   @override
@@ -84,198 +94,176 @@ class _DashboardPageState extends State<DashboardPage> {
       builder: (BuildContext context, Widget? child) {
         final DashboardData? dashboardData = _viewModel.dashboardData;
 
-        return SafeArea(
-          bottom: false,
-          child: Column(
-            children: [
-              Container(
-                color: AppColors.background,
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
-                child: DashboardHeader(
-                  user: widget.user,
-                  dateLabel: _formatCurrentDate(),
-                  onSearchPressed: () {
-                    _showTemporaryMessage(
-                      'La recherche sera ajoutée prochainement.',
-                    );
-                  },
-                  onNotificationsPressed: () {
-                    _showTemporaryMessage(
-                      'L’écran des notifications sera ajouté prochainement.',
-                    );
-                  },
-                ),
-              ),
-              Divider(
-                height: 1,
-                thickness: 1,
-                color: AppColors.outlineVariant.withAlpha(65),
-              ),
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: _viewModel.loadDashboard,
-                  child: ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 110),
-                    children: [
-                      if (_viewModel.isLoading && dashboardData == null)
-                        const _DashboardLoadingState()
-                      else if (_viewModel.errorMessage != null &&
-                          dashboardData == null)
-                        _DashboardErrorState(
-                          message: _viewModel.errorMessage!,
-                          onRetry: _viewModel.loadDashboard,
-                        )
-                      else if (dashboardData != null) ...[
-                        if (_viewModel.isLoading) ...[
-                          const LinearProgressIndicator(),
-                          const SizedBox(height: 12),
-                        ],
-                        QueueOverviewCard(
-                          orderCount: dashboardData.ordersToProcess,
-                          averageWaitingMinutes:
-                              dashboardData.averageWaitingMinutes,
-                          onOpenQueue: () {
-                            _showTemporaryMessage(
-                              'La file d’attente sera notre prochain écran métier.',
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                        GridView.count(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 9,
-                          mainAxisSpacing: 9,
-                          childAspectRatio: 1.35,
-                          children: [
-                            DashboardStatisticCard(
-                              value: dashboardData.statistics.newRequests,
-                              label: 'Nouvelles demandes',
-                              icon: Icons.fiber_new_rounded,
-                              accentColor: AppColors.error,
-                            ),
-                            DashboardStatisticCard(
-                              value: dashboardData.statistics.paymentsToVerify,
-                              label: 'Paiements à vérifier',
-                              icon: Icons.fact_check_outlined,
-                              accentColor: AppColors.warning,
-                            ),
-                            DashboardStatisticCard(
-                              value: dashboardData.statistics.inProgress,
-                              label: 'En cours',
-                              icon: Icons.hourglass_top_rounded,
-                              accentColor: AppColors.primaryContainer,
-                            ),
-                            DashboardStatisticCard(
-                              value: dashboardData.statistics.completed,
-                              label: 'Terminées',
-                              icon: Icons.check_circle_outline_rounded,
-                              accentColor: AppColors.onSurfaceVariant,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        _SectionHeader(
-                          title: 'Soldes des caisses',
-                          actionLabel: 'Gérer',
-                          onActionPressed: () {
-                            _showTemporaryMessage(
-                              'La gestion des soldes sera ajoutée dans Finances.',
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          height: 125,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: dashboardData.balances.length,
-                            separatorBuilder:
-                                (BuildContext context, int index) {
-                                  return const SizedBox(width: 9);
-                                },
-                            itemBuilder: (BuildContext context, int index) {
-                              return BalanceCard(
-                                balance: dashboardData.balances[index],
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 25),
-                        _SectionHeader(
-                          title: 'Priorités',
-                          actionIcon: Icons.filter_list_rounded,
-                          onActionPressed: () {
-                            _showTemporaryMessage(
-                              'Les filtres seront ajoutés avec la liste des commandes.',
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        ...dashboardData.priorityOrders.map((
-                          PriorityOrder order,
-                        ) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: PriorityOrderCard(
-                              order: order,
-                              onPressed: () {
-                                _openOrder(order);
-                              },
-                            ),
-                          );
-                        }),
-                      ],
-                    ],
+        return Scaffold(
+          backgroundColor: const Color(0xFF020713), // Fond ultra dark
+          body: SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
+                  child: DashboardHeader(
+                    user: widget.user,
+                    dateLabel: _formatCurrentDate(),
+                    onSearchPressed: () {
+                      _showTemporaryMessage('Recherche...');
+                    },
+                    onNotificationsPressed: () {
+                      _showTemporaryMessage('Notifications...');
+                    },
                   ),
                 ),
-              ),
-            ],
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _viewModel.loadDashboard,
+                    color: const Color(0xFF43B5FF),
+                    backgroundColor: const Color(0xFF070F22),
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(
+                        20,
+                        10,
+                        20,
+                        120,
+                      ), // Padding augmenté pour ne pas cacher la dernière carte sous le FAB
+                      children: [
+                        if (_viewModel.isLoading && dashboardData == null)
+                          const _DashboardLoadingState()
+                        else if (_viewModel.errorMessage != null &&
+                            dashboardData == null)
+                          _DashboardErrorState(
+                            message: _viewModel.errorMessage!,
+                            onRetry: _viewModel.loadDashboard,
+                          )
+                        else if (dashboardData != null) ...[
+                          if (_viewModel.isLoading) ...[
+                            const LinearProgressIndicator(
+                              color: Color(0xFF1677FF),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+
+                          // Activité du jour
+                          DailyActivityCard(
+                            revenue: _getBalanceForOperator(
+                              dashboardData,
+                              ServiceChannel.wave,
+                            ), // En attendant un vrai CA, on prend le solde wave pour démo
+                            percentageIncrease: 12.0,
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Statut des commandes
+                          OrderStatusCard(
+                            paidCount: dashboardData.statistics.newRequests,
+                            inProgressCount:
+                                dashboardData.statistics.inProgress,
+                            completedCount: dashboardData.statistics.completed,
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Disponibilités réseaux
+                          const SectionHeader(
+                            icon: Icons.sim_card_outlined,
+                            title: 'Disponibilités réseaux',
+                          ),
+                          const SizedBox(height: 16),
+
+                          SizedBox(
+                            height:
+                                105, // Contraint la hauteur de la Row pour les cartes opérateurs
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: OperatorBalanceCard(
+                                    operatorName: 'Orange',
+                                    balance: _getBalanceForOperator(
+                                      dashboardData,
+                                      ServiceChannel.orange,
+                                    ),
+                                    logoAsset: 'assets/images/orange_logo.png',
+                                    accentColor: const Color(0xFFFF7900),
+                                    signalBars: 3,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: OperatorBalanceCard(
+                                    operatorName: 'MTN',
+                                    balance: _getBalanceForOperator(
+                                      dashboardData,
+                                      ServiceChannel.mtn,
+                                    ),
+                                    logoAsset: 'assets/images/mtn_logo.png',
+                                    accentColor: const Color(0xFFFFCC00),
+                                    signalBars: 4,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: OperatorBalanceCard(
+                                    operatorName: 'Moov Africa',
+                                    balance: _getBalanceForOperator(
+                                      dashboardData,
+                                      ServiceChannel.moov,
+                                    ),
+                                    logoAsset: 'assets/images/moov_logo.png',
+                                    accentColor: const Color(0xFF0055A5),
+                                    signalBars: 2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Caisse Wave
+                          WaveBalanceCard(
+                            balance: _getBalanceForOperator(
+                              dashboardData,
+                              ServiceChannel.wave,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // À traiter en priorité
+                          const SectionHeader(
+                            icon: Icons.track_changes_rounded,
+                            title: 'À traiter en priorité',
+                          ),
+                          const SizedBox(height: 16),
+                          if (dashboardData.priorityOrders.isEmpty)
+                            const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Text(
+                                  'Aucune commande en attente',
+                                  style: TextStyle(color: Color(0xFF6B7280)),
+                                ),
+                              ),
+                            )
+                          else
+                            ...dashboardData.priorityOrders.map((order) {
+                              return PriorityOrderItemCard(
+                                reference: order.reference,
+                                phoneNumber: order.phoneNumber,
+                                operationLabel: order.operationLabel,
+                                amount: order.amount,
+                                channel: order.channel.name,
+                                statusLabel: order.status.name,
+                                actionLabel: order.actionLabel,
+                              );
+                            }),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
-    required this.title,
-    required this.onActionPressed,
-    this.actionLabel,
-    this.actionIcon,
-  });
-
-  final String title;
-  final VoidCallback onActionPressed;
-  final String? actionLabel;
-  final IconData? actionIcon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            title,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
-          ),
-        ),
-        if (actionLabel != null)
-          TextButton(onPressed: onActionPressed, child: Text(actionLabel!))
-        else if (actionIcon != null)
-          IconButton(
-            onPressed: onActionPressed,
-            style: IconButton.styleFrom(
-              backgroundColor: AppColors.surfaceContainerHigh,
-            ),
-            icon: Icon(actionIcon, size: 19),
-          ),
-      ],
     );
   }
 }
@@ -285,9 +273,9 @@ class _DashboardLoadingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
-      height: 350,
-      child: Center(child: CircularProgressIndicator()),
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 48),
+      child: Center(child: CircularProgressIndicator(color: Color(0xFF1677FF))),
     );
   }
 }
@@ -300,19 +288,31 @@ class _DashboardErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(18),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.cloud_off_rounded, size: 42, color: AppColors.error),
-          const SizedBox(height: 12),
-          Text(message, textAlign: TextAlign.center),
+          const Icon(Icons.cloud_off_rounded, size: 48, color: AppColors.error),
           const SizedBox(height: 16),
-          FilledButton(onPressed: onRetry, child: const Text('Réessayer')),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.error,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: onRetry,
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF1677FF),
+            ),
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Réessayer'),
+          ),
         ],
       ),
     );

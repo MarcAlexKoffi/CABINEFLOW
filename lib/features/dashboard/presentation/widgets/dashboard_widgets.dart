@@ -1,6 +1,5 @@
 import 'package:cabine_flow/core/theme/app_colors.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
-import 'package:cabine_flow/features/dashboard/domain/models/dashboard_data.dart';
 import 'package:flutter/material.dart';
 
 class DashboardHeader extends StatelessWidget {
@@ -19,56 +18,57 @@ class DashboardHeader extends StatelessWidget {
 
   String get firstName {
     final String trimmedName = user.name.trim();
-
-    if (trimmedName.isEmpty) {
-      return 'Utilisateur';
-    }
-
+    if (trimmedName.isEmpty) return 'Utilisateur';
     return trimmedName.split(RegExp(r'\s+')).first;
-  }
-
-  String get initial {
-    final String trimmedName = user.name.trim();
-
-    if (trimmedName.isEmpty) {
-      return '?';
-    }
-
-    return trimmedName[0].toUpperCase();
   }
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        CircleAvatar(
-          radius: 21,
-          backgroundColor: AppColors.surfaceContainerHigh,
-          foregroundColor: AppColors.primary,
-          child: Text(
-            initial,
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1677FF).withAlpha(40),
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0xFF1677FF), width: 1.5),
+          ),
+          child: Center(
+            child: Text(
+              firstName.isNotEmpty ? firstName[0].toUpperCase() : 'U',
+              style: const TextStyle(
+                color: Color(0xFF1677FF),
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Bonjour $firstName',
-                style: const TextStyle(
-                  color: AppColors.onBackground,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
+              Row(
+                children: [
+                  Text(
+                    'Bonjour $firstName',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Text('👋', style: TextStyle(fontSize: 16)),
+                ],
               ),
               const SizedBox(height: 2),
               Text(
                 dateLabel,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: AppColors.onSurfaceVariant,
-                ),
+                style: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
               ),
             ],
           ),
@@ -111,22 +111,27 @@ class _HeaderButton extends StatelessWidget {
         IconButton(
           tooltip: tooltip,
           onPressed: onPressed,
-          style: IconButton.styleFrom(
-            backgroundColor: AppColors.surfaceContainer,
-            foregroundColor: AppColors.onSurface,
-          ),
-          icon: Icon(icon),
+          style: IconButton.styleFrom(foregroundColor: Colors.white),
+          icon: Icon(icon, size: 26),
         ),
         if (showIndicator)
-          const Positioned(
-            top: 7,
-            right: 7,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: AppColors.error,
+          Positioned(
+            top: 10,
+            right: 10,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: const BoxDecoration(
+                color: Color(0xFF1677FF),
                 shape: BoxShape.circle,
               ),
-              child: SizedBox(width: 7, height: 7),
+              child: const Text(
+                '1',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
       ],
@@ -134,481 +139,640 @@ class _HeaderButton extends StatelessWidget {
   }
 }
 
-class QueueOverviewCard extends StatelessWidget {
-  const QueueOverviewCard({
+class DailyActivityCard extends StatelessWidget {
+  const DailyActivityCard({
     super.key,
-    required this.orderCount,
-    required this.averageWaitingMinutes,
+    required this.revenue,
+    required this.percentageIncrease,
+  });
+
+  final int revenue;
+  final double percentageIncrease;
+
+  String _formatAmount(int amount) {
+    final String str = amount.toString();
+    String result = '';
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) {
+        result += ' ';
+      }
+      result += str[i];
+    }
+    return '$result F';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF070F22),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x3343B5FF), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Activité du jour',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'CA encaissé',
+                      style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _formatAmount(revenue),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -1,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF0F5132),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.arrow_upward_rounded,
+                            color: Color(0xFF22C55E),
+                            size: 10,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '+${percentageIncrease.toInt()}% vs hier',
+                          style: const TextStyle(
+                            color: Color(0xFF22C55E),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(
+                width: 120,
+                height: 50,
+                child: CustomPaint(painter: _SparklinePainter()),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SparklinePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint linePaint = Paint()
+      ..color = const Color(0xFF43B5FF)
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final Path path = Path();
+
+    final List<Offset> points = [
+      Offset(0, size.height * 0.9),
+      Offset(size.width * 0.15, size.height * 0.7),
+      Offset(size.width * 0.3, size.height * 0.8),
+      Offset(size.width * 0.5, size.height * 0.4),
+      Offset(size.width * 0.65, size.height * 0.45),
+      Offset(size.width * 0.85, size.height * 0.15),
+      Offset(size.width, 0),
+    ];
+
+    path.moveTo(points[0].dx, points[0].dy);
+
+    for (int i = 0; i < points.length - 1; i++) {
+      final p0 = points[i];
+      final p1 = points[i + 1];
+      final controlPointX = p0.dx + (p1.dx - p0.dx) / 2;
+      path.cubicTo(controlPointX, p0.dy, controlPointX, p1.dy, p1.dx, p1.dy);
+    }
+
+    final Path fillPath = Path.from(path)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+
+    final Paint fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [const Color(0xFF43B5FF).withAlpha(80), Colors.transparent],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    canvas.drawPath(fillPath, fillPaint);
+    canvas.drawPath(path, linePaint);
+
+    final Paint dotPaint = Paint()..color = const Color(0xFF43B5FF);
+    canvas.drawCircle(points.last, 3.5, dotPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class OrderStatusCard extends StatelessWidget {
+  const OrderStatusCard({
+    super.key,
+    required this.paidCount,
+    required this.inProgressCount,
+    required this.completedCount,
+  });
+
+  final int paidCount;
+  final int inProgressCount;
+  final int completedCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF070F22),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x3343B5FF), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Statut des commandes payées',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildStep(
+                icon: Icons.credit_card_rounded,
+                label: 'Payées',
+                count: paidCount,
+                isActive: true,
+              ),
+              _buildConnector(),
+              _buildStep(
+                icon: Icons.access_time_rounded,
+                label: 'En cours',
+                count: inProgressCount,
+                isActive: true,
+              ),
+              _buildConnector(),
+              _buildStep(
+                icon: Icons.check_circle_outline_rounded,
+                label: 'Terminées',
+                count: completedCount,
+                isActive: true,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStep({
+    required IconData icon,
+    required String label,
+    required int count,
+    required bool isActive,
+  }) {
+    return Column(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: isActive ? const Color(0xFF132A53) : const Color(0xFF1F2937),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isActive ? const Color(0xFF43B5FF) : Colors.transparent,
+              width: 1.5,
+            ),
+          ),
+          child: Icon(
+            icon,
+            color: isActive ? const Color(0xFF43B5FF) : const Color(0xFF9CA3AF),
+            size: 24,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: const TextStyle(color: Color(0xFFD1D5DB), fontSize: 12),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          count.toString(),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildConnector() {
+    return Expanded(
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              return CustomPaint(
+                size: Size(constraints.maxWidth, 1),
+                painter: _DashedLinePainter(),
+              );
+            },
+          ),
+          Container(
+            padding: const EdgeInsets.only(top: 24),
+            child: const Icon(
+              Icons.chevron_right_rounded,
+              color: Color(0xFF4B5563),
+              size: 20,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DashedLinePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = const Color(0xFF43B5FF).withAlpha(100)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    const double dashWidth = 4;
+    const double dashSpace = 4;
+    double startX = 10;
+    final double endX = size.width - 10;
+
+    while (startX < endX) {
+      canvas.drawLine(Offset(startX, 0), Offset(startX + dashWidth, 0), paint);
+      startX += dashWidth + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class SectionHeader extends StatelessWidget {
+  const SectionHeader({super.key, required this.icon, required this.title});
+
+  final IconData icon;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: const Color(0xFF43B5FF), size: 18),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class OperatorBalanceCard extends StatelessWidget {
+  const OperatorBalanceCard({
+    super.key,
+    required this.operatorName,
+    required this.balance,
+    required this.logoAsset,
+    required this.accentColor,
+    required this.signalBars,
+  });
+
+  final String operatorName;
+  final int balance;
+  final String logoAsset;
+  final Color accentColor;
+  final int signalBars;
+
+  String _formatAmount(int amount) {
+    final String str = amount.toString();
+    String result = '';
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) {
+        result += ' ';
+      }
+      result += str[i];
+    }
+    return '$result F';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF070F22),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accentColor.withAlpha(100), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment
+            .spaceBetween, // Remplace le Spacer pour éviter l'erreur de layout
+        children: [
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: Image.asset(
+                  logoAsset,
+                  width: 32,
+                  height: 32,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(width: 32, height: 32, color: accentColor);
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  operatorName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _formatAmount(balance),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.bottomRight,
+                child: _SignalBars(bars: signalBars, color: accentColor),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SignalBars extends StatelessWidget {
+  const _SignalBars({required this.bars, required this.color});
+  final int bars;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: List.generate(4, (index) {
+        final bool isActive = index < bars;
+        return Container(
+          margin: const EdgeInsets.only(left: 2),
+          width: 4,
+          height: 6.0 + (index * 3),
+          decoration: BoxDecoration(
+            color: isActive ? color : const Color(0xFF374151),
+            borderRadius: BorderRadius.circular(1),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+class WaveBalanceCard extends StatelessWidget {
+  const WaveBalanceCard({super.key, required this.balance});
+
+  final int balance;
+
+  String _formatAmount(int amount) {
+    final String str = amount.toString();
+    String result = '';
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) {
+        result += ' ';
+      }
+      result += str[i];
+    }
+    return '$result F';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF070F22),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x6643B5FF), width: 1),
+      ),
+      child: Row(
+        children: [
+          Image.asset(
+            'assets/images/wave_logo.png',
+            width: 42,
+            height: 42,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                width: 42,
+                height: 42,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF43B5FF),
+                  shape: BoxShape.circle,
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Caisse Wave',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Solde disponible',
+                  style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            _formatAmount(balance),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 4),
+          const Icon(Icons.chevron_right_rounded, color: Color(0xFF9CA3AF)),
+        ],
+      ),
+    );
+  }
+}
+
+class PriorityAlertCard extends StatelessWidget {
+  const PriorityAlertCard({
+    super.key,
+    required this.pendingOrdersCount,
+    required this.oldestWaitMinutes,
     required this.onOpenQueue,
   });
 
-  final int orderCount;
-  final int averageWaitingMinutes;
+  final int pendingOrdersCount;
+  final int oldestWaitMinutes;
   final VoidCallback onOpenQueue;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.outlineVariant.withAlpha(120)),
+        color: const Color(0xFF0B1633),
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: -60,
-            right: -40,
-            child: Container(
-              width: 150,
-              height: 150,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primary.withAlpha(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withAlpha(30),
-                    blurRadius: 50,
-                    spreadRadius: 10,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                '$orderCount commandes à traiter',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.schedule_rounded,
-                        size: 16,
-                        color: AppColors.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        'Moyenne : $averageWaitingMinutes min',
-                        style: Theme.of(context).textTheme.labelLarge,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              FilledButton.icon(
-                onPressed: onOpenQueue,
-                iconAlignment: IconAlignment.end,
-                icon: const Icon(Icons.arrow_forward_rounded),
-                label: const Text('Voir la file d’attente'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class DashboardStatisticCard extends StatelessWidget {
-  const DashboardStatisticCard({
-    super.key,
-    required this.value,
-    required this.label,
-    required this.icon,
-    required this.accentColor,
-  });
-
-  final int value;
-  final String label;
-  final IconData icon;
-  final Color accentColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: AppColors.outlineVariant.withAlpha(90)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
           Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: accentColor.withAlpha(45),
+            padding: const EdgeInsets.all(10),
+            decoration: const BoxDecoration(
+              color: Color(0xFF1677FF),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 18, color: accentColor),
+            child: const Icon(
+              Icons.receipt_long_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
-          const Spacer(),
-          Text(
-            value.toString(),
-            style: Theme.of(context).textTheme.headlineMedium,
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$pendingOrdersCount commandes payées en attente',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text.rich(
+                  TextSpan(
+                    text: 'La plus ancienne attend depuis ',
+                    style: const TextStyle(
+                      color: Color(0xFF9CA3AF),
+                      fontSize: 12,
+                    ),
+                    children: [
+                      TextSpan(
+                        text: '$oldestWaitMinutes min',
+                        style: const TextStyle(color: Color(0xFF43B5FF)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 3),
-          Text(
-            label,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelLarge,
+          const SizedBox(width: 12),
+          FilledButton(
+            onPressed: onOpenQueue,
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF1677FF),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Ouvrir la file',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+                SizedBox(width: 4),
+                Icon(Icons.chevron_right_rounded, size: 16),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
-}
-
-class BalanceCard extends StatelessWidget {
-  const BalanceCard({super.key, required this.balance});
-
-  final AccountBalance balance;
-
-  String get label {
-    switch (balance.channel) {
-      case ServiceChannel.orange:
-        return 'Orange';
-      case ServiceChannel.mtn:
-        return 'MTN';
-      case ServiceChannel.moov:
-        return 'Moov';
-      case ServiceChannel.wave:
-        return 'Wave';
-    }
-  }
-
-  String get shortCode {
-    switch (balance.channel) {
-      case ServiceChannel.orange:
-        return 'O';
-      case ServiceChannel.mtn:
-        return 'M';
-      case ServiceChannel.moov:
-        return 'Mv';
-      case ServiceChannel.wave:
-        return 'W';
-    }
-  }
-
-  Color get accentColor {
-    switch (balance.channel) {
-      case ServiceChannel.orange:
-        return AppColors.orange;
-      case ServiceChannel.mtn:
-        return AppColors.mtn;
-      case ServiceChannel.moov:
-        return AppColors.moov;
-      case ServiceChannel.wave:
-        return AppColors.wave;
-    }
-  }
-
-  Color get codeTextColor {
-    switch (balance.channel) {
-      case ServiceChannel.mtn:
-      case ServiceChannel.wave:
-        return Colors.black;
-      case ServiceChannel.orange:
-      case ServiceChannel.moov:
-        return Colors.white;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 158,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.outlineVariant.withAlpha(110)),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: -25,
-            right: -25,
-            child: Container(
-              width: 85,
-              height: 85,
-              decoration: BoxDecoration(
-                color: accentColor.withAlpha(25),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 25,
-                    height: 25,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: accentColor,
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                    child: Text(
-                      shortCode,
-                      style: TextStyle(
-                        color: codeTextColor,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(label, style: Theme.of(context).textTheme.labelLarge),
-                ],
-              ),
-              const Spacer(),
-              Text(
-                formatCfa(balance.amount),
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class PriorityOrderCard extends StatelessWidget {
-  const PriorityOrderCard({
-    super.key,
-    required this.order,
-    required this.onPressed,
-  });
-
-  final PriorityOrder order;
-  final VoidCallback onPressed;
-
-  String get channelCode {
-    switch (order.channel) {
-      case ServiceChannel.orange:
-        return 'O';
-      case ServiceChannel.mtn:
-        return 'M';
-      case ServiceChannel.moov:
-        return 'Mv';
-      case ServiceChannel.wave:
-        return 'W';
-    }
-  }
-
-  Color get channelColor {
-    switch (order.channel) {
-      case ServiceChannel.orange:
-        return AppColors.orange;
-      case ServiceChannel.mtn:
-        return AppColors.mtn;
-      case ServiceChannel.moov:
-        return AppColors.moov;
-      case ServiceChannel.wave:
-        return AppColors.wave;
-    }
-  }
-
-  Color get channelTextColor {
-    if (order.channel == ServiceChannel.mtn ||
-        order.channel == ServiceChannel.wave) {
-      return Colors.black;
-    }
-
-    return Colors.white;
-  }
-
-  String get statusLabel {
-    switch (order.status) {
-      case PriorityOrderStatus.urgent:
-        return 'Urgent';
-      case PriorityOrderStatus.pendingVerification:
-        return 'Attente vérif';
-      case PriorityOrderStatus.inProgress:
-        return 'En cours';
-    }
-  }
-
-  Color get statusColor {
-    switch (order.status) {
-      case PriorityOrderStatus.urgent:
-        return AppColors.error;
-      case PriorityOrderStatus.pendingVerification:
-        return AppColors.warning;
-      case PriorityOrderStatus.inProgress:
-        return AppColors.onSurfaceVariant;
-    }
-  }
-
-  bool get isDisabled {
-    return order.status == PriorityOrderStatus.inProgress;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Opacity(
-      opacity: isDisabled ? 0.72 : 1,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceContainer,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.outlineVariant.withAlpha(110)),
-        ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: channelColor.withAlpha(35),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Container(
-                    width: 22,
-                    height: 22,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: channelColor,
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                    child: Text(
-                      channelCode,
-                      style: TextStyle(
-                        color: channelTextColor,
-                        fontSize: 8,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 11),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        order.phoneNumber,
-                        style: const TextStyle(
-                          color: AppColors.onBackground,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Réf : #${order.reference}',
-                        style: Theme.of(context).textTheme.labelLarge,
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withAlpha(25),
-                    borderRadius: BorderRadius.circular(7),
-                    border: Border.all(color: statusColor.withAlpha(65)),
-                  ),
-                  child: Text(
-                    statusLabel,
-                    style: TextStyle(
-                      color: statusColor,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 13),
-            Divider(height: 1, color: AppColors.outlineVariant.withAlpha(100)),
-            const SizedBox(height: 13),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        order.operationLabel,
-                        style: Theme.of(context).textTheme.labelLarge,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        formatCfa(order.amount),
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ],
-                  ),
-                ),
-                if (order.status == PriorityOrderStatus.pendingVerification)
-                  FilledButton(
-                    onPressed: onPressed,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(95, 42),
-                      padding: const EdgeInsets.symmetric(horizontal: 18),
-                    ),
-                    child: Text(order.actionLabel),
-                  )
-                else
-                  OutlinedButton(
-                    onPressed: isDisabled ? null : onPressed,
-                    child: Text(order.actionLabel),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-String formatCfa(int amount) {
-  final String digits = amount.toString();
-  final StringBuffer result = StringBuffer();
-
-  for (int index = 0; index < digits.length; index++) {
-    if (index > 0 && (digits.length - index) % 3 == 0) {
-      result.write(' ');
-    }
-
-    result.write(digits[index]);
-  }
-
-  return '${result.toString()} F';
 }
 
 class CabineBottomNavigationBar extends StatelessWidget {
@@ -633,14 +797,14 @@ class CabineBottomNavigationBar extends StatelessWidget {
       selectedIcon: Icons.receipt_long_rounded,
     ),
     _CabineNavigationItem(
-      label: 'Paiements',
-      icon: Icons.payments_outlined,
-      selectedIcon: Icons.payments_rounded,
+      label: 'Réseaux',
+      icon: Icons.sim_card_outlined,
+      selectedIcon: Icons.sim_card_rounded,
     ),
     _CabineNavigationItem(
       label: 'Finances',
-      icon: Icons.account_balance_wallet_outlined,
-      selectedIcon: Icons.account_balance_wallet_rounded,
+      icon: Icons.pie_chart_outline_rounded,
+      selectedIcon: Icons.pie_chart_rounded,
     ),
     _CabineNavigationItem(
       label: 'Plus',
@@ -656,18 +820,9 @@ class CabineBottomNavigationBar extends StatelessWidget {
       child: Container(
         height: 74,
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceContainer,
-          border: Border(
-            top: BorderSide(color: AppColors.outlineVariant.withAlpha(80)),
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x66000000),
-              blurRadius: 18,
-              offset: Offset(0, -5),
-            ),
-          ],
+        decoration: const BoxDecoration(
+          color: Color(0xFF020713), // Ultra dark
+          border: Border(top: BorderSide(color: Color(0x3343B5FF))),
         ),
         child: Row(
           children: List<Widget>.generate(_items.length, (int index) {
@@ -675,8 +830,8 @@ class CabineBottomNavigationBar extends StatelessWidget {
             final bool isSelected = index == selectedIndex;
 
             final Color itemColor = isSelected
-                ? AppColors.primary
-                : AppColors.onSurfaceVariant;
+                ? const Color(0xFF1677FF)
+                : const Color(0xFF9CA3AF);
 
             return Expanded(
               child: Material(
@@ -694,7 +849,7 @@ class CabineBottomNavigationBar extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? AppColors.primaryContainer.withAlpha(30)
+                          ? const Color(0xFF1677FF).withAlpha(40)
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -748,4 +903,167 @@ class _CabineNavigationItem {
   final String label;
   final IconData icon;
   final IconData selectedIcon;
+}
+
+class PriorityOrderItemCard extends StatelessWidget {
+  const PriorityOrderItemCard({
+    super.key,
+    required this.reference,
+    required this.phoneNumber,
+    required this.operationLabel,
+    required this.amount,
+    required this.channel,
+    required this.statusLabel,
+    required this.actionLabel,
+  });
+
+  final String reference;
+  final String phoneNumber;
+  final String operationLabel;
+  final int amount;
+  final String channel;
+  final String statusLabel;
+  final String actionLabel;
+
+  String _formatAmount(int amount) {
+    final String str = amount.toString();
+    String result = '';
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) {
+        result += ' ';
+      }
+      result += str[i];
+    }
+    return '$result F';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Color getChannelColor() {
+      switch (channel.toLowerCase()) {
+        case 'orange':
+          return const Color(0xFFFF7900);
+        case 'mtn':
+          return const Color(0xFFFFCC00);
+        case 'moov':
+          return const Color(0xFF0055A5);
+        case 'wave':
+          return const Color(0xFF43B5FF);
+        default:
+          return Colors.grey;
+      }
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF070F22),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x3343B5FF), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                operationLabel,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: getChannelColor().withAlpha(40),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: getChannelColor()),
+                ),
+                child: Text(
+                  channel.toUpperCase(),
+                  style: TextStyle(
+                    color: getChannelColor(),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(
+                Icons.phone_iphone_rounded,
+                color: Color(0xFF9CA3AF),
+                size: 16,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                phoneNumber,
+                style: const TextStyle(
+                  color: Color(0xFFD1D5DB),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Réf: $reference',
+                    style: const TextStyle(
+                      color: Color(0xFF6B7280),
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _formatAmount(amount),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              FilledButton(
+                onPressed: () {},
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF1677FF),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 0,
+                  ),
+                  minimumSize: const Size(0, 36),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(
+                  actionLabel,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
