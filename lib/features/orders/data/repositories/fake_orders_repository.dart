@@ -1,8 +1,9 @@
 import 'package:cabine_flow/features/orders/domain/models/create_order_request.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 
-class FakeOrdersRepository implements OrdersRepository {
+class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
   List<QueueOrder>? _orders;
 
   @override
@@ -118,6 +119,27 @@ class FakeOrdersRepository implements OrdersRepository {
     _orders![index] = updatedOrder;
 
     return updatedOrder;
+  }
+
+  @override
+  Future<List<QueueOrder>> fetchOrderHistory() async {
+    await Future<void>.delayed(const Duration(milliseconds: 450));
+
+    _orders ??= _createInitialOrders();
+
+    final List<QueueOrder> orders = List<QueueOrder>.from(_orders!);
+    orders.sort((QueueOrder first, QueueOrder second) {
+      return second.createdAt.compareTo(first.createdAt);
+    });
+
+    return List<QueueOrder>.unmodifiable(orders);
+  }
+
+  @override
+  Future<QueueOrder> fetchOrderById({required String orderId}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    final int index = _findOrderIndex(orderId);
+    return _orders![index];
   }
 
   @override

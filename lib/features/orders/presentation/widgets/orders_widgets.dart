@@ -9,12 +9,16 @@ class OrdersTopBar extends StatelessWidget {
     super.key,
     required this.user,
     required this.onNotificationsPressed,
+    this.onSearchPressed,
+    this.onFiltersPressed,
     this.subtitle,
   });
 
   final String? subtitle;
   final AppUser user;
   final VoidCallback onNotificationsPressed;
+  final VoidCallback? onSearchPressed;
+  final VoidCallback? onFiltersPressed;
 
   String get initial {
     final String name = user.name.trim();
@@ -73,18 +77,20 @@ class OrdersTopBar extends StatelessWidget {
             ],
           ),
         ),
-        IconButton(
-          tooltip: 'Recherche',
-          onPressed: () {},
-          color: AppColors.onBackground,
-          icon: const Icon(Icons.search_rounded),
-        ),
-        IconButton(
-          tooltip: 'Filtres',
-          onPressed: () {},
-          color: AppColors.onBackground,
-          icon: const Icon(Icons.tune_rounded),
-        ),
+        if (onSearchPressed != null)
+          IconButton(
+            tooltip: 'Historique et recherche',
+            onPressed: onSearchPressed,
+            color: AppColors.onBackground,
+            icon: const Icon(Icons.search_rounded),
+          ),
+        if (onFiltersPressed != null)
+          IconButton(
+            tooltip: 'Historique filtré',
+            onPressed: onFiltersPressed,
+            color: AppColors.onBackground,
+            icon: const Icon(Icons.tune_rounded),
+          ),
       ],
     );
   }
@@ -177,12 +183,7 @@ class _TabItem extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
         border: isActive
-            ? Border(
-                bottom: BorderSide(
-                  color: activeColor,
-                  width: 3,
-                ),
-              )
+            ? Border(bottom: BorderSide(color: activeColor, width: 3))
             : null,
       ),
       child: Row(
@@ -219,10 +220,7 @@ class _TabItem extends StatelessWidget {
 }
 
 class OrdersSortBar extends StatelessWidget {
-  const OrdersSortBar({
-    super.key,
-    required this.oldestWaitMinutes,
-  });
+  const OrdersSortBar({super.key, required this.oldestWaitMinutes});
 
   final int oldestWaitMinutes;
 
@@ -265,10 +263,7 @@ class OrdersSortBar extends StatelessWidget {
           ),
           const Text(
             'Par ancienneté',
-            style: TextStyle(
-              color: AppColors.onSurfaceVariant,
-              fontSize: 12,
-            ),
+            style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 12),
           ),
           const SizedBox(width: 4),
           const Icon(
@@ -393,10 +388,7 @@ class QueueFilterButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: borderColor,
-              width: 1,
-            ),
+            border: Border.all(color: borderColor, width: 1),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -490,14 +482,9 @@ class QueueOrderCard extends StatelessWidget {
     return Container(
       width: 46,
       height: 46,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-      ),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
       clipBehavior: Clip.antiAlias,
-      child: Image.asset(
-        assetPath,
-        fit: BoxFit.cover,
-      ),
+      child: Image.asset(assetPath, fit: BoxFit.cover),
     );
   }
 
@@ -508,7 +495,9 @@ class QueueOrderCard extends StatelessWidget {
         color: AppColors.surfaceContainer,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: isUrgent ? AppColors.error : AppColors.outlineVariant.withAlpha(50),
+          color: isUrgent
+              ? AppColors.error
+              : AppColors.outlineVariant.withAlpha(50),
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -550,7 +539,9 @@ class QueueOrderCard extends StatelessWidget {
                                   ),
                                   decoration: BoxDecoration(
                                     color: AppColors.success.withAlpha(0),
-                                    border: Border.all(color: AppColors.success),
+                                    border: Border.all(
+                                      color: AppColors.success,
+                                    ),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: const Row(
@@ -587,13 +578,19 @@ class QueueOrderCard extends StatelessWidget {
                                 Icon(
                                   Icons.timer_outlined,
                                   size: 13,
-                                  color: isUrgent ? AppColors.error : const Color(0xFFFFCC00),
+                                  color: isUrgent
+                                      ? AppColors.error
+                                      : const Color(0xFFFFCC00),
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  isUrgent ? 'URGENTE • $waitingMinutes min' : '$waitingMinutes min',
+                                  isUrgent
+                                      ? 'URGENTE • $waitingMinutes min'
+                                      : '$waitingMinutes min',
                                   style: TextStyle(
-                                    color: isUrgent ? AppColors.error : const Color(0xFFFFCC00),
+                                    color: isUrgent
+                                        ? AppColors.error
+                                        : const Color(0xFFFFCC00),
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -663,7 +660,9 @@ class QueueOrderCard extends StatelessWidget {
                       child: FilledButton(
                         onPressed: isProcessing ? null : onTakeCharge,
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF0F52BA), // Deep blue from image
+                          backgroundColor: const Color(
+                            0xFF0F52BA,
+                          ), // Deep blue from image
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -710,8 +709,6 @@ class QueueOrderCard extends StatelessWidget {
     );
   }
 }
-
-
 
 class QueueEmptyState extends StatelessWidget {
   const QueueEmptyState({super.key});

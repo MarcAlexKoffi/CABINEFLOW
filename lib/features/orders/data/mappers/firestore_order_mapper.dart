@@ -12,6 +12,7 @@ class FirestoreOrderMapper {
       id: id,
       reference: _readString(data, 'reference', fallback: id),
       source: _readSource(data['source']),
+      customerAuthUid: _readNullableString(data['customerAuthUid']),
       clientName: _readString(data, 'clientName', fallback: 'Client'),
       clientWhatsappPhone: _readString(
         data,

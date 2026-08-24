@@ -60,6 +60,7 @@ class QueueOrder {
     required this.createdAt,
     required this.status,
     this.source = OrderSource.operatorApp,
+    this.customerAuthUid,
     this.paymentStatus = OrderPaymentStatus.pending,
     this.originalWhatsappMessage,
     this.internalNotes,
@@ -87,6 +88,7 @@ class QueueOrder {
   final String reference;
 
   final OrderSource source;
+  final String? customerAuthUid;
 
   final String clientName;
   final String clientWhatsappPhone;
@@ -158,6 +160,7 @@ class QueueOrder {
       id: id,
       reference: reference,
       source: source,
+      customerAuthUid: customerAuthUid,
       clientName: clientName,
       clientWhatsappPhone: clientWhatsappPhone,
       network: network,

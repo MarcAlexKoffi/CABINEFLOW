@@ -415,10 +415,7 @@ class PaymentTrackingCard extends StatelessWidget {
   Widget _buildDeclaredPaymentDetails() {
     final List<Widget> rows = <Widget>[
       if (order.paymentPayerName != null)
-        _DeclaredPaymentRow(
-          label: 'Nom Wave',
-          value: order.paymentPayerName!,
-        ),
+        _DeclaredPaymentRow(label: 'Nom Wave', value: order.paymentPayerName!),
       if (order.paymentPayerPhone != null)
         _DeclaredPaymentRow(
           label: 'Numéro payeur',
@@ -440,11 +437,7 @@ class PaymentTrackingCard extends StatelessWidget {
     if (rows.isNotEmpty && rows.last is _DeclaredPaymentRow) {
       final _DeclaredPaymentRow last = rows.removeLast() as _DeclaredPaymentRow;
       rows.add(
-        _DeclaredPaymentRow(
-          label: last.label,
-          value: last.value,
-          isLast: true,
-        ),
+        _DeclaredPaymentRow(label: last.label, value: last.value, isLast: true),
       );
     }
 
@@ -633,4 +626,3 @@ class _DeclaredPaymentRow extends StatelessWidget {
     );
   }
 }
-

@@ -9,6 +9,7 @@ import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.da
 import 'package:cabine_flow/features/auth/presentation/pages/login_page.dart';
 import 'package:cabine_flow/features/auth/presentation/pages/pending_account_page.dart';
 import 'package:cabine_flow/features/dashboard/data/repositories/fake_dashboard_repository.dart';
+import 'package:cabine_flow/features/dashboard/data/repositories/firestore_dashboard_repository.dart';
 import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_repository.dart';
 import 'package:cabine_flow/features/navigation/presentation/pages/main_shell_page.dart';
 import 'package:cabine_flow/features/orders/data/repositories/fake_offer_catalog_repository.dart';
@@ -52,15 +53,20 @@ class CabineFlowApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isFirebaseInitialized = Firebase.apps.isNotEmpty;
 
-    final AuthRepository effectiveAuthRepository = authRepository ??
+    final AuthRepository effectiveAuthRepository =
+        authRepository ??
         (isFirebaseInitialized
             ? FirebaseAuthRepository()
             : FakeAuthRepository());
 
     final DashboardRepository effectiveDashboardRepository =
-        dashboardRepository ?? const FakeDashboardRepository();
+        dashboardRepository ??
+        (isFirebaseInitialized
+            ? FirestoreDashboardRepository()
+            : const FakeDashboardRepository());
 
-    final OrdersRepository effectiveOrdersRepository = ordersRepository ??
+    final OrdersRepository effectiveOrdersRepository =
+        ordersRepository ??
         (isFirebaseInitialized
             ? FirestoreOrdersRepository()
             : FakeOrdersRepository());
@@ -70,9 +76,7 @@ class CabineFlowApp extends StatelessWidget {
 
     final PaymentLinkRepository effectivePaymentLinkRepository =
         paymentLinkRepository ??
-            const WavePaymentLinkRepository(
-              linkBuilder: WavePaymentLinkBuilder(),
-            );
+        const WavePaymentLinkRepository(linkBuilder: WavePaymentLinkBuilder());
 
     return MaterialApp(
       title: 'CabineFlow',

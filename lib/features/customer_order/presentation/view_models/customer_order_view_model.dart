@@ -91,9 +91,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
     await _subscribeToHistory(readSavedSession: false);
   }
 
-  Future<void> _subscribeToHistory({
-    required bool readSavedSession,
-  }) async {
+  Future<void> _subscribeToHistory({required bool readSavedSession}) async {
     _isLoadingHistory = true;
     _historyErrorMessage = null;
     notifyListeners();
@@ -133,8 +131,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
       );
     } on Object {
       _isLoadingHistory = false;
-      _historyErrorMessage =
-          'Impossible de restaurer votre dernière commande.';
+      _historyErrorMessage = 'Impossible de restaurer votre dernière commande.';
       notifyListeners();
     }
   }
@@ -499,27 +496,29 @@ class CustomerOrderViewModel extends ChangeNotifier {
     _trackingErrorMessage = null;
     _scheduleExpiration(order);
 
-    _trackingSubscription = _orderRepository.watchOrder(order: order).listen(
-      (CustomerOrderReceipt updatedOrder) {
-        _receipt = updatedOrder;
-        _draft = updatedOrder.draft;
-        _trackingErrorMessage = null;
+    _trackingSubscription = _orderRepository
+        .watchOrder(order: order)
+        .listen(
+          (CustomerOrderReceipt updatedOrder) {
+            _receipt = updatedOrder;
+            _draft = updatedOrder.draft;
+            _trackingErrorMessage = null;
 
-        if (updatedOrder.status == QueueOrderStatus.expired &&
-            updatedOrder.paymentStatus == OrderPaymentStatus.declared) {
-          _currentStep = 8;
-        }
+            if (updatedOrder.status == QueueOrderStatus.expired &&
+                updatedOrder.paymentStatus == OrderPaymentStatus.declared) {
+              _currentStep = 8;
+            }
 
-        _scheduleExpiration(updatedOrder);
-        _replaceOrderInHistory(updatedOrder);
-        notifyListeners();
-      },
-      onError: (Object error) {
-        _trackingErrorMessage =
-            'Le suivi en temps réel est momentanément indisponible.';
-        notifyListeners();
-      },
-    );
+            _scheduleExpiration(updatedOrder);
+            _replaceOrderInHistory(updatedOrder);
+            notifyListeners();
+          },
+          onError: (Object error) {
+            _trackingErrorMessage =
+                'Le suivi en temps réel est momentanément indisponible.';
+            notifyListeners();
+          },
+        );
   }
 
   void _scheduleExpiration(CustomerOrderReceipt order) {

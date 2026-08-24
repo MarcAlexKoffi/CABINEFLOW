@@ -280,10 +280,7 @@ class _LoginPageState extends State<LoginPage> {
                       'Se souvenir de moi',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Color(0xFF9CA3AF),
-                        fontSize: 13,
-                      ),
+                      style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
                     ),
                   ),
                   TextButton(
@@ -433,7 +430,8 @@ class _Header extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Align(
-          heightFactor: 0.5, // Force le logo à ne prendre que 50% de sa hauteur dans le layout (coupe les marges transparentes)
+          heightFactor:
+              0.5, // Force le logo à ne prendre que 50% de sa hauteur dans le layout (coupe les marges transparentes)
           child: Image.asset(
             'assets/images/logo.png',
             height: 180, // Garde sa grande taille visuelle

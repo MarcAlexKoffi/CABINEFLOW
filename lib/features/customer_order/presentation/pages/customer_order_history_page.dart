@@ -71,17 +71,18 @@ class _CustomerOrderHistoryPageState extends State<CustomerOrderHistoryPage> {
   }
 
   Future<void> _openFilters() async {
-    final _HistoryFilters? filters = await showModalBottomSheet<_HistoryFilters>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext context) {
-        return _HistoryFilterSheet(
-          initialNetwork: _networkFilter,
-          initialStatus: _statusFilter,
+    final _HistoryFilters? filters =
+        await showModalBottomSheet<_HistoryFilters>(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (BuildContext context) {
+            return _HistoryFilterSheet(
+              initialNetwork: _networkFilter,
+              initialStatus: _statusFilter,
+            );
+          },
         );
-      },
-    );
 
     if (!mounted || filters == null) {
       return;
@@ -140,7 +141,8 @@ class _CustomerOrderHistoryPageState extends State<CustomerOrderHistoryPage> {
                                   controller: _searchController,
                                   onChanged: (_) => setState(() {}),
                                   decoration: const InputDecoration(
-                                    hintText: 'Référence ou numéro bénéficiaire',
+                                    hintText:
+                                        'Référence ou numéro bénéficiaire',
                                     prefixIcon: Icon(Icons.search_rounded),
                                     contentPadding: EdgeInsets.symmetric(
                                       horizontal: 14,
@@ -178,7 +180,10 @@ class _CustomerOrderHistoryPageState extends State<CustomerOrderHistoryPage> {
                                             color: CustomerAppColors.primary,
                                             shape: BoxShape.circle,
                                           ),
-                                          child: SizedBox(width: 11, height: 11),
+                                          child: SizedBox(
+                                            width: 11,
+                                            height: 11,
+                                          ),
                                         ),
                                       ),
                                   ],
@@ -208,7 +213,11 @@ class _CustomerOrderHistoryPageState extends State<CustomerOrderHistoryPage> {
                               onRetry: widget.viewModel.reloadHistory,
                             )
                           else if (orders.isEmpty)
-                            _HistoryEmpty(hasSearchOrFilter: _hasActiveFilter || _searchController.text.trim().isNotEmpty)
+                            _HistoryEmpty(
+                              hasSearchOrFilter:
+                                  _hasActiveFilter ||
+                                  _searchController.text.trim().isNotEmpty,
+                            )
                           else
                             ...orders.map((CustomerOrderReceipt order) {
                               return Padding(
@@ -298,9 +307,7 @@ class _OrderHistoryCard extends StatelessWidget {
           padding: const EdgeInsets.all(17),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: CustomerAppColors.surfaceContainerHigh,
-            ),
+            border: Border.all(color: CustomerAppColors.surfaceContainerHigh),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x0A000000),
@@ -369,7 +376,10 @@ class _OrderHistoryCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 14),
-              const Divider(height: 1, color: CustomerAppColors.surfaceContainerHigh),
+              const Divider(
+                height: 1,
+                color: CustomerAppColors.surfaceContainerHigh,
+              ),
               const SizedBox(height: 13),
               Row(
                 children: [
@@ -398,7 +408,11 @@ class _OrderHistoryCard extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(status.icon, size: 13, color: status.foregroundColor),
+                        Icon(
+                          status.icon,
+                          size: 13,
+                          color: status.foregroundColor,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           status.label,
@@ -428,10 +442,26 @@ class _NetworkBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (String label, Color background, Color foreground) = switch (network) {
-      MobileNetwork.orange => ('OR', const Color(0xFFFFEDD5), const Color(0xFFC2410C)),
-      MobileNetwork.mtn => ('MTN', const Color(0xFFFEF3C7), const Color(0xFFA16207)),
-      MobileNetwork.moov => ('MV', const Color(0xFFDBEAFE), const Color(0xFF1D4ED8)),
+    final (
+      String label,
+      Color background,
+      Color foreground,
+    ) = switch (network) {
+      MobileNetwork.orange => (
+        'OR',
+        const Color(0xFFFFEDD5),
+        const Color(0xFFC2410C),
+      ),
+      MobileNetwork.mtn => (
+        'MTN',
+        const Color(0xFFFEF3C7),
+        const Color(0xFFA16207),
+      ),
+      MobileNetwork.moov => (
+        'MV',
+        const Color(0xFFDBEAFE),
+        const Color(0xFF1D4ED8),
+      ),
     };
 
     return Container(
@@ -703,9 +733,9 @@ class _HistoryFilterSheetState extends State<_HistoryFilterSheet> {
             const SizedBox(height: 26),
             FilledButton(
               onPressed: () {
-                Navigator.of(context).pop(
-                  _HistoryFilters(network: _network, status: _status),
-                );
+                Navigator.of(
+                  context,
+                ).pop(_HistoryFilters(network: _network, status: _status));
               },
               child: const Text('Appliquer les filtres'),
             ),

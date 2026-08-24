@@ -43,7 +43,8 @@ class FakeCustomerOrderRepository implements CustomerOrderRepository {
     );
 
     _orders[receipt.id] = receipt;
-    _controllers[receipt.id] = StreamController<CustomerOrderReceipt>.broadcast();
+    _controllers[receipt.id] =
+        StreamController<CustomerOrderReceipt>.broadcast();
     _emitHistory();
 
     return receipt;

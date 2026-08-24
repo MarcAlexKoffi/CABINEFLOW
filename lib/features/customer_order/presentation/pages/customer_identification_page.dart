@@ -307,14 +307,20 @@ class _ActiveOrderCard extends StatelessWidget {
       case QueueOrderStatus.inProgress:
         return ('En cours de traitement', Icons.sync_rounded);
       case QueueOrderStatus.onHold:
-        return ('Temporairement en attente', Icons.pause_circle_outline_rounded);
+        return (
+          'Temporairement en attente',
+          Icons.pause_circle_outline_rounded,
+        );
       case QueueOrderStatus.awaitingCustomerConfirmation:
         return ('Transaction effectuée', Icons.task_alt_rounded);
       case QueueOrderStatus.refundPending:
         return ('Remboursement en cours', Icons.currency_exchange_rounded);
       case QueueOrderStatus.expired:
         return order.hasPaymentToReviewAfterExpiration
-            ? ('Paiement après expiration à examiner', Icons.manage_search_rounded)
+            ? (
+                'Paiement après expiration à examiner',
+                Icons.manage_search_rounded,
+              )
             : ('Commande expirée', Icons.timer_off_outlined);
       case QueueOrderStatus.completed:
       case QueueOrderStatus.failed:

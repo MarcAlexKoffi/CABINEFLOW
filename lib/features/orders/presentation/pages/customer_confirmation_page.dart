@@ -482,10 +482,7 @@ class _OrderSummaryCard extends StatelessWidget {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(5),
                         ),
-                        child: Image.asset(
-                          networkLogoAsset,
-                          fit: BoxFit.cover,
-                        ),
+                        child: Image.asset(networkLogoAsset, fit: BoxFit.cover),
                       ),
                       const SizedBox(width: 7),
                       Text(

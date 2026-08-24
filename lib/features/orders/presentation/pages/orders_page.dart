@@ -1,10 +1,14 @@
 import 'package:cabine_flow/core/theme/app_colors.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/orders/domain/models/order_history_filters.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/orders/presentation/view_models/orders_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/orders_widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:cabine_flow/features/orders/presentation/pages/order_detail_page.dart';
+import 'package:cabine_flow/features/orders/presentation/pages/order_history_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/order_processing_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/customer_confirmation_page.dart';
 
@@ -27,6 +31,12 @@ class OrdersPage extends StatefulWidget {
 class _OrdersPageState extends State<OrdersPage> {
   late final OrdersViewModel _viewModel;
   int _activeTabIndex = 0;
+  bool _showHistory = false;
+  bool _openHistoryFiltersOnStart = false;
+  int _historyVersion = 0;
+  String _historyInitialSearchQuery = '';
+  OrderHistoryFilters _historyInitialFilters = const OrderHistoryFilters();
+  QueueOrder? _detailOrder;
 
   Future<void> _markTransactionSuccessful() async {
     final bool isSuccessful = await _viewModel.markActiveOrderSuccessful();
@@ -130,7 +140,10 @@ class _OrdersPageState extends State<OrdersPage> {
   void initState() {
     super.initState();
 
-    _viewModel = OrdersViewModel(ordersRepository: widget.ordersRepository);
+    _viewModel = OrdersViewModel(
+      ordersRepository: widget.ordersRepository,
+      orderHistoryRepository: _historyRepository,
+    );
 
     _viewModel.loadQueue();
   }
@@ -139,6 +152,110 @@ class _OrdersPageState extends State<OrdersPage> {
   void dispose() {
     _viewModel.dispose();
     super.dispose();
+  }
+
+  OrderHistoryRepository? get _historyRepository {
+    final OrdersRepository repository = widget.ordersRepository;
+    if (repository is OrderHistoryRepository) {
+      return repository as OrderHistoryRepository;
+    }
+    return null;
+  }
+
+  void _showHistoryUnavailable() {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text(
+            'L’historique n’est pas disponible avec ce dépôt de données.',
+          ),
+        ),
+      );
+  }
+
+  void _openHistory({
+    String initialSearchQuery = '',
+    OrderHistoryFilters initialFilters = const OrderHistoryFilters(),
+    bool openFiltersOnStart = false,
+  }) {
+    if (_historyRepository == null) {
+      _showHistoryUnavailable();
+      return;
+    }
+
+    setState(() {
+      _showHistory = true;
+      _detailOrder = null;
+      _historyInitialSearchQuery = initialSearchQuery;
+      _historyInitialFilters = initialFilters;
+      _openHistoryFiltersOnStart = openFiltersOnStart;
+      _historyVersion++;
+    });
+  }
+
+  void _closeHistory() {
+    setState(() {
+      _showHistory = false;
+      _detailOrder = null;
+      _activeTabIndex = 0;
+    });
+
+    _viewModel.loadQueue();
+  }
+
+  void _openOrderDetail(
+    QueueOrder order,
+    String searchQuery,
+    OrderHistoryFilters filters,
+  ) {
+    if (_historyRepository == null) {
+      _showHistoryUnavailable();
+      return;
+    }
+
+    setState(() {
+      _historyInitialSearchQuery = searchQuery;
+      _historyInitialFilters = filters;
+      _openHistoryFiltersOnStart = false;
+      _detailOrder = order;
+      _showHistory = false;
+    });
+  }
+
+  void _closeOrderDetail() {
+    setState(() {
+      _detailOrder = null;
+      _showHistory = true;
+      _historyVersion++;
+    });
+  }
+
+  void _openCustomerHistory(String whatsappPhone) {
+    _openHistory(initialSearchQuery: whatsappPhone);
+  }
+
+  void _handleOrdersTabChanged(int index) {
+    if (index == 0) {
+      setState(() {
+        _activeTabIndex = 0;
+      });
+      return;
+    }
+
+    final OrderHistoryStateFilter state = index == 1
+        ? OrderHistoryStateFilter.active
+        : OrderHistoryStateFilter.completed;
+
+    setState(() {
+      _activeTabIndex = index;
+    });
+
+    _openHistory(
+      initialFilters: OrderHistoryFilters(
+        states: <OrderHistoryStateFilter>{state},
+      ),
+    );
   }
 
   String _filterLabel(QueueFilter filter) {
@@ -224,6 +341,32 @@ class _OrdersPageState extends State<OrdersPage> {
 
   @override
   Widget build(BuildContext context) {
+    final QueueOrder? detailOrder = _detailOrder;
+    final OrderHistoryRepository? historyRepository = _historyRepository;
+
+    if (detailOrder != null && historyRepository != null) {
+      return OrderDetailPage(
+        user: widget.user,
+        initialOrder: detailOrder,
+        ordersRepository: historyRepository,
+        onBack: _closeOrderDetail,
+        onOpenCustomerHistory: _openCustomerHistory,
+      );
+    }
+
+    if (_showHistory && historyRepository != null) {
+      return OrderHistoryPage(
+        key: ValueKey<int>(_historyVersion),
+        user: widget.user,
+        ordersRepository: historyRepository,
+        onBack: _closeHistory,
+        onOpenOrder: _openOrderDetail,
+        initialSearchQuery: _historyInitialSearchQuery,
+        initialFilters: _historyInitialFilters,
+        openFiltersOnStart: _openHistoryFiltersOnStart,
+      );
+    }
+
     return ListenableBuilder(
       listenable: _viewModel,
       builder: (BuildContext context, Widget? child) {
@@ -268,6 +411,12 @@ class _OrdersPageState extends State<OrdersPage> {
                 child: OrdersTopBar(
                   user: widget.user,
                   subtitle: 'File d’attente',
+                  onSearchPressed: () {
+                    _openHistory();
+                  },
+                  onFiltersPressed: () {
+                    _openHistory(openFiltersOnStart: true);
+                  },
                   onNotificationsPressed: () {
                     ScaffoldMessenger.of(context)
                       ..hideCurrentSnackBar()
@@ -291,14 +440,10 @@ class _OrdersPageState extends State<OrdersPage> {
                     children: [
                       OrdersTabs(
                         todoCount: _viewModel.allReadyOrders.length,
-                        inProgressCount: 5, // Adaptation visuelle
-                        completedCount: 42, // Adaptation visuelle
+                        inProgressCount: _viewModel.inProgressCount,
+                        completedCount: _viewModel.completedCount,
                         activeTabIndex: _activeTabIndex,
-                        onTabChanged: (int index) {
-                          setState(() {
-                            _activeTabIndex = index;
-                          });
-                        },
+                        onTabChanged: _handleOrdersTabChanged,
                       ),
                       const SizedBox(height: 16),
                       SingleChildScrollView(
@@ -324,7 +469,9 @@ class _OrdersPageState extends State<OrdersPage> {
                       const SizedBox(height: 16),
                       OrdersSortBar(
                         oldestWaitMinutes: _viewModel.allReadyOrders.isNotEmpty
-                            ? _viewModel.waitingMinutes(_viewModel.allReadyOrders.first)
+                            ? _viewModel.waitingMinutes(
+                                _viewModel.allReadyOrders.first,
+                              )
                             : 0,
                       ),
                       const SizedBox(height: 18),
@@ -363,23 +510,6 @@ class _OrdersPageState extends State<OrdersPage> {
                         const SizedBox(
                           height: 300,
                           child: Center(child: CircularProgressIndicator()),
-                        )
-                      else if (_activeTabIndex != 0)
-                        Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceContainer,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Text(
-                            _activeTabIndex == 1
-                                ? 'Les commandes en cours apparaîtront ici.'
-                                : 'L\'historique des commandes terminées apparaîtra ici.',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: AppColors.onSurfaceVariant,
-                            ),
-                          ),
                         )
                       else if (!_viewModel.hasOrders)
                         const QueueEmptyState()

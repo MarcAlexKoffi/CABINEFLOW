@@ -1,11 +1,13 @@
 import 'package:cabine_flow/features/orders/data/mappers/firestore_order_mapper.dart';
 import 'package:cabine_flow/features/orders/domain/models/create_order_request.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/orders/domain/services/order_expiration_policy.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class FirestoreOrdersRepository implements OrdersRepository {
+class FirestoreOrdersRepository
+    implements OrdersRepository, OrderHistoryRepository {
   FirestoreOrdersRepository({FirebaseFirestore? firestore})
     : _firestore = firestore ?? FirebaseFirestore.instance;
 
@@ -195,6 +197,37 @@ class FirestoreOrdersRepository implements OrdersRepository {
   }
 
   @override
+  Future<List<QueueOrder>> fetchOrderHistory() async {
+    final List<QueueOrder> orders = await _synchronizeExpiredOrders(
+      await _fetchRecentOrders(),
+    );
+
+    orders.sort((QueueOrder first, QueueOrder second) {
+      return second.createdAt.compareTo(first.createdAt);
+    });
+
+    return List<QueueOrder>.unmodifiable(orders);
+  }
+
+  @override
+  Future<QueueOrder> fetchOrderById({required String orderId}) async {
+    final DocumentSnapshot<Map<String, dynamic>> snapshot =
+        await _ordersCollection.doc(orderId).get();
+    final Map<String, dynamic>? data = snapshot.data();
+
+    if (!snapshot.exists || data == null) {
+      throw StateError('La commande est introuvable.');
+    }
+
+    final QueueOrder order = FirestoreOrderMapper.fromMap(
+      id: snapshot.id,
+      data: data,
+    );
+
+    return _synchronizeExpirationIfNeeded(order);
+  }
+
+  @override
   Future<QueueOrder> takeCharge({
     required String orderId,
     required String operatorId,
@@ -357,7 +390,9 @@ class FirestoreOrdersRepository implements OrdersRepository {
     final DocumentReference<Map<String, dynamic>> reference = _ordersCollection
         .doc(order.id);
 
-    return _firestore.runTransaction<QueueOrder>((Transaction transaction) async {
+    return _firestore.runTransaction<QueueOrder>((
+      Transaction transaction,
+    ) async {
       final DocumentSnapshot<Map<String, dynamic>> snapshot = await transaction
           .get(reference);
       final Map<String, dynamic>? data = snapshot.data();

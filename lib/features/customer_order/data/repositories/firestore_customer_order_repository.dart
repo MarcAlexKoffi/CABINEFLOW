@@ -200,9 +200,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
               .toList();
 
           final List<CustomerOrderReceipt> synchronizedOrders =
-              await Future.wait(
-                orders.map(_synchronizeExpirationIfNeeded),
-              );
+              await Future.wait(orders.map(_synchronizeExpirationIfNeeded));
 
           synchronizedOrders.sort((
             CustomerOrderReceipt first,
@@ -288,11 +286,10 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
     // Plusieurs appels peuvent arriver presque simultanément au démarrage
     // (historique, création de commande, suivi). Ils doivent tous partager la
     // même tentative afin de ne jamais créer deux utilisateurs anonymes.
-    return _anonymousCustomerFuture ??= _resolveAnonymousCustomer().whenComplete(
-      () {
-        _anonymousCustomerFuture = null;
-      },
-    );
+    return _anonymousCustomerFuture ??= _resolveAnonymousCustomer()
+        .whenComplete(() {
+          _anonymousCustomerFuture = null;
+        });
   }
 
   Future<User> _resolveAnonymousCustomer() async {
@@ -389,9 +386,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
         _readString(data['clientWhatsappPhone'])!,
       );
       final BeneficiaryPhoneNumber beneficiaryNumber =
-          BeneficiaryPhoneNumber.parse(
-            _readString(data['beneficiaryPhone'])!,
-          );
+          BeneficiaryPhoneNumber.parse(_readString(data['beneficiaryPhone'])!);
       final String offerLabel =
           _readString(data['offerLabel']) ?? service.label;
       final int amount = _readInt(data['amount']);
@@ -535,10 +530,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
     final String year = localDate.year.toString().padLeft(4, '0');
     final String month = localDate.month.toString().padLeft(2, '0');
     final String day = localDate.day.toString().padLeft(2, '0');
-    final String cleanedId = documentId.replaceAll(
-      RegExp(r'[^A-Za-z0-9]'),
-      '',
-    );
+    final String cleanedId = documentId.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
     final String suffix = cleanedId
         .substring(0, cleanedId.length < 6 ? cleanedId.length : 6)
         .toUpperCase();

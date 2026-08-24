@@ -20,7 +20,8 @@ class CustomerOrderSession {
   factory CustomerOrderSession.fromMap(Map<String, dynamic> data) {
     final String orderId = (data['orderId'] as String? ?? '').trim();
     final String reference = (data['reference'] as String? ?? '').trim();
-    final String whatsappPhone = (data['whatsappPhone'] as String? ?? '').trim();
+    final String whatsappPhone = (data['whatsappPhone'] as String? ?? '')
+        .trim();
 
     if (orderId.isEmpty || reference.isEmpty || whatsappPhone.isEmpty) {
       throw const FormatException('Session de commande locale invalide.');

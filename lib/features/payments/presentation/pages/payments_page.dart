@@ -116,13 +116,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
       return value;
     }
 
-    return '+225 ${<String>[
-      localDigits.substring(0, 2),
-      localDigits.substring(2, 4),
-      localDigits.substring(4, 6),
-      localDigits.substring(6, 8),
-      localDigits.substring(8, 10),
-    ].join(' ')}';
+    return '+225 ${<String>[localDigits.substring(0, 2), localDigits.substring(2, 4), localDigits.substring(4, 6), localDigits.substring(6, 8), localDigits.substring(8, 10)].join(' ')}';
   }
 
   Future<void> _openPaymentConfirmation(QueueOrder order) async {
@@ -137,7 +131,9 @@ class _PaymentsPageState extends State<PaymentsPage> {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setSheetState) {
             // Using sheetContext for MediaQuery prevents dependent unmount crashes during pop
-            final double keyboardHeight = MediaQuery.viewInsetsOf(sheetContext).bottom;
+            final double keyboardHeight = MediaQuery.viewInsetsOf(
+              sheetContext,
+            ).bottom;
 
             return Padding(
               padding: EdgeInsets.only(bottom: keyboardHeight),
@@ -217,40 +213,42 @@ class _PaymentsPageState extends State<PaymentsPage> {
                               ),
                             ),
                           ],
-                      const SizedBox(height: 18),
-                      Container(
-                        padding: const EdgeInsets.all(13),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceContainerLowest,
-                          borderRadius: BorderRadius.circular(11),
-                          border: Border.all(color: AppColors.outlineVariant),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.payments_outlined,
-                              color: AppColors.primary,
+                          const SizedBox(height: 18),
+                          Container(
+                            padding: const EdgeInsets.all(13),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceContainerLowest,
+                              borderRadius: BorderRadius.circular(11),
+                              border: Border.all(
+                                color: AppColors.outlineVariant,
+                              ),
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                order.clientName,
-                                style: const TextStyle(
-                                  color: AppColors.onSurface,
-                                  fontWeight: FontWeight.w600,
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.payments_outlined,
+                                  color: AppColors.primary,
                                 ),
-                              ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    order.clientName,
+                                    style: const TextStyle(
+                                      color: AppColors.onSurface,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  '${formatCfa(order.amount)} F CFA',
+                                  style: const TextStyle(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
                             ),
-                            Text(
-                              '${formatCfa(order.amount)} F CFA',
-                              style: const TextStyle(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                          ),
                           if (order.paymentPayerName != null ||
                               order.paymentPayerPhone != null ||
                               order.paymentApproximateTime != null ||
@@ -319,21 +317,32 @@ class _PaymentsPageState extends State<PaymentsPage> {
                             style: const TextStyle(color: AppColors.onSurface),
                             decoration: InputDecoration(
                               hintText: 'Facultatif — Ex. W-8942AB',
-                              hintStyle: const TextStyle(color: AppColors.onSurfaceVariant),
-                              prefixIcon: const Icon(Icons.tag_rounded, color: AppColors.onSurfaceVariant),
+                              hintStyle: const TextStyle(
+                                color: AppColors.onSurfaceVariant,
+                              ),
+                              prefixIcon: const Icon(
+                                Icons.tag_rounded,
+                                color: AppColors.onSurfaceVariant,
+                              ),
                               filled: true,
                               fillColor: AppColors.surfaceContainerLowest,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: AppColors.outlineVariant),
+                                borderSide: const BorderSide(
+                                  color: AppColors.outlineVariant,
+                                ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: AppColors.outlineVariant),
+                                borderSide: const BorderSide(
+                                  color: AppColors.outlineVariant,
+                                ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: AppColors.primary),
+                                borderSide: const BorderSide(
+                                  color: AppColors.primary,
+                                ),
                               ),
                             ),
                           ),
@@ -352,7 +361,10 @@ class _PaymentsPageState extends State<PaymentsPage> {
                             controlAffinity: ListTileControlAffinity.leading,
                             checkColor: AppColors.onPrimary,
                             activeColor: AppColors.primary,
-                            side: const BorderSide(color: AppColors.outlineVariant, width: 2),
+                            side: const BorderSide(
+                              color: AppColors.outlineVariant,
+                              width: 2,
+                            ),
                             title: const Text(
                               'J’ai vérifié ce paiement dans mon compte Wave.',
                               style: TextStyle(
@@ -363,7 +375,10 @@ class _PaymentsPageState extends State<PaymentsPage> {
                             ),
                             subtitle: const Text(
                               'Cette action enverra la commande dans la file à traiter.',
-                              style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 10),
+                              style: TextStyle(
+                                color: AppColors.onSurfaceVariant,
+                                fontSize: 10,
+                              ),
                             ),
                             onChanged: (bool? value) {
                               setSheetState(() {
@@ -385,8 +400,10 @@ class _PaymentsPageState extends State<PaymentsPage> {
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.primary,
                               foregroundColor: AppColors.onPrimary,
-                              disabledBackgroundColor: AppColors.surfaceContainerLowest,
-                              disabledForegroundColor: AppColors.onSurfaceVariant,
+                              disabledBackgroundColor:
+                                  AppColors.surfaceContainerLowest,
+                              disabledForegroundColor:
+                                  AppColors.onSurfaceVariant,
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -606,10 +623,7 @@ class _PaymentsEmptyState extends StatelessWidget {
 }
 
 class _PaymentDeclarationCheckRow extends StatelessWidget {
-  const _PaymentDeclarationCheckRow({
-    required this.label,
-    required this.value,
-  });
+  const _PaymentDeclarationCheckRow({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -648,4 +662,3 @@ class _PaymentDeclarationCheckRow extends StatelessWidget {
     );
   }
 }
-

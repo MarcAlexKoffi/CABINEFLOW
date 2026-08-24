@@ -716,10 +716,7 @@ class _NetworkButton extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(5),
                 ),
-                child: Image.asset(
-                  assetPath,
-                  fit: BoxFit.cover,
-                ),
+                child: Image.asset(assetPath, fit: BoxFit.cover),
               ),
               const SizedBox(height: 6),
               Text(

@@ -107,8 +107,6 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
     return '$hours:$minutes:$seconds';
   }
 
-
-
   String get _networkLogoAsset {
     switch (widget.order.network) {
       case MobileNetwork.orange:
@@ -391,9 +389,7 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                       decoration: BoxDecoration(
                         color: AppColors.warning.withAlpha(0),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: AppColors.warning,
-                        ),
+                        border: Border.all(color: AppColors.warning),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,

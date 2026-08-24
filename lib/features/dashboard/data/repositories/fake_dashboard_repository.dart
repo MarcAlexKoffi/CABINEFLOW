@@ -11,19 +11,21 @@ class FakeDashboardRepository implements DashboardRepository {
     return const DashboardData(
       ordersToProcess: 28,
       averageWaitingMinutes: 4,
+      todayRevenue: 156000,
+      revenueChangePercentage: 12,
       statistics: DashboardStatistics(
         newRequests: 8,
         paymentsToVerify: 3,
         inProgress: 5,
         completed: 42,
       ),
-      balances: [
+      balances: <AccountBalance>[
         AccountBalance(channel: ServiceChannel.orange, amount: 35400),
         AccountBalance(channel: ServiceChannel.mtn, amount: 18500),
         AccountBalance(channel: ServiceChannel.moov, amount: 24850),
         AccountBalance(channel: ServiceChannel.wave, amount: 156000),
       ],
-      priorityOrders: [
+      priorityOrders: <PriorityOrder>[
         PriorityOrder(
           reference: 'ORD-9823',
           phoneNumber: '07 08 45 67 89',

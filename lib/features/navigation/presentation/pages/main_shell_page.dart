@@ -147,6 +147,7 @@ class _MainShellPageState extends State<MainShellPage> {
       DashboardPage(
         user: widget.user,
         dashboardRepository: widget.dashboardRepository,
+        onOpenOrders: _openOrdersTab,
       ),
       OrdersPage(
         key: ValueKey<int>(_ordersPageVersion),

@@ -1,20 +1,25 @@
 import 'dart:async';
 
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:flutter/foundation.dart';
 
 enum QueueFilter { all, orange, mtn, moov }
 
 class OrdersViewModel extends ChangeNotifier {
-  OrdersViewModel({required OrdersRepository ordersRepository})
-    : _ordersRepository = ordersRepository {
+  OrdersViewModel({
+    required OrdersRepository ordersRepository,
+    OrderHistoryRepository? orderHistoryRepository,
+  }) : _ordersRepository = ordersRepository,
+       _orderHistoryRepository = orderHistoryRepository {
     _clockTimer = Timer.periodic(const Duration(seconds: 30), (Timer timer) {
       notifyListeners();
     });
   }
 
   final OrdersRepository _ordersRepository;
+  final OrderHistoryRepository? _orderHistoryRepository;
 
   Timer? _clockTimer;
 
@@ -30,6 +35,7 @@ class OrdersViewModel extends ChangeNotifier {
   QueueFilter _selectedFilter = QueueFilter.all;
 
   List<QueueOrder> _orders = [];
+  List<QueueOrder> _historyOrders = [];
   final Set<String> _processingOrderIds = {};
 
   bool get isLoading => _isLoading;
@@ -185,6 +191,25 @@ class OrdersViewModel extends ChangeNotifier {
     }
   }
 
+  int get inProgressCount {
+    return _historyOrders.where((QueueOrder order) {
+      return <QueueOrderStatus>{
+        QueueOrderStatus.inProgress,
+        QueueOrderStatus.onHold,
+        QueueOrderStatus.awaitingCustomerConfirmation,
+      }.contains(order.status);
+    }).length;
+  }
+
+  int get completedCount {
+    return _historyOrders.where((QueueOrder order) {
+      return <QueueOrderStatus>{
+        QueueOrderStatus.completed,
+        QueueOrderStatus.refunded,
+      }.contains(order.status);
+    }).length;
+  }
+
   List<QueueOrder> get allReadyOrders {
     final List<QueueOrder> readyOrders = _orders.where((QueueOrder order) {
       return order.status == QueueOrderStatus.paidReady;
@@ -251,6 +276,18 @@ class OrdersViewModel extends ChangeNotifier {
 
     try {
       _orders = await _ordersRepository.fetchPaidQueue();
+
+      final OrderHistoryRepository? historyRepository = _orderHistoryRepository;
+
+      if (historyRepository != null) {
+        try {
+          _historyOrders = await historyRepository.fetchOrderHistory();
+        } catch (_) {
+          _historyOrders = <QueueOrder>[];
+        }
+      } else {
+        _historyOrders = <QueueOrder>[];
+      }
     } catch (_) {
       _errorMessage = 'Impossible de charger la file d’attente.';
     } finally {

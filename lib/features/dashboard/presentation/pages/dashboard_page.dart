@@ -11,10 +11,12 @@ class DashboardPage extends StatefulWidget {
     super.key,
     required this.user,
     required this.dashboardRepository,
+    this.onOpenOrders,
   });
 
   final AppUser user;
   final DashboardRepository dashboardRepository;
+  final VoidCallback? onOpenOrders;
 
   @override
   State<DashboardPage> createState() {
@@ -79,11 +81,13 @@ class _DashboardPageState extends State<DashboardPage> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  int _getBalanceForOperator(DashboardData data, ServiceChannel channel) {
+  int? _getBalanceForOperator(DashboardData data, ServiceChannel channel) {
     try {
-      return data.balances.firstWhere((b) => b.channel == channel).amount;
+      return data.balances
+          .firstWhere((AccountBalance balance) => balance.channel == channel)
+          .amount;
     } catch (_) {
-      return 0; // Fallback
+      return null;
     }
   }
 
@@ -145,11 +149,9 @@ class _DashboardPageState extends State<DashboardPage> {
 
                           // Activité du jour
                           DailyActivityCard(
-                            revenue: _getBalanceForOperator(
-                              dashboardData,
-                              ServiceChannel.wave,
-                            ), // En attendant un vrai CA, on prend le solde wave pour démo
-                            percentageIncrease: 12.0,
+                            revenue: dashboardData.todayRevenue,
+                            percentageIncrease:
+                                dashboardData.revenueChangePercentage,
                           ),
                           const SizedBox(height: 16),
 
@@ -215,6 +217,19 @@ class _DashboardPageState extends State<DashboardPage> {
                               ],
                             ),
                           ),
+                          if (dashboardData.balances.every(
+                            (AccountBalance balance) => !balance.isAvailable,
+                          )) ...[
+                            const SizedBox(height: 10),
+                            const Text(
+                              'Les soldes seront disponibles après la mise en place du module Réseaux et Finances.',
+                              style: TextStyle(
+                                color: Color(0xFF6B7280),
+                                fontSize: 11,
+                                height: 1.35,
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 16),
 
                           // Caisse Wave
@@ -252,6 +267,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                 channel: order.channel.name,
                                 statusLabel: order.status.name,
                                 actionLabel: order.actionLabel,
+                                onPressed: widget.onOpenOrders ?? () {},
                               );
                             }),
                         ],
@@ -307,9 +323,7 @@ class _DashboardErrorState extends StatelessWidget {
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: onRetry,
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primary,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
             icon: const Icon(Icons.refresh_rounded),
             label: const Text('Réessayer'),
           ),

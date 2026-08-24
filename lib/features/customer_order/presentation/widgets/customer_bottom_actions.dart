@@ -46,9 +46,7 @@ class CustomerBottomActions extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: FilledButton.icon(
-                onPressed: isContinueEnabled && !isLoading
-                    ? onContinue
-                    : null,
+                onPressed: isContinueEnabled && !isLoading ? onContinue : null,
                 iconAlignment: IconAlignment.end,
                 icon: isLoading
                     ? const SizedBox(

@@ -36,9 +36,9 @@ class PaymentDeclaration {
       );
     }
 
-    if (!RegExp(r'^(?:[01]\d|2[0-3]):[0-5]\d$').hasMatch(
-      approximatePaymentTime,
-    )) {
+    if (!RegExp(
+      r'^(?:[01]\d|2[0-3]):[0-5]\d$',
+    ).hasMatch(approximatePaymentTime)) {
       throw const FormatException(
         'Sélectionnez une heure approximative valide.',
       );

@@ -148,7 +148,7 @@ class DailyActivityCard extends StatelessWidget {
   });
 
   final int revenue;
-  final double percentageIncrease;
+  final double? percentageIncrease;
 
   String _formatAmount(int amount) {
     final String str = amount.toString();
@@ -205,30 +205,9 @@ class DailyActivityCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF0F5132),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.arrow_upward_rounded,
-                            color: Color(0xFF22C55E),
-                            size: 10,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '+${percentageIncrease.toInt()}% vs hier',
-                          style: const TextStyle(
-                            color: Color(0xFF22C55E),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+                    _RevenueComparisonLabel(
+                      percentageChange: percentageIncrease,
+                      revenue: revenue,
                     ),
                   ],
                 ),
@@ -242,6 +221,74 @@ class DailyActivityCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RevenueComparisonLabel extends StatelessWidget {
+  const _RevenueComparisonLabel({
+    required this.percentageChange,
+    required this.revenue,
+  });
+
+  final double? percentageChange;
+  final int revenue;
+
+  @override
+  Widget build(BuildContext context) {
+    if (percentageChange == null) {
+      return const Text(
+        'Premiers encaissements enregistrés',
+        style: TextStyle(
+          color: AppColors.primaryContainer,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    }
+
+    final double change = percentageChange!;
+    final bool isPositive = change > 0;
+    final bool isNegative = change < 0;
+    final Color color = isPositive
+        ? const Color(0xFF22C55E)
+        : isNegative
+        ? const Color(0xFFFF5A5F)
+        : const Color(0xFF9CA3AF);
+    final IconData icon = isPositive
+        ? Icons.arrow_upward_rounded
+        : isNegative
+        ? Icons.arrow_downward_rounded
+        : Icons.remove_rounded;
+    final String prefix = isPositive ? '+' : '';
+    final String label = revenue == 0 && change == 0
+        ? 'Aucun encaissement aujourd’hui'
+        : '$prefix${change.toStringAsFixed(0)}% vs hier';
+
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            color: color.withAlpha(35),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color, size: 10),
+        ),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -383,7 +430,9 @@ class OrderStatusCard extends StatelessWidget {
           ),
           child: Icon(
             icon,
-            color: isActive ? AppColors.primaryContainer : const Color(0xFF9CA3AF),
+            color: isActive
+                ? AppColors.primaryContainer
+                : const Color(0xFF9CA3AF),
             size: 24,
           ),
         ),
@@ -491,12 +540,16 @@ class OperatorBalanceCard extends StatelessWidget {
   });
 
   final String operatorName;
-  final int balance;
+  final int? balance;
   final String logoAsset;
   final Color accentColor;
   final int signalBars;
 
-  String _formatAmount(int amount) {
+  String _formatAmount(int? amount) {
+    if (amount == null) {
+      return 'À renseigner';
+    }
+
     final String str = amount.toString();
     String result = '';
     for (int i = 0; i < str.length; i++) {
@@ -565,7 +618,10 @@ class OperatorBalanceCard extends StatelessWidget {
               const SizedBox(height: 6),
               Align(
                 alignment: Alignment.bottomRight,
-                child: _SignalBars(bars: signalBars, color: accentColor),
+                child: _SignalBars(
+                  bars: balance == null ? 0 : signalBars,
+                  color: accentColor,
+                ),
               ),
             ],
           ),
@@ -604,9 +660,12 @@ class _SignalBars extends StatelessWidget {
 class WaveBalanceCard extends StatelessWidget {
   const WaveBalanceCard({super.key, required this.balance});
 
-  final int balance;
+  final int? balance;
 
-  String _formatAmount(int amount) {
+  String _formatAmount(int? amount) {
+    if (amount == null) {
+      return 'À renseigner';
+    }
     final String str = amount.toString();
     String result = '';
     for (int i = 0; i < str.length; i++) {
@@ -916,6 +975,7 @@ class PriorityOrderItemCard extends StatelessWidget {
     required this.channel,
     required this.statusLabel,
     required this.actionLabel,
+    required this.onPressed,
   });
 
   final String reference;
@@ -925,6 +985,7 @@ class PriorityOrderItemCard extends StatelessWidget {
   final String channel;
   final String statusLabel;
   final String actionLabel;
+  final VoidCallback onPressed;
 
   String _formatAmount(int amount) {
     final String str = amount.toString();
@@ -1041,7 +1102,7 @@ class PriorityOrderItemCard extends StatelessWidget {
                 ],
               ),
               FilledButton(
-                onPressed: () {},
+                onPressed: onPressed,
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   padding: const EdgeInsets.symmetric(

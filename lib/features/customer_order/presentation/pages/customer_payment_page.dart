@@ -203,7 +203,8 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
                                       'Après ce délai, la commande expirera '
                                       'automatiquement si le paiement n’est pas confirmé.',
                                       style: TextStyle(
-                                        color: CustomerAppColors.onSurfaceVariant,
+                                        color:
+                                            CustomerAppColors.onSurfaceVariant,
                                         fontSize: 12,
                                         height: 1.45,
                                       ),
@@ -407,11 +408,7 @@ class _ExpiredPaymentWarning extends StatelessWidget {
       child: const Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.timer_off_outlined,
-            color: Color(0xFFB91C1C),
-            size: 24,
-          ),
+          Icon(Icons.timer_off_outlined, color: Color(0xFFB91C1C), size: 24),
           SizedBox(width: 11),
           Expanded(
             child: Text(
@@ -738,7 +735,9 @@ class _PaymentDeclarationSheetState extends State<_PaymentDeclarationSheet> {
                     controller: _phoneController,
                     keyboardType: TextInputType.phone,
                     textInputAction: TextInputAction.next,
-                    autofillHints: const <String>[AutofillHints.telephoneNumber],
+                    autofillHints: const <String>[
+                      AutofillHints.telephoneNumber,
+                    ],
                     decoration: const InputDecoration(
                       labelText: 'Numéro Wave utilisé',
                       hintText: 'Ex. 07 00 00 00 00',
@@ -813,4 +812,3 @@ class _PaymentDeclarationSheetState extends State<_PaymentDeclarationSheet> {
     );
   }
 }
-
