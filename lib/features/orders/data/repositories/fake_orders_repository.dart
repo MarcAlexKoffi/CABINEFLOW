@@ -1,14 +1,27 @@
+import 'dart:async';
+
 import 'package:cabine_flow/features/orders/domain/models/create_order_request.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 
 class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
+  FakeOrdersRepository({this.isTest = false});
+
+  final bool isTest;
   List<QueueOrder>? _orders;
+  final StreamController<void> _changes = StreamController<void>.broadcast();
+
+  void _notify() => _changes.add(null);
+
+  Future<void> _delay([int ms = 400]) async {
+    if (isTest) return;
+    await Future<void>.delayed(Duration(milliseconds: ms));
+  }
 
   @override
   Future<QueueOrder> markPaymentRequestSent({required String orderId}) async {
-    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await _delay(500);
 
     final int index = _findOrderIndex(orderId);
     final QueueOrder currentOrder = _orders![index];
@@ -28,7 +41,7 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
 
   @override
   Future<List<QueueOrder>> fetchPaymentTrackingOrders() async {
-    await Future<void>.delayed(const Duration(milliseconds: 450));
+    await _delay(450);
 
     _orders ??= _createInitialOrders();
 
@@ -77,7 +90,7 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     required DateTime paidAt,
     String? paymentReference,
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 650));
+    await _delay(650);
 
     final int index = _findOrderIndex(orderId);
     final QueueOrder currentOrder = _orders![index];
@@ -123,7 +136,7 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
 
   @override
   Future<List<QueueOrder>> fetchOrderHistory() async {
-    await Future<void>.delayed(const Duration(milliseconds: 450));
+    await _delay(450);
 
     _orders ??= _createInitialOrders();
 
@@ -137,14 +150,14 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
 
   @override
   Future<QueueOrder> fetchOrderById({required String orderId}) async {
-    await Future<void>.delayed(const Duration(milliseconds: 250));
+    await _delay(250);
     final int index = _findOrderIndex(orderId);
     return _orders![index];
   }
 
   @override
   Future<List<QueueOrder>> fetchPaidQueue() async {
-    await Future<void>.delayed(const Duration(milliseconds: 700));
+    await _delay(700);
 
     _orders ??= _createInitialOrders();
 
@@ -161,7 +174,7 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     required String agentId,
     required String assignedByUserId,
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 350));
+    await _delay(350);
     final int index = _findOrderIndex(orderId);
     final QueueOrder currentOrder = _orders![index];
 
@@ -179,7 +192,92 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
       assignmentStatus: OrderAssignmentStatus.assigned,
     );
     _orders![index] = updatedOrder;
+    _notify();
     return updatedOrder;
+  }
+
+  @override
+  Stream<List<QueueOrder>> watchAssignedOrders({
+    required String agentId,
+  }) async* {
+    List<QueueOrder> getAssigned() {
+      _orders ??= _createInitialOrders();
+      final List<QueueOrder> orders = _orders!
+          .where((QueueOrder order) {
+            return order.assignedAgentId == agentId &&
+                order.assignmentStatus != OrderAssignmentStatus.unassigned;
+          })
+          .toList(growable: false);
+      orders.sort((QueueOrder first, QueueOrder second) {
+        final DateTime firstDate = first.assignedAt ?? first.createdAt;
+        final DateTime secondDate = second.assignedAt ?? second.createdAt;
+        return secondDate.compareTo(firstDate);
+      });
+      return List<QueueOrder>.unmodifiable(orders);
+    }
+
+    yield getAssigned();
+    await for (final _ in _changes.stream) {
+      yield getAssigned();
+    }
+  }
+
+  @override
+  Future<QueueOrder> acceptAgentAssignment({
+    required String orderId,
+    required String agentId,
+  }) async {
+    await _delay(250);
+    final int index = _findOrderIndex(orderId);
+    final QueueOrder currentOrder = _orders![index];
+    _verifyPendingAgentAssignment(currentOrder, agentId);
+
+    final QueueOrder updatedOrder = currentOrder.copyWith(
+      assignmentStatus: OrderAssignmentStatus.accepted,
+    );
+    _orders![index] = updatedOrder;
+    _notify();
+    return updatedOrder;
+  }
+
+  @override
+  Future<QueueOrder> refuseAgentAssignment({
+    required String orderId,
+    required String agentId,
+    required String reason,
+  }) async {
+    await _delay(250);
+    final String cleanedReason = reason.trim();
+    if (cleanedReason.length < 3) {
+      throw StateError('Indique un motif de refus plus précis.');
+    }
+    if (cleanedReason.length > 500) {
+      throw StateError('Le motif de refus est trop long.');
+    }
+
+    final int index = _findOrderIndex(orderId);
+    final QueueOrder currentOrder = _orders![index];
+    _verifyPendingAgentAssignment(currentOrder, agentId);
+
+    final QueueOrder updatedOrder = currentOrder.copyWith(
+      clearAgentAssignment: true,
+      lastAssignmentRefusalReason: cleanedReason,
+      lastAssignmentRefusedAt: DateTime.now(),
+    );
+    _orders![index] = updatedOrder;
+    _notify();
+    return updatedOrder;
+  }
+
+  void _verifyPendingAgentAssignment(QueueOrder order, String agentId) {
+    if (order.assignedAgentId != agentId ||
+        order.assignmentStatus != OrderAssignmentStatus.assigned) {
+      throw StateError('Cette commande ne t’est plus affectée.');
+    }
+    if (order.status != QueueOrderStatus.paidReady ||
+        order.paymentStatus != OrderPaymentStatus.confirmed) {
+      throw StateError('Cette commande n’est plus disponible à l’acceptation.');
+    }
   }
 
   @override

@@ -24,6 +24,19 @@ abstract class OrdersRepository {
 
   Future<Map<String, int>> fetchActiveAssignmentCounts();
 
+  Stream<List<QueueOrder>> watchAssignedOrders({required String agentId});
+
+  Future<QueueOrder> acceptAgentAssignment({
+    required String orderId,
+    required String agentId,
+  });
+
+  Future<QueueOrder> refuseAgentAssignment({
+    required String orderId,
+    required String agentId,
+    required String reason,
+  });
+
   Future<QueueOrder> takeCharge({
     required String orderId,
     required String operatorId,

@@ -92,6 +92,8 @@ class QueueOrder {
     this.assignedAt,
     this.assignmentMode,
     this.assignmentStatus = OrderAssignmentStatus.unassigned,
+    this.lastAssignmentRefusalReason,
+    this.lastAssignmentRefusedAt,
   });
 
   final String id;
@@ -144,6 +146,8 @@ class QueueOrder {
   final DateTime? assignedAt;
   final OrderAssignmentMode? assignmentMode;
   final OrderAssignmentStatus assignmentStatus;
+  final String? lastAssignmentRefusalReason;
+  final DateTime? lastAssignmentRefusedAt;
 
   bool get isAssignedToAgent {
     return assignedAgentId != null &&
@@ -183,6 +187,8 @@ class QueueOrder {
     DateTime? assignedAt,
     OrderAssignmentMode? assignmentMode,
     OrderAssignmentStatus? assignmentStatus,
+    String? lastAssignmentRefusalReason,
+    DateTime? lastAssignmentRefusedAt,
     bool clearAssignment = false,
     bool clearAgentAssignment = false,
   }) {
@@ -244,6 +250,10 @@ class QueueOrder {
       assignmentStatus: clearAgentAssignment
           ? OrderAssignmentStatus.unassigned
           : assignmentStatus ?? this.assignmentStatus,
+      lastAssignmentRefusalReason:
+          lastAssignmentRefusalReason ?? this.lastAssignmentRefusalReason,
+      lastAssignmentRefusedAt:
+          lastAssignmentRefusedAt ?? this.lastAssignmentRefusedAt,
     );
   }
 }

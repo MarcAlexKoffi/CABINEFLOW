@@ -198,7 +198,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
         top: false,
         child: ListenableBuilder(
           listenable: _viewModel,
-          builder: (_, __) {
+          builder: (_, _) {
             return ListView(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
               children: [
@@ -600,7 +600,7 @@ class _SectionCard extends StatelessWidget {
                 ),
               ),
             ),
-            if (trailing != null) trailing!,
+            ?trailing,
           ],
         ),
         const SizedBox(height: 14),

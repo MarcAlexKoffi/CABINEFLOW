@@ -50,6 +50,8 @@ void main() {
           'assignedAt': Timestamp.fromDate(paidAt),
           'assignmentMode': 'manual',
           'assignmentStatus': 'assigned',
+          'lastAssignmentRefusalReason': 'Réseau indisponible',
+          'lastAssignmentRefusedAt': Timestamp.fromDate(paidAt),
         },
       );
 
@@ -73,6 +75,8 @@ void main() {
       expect(order.assignedAgentName, 'Koffi Kouassi');
       expect(order.assignmentMode, OrderAssignmentMode.manual);
       expect(order.assignmentStatus, OrderAssignmentStatus.assigned);
+      expect(order.lastAssignmentRefusalReason, 'Réseau indisponible');
+      expect(order.lastAssignmentRefusedAt, paidAt);
     });
 
     test('utilise des valeurs de repli pour un document incomplet', () {

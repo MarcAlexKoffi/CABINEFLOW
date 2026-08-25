@@ -54,10 +54,6 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
     );
 
     if (value == null || !mounted) return;
-
-    // Laisse la route du bottom sheet terminer son retrait avant de notifier
-    // la page via Firestore / ChangeNotifier.
-    await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
 
     final bool success = await _viewModel.updateCapacity(network, value);
@@ -79,10 +75,6 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
     );
 
     if (result == null || !mounted) return;
-
-    // Empêche la mise à jour Firestore de reconstruire l'écran pendant que
-    // la route du formulaire est encore en train de se désactiver.
-    await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
 
     final bool success = await _viewModel.reportIssue(result);
@@ -443,15 +435,15 @@ class _CapacityEditorSheetState extends State<_CapacityEditorSheet> {
             keyboardType: TextInputType.number,
             textInputAction: TextInputAction.done,
             onSubmitted: (_) => _submit(),
+            cursorColor: AppColors.primary,
             style: const TextStyle(
-              color: AppColors.inputText,
+              color: AppColors.onBackground,
               fontWeight: FontWeight.w600,
             ),
-            decoration: InputDecoration(
+            decoration: _agentSheetInputDecoration(
               labelText: 'Montant disponible (FCFA)',
               hintText: 'Ex. 35000',
               errorText: _errorText,
-              labelStyle: const TextStyle(color: AppColors.inputHint),
             ),
           ),
           const SizedBox(height: 20),
@@ -608,11 +600,12 @@ class _AgentIssueSheetState extends State<_AgentIssueSheet> {
               }
             },
             onSubmitted: (_) => _submit(),
+            cursorColor: AppColors.primary,
             style: const TextStyle(
-              color: AppColors.inputText,
+              color: AppColors.onBackground,
               fontWeight: FontWeight.w500,
             ),
-            decoration: InputDecoration(
+            decoration: _agentSheetInputDecoration(
               hintText: 'Explique brièvement le problème rencontré…',
               errorText: _errorText,
             ),
@@ -869,15 +862,19 @@ class _CapacityCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surfaceContainer,
         borderRadius: BorderRadius.circular(15),
-        border: Border(
-          left: BorderSide(color: color, width: 4),
-          top: const BorderSide(color: AppColors.outlineVariant),
-          right: const BorderSide(color: AppColors.outlineVariant),
-          bottom: const BorderSide(color: AppColors.outlineVariant),
-        ),
+        border: Border.all(color: AppColors.outlineVariant),
       ),
       child: Row(
         children: [
+          Container(
+            width: 5,
+            height: 48,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(99),
+            ),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1112,4 +1109,44 @@ Color _networkColor(AgentNetwork network) {
     case AgentNetwork.moov:
       return AppColors.primaryContainer;
   }
+}
+
+InputDecoration _agentSheetInputDecoration({
+  String? labelText,
+  String? hintText,
+  String? errorText,
+}) {
+  const BorderRadius radius = BorderRadius.all(Radius.circular(12));
+
+  return InputDecoration(
+    filled: true,
+    fillColor: AppColors.surfaceContainerHigh,
+    labelText: labelText,
+    hintText: hintText,
+    errorText: errorText,
+    labelStyle: const TextStyle(color: AppColors.onSurfaceVariant),
+    floatingLabelStyle: const TextStyle(color: AppColors.primaryContainer),
+    hintStyle: const TextStyle(color: AppColors.onSurfaceVariant),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    border: const OutlineInputBorder(
+      borderRadius: radius,
+      borderSide: BorderSide(color: AppColors.outlineVariant),
+    ),
+    enabledBorder: const OutlineInputBorder(
+      borderRadius: radius,
+      borderSide: BorderSide(color: AppColors.outlineVariant),
+    ),
+    focusedBorder: const OutlineInputBorder(
+      borderRadius: radius,
+      borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+    ),
+    errorBorder: const OutlineInputBorder(
+      borderRadius: radius,
+      borderSide: BorderSide(color: AppColors.error),
+    ),
+    focusedErrorBorder: const OutlineInputBorder(
+      borderRadius: radius,
+      borderSide: BorderSide(color: AppColors.error, width: 1.5),
+    ),
+  );
 }

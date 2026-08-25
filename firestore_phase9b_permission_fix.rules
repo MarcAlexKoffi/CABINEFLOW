@@ -485,19 +485,11 @@ service cloud.firestore {
 
     function isValidAgentAssignmentAcceptance() {
       return isCurrentAssignedAgent()
-        && hasValidCommonOrderValues()
-        && immutableCoreOrderFieldsAreUnchanged()
         && resource.data.status == 'paidReady'
         && resource.data.paymentStatus == 'confirmed'
         && resource.data.get('assignmentStatus', 'unassigned') == 'assigned'
-        && request.resource.data.status == resource.data.status
-        && request.resource.data.paymentStatus == resource.data.paymentStatus
-        && request.resource.data.assignedAgentId == resource.data.assignedAgentId
-        && request.resource.data.assignedAgentName == resource.data.assignedAgentName
-        && request.resource.data.assignedByUserId == resource.data.assignedByUserId
-        && request.resource.data.assignedAt == resource.data.assignedAt
-        && request.resource.data.assignmentMode == resource.data.assignmentMode
-        && request.resource.data.assignmentStatus == 'accepted'
+        && request.resource.data.get('assignedAgentId', null) == request.auth.uid
+        && request.resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'updatedAt',
           'assignmentStatus'
@@ -507,23 +499,19 @@ service cloud.firestore {
 
     function isValidAgentAssignmentRefusal() {
       return isCurrentAssignedAgent()
-        && hasValidCommonOrderValues()
-        && immutableCoreOrderFieldsAreUnchanged()
         && resource.data.status == 'paidReady'
         && resource.data.paymentStatus == 'confirmed'
         && resource.data.get('assignmentStatus', 'unassigned') == 'assigned'
-        && request.resource.data.status == resource.data.status
-        && request.resource.data.paymentStatus == resource.data.paymentStatus
         && request.resource.data.get('assignedAgentId', null) == null
         && request.resource.data.get('assignedAgentName', null) == null
         && request.resource.data.get('assignedByUserId', null) == null
         && request.resource.data.get('assignedAt', null) == null
         && request.resource.data.get('assignmentMode', null) == null
         && request.resource.data.get('assignmentStatus', 'unassigned') == 'unassigned'
-        && request.resource.data.lastAssignmentRefusalReason is string
-        && request.resource.data.lastAssignmentRefusalReason.size() >= 3
-        && request.resource.data.lastAssignmentRefusalReason.size() <= 500
-        && request.resource.data.lastAssignmentRefusedAt == request.time
+        && request.resource.data.get('lastAssignmentRefusalReason', null) is string
+        && request.resource.data.get('lastAssignmentRefusalReason', null).size() >= 3
+        && request.resource.data.get('lastAssignmentRefusalReason', null).size() <= 500
+        && request.resource.data.get('lastAssignmentRefusedAt', null) == request.time
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'updatedAt',
           'assignedAgentId',
@@ -1084,78 +1072,61 @@ service cloud.firestore {
         ).data.assignmentStatus == 'assigned';
     }
 
-    function immutableAssignmentEventFieldsAreUnchanged() {
-      return request.resource.data.schemaVersion == resource.data.schemaVersion
-        && request.resource.data.orderId == resource.data.orderId
-        && request.resource.data.orderReference == resource.data.orderReference
-        && request.resource.data.agentId == resource.data.agentId
-        && request.resource.data.agentName == resource.data.agentName
-        && request.resource.data.assignedByUserId == resource.data.assignedByUserId
-        && request.resource.data.mode == resource.data.mode
-        && request.resource.data.assignedAt == resource.data.assignedAt;
-    }
-
     function isValidAgentAssignmentEventAcceptance() {
+      let orderId = resource.data.get('orderId', '');
+
       return isAgent()
-        && resource.data.agentId == request.auth.uid
-        && hasValidOrderAssignmentEventKeys()
-        && immutableAssignmentEventFieldsAreUnchanged()
-        && resource.data.status == 'assigned'
-        && resource.data.acceptedAt == null
-        && resource.data.refusedAt == null
-        && resource.data.refusalReason == null
-        && request.resource.data.status == 'accepted'
-        && request.resource.data.acceptedAt == request.time
-        && request.resource.data.refusedAt == null
-        && request.resource.data.refusalReason == null
-        && request.resource.data.completedAt == resource.data.completedAt
+        && resource.data.get('agentId', null) == request.auth.uid
+        && orderId is string
+        && orderId.size() > 0
+        && resource.data.get('status', '') == 'assigned'
+        && resource.data.get('acceptedAt', null) == null
+        && resource.data.get('refusedAt', null) == null
+        && resource.data.get('refusalReason', null) == null
+        && request.resource.data.get('status', '') == 'accepted'
+        && request.resource.data.get('acceptedAt', null) == request.time
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status',
           'acceptedAt',
           'updatedAt'
         ])
-        && existsAfter(
-          /databases/$(database)/documents/orders/$(resource.data.orderId)
-        )
         && getAfter(
-          /databases/$(database)/documents/orders/$(resource.data.orderId)
-        ).data.assignedAgentId == request.auth.uid
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('assignedAgentId', null) == request.auth.uid
         && getAfter(
-          /databases/$(database)/documents/orders/$(resource.data.orderId)
-        ).data.assignmentStatus == 'accepted'
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('assignmentStatus', 'unassigned') == 'accepted'
         && request.resource.data.updatedAt == request.time;
     }
 
     function isValidAgentAssignmentEventRefusal() {
+      let orderId = resource.data.get('orderId', '');
+
       return isAgent()
-        && resource.data.agentId == request.auth.uid
-        && hasValidOrderAssignmentEventKeys()
-        && immutableAssignmentEventFieldsAreUnchanged()
-        && resource.data.status == 'assigned'
-        && resource.data.acceptedAt == null
-        && resource.data.refusedAt == null
-        && resource.data.refusalReason == null
-        && request.resource.data.status == 'refused'
-        && request.resource.data.acceptedAt == null
-        && request.resource.data.refusedAt == request.time
-        && request.resource.data.refusalReason is string
-        && request.resource.data.refusalReason.size() >= 3
-        && request.resource.data.refusalReason.size() <= 500
-        && request.resource.data.completedAt == resource.data.completedAt
+        && resource.data.get('agentId', null) == request.auth.uid
+        && orderId is string
+        && orderId.size() > 0
+        && resource.data.get('status', '') == 'assigned'
+        && resource.data.get('acceptedAt', null) == null
+        && resource.data.get('refusedAt', null) == null
+        && resource.data.get('refusalReason', null) == null
+        && request.resource.data.get('status', '') == 'refused'
+        && request.resource.data.get('acceptedAt', null) == null
+        && request.resource.data.get('refusedAt', null) == request.time
+        && request.resource.data.get('refusalReason', null) is string
+        && request.resource.data.get('refusalReason', null).size() >= 3
+        && request.resource.data.get('refusalReason', null).size() <= 500
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status',
           'refusedAt',
           'refusalReason',
           'updatedAt'
         ])
-        && existsAfter(
-          /databases/$(database)/documents/orders/$(resource.data.orderId)
-        )
         && getAfter(
-          /databases/$(database)/documents/orders/$(resource.data.orderId)
+          /databases/$(database)/documents/orders/$(orderId)
         ).data.get('assignedAgentId', null) == null
         && getAfter(
-          /databases/$(database)/documents/orders/$(resource.data.orderId)
+          /databases/$(database)/documents/orders/$(orderId)
         ).data.get('assignmentStatus', 'unassigned') == 'unassigned'
         && request.resource.data.updatedAt == request.time;
     }
@@ -1175,12 +1146,12 @@ service cloud.firestore {
           isAgent()
           && resource.data.get('assignedAgentId', null) == request.auth.uid
         );
-      allow update: if isValidCustomerPaymentDeclaration()
+      allow update: if isValidAgentAssignmentAcceptance()
+        || isValidAgentAssignmentRefusal()
+        || isValidCustomerPaymentDeclaration()
         || isValidCustomerExpiration()
         || isValidStaffOrderUpdate()
-        || isValidAdminManualAssignment()
-        || isValidAgentAssignmentAcceptance()
-        || isValidAgentAssignmentRefusal();
+        || isValidAdminManualAssignment();
       allow delete: if false;
     }
 

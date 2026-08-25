@@ -129,4 +129,29 @@ void main() {
 
     expect(find.text('Activité du jour'), findsOneWidget);
   });
+
+  testWidgets('ouvre l’espace agent Phase 9B et conserve le profil', (
+    WidgetTester tester,
+  ) async {
+    await openLoginPage(tester);
+
+    final Finder fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'agent@cabineflow.app');
+    await tester.enterText(fields.at(1), '1234');
+    await tapLoginButton(tester);
+
+    await tester.pump(const Duration(milliseconds: 1100));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mes commandes'), findsOneWidget);
+    expect(find.text('À accepter'), findsOneWidget);
+    expect(find.text('En cours'), findsOneWidget);
+    expect(find.text('Terminées'), findsOneWidget);
+
+    await tester.tap(find.text('Profil'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mon Activité'), findsOneWidget);
+    expect(find.text('Statut Agent'), findsOneWidget);
+  });
 }

@@ -67,6 +67,10 @@ class FirestoreOrderMapper {
       assignedAt: _readDate(data['assignedAt']),
       assignmentMode: _readAssignmentMode(data['assignmentMode']),
       assignmentStatus: _readAssignmentStatus(data['assignmentStatus']),
+      lastAssignmentRefusalReason: _readNullableString(
+        data['lastAssignmentRefusalReason'],
+      ),
+      lastAssignmentRefusedAt: _readDate(data['lastAssignmentRefusedAt']),
     );
   }
 
