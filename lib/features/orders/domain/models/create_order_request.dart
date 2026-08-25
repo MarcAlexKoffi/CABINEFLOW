@@ -9,6 +9,8 @@ class CreateOrderRequest {
     required this.operationType,
     required this.offerLabel,
     required this.amount,
+    this.offerId,
+    this.isCustomOffer = true,
     this.originalWhatsappMessage,
     this.internalNotes,
   });
@@ -22,6 +24,8 @@ class CreateOrderRequest {
 
   final String offerLabel;
   final int amount;
+  final String? offerId;
+  final bool isCustomOffer;
 
   final String? originalWhatsappMessage;
   final String? internalNotes;

@@ -5,6 +5,7 @@ import 'package:cabine_flow/features/dashboard/presentation/pages/dashboard_page
 import 'package:cabine_flow/features/dashboard/presentation/widgets/dashboard_widgets.dart';
 import 'package:cabine_flow/features/finances/presentation/pages/finances_page.dart';
 import 'package:cabine_flow/features/more/presentation/pages/more_page.dart';
+import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/orders_page.dart';
 import 'package:cabine_flow/features/payments/domain/repositories/payment_link_repository.dart';
 import 'package:cabine_flow/features/payments/presentation/pages/send_wave_link_page.dart';
@@ -21,6 +22,7 @@ class MainShellPage extends StatefulWidget {
     required this.dashboardRepository,
     required this.ordersRepository,
     required this.offerCatalogRepository,
+    required this.adminOfferRepository,
     required this.paymentLinkRepository,
   });
 
@@ -28,6 +30,7 @@ class MainShellPage extends StatefulWidget {
   final DashboardRepository dashboardRepository;
   final OrdersRepository ordersRepository;
   final OfferCatalogRepository offerCatalogRepository;
+  final AdminOfferRepository adminOfferRepository;
   final PaymentLinkRepository paymentLinkRepository;
 
   @override
@@ -163,7 +166,10 @@ class _MainShellPageState extends State<MainShellPage> {
         onOpenOrders: _openOrdersTab,
       ),
       const FinancesPage(),
-      const MorePage(),
+      MorePage(
+        user: widget.user,
+        adminOfferRepository: widget.adminOfferRepository,
+      ),
     ];
 
     return Scaffold(

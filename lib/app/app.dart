@@ -12,7 +12,11 @@ import 'package:cabine_flow/features/dashboard/data/repositories/fake_dashboard_
 import 'package:cabine_flow/features/dashboard/data/repositories/firestore_dashboard_repository.dart';
 import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_repository.dart';
 import 'package:cabine_flow/features/navigation/presentation/pages/main_shell_page.dart';
+import 'package:cabine_flow/features/offers/data/repositories/fake_admin_offer_repository.dart';
+import 'package:cabine_flow/features/offers/data/repositories/firestore_admin_offer_repository.dart';
+import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/fake_offer_catalog_repository.dart';
+import 'package:cabine_flow/features/orders/data/repositories/firestore_offer_catalog_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/firestore_orders_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/offer_catalog_repository.dart';
@@ -30,6 +34,7 @@ class CabineFlowApp extends StatelessWidget {
     this.dashboardRepository,
     this.ordersRepository,
     this.offerCatalogRepository,
+    this.adminOfferRepository,
     this.paymentLinkRepository,
   });
 
@@ -37,6 +42,7 @@ class CabineFlowApp extends StatelessWidget {
   final DashboardRepository? dashboardRepository;
   final OrdersRepository? ordersRepository;
   final OfferCatalogRepository? offerCatalogRepository;
+  final AdminOfferRepository? adminOfferRepository;
   final PaymentLinkRepository? paymentLinkRepository;
 
   Route<dynamic> _createErrorRoute() {
@@ -72,7 +78,16 @@ class CabineFlowApp extends StatelessWidget {
             : FakeOrdersRepository());
 
     final OfferCatalogRepository effectiveOfferCatalogRepository =
-        offerCatalogRepository ?? const FakeOfferCatalogRepository();
+        offerCatalogRepository ??
+        (isFirebaseInitialized
+            ? FirestoreOfferCatalogRepository()
+            : const FakeOfferCatalogRepository());
+
+    final AdminOfferRepository effectiveAdminOfferRepository =
+        adminOfferRepository ??
+        (isFirebaseInitialized
+            ? FirestoreAdminOfferRepository()
+            : FakeAdminOfferRepository());
 
     final PaymentLinkRepository effectivePaymentLinkRepository =
         paymentLinkRepository ??
@@ -136,6 +151,7 @@ class CabineFlowApp extends StatelessWidget {
                   dashboardRepository: effectiveDashboardRepository,
                   ordersRepository: effectiveOrdersRepository,
                   offerCatalogRepository: effectiveOfferCatalogRepository,
+                  adminOfferRepository: effectiveAdminOfferRepository,
                   paymentLinkRepository: effectivePaymentLinkRepository,
                 );
               },

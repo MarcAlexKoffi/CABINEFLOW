@@ -149,6 +149,9 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
       return;
     }
 
+    final OfferCatalogItem? selectedOffer = _viewModel.selectedOffer;
+    final bool isCustomOffer = selectedOffer == null || selectedOffer.isCustom;
+
     final CreateOrderRequest request = CreateOrderRequest(
       clientName: _clientNameController.text,
       clientWhatsappPhone: _whatsappController.text,
@@ -157,6 +160,8 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
       operationType: operationType,
       offerLabel: _offerDetailController.text,
       amount: int.parse(_amountController.text),
+      offerId: isCustomOffer ? null : selectedOffer.id,
+      isCustomOffer: isCustomOffer,
       originalWhatsappMessage: _originalMessageController.text.trim().isEmpty
           ? null
           : _originalMessageController.text,

@@ -21,6 +21,15 @@ service cloud.firestore {
         && staffProfile().role in ['operator', 'supervisor', 'admin'];
     }
 
+    function isAdmin() {
+      return isSignedIn()
+        && exists(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        )
+        && staffProfile().isActive == true
+        && staffProfile().role == 'admin';
+    }
+
     function isOrderOwner() {
       return isSignedIn()
         && resource.data.customerAuthUid == request.auth.uid;
@@ -53,6 +62,7 @@ service cloud.firestore {
         'paymentApproximateTime',
         'paymentDeclaredReference',
         'expiresAt',
+        'expiredAt',
         'paymentConfirmedAt',
         'paidAt',
         'paymentReference',
@@ -77,7 +87,7 @@ service cloud.firestore {
         && request.resource.data.clientName.size() >= 2
         && request.resource.data.clientName.size() <= 80
         && request.resource.data.clientWhatsappPhone is string
-        && request.resource.data.service in [
+        && request.resource.data['service'] in [
           'unitTransfer',
           'internetSubscription',
           'calls',
@@ -91,6 +101,10 @@ service cloud.firestore {
           'mixedBundle',
           'other'
         ]
+        && (
+          request.resource.data.offerId == null
+          || request.resource.data.offerId is string
+        )
         && request.resource.data.offerLabel is string
         && request.resource.data.offerLabel.size() >= 2
         && request.resource.data.offerLabel.size() <= 200
@@ -100,6 +114,10 @@ service cloud.firestore {
         && request.resource.data.amount <= 1000000
         && request.resource.data.beneficiaryPhone is string
         && request.resource.data.expiresAt is timestamp
+        && (
+          request.resource.data.get('expiredAt', null) == null
+          || request.resource.data.get('expiredAt', null) is timestamp
+        )
         && request.resource.data.status in [
           'awaitingPayment',
           'paymentToVerify',
@@ -129,12 +147,51 @@ service cloud.firestore {
         ];
     }
 
+    function isValidOfferSnapshotAtCreation() {
+      let offerId = request.resource.data.offerId;
+
+      return (
+        request.resource.data.isCustomOffer == true
+        && offerId == null
+      ) || (
+        request.resource.data.isCustomOffer == false
+        && request.resource.data['service'] == 'unitTransfer'
+        && offerId == null
+      ) || (
+        request.resource.data.isCustomOffer == false
+        && request.resource.data['service'] in ['internetSubscription', 'calls']
+        && offerId is string
+        && exists(
+          /databases/$(database)/documents/offers/$(offerId)
+        )
+        && get(
+          /databases/$(database)/documents/offers/$(offerId)
+        ).data.isActive == true
+        && get(
+          /databases/$(database)/documents/offers/$(offerId)
+        ).data.network == request.resource.data.network
+        && get(
+          /databases/$(database)/documents/offers/$(offerId)
+        ).data['service'] == request.resource.data['service']
+        && get(
+          /databases/$(database)/documents/offers/$(offerId)
+        ).data.operationType == request.resource.data.operationType
+        && get(
+          /databases/$(database)/documents/offers/$(offerId)
+        ).data.catalogLabel == request.resource.data.offerLabel
+        && get(
+          /databases/$(database)/documents/offers/$(offerId)
+        ).data.sellingPrice == request.resource.data.amount
+      );
+    }
+
     function isValidCustomerOrderCreation() {
       return isSignedIn()
         && hasValidCommonOrderValues()
+        && isValidOfferSnapshotAtCreation()
         && request.resource.data.source == 'customerWeb'
         && request.resource.data.customerAuthUid == request.auth.uid
-        && request.resource.data.service in [
+        && request.resource.data['service'] in [
           'unitTransfer',
           'internetSubscription',
           'calls'
@@ -155,6 +212,7 @@ service cloud.firestore {
         && request.resource.data.paymentPayerPhone == null
         && request.resource.data.paymentApproximateTime == null
         && request.resource.data.paymentDeclaredReference == null
+        && request.resource.data.get('expiredAt', null) == null
         && request.resource.data.paymentConfirmedAt == null
         && request.resource.data.paidAt == null
         && request.resource.data.paymentReference == null
@@ -170,6 +228,7 @@ service cloud.firestore {
     function isValidStaffOrderCreation() {
       return isStaff()
         && hasValidCommonOrderValues()
+        && isValidOfferSnapshotAtCreation()
         && request.resource.data.source == 'operatorApp'
         && request.resource.data.customerAuthUid == null
         && request.resource.data.status == 'awaitingPayment'
@@ -182,6 +241,7 @@ service cloud.firestore {
         && request.resource.data.paymentPayerPhone == null
         && request.resource.data.paymentApproximateTime == null
         && request.resource.data.paymentDeclaredReference == null
+        && request.resource.data.get('expiredAt', null) == null
         && request.resource.data.paymentConfirmedAt == null
         && request.resource.data.paidAt == null
         && request.resource.data.paymentReference == null
@@ -201,7 +261,7 @@ service cloud.firestore {
         && request.resource.data.customerAuthUid == resource.data.customerAuthUid
         && request.resource.data.clientName == resource.data.clientName
         && request.resource.data.clientWhatsappPhone == resource.data.clientWhatsappPhone
-        && request.resource.data.service == resource.data.service
+        && request.resource.data['service'] == resource.data['service']
         && request.resource.data.network == resource.data.network
         && request.resource.data.operationType == resource.data.operationType
         && request.resource.data.offerId == resource.data.offerId
@@ -220,6 +280,7 @@ service cloud.firestore {
         'status',
         'paymentStatus',
         'paymentRequestSentAt',
+        'expiredAt',
         'paymentConfirmedAt',
         'paidAt',
         'paymentReference',
@@ -243,6 +304,11 @@ service cloud.firestore {
     }
 
     function isValidCustomerPaymentDeclaration() {
+      let wasExpired = resource.data.status == 'expired';
+      let isLate = request.time >= resource.data.expiresAt;
+      let oldExpiredAt = resource.data.get('expiredAt', null);
+      let newExpiredAt = request.resource.data.get('expiredAt', null);
+
       return isOrderOwner()
         && hasValidCommonOrderValues()
         && immutableCoreOrderFieldsAreUnchanged()
@@ -254,13 +320,16 @@ service cloud.firestore {
           'paymentPayerName',
           'paymentPayerPhone',
           'paymentApproximateTime',
-          'paymentDeclaredReference'
+          'paymentDeclaredReference',
+          'expiredAt'
         ])
         && resource.data.source == 'customerWeb'
-        && resource.data.status == 'awaitingPayment'
-        && resource.data.paymentStatus == 'notDeclared'
+        && resource.data.status in ['awaitingPayment', 'expired']
+        && resource.data.paymentStatus in ['notDeclared', 'expired']
         && resource.data.paymentDeclaredAt == null
-        && request.resource.data.status == 'paymentToVerify'
+        && request.resource.data.status == (
+          wasExpired || isLate ? 'expired' : 'paymentToVerify'
+        )
         && request.resource.data.paymentStatus == 'declared'
         && request.resource.data.paymentDeclaredAt == request.time
         && request.resource.data.paymentPayerName is string
@@ -277,6 +346,44 @@ service cloud.firestore {
             && request.resource.data.paymentDeclaredReference.size() <= 80
           )
         )
+        && (
+          (!wasExpired && !isLate && newExpiredAt == oldExpiredAt)
+          || (
+            (wasExpired || isLate)
+            && (
+              (oldExpiredAt == null && newExpiredAt == request.time)
+              || (oldExpiredAt != null && newExpiredAt == oldExpiredAt)
+            )
+          )
+        )
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidCustomerExpiration() {
+      return isOrderOwner()
+        && hasValidCommonOrderValues()
+        && immutableCoreOrderFieldsAreUnchanged()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'updatedAt',
+          'status',
+          'paymentStatus',
+          'expiredAt'
+        ])
+        && resource.data.source == 'customerWeb'
+        && resource.data.status in ['awaitingPayment', 'paymentToVerify']
+        && resource.data.paymentStatus in [
+          'notDeclared',
+          'pending',
+          'declared',
+          'expired'
+        ]
+        && resource.data.paymentStatus != 'confirmed'
+        && request.time >= resource.data.expiresAt
+        && request.resource.data.status == 'expired'
+        && request.resource.data.paymentStatus == (
+          resource.data.paymentStatus == 'declared' ? 'declared' : 'expired'
+        )
+        && request.resource.data.expiredAt == request.time
         && request.resource.data.updatedAt == request.time;
     }
 
@@ -308,13 +415,115 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
     }
 
+    function hasValidOfferKeys() {
+      return request.resource.data.keys().hasOnly([
+        'schemaVersion',
+        'network',
+        'service',
+        'operationType',
+        'title',
+        'catalogLabel',
+        'description',
+        'sellingPrice',
+        'details',
+        'badgeLabel',
+        'category',
+        'validity',
+        'volume',
+        'minutes',
+        'sms',
+        'eligibility',
+        'isActive',
+        'displayOrder',
+        'createdAt',
+        'updatedAt'
+      ]);
+    }
+
+    function hasValidOfferValues() {
+      return hasValidOfferKeys()
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.network in ['orange', 'mtn', 'moov']
+        && request.resource.data['service'] in [
+          'internetSubscription',
+          'calls'
+        ]
+        && request.resource.data.operationType in [
+          'internetSubscription',
+          'callBundle',
+          'mixedBundle'
+        ]
+        && request.resource.data.title is string
+        && request.resource.data.title.size() >= 2
+        && request.resource.data.title.size() <= 100
+        && request.resource.data.catalogLabel is string
+        && request.resource.data.catalogLabel.size() >= 2
+        && request.resource.data.catalogLabel.size() <= 200
+        && (
+          request.resource.data.description == null
+          || request.resource.data.description is string
+        )
+        && request.resource.data.sellingPrice is int
+        && request.resource.data.sellingPrice > 0
+        && request.resource.data.sellingPrice <= 1000000
+        && request.resource.data.details is list
+        && (
+          request.resource.data.badgeLabel == null
+          || request.resource.data.badgeLabel is string
+        )
+        && request.resource.data.category in ['internet', 'calls', 'mixed']
+        && (
+          request.resource.data.validity == null
+          || request.resource.data.validity is string
+        )
+        && (
+          request.resource.data.volume == null
+          || request.resource.data.volume is string
+        )
+        && (
+          request.resource.data.minutes == null
+          || request.resource.data.minutes is string
+        )
+        && (
+          request.resource.data.sms == null
+          || request.resource.data.sms is string
+        )
+        && (
+          request.resource.data.eligibility == null
+          || request.resource.data.eligibility is string
+        )
+        && request.resource.data.isActive is bool
+        && request.resource.data.displayOrder is int
+        && request.resource.data.displayOrder >= 0
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function isValidOfferCreation() {
+      return isAdmin() && hasValidOfferValues();
+    }
+
+    function isValidOfferUpdate() {
+      return isAdmin()
+        && hasValidOfferValues()
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
     match /orders/{orderId} {
       allow create: if isValidCustomerOrderCreation()
         || isValidStaffOrderCreation();
       allow get: if isOrderOwner() || isStaff();
       allow list: if isStaff() || isOrderOwner();
       allow update: if isValidCustomerPaymentDeclaration()
+        || isValidCustomerExpiration()
         || isValidStaffOrderUpdate();
+      allow delete: if false;
+    }
+
+    match /offers/{offerId} {
+      allow get, list: if isStaff() || resource.data.isActive == true;
+      allow create: if isValidOfferCreation();
+      allow update: if isValidOfferUpdate();
       allow delete: if false;
     }
 

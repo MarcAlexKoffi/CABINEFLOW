@@ -52,8 +52,7 @@ void main() {
       confirmationInput: '05 12 34 56 78',
     );
 
-    final bool created = await firstViewModel
-        .createOrderAndContinueToPayment();
+    final bool created = await firstViewModel.createOrderAndContinueToPayment();
 
     expect(created, isTrue);
     expect(sessionStore.value, isNotNull);

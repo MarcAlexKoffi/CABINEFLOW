@@ -37,14 +37,8 @@ void main() {
       expect(orderCreated, isTrue);
       expect(viewModel.currentStep, 7);
       expect(viewModel.receipt, isNotNull);
-      expect(
-        viewModel.receipt?.status,
-        QueueOrderStatus.awaitingPayment,
-      );
-      expect(
-        viewModel.receipt?.paymentStatus,
-        OrderPaymentStatus.notDeclared,
-      );
+      expect(viewModel.receipt?.status, QueueOrderStatus.awaitingPayment);
+      expect(viewModel.receipt?.paymentStatus, OrderPaymentStatus.notDeclared);
 
       final bool paymentDeclared = await viewModel.declarePayment(
         waveAccountName: 'Client test',
@@ -55,14 +49,8 @@ void main() {
 
       expect(paymentDeclared, isTrue);
       expect(viewModel.currentStep, 8);
-      expect(
-        viewModel.receipt?.status,
-        QueueOrderStatus.paymentToVerify,
-      );
-      expect(
-        viewModel.receipt?.paymentStatus,
-        OrderPaymentStatus.declared,
-      );
+      expect(viewModel.receipt?.status, QueueOrderStatus.paymentToVerify);
+      expect(viewModel.receipt?.paymentStatus, OrderPaymentStatus.declared);
       expect(
         viewModel.receipt?.paymentDeclaration?.waveAccountName,
         'Client test',
@@ -83,10 +71,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(viewModel.receipt?.status, QueueOrderStatus.paidReady);
-      expect(
-        viewModel.receipt?.paymentStatus,
-        OrderPaymentStatus.confirmed,
-      );
+      expect(viewModel.receipt?.paymentStatus, OrderPaymentStatus.confirmed);
 
       viewModel.restart();
 

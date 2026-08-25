@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cabine_flow/features/customer_order/data/local/customer_order_session_store.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/fake_customer_offer_repository.dart';
+import 'package:cabine_flow/features/customer_order/data/repositories/firestore_customer_offer_repository.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/firestore_customer_order_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_offer_repository.dart';
@@ -17,10 +18,13 @@ import 'package:cabine_flow/features/customer_order/presentation/pages/customer_
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_service_page.dart';
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_summary_page.dart';
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 class CustomerOrderFlowPage extends StatefulWidget {
-  const CustomerOrderFlowPage({super.key});
+  const CustomerOrderFlowPage({super.key, this.offerRepository});
+
+  final CustomerOfferRepository? offerRepository;
 
   @override
   State<CustomerOrderFlowPage> createState() {
@@ -32,8 +36,7 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
   late final CustomerOrderViewModel _viewModel;
   bool _isShowingHistory = false;
 
-  final CustomerOfferRepository _offerRepository =
-      const FakeCustomerOfferRepository();
+  late final CustomerOfferRepository _offerRepository;
 
   final CustomerOrderRepository _orderRepository =
       FirestoreCustomerOrderRepository();
@@ -44,6 +47,11 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
   @override
   void initState() {
     super.initState();
+    _offerRepository =
+        widget.offerRepository ??
+        (Firebase.apps.isNotEmpty
+            ? FirestoreCustomerOfferRepository()
+            : const FakeCustomerOfferRepository());
     _viewModel = CustomerOrderViewModel(
       orderRepository: _orderRepository,
       sessionStore: _sessionStore,

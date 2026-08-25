@@ -42,6 +42,8 @@ class FirestoreOrdersRepository
         operationType: request.operationType,
         offerLabel: request.offerLabel,
         amount: request.amount,
+        offerId: request.offerId,
+        isCustomOffer: request.isCustomOffer,
         originalWhatsappMessage: request.originalWhatsappMessage,
         internalNotes: request.internalNotes,
         expiresAt: now.add(paymentValidity),

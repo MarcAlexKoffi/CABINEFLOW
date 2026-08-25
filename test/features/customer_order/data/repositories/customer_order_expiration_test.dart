@@ -29,66 +29,76 @@ void main() {
     );
   });
 
-  test('expire automatiquement une commande non déclarée après six heures', () async {
-    final CustomerOrderReceipt createdOrder = await repository.createOrder(
-      draft: draft,
-    );
+  test(
+    'expire automatiquement une commande non déclarée après six heures',
+    () async {
+      final CustomerOrderReceipt createdOrder = await repository.createOrder(
+        draft: draft,
+      );
 
-    now = now.add(const Duration(hours: 6, minutes: 1));
+      now = now.add(const Duration(hours: 6, minutes: 1));
 
-    final CustomerOrderReceipt expiredOrder = await repository
-        .synchronizeExpiration(order: createdOrder);
+      final CustomerOrderReceipt expiredOrder = await repository
+          .synchronizeExpiration(order: createdOrder);
 
-    expect(expiredOrder.status, QueueOrderStatus.expired);
-    expect(expiredOrder.paymentStatus, OrderPaymentStatus.expired);
-    expect(expiredOrder.expiredAt, now);
-  });
+      expect(expiredOrder.status, QueueOrderStatus.expired);
+      expect(expiredOrder.paymentStatus, OrderPaymentStatus.expired);
+      expect(expiredOrder.expiredAt, now);
+    },
+  );
 
-  test('classe un paiement déclaré tardivement comme paiement à examiner', () async {
-    final CustomerOrderReceipt createdOrder = await repository.createOrder(
-      draft: draft,
-    );
+  test(
+    'classe un paiement déclaré tardivement comme paiement à examiner',
+    () async {
+      final CustomerOrderReceipt createdOrder = await repository.createOrder(
+        draft: draft,
+      );
 
-    now = now.add(const Duration(hours: 6, minutes: 1));
-    final CustomerOrderReceipt expiredOrder = await repository
-        .synchronizeExpiration(order: createdOrder);
+      now = now.add(const Duration(hours: 6, minutes: 1));
+      final CustomerOrderReceipt expiredOrder = await repository
+          .synchronizeExpiration(order: createdOrder);
 
-    final PaymentDeclaration declaration = PaymentDeclaration.parse(
-      waveAccountName: 'Client test',
-      wavePayerPhoneInput: '07 00 00 00 00',
-      approximatePaymentTime: '13:58',
-      declaredWaveReference: 'LATE-001',
-    );
-
-    final CustomerOrderReceipt lateDeclaredOrder = await repository
-        .declarePayment(order: expiredOrder, declaration: declaration);
-
-    expect(lateDeclaredOrder.status, QueueOrderStatus.expired);
-    expect(lateDeclaredOrder.paymentStatus, OrderPaymentStatus.declared);
-    expect(lateDeclaredOrder.hasPaymentToReviewAfterExpiration, isTrue);
-  });
-
-  test('expire aussi une déclaration non confirmée avant la fin du délai', () async {
-    final CustomerOrderReceipt createdOrder = await repository.createOrder(
-      draft: draft,
-    );
-
-    now = now.add(const Duration(hours: 2));
-    final CustomerOrderReceipt declaredOrder = await repository.declarePayment(
-      order: createdOrder,
-      declaration: PaymentDeclaration.parse(
+      final PaymentDeclaration declaration = PaymentDeclaration.parse(
         waveAccountName: 'Client test',
         wavePayerPhoneInput: '07 00 00 00 00',
-        approximatePaymentTime: '10:00',
-      ),
-    );
+        approximatePaymentTime: '13:58',
+        declaredWaveReference: 'LATE-001',
+      );
 
-    now = DateTime.utc(2026, 8, 3, 14, 1);
-    final CustomerOrderReceipt expiredOrder = await repository
-        .synchronizeExpiration(order: declaredOrder);
+      final CustomerOrderReceipt lateDeclaredOrder = await repository
+          .declarePayment(order: expiredOrder, declaration: declaration);
 
-    expect(expiredOrder.status, QueueOrderStatus.expired);
-    expect(expiredOrder.paymentStatus, OrderPaymentStatus.declared);
-    expect(expiredOrder.hasPaymentToReviewAfterExpiration, isTrue);
-  });
+      expect(lateDeclaredOrder.status, QueueOrderStatus.expired);
+      expect(lateDeclaredOrder.paymentStatus, OrderPaymentStatus.declared);
+      expect(lateDeclaredOrder.hasPaymentToReviewAfterExpiration, isTrue);
+    },
+  );
+
+  test(
+    'expire aussi une déclaration non confirmée avant la fin du délai',
+    () async {
+      final CustomerOrderReceipt createdOrder = await repository.createOrder(
+        draft: draft,
+      );
+
+      now = now.add(const Duration(hours: 2));
+      final CustomerOrderReceipt declaredOrder = await repository
+          .declarePayment(
+            order: createdOrder,
+            declaration: PaymentDeclaration.parse(
+              waveAccountName: 'Client test',
+              wavePayerPhoneInput: '07 00 00 00 00',
+              approximatePaymentTime: '10:00',
+            ),
+          );
+
+      now = DateTime.utc(2026, 8, 3, 14, 1);
+      final CustomerOrderReceipt expiredOrder = await repository
+          .synchronizeExpiration(order: declaredOrder);
+
+      expect(expiredOrder.status, QueueOrderStatus.expired);
+      expect(expiredOrder.paymentStatus, OrderPaymentStatus.declared);
+      expect(expiredOrder.hasPaymentToReviewAfterExpiration, isTrue);
+    },
+  );
 }
