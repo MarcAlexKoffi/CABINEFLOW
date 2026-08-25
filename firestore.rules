@@ -30,6 +30,20 @@ service cloud.firestore {
         && staffProfile().role == 'admin';
     }
 
+    function isAgent() {
+      return isSignedIn()
+        && exists(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        )
+        && staffProfile().isActive == true
+        && staffProfile().role == 'agent';
+    }
+
+    function isCurrentAssignedAgent() {
+      return isAgent()
+        && resource.data.get('assignedAgentId', null) == request.auth.uid;
+    }
+
     function isOrderOwner() {
       return isSignedIn()
         && resource.data.customerAuthUid == request.auth.uid;
@@ -74,12 +88,85 @@ service cloud.firestore {
         'failureReason',
         'observation',
         'customerConfirmationStatus',
-        'customerConfirmationCompletedAt'
+        'customerConfirmationCompletedAt',
+        'assignedAgentId',
+        'assignedAgentName',
+        'assignedByUserId',
+        'assignedAt',
+        'assignmentMode',
+        'assignmentStatus',
+        'lastAssignmentRefusalReason',
+        'lastAssignmentRefusedAt',
+        'lastHoldReason',
+        'lastHeldAt',
+        'lastResumedAt'
       ]);
+    }
+
+
+    function hasValidOrderAssignmentValues() {
+      return (
+          request.resource.data.get('assignedAgentId', null) == null
+          || request.resource.data.get('assignedAgentId', null) is string
+        )
+        && (
+          request.resource.data.get('assignedAgentName', null) == null
+          || request.resource.data.get('assignedAgentName', null) is string
+        )
+        && (
+          request.resource.data.get('assignedByUserId', null) == null
+          || request.resource.data.get('assignedByUserId', null) is string
+        )
+        && (
+          request.resource.data.get('assignedAt', null) == null
+          || request.resource.data.get('assignedAt', null) is timestamp
+        )
+        && (
+          request.resource.data.get('assignmentMode', null) == null
+          || request.resource.data.get('assignmentMode', null) in [
+            'manual',
+            'automatic'
+          ]
+        )
+        && request.resource.data.get('assignmentStatus', 'unassigned') in [
+          'unassigned',
+          'assigned',
+          'accepted',
+          'refused'
+        ]
+        && (
+          request.resource.data.get('lastAssignmentRefusalReason', null) == null
+          || (
+            request.resource.data.get('lastAssignmentRefusalReason', null) is string
+            && request.resource.data.get('lastAssignmentRefusalReason', null).size() >= 3
+            && request.resource.data.get('lastAssignmentRefusalReason', null).size() <= 500
+          )
+        )
+        && (
+          request.resource.data.get('lastAssignmentRefusedAt', null) == null
+          || request.resource.data.get('lastAssignmentRefusedAt', null) is timestamp
+        )
+        && (
+          request.resource.data.get('lastHoldReason', null) == null
+          || (
+            request.resource.data.get('lastHoldReason', null) is string
+            && request.resource.data.get('lastHoldReason', null).size() >= 3
+            && request.resource.data.get('lastHoldReason', null).size() <= 300
+          )
+        )
+        && (
+          request.resource.data.get('lastHeldAt', null) == null
+          || request.resource.data.get('lastHeldAt', null) is timestamp
+        )
+        && (
+          request.resource.data.get('lastResumedAt', null) == null
+          || request.resource.data.get('lastResumedAt', null) is timestamp
+        );
     }
 
     function hasValidCommonOrderValues() {
       return hasValidOrderKeys()
+        && hasValidOrderAssignmentValues()
         && request.resource.data.schemaVersion == 1
         && request.resource.data.reference is string
         && request.resource.data.reference.size() >= 12
@@ -222,13 +309,41 @@ service cloud.firestore {
         && request.resource.data.failureReason == null
         && request.resource.data.observation == null
         && request.resource.data.customerConfirmationStatus == 'pending'
-        && request.resource.data.customerConfirmationCompletedAt == null;
+        && request.resource.data.customerConfirmationCompletedAt == null
+        && request.resource.data.get('assignedAgentId', null) == null
+        && request.resource.data.get('assignedAgentName', null) == null
+        && request.resource.data.get('assignedByUserId', null) == null
+        && request.resource.data.get('assignedAt', null) == null
+        && request.resource.data.get('assignmentMode', null) == null
+        && request.resource.data.get('assignmentStatus', 'unassigned') == 'unassigned'
+        && request.resource.data.get('lastAssignmentRefusalReason', null) == null
+        && request.resource.data.get('lastAssignmentRefusedAt', null) == null
+        && request.resource.data.get('lastHoldReason', null) == null
+        && request.resource.data.get('lastHeldAt', null) == null
+        && request.resource.data.get('lastResumedAt', null) == null;
+    }
+
+    function isValidStaffOfferReferenceAtCreation() {
+      let offerId = request.resource.data.offerId;
+
+      return request.resource.data.isCustomOffer == true
+        || request.resource.data['service'] == 'unitTransfer'
+        || (
+          request.resource.data.isCustomOffer == false
+          && offerId is string
+          && exists(
+            /databases/$(database)/documents/offers/$(offerId)
+          )
+          && get(
+            /databases/$(database)/documents/offers/$(offerId)
+          ).data.isActive == true
+        );
     }
 
     function isValidStaffOrderCreation() {
       return isStaff()
         && hasValidCommonOrderValues()
-        && isValidOfferSnapshotAtCreation()
+        && isValidStaffOfferReferenceAtCreation()
         && request.resource.data.source == 'operatorApp'
         && request.resource.data.customerAuthUid == null
         && request.resource.data.status == 'awaitingPayment'
@@ -251,7 +366,18 @@ service cloud.firestore {
         && request.resource.data.failureReason == null
         && request.resource.data.observation == null
         && request.resource.data.customerConfirmationStatus == 'pending'
-        && request.resource.data.customerConfirmationCompletedAt == null;
+        && request.resource.data.customerConfirmationCompletedAt == null
+        && request.resource.data.get('assignedAgentId', null) == null
+        && request.resource.data.get('assignedAgentName', null) == null
+        && request.resource.data.get('assignedByUserId', null) == null
+        && request.resource.data.get('assignedAt', null) == null
+        && request.resource.data.get('assignmentMode', null) == null
+        && request.resource.data.get('assignmentStatus', 'unassigned') == 'unassigned'
+        && request.resource.data.get('lastAssignmentRefusalReason', null) == null
+        && request.resource.data.get('lastAssignmentRefusedAt', null) == null
+        && request.resource.data.get('lastHoldReason', null) == null
+        && request.resource.data.get('lastHeldAt', null) == null
+        && request.resource.data.get('lastResumedAt', null) == null;
     }
 
     function immutableCoreOrderFieldsAreUnchanged() {
@@ -291,7 +417,13 @@ service cloud.firestore {
         'failureReason',
         'observation',
         'customerConfirmationStatus',
-        'customerConfirmationCompletedAt'
+        'customerConfirmationCompletedAt',
+        'assignedAgentId',
+        'assignedAgentName',
+        'assignedByUserId',
+        'assignedAt',
+        'assignmentMode',
+        'assignmentStatus'
       ]);
     }
 
@@ -300,6 +432,246 @@ service cloud.firestore {
         && hasValidCommonOrderValues()
         && immutableCoreOrderFieldsAreUnchanged()
         && onlyStaffMutableFieldsChanged()
+        && request.resource.data.updatedAt == request.time;
+    }
+
+
+    function targetAgentProfile(agentId) {
+      return get(
+        /databases/$(database)/documents/agentProfiles/$(agentId)
+      ).data;
+    }
+
+    function targetAgentUser(agentId) {
+      return get(
+        /databases/$(database)/documents/users/$(agentId)
+      ).data;
+    }
+
+    function targetAgentHasEnoughCapacity(agentId) {
+      let profile = targetAgentProfile(agentId);
+      let network = request.resource.data.network;
+      let amount = request.resource.data.amount;
+
+      return (
+          network == 'orange'
+          && profile.orangeCapacity >= amount
+        ) || (
+          network == 'mtn'
+          && profile.mtnCapacity >= amount
+        ) || (
+          network == 'moov'
+          && profile.moovCapacity >= amount
+        );
+    }
+
+    function isValidAdminManualAssignment() {
+      let agentId = request.resource.data.get('assignedAgentId', null);
+
+      return isAdmin()
+        && agentId is string
+        && hasValidCommonOrderValues()
+        && immutableCoreOrderFieldsAreUnchanged()
+        && resource.data.status == 'paidReady'
+        && resource.data.paymentStatus == 'confirmed'
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.paymentStatus == resource.data.paymentStatus
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'updatedAt',
+          'assignedAgentId',
+          'assignedAgentName',
+          'assignedByUserId',
+          'assignedAt',
+          'assignmentMode',
+          'assignmentStatus'
+        ])
+        && exists(
+          /databases/$(database)/documents/users/$(agentId)
+        )
+        && exists(
+          /databases/$(database)/documents/agentProfiles/$(agentId)
+        )
+        && targetAgentUser(agentId).role == 'agent'
+        && targetAgentUser(agentId).isActive == true
+        && targetAgentProfile(agentId).availability == 'available'
+        && request.resource.data.network in targetAgentProfile(agentId).authorizedNetworks
+        && request.resource.data.network in targetAgentProfile(agentId).activeNetworks
+        && targetAgentHasEnoughCapacity(agentId)
+        && request.resource.data.assignedAgentName is string
+        && request.resource.data.assignedAgentName == targetAgentUser(agentId).name
+        && request.resource.data.assignedAgentName.size() >= 2
+        && request.resource.data.assignedAgentName.size() <= 80
+        && request.resource.data.assignedByUserId == request.auth.uid
+        && request.resource.data.assignedAt == request.time
+        && request.resource.data.assignmentMode == 'manual'
+        && request.resource.data.assignmentStatus == 'assigned'
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidAgentAssignmentAcceptance() {
+      return isCurrentAssignedAgent()
+        && resource.data.status == 'paidReady'
+        && resource.data.paymentStatus == 'confirmed'
+        && resource.data.get('assignmentStatus', 'unassigned') == 'assigned'
+        && request.resource.data.get('assignedAgentId', null) == request.auth.uid
+        && request.resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'updatedAt',
+          'assignmentStatus'
+        ])
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidAgentAssignmentRefusal() {
+      return isCurrentAssignedAgent()
+        && resource.data.status == 'paidReady'
+        && resource.data.paymentStatus == 'confirmed'
+        && resource.data.get('assignmentStatus', 'unassigned') == 'assigned'
+        && request.resource.data.get('assignedAgentId', null) == null
+        && request.resource.data.get('assignedAgentName', null) == null
+        && request.resource.data.get('assignedByUserId', null) == null
+        && request.resource.data.get('assignedAt', null) == null
+        && request.resource.data.get('assignmentMode', null) == null
+        && request.resource.data.get('assignmentStatus', 'unassigned') == 'unassigned'
+        && request.resource.data.get('lastAssignmentRefusalReason', null) is string
+        && request.resource.data.get('lastAssignmentRefusalReason', null).size() >= 3
+        && request.resource.data.get('lastAssignmentRefusalReason', null).size() <= 500
+        && request.resource.data.get('lastAssignmentRefusedAt', null) == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'updatedAt',
+          'assignedAgentId',
+          'assignedAgentName',
+          'assignedByUserId',
+          'assignedAt',
+          'assignmentMode',
+          'assignmentStatus',
+          'lastAssignmentRefusalReason',
+          'lastAssignmentRefusedAt'
+        ])
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidAgentProcessingStart() {
+      return isCurrentAssignedAgent()
+        && resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && resource.data.status == 'paidReady'
+        && resource.data.paymentStatus == 'confirmed'
+        && request.resource.data.get('assignedAgentId', null) == request.auth.uid
+        && request.resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && request.resource.data.status == 'inProgress'
+        && request.resource.data.get('takenByUserId', null) == request.auth.uid
+        && request.resource.data.get('takenAt', null) == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'takenByUserId',
+          'takenAt',
+          'updatedAt'
+        ])
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidAgentProcessingResume() {
+      return isCurrentAssignedAgent()
+        && resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && resource.data.status == 'onHold'
+        && resource.data.paymentStatus == 'confirmed'
+        && resource.data.get('takenByUserId', null) == request.auth.uid
+        && request.resource.data.status == 'inProgress'
+        && request.resource.data.get('lastResumedAt', null) == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'lastResumedAt',
+          'updatedAt'
+        ])
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidAgentProcessingHold() {
+      return isCurrentAssignedAgent()
+        && resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && resource.data.status == 'inProgress'
+        && resource.data.paymentStatus == 'confirmed'
+        && resource.data.get('takenByUserId', null) == request.auth.uid
+        && request.resource.data.status == 'onHold'
+        && request.resource.data.get('lastHoldReason', null) is string
+        && request.resource.data.get('lastHoldReason', null).size() >= 3
+        && request.resource.data.get('lastHoldReason', null).size() <= 300
+        && request.resource.data.get('lastHeldAt', null) == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'lastHoldReason',
+          'lastHeldAt',
+          'updatedAt'
+        ])
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function hasValidAgentProofForOrder(orderId) {
+      return exists(
+          /databases/$(database)/documents/orderProofs/$(orderId)
+        )
+        && get(
+          /databases/$(database)/documents/orderProofs/$(orderId)
+        ).data.agentId == request.auth.uid
+        && get(
+          /databases/$(database)/documents/orderProofs/$(orderId)
+        ).data.orderId == orderId;
+    }
+
+    function isValidAgentProcessingSuccess(orderId) {
+      return isCurrentAssignedAgent()
+        && resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && resource.data.status == 'inProgress'
+        && resource.data.paymentStatus == 'confirmed'
+        && resource.data.get('takenByUserId', null) == request.auth.uid
+        && hasValidAgentProofForOrder(orderId)
+        && request.resource.data.status == 'awaitingCustomerConfirmation'
+        && request.resource.data.get('completedAt', null) == request.time
+        && request.resource.data.get('failureReason', null) == null
+        && request.resource.data.get('observation', null) == null
+        && request.resource.data.get('customerConfirmationStatus', 'pending') == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'completedAt',
+          'failureReason',
+          'observation',
+          'customerConfirmationStatus',
+          'updatedAt'
+        ])
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidAgentProcessingFailure() {
+      return isCurrentAssignedAgent()
+        && resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && resource.data.status == 'inProgress'
+        && resource.data.paymentStatus == 'confirmed'
+        && resource.data.get('takenByUserId', null) == request.auth.uid
+        && request.resource.data.status == 'failed'
+        && request.resource.data.get('completedAt', null) == request.time
+        && request.resource.data.get('failureReason', null) in [
+          'incorrectNumber',
+          'networkUnavailable',
+          'offerUnavailable',
+          'insufficientBalance',
+          'technicalError',
+          'incorrectPayment',
+          'other'
+        ]
+        && (
+          request.resource.data.get('observation', null) == null
+          || (
+            request.resource.data.get('observation', null) is string
+            && request.resource.data.get('observation', null).size() <= 1000
+          )
+        )
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'completedAt',
+          'failureReason',
+          'observation',
+          'updatedAt'
+        ])
         && request.resource.data.updatedAt == request.time;
     }
 
@@ -509,14 +881,574 @@ service cloud.firestore {
         && request.resource.data.createdAt == resource.data.createdAt;
     }
 
+    function hasValidAgentProfileKeys() {
+      return request.resource.data.keys().hasOnly([
+        'schemaVersion',
+        'userId',
+        'agentCode',
+        'availability',
+        'zoneIds',
+        'authorizedNetworks',
+        'activeNetworks',
+        'orangeCapacity',
+        'mtnCapacity',
+        'moovCapacity',
+        'dailyTransactionLimit',
+        'maxTransactionsPerDay',
+        'lastCapacityUpdateAt',
+        'lastSeenAt',
+        'createdAt',
+        'updatedAt'
+      ]);
+    }
+
+    function hasValidAgentProfileValues(agentId) {
+      return hasValidAgentProfileKeys()
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.userId == agentId
+        && request.resource.data.agentCode is string
+        && request.resource.data.agentCode.size() >= 3
+        && request.resource.data.agentCode.size() <= 30
+        && request.resource.data.availability in [
+          'available',
+          'unavailable'
+        ]
+        && request.resource.data.zoneIds is list
+        && request.resource.data.zoneIds.size() <= 20
+        && request.resource.data.authorizedNetworks is list
+        && request.resource.data.authorizedNetworks.size() <= 3
+        && request.resource.data.authorizedNetworks.hasOnly([
+          'orange',
+          'mtn',
+          'moov'
+        ])
+        && request.resource.data.activeNetworks is list
+        && request.resource.data.activeNetworks.size() <= 3
+        && request.resource.data.activeNetworks.hasOnly([
+          'orange',
+          'mtn',
+          'moov'
+        ])
+        && request.resource.data.activeNetworks.hasOnly(
+          request.resource.data.authorizedNetworks
+        )
+        && request.resource.data.orangeCapacity is int
+        && request.resource.data.orangeCapacity >= 0
+        && request.resource.data.orangeCapacity <= 100000000
+        && request.resource.data.mtnCapacity is int
+        && request.resource.data.mtnCapacity >= 0
+        && request.resource.data.mtnCapacity <= 100000000
+        && request.resource.data.moovCapacity is int
+        && request.resource.data.moovCapacity >= 0
+        && request.resource.data.moovCapacity <= 100000000
+        && request.resource.data.dailyTransactionLimit is int
+        && request.resource.data.dailyTransactionLimit >= 0
+        && request.resource.data.dailyTransactionLimit <= 100000000
+        && request.resource.data.maxTransactionsPerDay is int
+        && request.resource.data.maxTransactionsPerDay >= 0
+        && request.resource.data.maxTransactionsPerDay <= 10000
+        && (
+          request.resource.data.lastCapacityUpdateAt == null
+          || request.resource.data.lastCapacityUpdateAt is timestamp
+        )
+        && (
+          request.resource.data.lastSeenAt == null
+          || request.resource.data.lastSeenAt is timestamp
+        )
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function isValidAdminAgentProfileCreation(agentId) {
+      return isAdmin()
+        && getAfter(
+          /databases/$(database)/documents/users/$(agentId)
+        ).data.role == 'agent'
+        && getAfter(
+          /databases/$(database)/documents/users/$(agentId)
+        ).data.isActive == true
+        && hasValidAgentProfileValues(agentId)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidAdminAgentProfileUpdate(agentId) {
+      return isAdmin()
+        && hasValidAgentProfileValues(agentId)
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.agentCode == resource.data.agentCode
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidAgentOperationalUpdate(agentId) {
+      return isAgent()
+        && request.auth.uid == agentId
+        && hasValidAgentProfileValues(agentId)
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.agentCode == resource.data.agentCode
+        && request.resource.data.zoneIds == resource.data.zoneIds
+        && request.resource.data.authorizedNetworks == resource.data.authorizedNetworks
+        && request.resource.data.dailyTransactionLimit == resource.data.dailyTransactionLimit
+        && request.resource.data.maxTransactionsPerDay == resource.data.maxTransactionsPerDay
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'availability',
+          'activeNetworks',
+          'orangeCapacity',
+          'mtnCapacity',
+          'moovCapacity',
+          'lastCapacityUpdateAt',
+          'lastSeenAt',
+          'updatedAt'
+        ])
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function hasValidZoneKeys() {
+      return request.resource.data.keys().hasOnly([
+        'schemaVersion',
+        'name',
+        'city',
+        'region',
+        'isActive',
+        'createdAt',
+        'updatedAt'
+      ]);
+    }
+
+    function hasValidZoneValues() {
+      return hasValidZoneKeys()
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 100
+        && request.resource.data.city is string
+        && request.resource.data.city.size() >= 2
+        && request.resource.data.city.size() <= 100
+        && request.resource.data.region is string
+        && request.resource.data.region.size() >= 2
+        && request.resource.data.region.size() <= 100
+        && request.resource.data.isActive is bool
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function isValidZoneCreation() {
+      return isAdmin()
+        && hasValidZoneValues()
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidZoneUpdate() {
+      return isAdmin()
+        && hasValidZoneValues()
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function hasValidAgentIssueKeys() {
+      return request.resource.data.keys().hasOnly([
+        'schemaVersion',
+        'agentId',
+        'type',
+        'network',
+        'description',
+        'status',
+        'createdAt',
+        'updatedAt',
+        'resolvedAt',
+        'resolvedBy'
+      ]);
+    }
+
+    function hasValidAgentIssueValues() {
+      return hasValidAgentIssueKeys()
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.agentId is string
+        && request.resource.data.type in [
+          'network',
+          'balance',
+          'technical',
+          'other'
+        ]
+        && (
+          request.resource.data.network == null
+          || request.resource.data.network in ['orange', 'mtn', 'moov']
+        )
+        && request.resource.data.description is string
+        && request.resource.data.description.size() >= 3
+        && request.resource.data.description.size() <= 1000
+        && request.resource.data.status in [
+          'open',
+          'acknowledged',
+          'resolved',
+          'cancelled'
+        ]
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && (
+          request.resource.data.resolvedAt == null
+          || request.resource.data.resolvedAt is timestamp
+        )
+        && (
+          request.resource.data.resolvedBy == null
+          || request.resource.data.resolvedBy is string
+        );
+    }
+
+    function isValidAgentIssueCreation() {
+      return isAgent()
+        && request.resource.data.agentId == request.auth.uid
+        && hasValidAgentIssueValues()
+        && request.resource.data.status == 'open'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.resolvedAt == null
+        && request.resource.data.resolvedBy == null;
+    }
+
+    function isValidAdminAgentIssueUpdate() {
+      return isAdmin()
+        && hasValidAgentIssueValues()
+        && request.resource.data.agentId == resource.data.agentId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function hasValidStaffUserValues() {
+      return request.resource.data.keys().hasOnly([
+        'schemaVersion',
+        'name',
+        'email',
+        'phoneNumber',
+        'role',
+        'isActive',
+        'createdAt',
+        'updatedAt'
+      ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.email is string
+        && request.resource.data.phoneNumber is string
+        && request.resource.data.phoneNumber.size() <= 30
+        && request.resource.data.role in [
+          'pending',
+          'operator',
+          'supervisor',
+          'agent',
+          'admin'
+        ]
+        && request.resource.data.isActive is bool
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function isValidAdminUserUpdate(userId) {
+      return isAdmin()
+        && hasValidStaffUserValues()
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && (
+          request.auth.uid != userId
+          || (
+            request.resource.data.role == resource.data.role
+            && request.resource.data.isActive == resource.data.isActive
+          )
+        );
+    }
+
+
+    function hasValidOrderAssignmentEventKeys() {
+      return request.resource.data.keys().hasOnly([
+        'schemaVersion',
+        'orderId',
+        'orderReference',
+        'agentId',
+        'agentName',
+        'assignedByUserId',
+        'mode',
+        'status',
+        'assignedAt',
+        'acceptedAt',
+        'refusedAt',
+        'refusalReason',
+        'completedAt',
+        'updatedAt'
+      ]);
+    }
+
+    function isValidManualAssignmentEventCreation() {
+      let orderId = request.resource.data.orderId;
+      let agentId = request.resource.data.agentId;
+
+      return isAdmin()
+        && hasValidOrderAssignmentEventKeys()
+        && request.resource.data.schemaVersion == 1
+        && orderId is string
+        && agentId is string
+        && request.resource.data.orderReference is string
+        && request.resource.data.agentName is string
+        && request.resource.data.agentName.size() >= 2
+        && request.resource.data.agentName.size() <= 80
+        && request.resource.data.assignedByUserId == request.auth.uid
+        && request.resource.data.mode == 'manual'
+        && request.resource.data.status == 'assigned'
+        && request.resource.data.assignedAt == request.time
+        && request.resource.data.acceptedAt == null
+        && request.resource.data.refusedAt == null
+        && request.resource.data.refusalReason == null
+        && request.resource.data.completedAt == null
+        && request.resource.data.updatedAt == request.time
+        && existsAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        )
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.assignedAgentId == agentId
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.assignedAgentName == request.resource.data.agentName
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.reference == request.resource.data.orderReference
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.assignmentStatus == 'assigned';
+    }
+
+    function isValidAgentAssignmentEventAcceptance() {
+      let orderId = resource.data.get('orderId', '');
+
+      return isAgent()
+        && resource.data.get('agentId', null) == request.auth.uid
+        && orderId is string
+        && orderId.size() > 0
+        && resource.data.get('status', '') == 'assigned'
+        && resource.data.get('acceptedAt', null) == null
+        && resource.data.get('refusedAt', null) == null
+        && resource.data.get('refusalReason', null) == null
+        && request.resource.data.get('status', '') == 'accepted'
+        && request.resource.data.get('acceptedAt', null) == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'acceptedAt',
+          'updatedAt'
+        ])
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('assignedAgentId', null) == request.auth.uid
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidAgentAssignmentEventRefusal() {
+      let orderId = resource.data.get('orderId', '');
+
+      return isAgent()
+        && resource.data.get('agentId', null) == request.auth.uid
+        && orderId is string
+        && orderId.size() > 0
+        && resource.data.get('status', '') == 'assigned'
+        && resource.data.get('acceptedAt', null) == null
+        && resource.data.get('refusedAt', null) == null
+        && resource.data.get('refusalReason', null) == null
+        && request.resource.data.get('status', '') == 'refused'
+        && request.resource.data.get('acceptedAt', null) == null
+        && request.resource.data.get('refusedAt', null) == request.time
+        && request.resource.data.get('refusalReason', null) is string
+        && request.resource.data.get('refusalReason', null).size() >= 3
+        && request.resource.data.get('refusalReason', null).size() <= 500
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'refusedAt',
+          'refusalReason',
+          'updatedAt'
+        ])
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('assignedAgentId', null) == null
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('assignmentStatus', 'unassigned') == 'unassigned'
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidAgentAssignmentEventCompletion() {
+      let orderId = resource.data.get('orderId', '');
+
+      return isAgent()
+        && resource.data.get('agentId', null) == request.auth.uid
+        && orderId is string
+        && orderId.size() > 0
+        && resource.data.get('status', '') == 'accepted'
+        && resource.data.get('completedAt', null) == null
+        && request.resource.data.get('status', '') == 'accepted'
+        && request.resource.data.get('completedAt', null) == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'completedAt',
+          'updatedAt'
+        ])
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('assignedAgentId', null) == request.auth.uid
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.status in ['awaitingCustomerConfirmation', 'failed']
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function hasValidOrderProofKeys() {
+      return request.resource.data.keys().hasOnly([
+        'schemaVersion',
+        'orderId',
+        'orderReference',
+        'agentId',
+        'fileName',
+        'mimeType',
+        'proofBytes',
+        'sizeBytes',
+        'createdAt',
+        'updatedAt'
+      ]);
+    }
+
+    function hasValidOrderProofValues(orderId) {
+      return hasValidOrderProofKeys()
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.orderId == orderId
+        && request.resource.data.orderReference is string
+        && request.resource.data.orderReference.size() >= 12
+        && request.resource.data.agentId == request.auth.uid
+        && request.resource.data.fileName is string
+        && request.resource.data.fileName.size() >= 1
+        && request.resource.data.fileName.size() <= 120
+        && request.resource.data.mimeType == 'image/jpeg'
+        && request.resource.data.proofBytes is bytes
+        && request.resource.data.proofBytes.size() > 0
+        && request.resource.data.proofBytes.size() <= 750000
+        && request.resource.data.sizeBytes is int
+        && request.resource.data.sizeBytes == request.resource.data.proofBytes.size()
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function currentAgentCanWriteProof(orderId) {
+      return isAgent()
+        && exists(
+          /databases/$(database)/documents/orders/$(orderId)
+        )
+        && get(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('assignedAgentId', null) == request.auth.uid
+        && get(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && get(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.paymentStatus == 'confirmed'
+        && get(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.status in ['inProgress', 'onHold']
+        && get(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.reference == request.resource.data.orderReference;
+    }
+
+    function isValidAgentOrderProofCreation(orderId) {
+      return currentAgentCanWriteProof(orderId)
+        && hasValidOrderProofValues(orderId)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidAgentOrderProofUpdate(orderId) {
+      return currentAgentCanWriteProof(orderId)
+        && hasValidOrderProofValues(orderId)
+        && request.resource.data.orderId == resource.data.orderId
+        && request.resource.data.orderReference == resource.data.orderReference
+        && request.resource.data.agentId == resource.data.agentId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'fileName',
+          'mimeType',
+          'proofBytes',
+          'sizeBytes',
+          'updatedAt'
+        ])
+        && request.resource.data.updatedAt == request.time;
+    }
+
     match /orders/{orderId} {
       allow create: if isValidCustomerOrderCreation()
         || isValidStaffOrderCreation();
-      allow get: if isOrderOwner() || isStaff();
-      allow list: if isStaff() || isOrderOwner();
-      allow update: if isValidCustomerPaymentDeclaration()
+      allow get: if isOrderOwner()
+        || isStaff()
+        || (
+          isAgent()
+          && resource.data.get('assignedAgentId', null) == request.auth.uid
+        );
+      allow list: if isStaff()
+        || isOrderOwner()
+        || (
+          isAgent()
+          && resource.data.get('assignedAgentId', null) == request.auth.uid
+        );
+      allow update: if isValidAgentAssignmentAcceptance()
+        || isValidAgentAssignmentRefusal()
+        || isValidAgentProcessingStart()
+        || isValidAgentProcessingResume()
+        || isValidAgentProcessingHold()
+        || isValidAgentProcessingSuccess(orderId)
+        || isValidAgentProcessingFailure()
+        || isValidCustomerPaymentDeclaration()
         || isValidCustomerExpiration()
-        || isValidStaffOrderUpdate();
+        || isValidStaffOrderUpdate()
+        || isValidAdminManualAssignment();
+      allow delete: if false;
+    }
+
+    match /orderAssignments/{assignmentId} {
+      allow get: if isAdmin()
+        || (
+          isAgent()
+          && resource.data.agentId == request.auth.uid
+        );
+      allow list: if isAdmin()
+        || (
+          isAgent()
+          && resource.data.agentId == request.auth.uid
+        );
+      allow create: if isValidManualAssignmentEventCreation();
+      allow update: if isValidAgentAssignmentEventAcceptance()
+        || isValidAgentAssignmentEventRefusal()
+        || isValidAgentAssignmentEventCompletion();
+      allow delete: if false;
+    }
+
+    match /orderProofs/{orderId} {
+      allow get: if isStaff()
+        || (
+          isAgent()
+          && exists(
+            /databases/$(database)/documents/orders/$(orderId)
+          )
+          && get(
+            /databases/$(database)/documents/orders/$(orderId)
+          ).data.get('assignedAgentId', null) == request.auth.uid
+        );
+      allow list: if isStaff();
+      allow create: if isValidAgentOrderProofCreation(orderId);
+      allow update: if isValidAgentOrderProofUpdate(orderId);
       allow delete: if false;
     }
 
@@ -527,12 +1459,49 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /agentProfiles/{agentId} {
+      allow get: if isAdmin()
+        || (isAgent() && request.auth.uid == agentId);
+      allow list: if isAdmin();
+      allow create: if isValidAdminAgentProfileCreation(agentId);
+      allow update: if isValidAdminAgentProfileUpdate(agentId)
+        || isValidAgentOperationalUpdate(agentId);
+      allow delete: if false;
+    }
+
+    match /zones/{zoneId} {
+      allow get, list: if isStaff() || isAgent();
+      allow create: if isValidZoneCreation();
+      allow update: if isValidZoneUpdate();
+      allow delete: if false;
+    }
+
+    match /agentIssues/{issueId} {
+      allow get: if isAdmin()
+        || (
+          isAgent()
+          && resource.data.agentId == request.auth.uid
+        );
+      allow list: if isAdmin()
+        || (
+          isAgent()
+          && resource.data.agentId == request.auth.uid
+        );
+      allow create: if isValidAgentIssueCreation();
+      allow update: if isValidAdminAgentIssueUpdate();
+      allow delete: if false;
+    }
+
     match /users/{userId} {
       allow get: if isSignedIn()
-        && (request.auth.uid == userId || isStaff());
+        && (
+          request.auth.uid == userId
+          || isStaff()
+        );
       allow list: if isStaff();
       allow create: if isValidPendingStaffProfileCreation(userId);
-      allow update, delete: if false;
+      allow update: if isValidAdminUserUpdate(userId);
+      allow delete: if false;
     }
   }
 }

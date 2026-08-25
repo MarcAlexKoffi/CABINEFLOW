@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cabine_flow/features/orders/domain/models/order_proof.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -59,6 +60,13 @@ class AgentOrdersViewModel extends ChangeNotifier {
   int get toAcceptCount => toAcceptOrders.length;
   int get inProgressCount => inProgressOrders.length;
   int get completedCount => completedOrders.length;
+
+  QueueOrder? orderById(String orderId) {
+    for (final QueueOrder order in _orders) {
+      if (order.id == orderId) return order;
+    }
+    return null;
+  }
 
   Future<void> start() async {
     _isLoading = true;
@@ -158,6 +166,182 @@ class AgentOrdersViewModel extends ChangeNotifier {
     }
   }
 
+  Future<bool> startProcessing(QueueOrder order) async {
+    if (!_canActOnAcceptedOrder(order)) return false;
+    _busyOrderId = order.id;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final QueueOrder updated = await ordersRepository.startAgentProcessing(
+        orderId: order.id,
+        agentId: agentId,
+      );
+      _replaceOrder(updated);
+      _selectedTab = AgentOrdersTab.inProgress;
+      return true;
+    } catch (error, stackTrace) {
+      _logActionError('start', error, stackTrace);
+      _errorMessage = _friendlyError(error);
+      return false;
+    } finally {
+      _busyOrderId = null;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> resumeProcessing(QueueOrder order) async {
+    if (!_canActOnAcceptedOrder(order)) return false;
+    _busyOrderId = order.id;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final QueueOrder updated = await ordersRepository.resumeAgentProcessing(
+        orderId: order.id,
+        agentId: agentId,
+      );
+      _replaceOrder(updated);
+      return true;
+    } catch (error, stackTrace) {
+      _logActionError('resume', error, stackTrace);
+      _errorMessage = _friendlyError(error);
+      return false;
+    } finally {
+      _busyOrderId = null;
+      notifyListeners();
+    }
+  }
+
+  Future<OrderProof?> loadProof(String orderId) async {
+    try {
+      return await ordersRepository.fetchOrderProof(orderId: orderId);
+    } catch (error, stackTrace) {
+      _logActionError('load-proof', error, stackTrace);
+      _errorMessage = _friendlyError(error);
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<OrderProof?> saveProof({
+    required QueueOrder order,
+    required String fileName,
+    required String mimeType,
+    required List<int> bytes,
+  }) async {
+    if (!_canActOnAcceptedOrder(order)) return null;
+    _busyOrderId = order.id;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      return await ordersRepository.saveOrderProof(
+        orderId: order.id,
+        orderReference: order.reference,
+        agentId: agentId,
+        fileName: fileName,
+        mimeType: mimeType,
+        bytes: bytes,
+      );
+    } catch (error, stackTrace) {
+      _logActionError('save-proof', error, stackTrace);
+      _errorMessage = _friendlyError(error);
+      return null;
+    } finally {
+      _busyOrderId = null;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> markSuccessful(QueueOrder order) async {
+    if (!_canActOnAcceptedOrder(order)) return false;
+    _busyOrderId = order.id;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final QueueOrder updated = await ordersRepository.markAgentSuccessful(
+        orderId: order.id,
+        agentId: agentId,
+      );
+      _replaceOrder(updated);
+      _selectedTab = AgentOrdersTab.completed;
+      return true;
+    } catch (error, stackTrace) {
+      _logActionError('success', error, stackTrace);
+      _errorMessage = _friendlyError(error);
+      return false;
+    } finally {
+      _busyOrderId = null;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> markFailed(
+    QueueOrder order,
+    OrderFailureReason reason,
+    String? observation,
+  ) async {
+    if (!_canActOnAcceptedOrder(order)) return false;
+    _busyOrderId = order.id;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final QueueOrder updated = await ordersRepository.markAgentFailed(
+        orderId: order.id,
+        agentId: agentId,
+        reason: reason,
+        observation: observation,
+      );
+      _replaceOrder(updated);
+      _selectedTab = AgentOrdersTab.completed;
+      return true;
+    } catch (error, stackTrace) {
+      _logActionError('failure', error, stackTrace);
+      _errorMessage = _friendlyError(error);
+      return false;
+    } finally {
+      _busyOrderId = null;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> putOnHold(QueueOrder order, String reason) async {
+    if (!_canActOnAcceptedOrder(order)) return false;
+    _busyOrderId = order.id;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final QueueOrder updated = await ordersRepository.putAgentOnHold(
+        orderId: order.id,
+        agentId: agentId,
+        reason: reason,
+      );
+      _replaceOrder(updated);
+      _selectedTab = AgentOrdersTab.inProgress;
+      return true;
+    } catch (error, stackTrace) {
+      _logActionError('hold', error, stackTrace);
+      _errorMessage = _friendlyError(error);
+      return false;
+    } finally {
+      _busyOrderId = null;
+      notifyListeners();
+    }
+  }
+
+  bool _canActOnAcceptedOrder(QueueOrder order) {
+    if (_busyOrderId != null ||
+        order.assignedAgentId != agentId ||
+        order.assignmentStatus != OrderAssignmentStatus.accepted) {
+      return false;
+    }
+    return true;
+  }
+
   void _replaceOrder(QueueOrder updated) {
     _orders = _orders
         .map((QueueOrder order) => order.id == updated.id ? updated : order)
@@ -176,6 +360,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
 
   bool _isCompleted(QueueOrderStatus status) {
     return status == QueueOrderStatus.completed ||
+        status == QueueOrderStatus.awaitingCustomerConfirmation ||
         status == QueueOrderStatus.failed ||
         status == QueueOrderStatus.cancelled ||
         status == QueueOrderStatus.refunded;

@@ -1,5 +1,8 @@
 import 'package:cabine_flow/features/orders/data/mappers/firestore_order_mapper.dart';
+import 'dart:typed_data';
+
 import 'package:cabine_flow/features/orders/domain/models/create_order_request.dart';
+import 'package:cabine_flow/features/orders/domain/models/order_proof.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
@@ -30,6 +33,10 @@ class FirestoreOrdersRepository
 
   CollectionReference<Map<String, dynamic>> get _assignmentsCollection {
     return _firestore.collection('orderAssignments');
+  }
+
+  CollectionReference<Map<String, dynamic>> get _proofsCollection {
+    return _firestore.collection('orderProofs');
   }
 
   @override
@@ -556,6 +563,436 @@ class FirestoreOrdersRepository
     });
   }
 
+  @override
+  Future<QueueOrder> startAgentProcessing({
+    required String orderId,
+    required String agentId,
+  }) async {
+    final String cleanedAgentId = agentId.trim();
+    if (cleanedAgentId.isEmpty) {
+      throw StateError('Agent invalide.');
+    }
+
+    final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
+        .doc(orderId);
+    final DateTime startedAt = DateTime.now();
+
+    return _firestore.runTransaction<QueueOrder>((
+      Transaction transaction,
+    ) async {
+      final DocumentSnapshot<Map<String, dynamic>> snapshot = await transaction
+          .get(orderRef);
+      final Map<String, dynamic>? data = snapshot.data();
+
+      if (!snapshot.exists || data == null) {
+        throw StateError('La commande est introuvable.');
+      }
+
+      final QueueOrder order = FirestoreOrderMapper.fromMap(
+        id: snapshot.id,
+        data: data,
+      );
+
+      _validateAcceptedAgentOrder(order: order, agentId: cleanedAgentId);
+
+      if (order.status == QueueOrderStatus.inProgress &&
+          order.takenByUserId == cleanedAgentId) {
+        return order;
+      }
+
+      if (order.status != QueueOrderStatus.paidReady) {
+        throw StateError('Cette commande ne peut pas être démarrée.');
+      }
+
+      transaction.update(orderRef, <String, dynamic>{
+        'status': QueueOrderStatus.inProgress.name,
+        'takenByUserId': cleanedAgentId,
+        'takenAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      return order.copyWith(
+        status: QueueOrderStatus.inProgress,
+        takenByUserId: cleanedAgentId,
+        takenAt: startedAt,
+      );
+    });
+  }
+
+  @override
+  Future<QueueOrder> resumeAgentProcessing({
+    required String orderId,
+    required String agentId,
+  }) async {
+    final String cleanedAgentId = agentId.trim();
+    if (cleanedAgentId.isEmpty) {
+      throw StateError('Agent invalide.');
+    }
+
+    final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
+        .doc(orderId);
+    final DateTime resumedAt = DateTime.now();
+
+    return _firestore.runTransaction<QueueOrder>((
+      Transaction transaction,
+    ) async {
+      final DocumentSnapshot<Map<String, dynamic>> snapshot = await transaction
+          .get(orderRef);
+      final Map<String, dynamic>? data = snapshot.data();
+
+      if (!snapshot.exists || data == null) {
+        throw StateError('La commande est introuvable.');
+      }
+
+      final QueueOrder order = FirestoreOrderMapper.fromMap(
+        id: snapshot.id,
+        data: data,
+      );
+      _validateAcceptedAgentOrder(order: order, agentId: cleanedAgentId);
+
+      if (order.status != QueueOrderStatus.onHold) {
+        throw StateError('Cette commande n’est pas en attente.');
+      }
+
+      transaction.update(orderRef, <String, dynamic>{
+        'status': QueueOrderStatus.inProgress.name,
+        'lastResumedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      return order.copyWith(
+        status: QueueOrderStatus.inProgress,
+        lastResumedAt: resumedAt,
+      );
+    });
+  }
+
+  @override
+  Future<OrderProof?> fetchOrderProof({required String orderId}) async {
+    final DocumentSnapshot<Map<String, dynamic>> snapshot =
+        await _proofsCollection.doc(orderId).get();
+    final Map<String, dynamic>? data = snapshot.data();
+    if (!snapshot.exists || data == null) {
+      return null;
+    }
+    return _mapOrderProof(data);
+  }
+
+  @override
+  Future<OrderProof> saveOrderProof({
+    required String orderId,
+    required String orderReference,
+    required String agentId,
+    required String fileName,
+    required String mimeType,
+    required List<int> bytes,
+  }) async {
+    final String cleanedAgentId = agentId.trim();
+    final String cleanedFileName = fileName.trim();
+    final String cleanedMimeType = mimeType.trim().toLowerCase();
+    final Uint8List proofBytes = Uint8List.fromList(bytes);
+
+    if (cleanedAgentId.isEmpty) {
+      throw StateError('Agent invalide.');
+    }
+    if (proofBytes.isEmpty) {
+      throw StateError('La preuve est vide.');
+    }
+    if (proofBytes.lengthInBytes > 750000) {
+      throw StateError('La preuve dépasse la taille maximale autorisée.');
+    }
+    if (cleanedFileName.isEmpty || cleanedFileName.length > 120) {
+      throw StateError('Le nom du fichier de preuve est invalide.');
+    }
+    if (cleanedMimeType != 'image/jpeg') {
+      throw StateError('La preuve doit être enregistrée au format JPEG.');
+    }
+
+    final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
+        .doc(orderId);
+    final DocumentReference<Map<String, dynamic>> proofRef = _proofsCollection
+        .doc(orderId);
+    final DateTime now = DateTime.now();
+
+    return _firestore.runTransaction<OrderProof>((
+      Transaction transaction,
+    ) async {
+      final DocumentSnapshot<Map<String, dynamic>> orderSnapshot =
+          await transaction.get(orderRef);
+      final DocumentSnapshot<Map<String, dynamic>> proofSnapshot =
+          await transaction.get(proofRef);
+      final Map<String, dynamic>? orderData = orderSnapshot.data();
+
+      if (!orderSnapshot.exists || orderData == null) {
+        throw StateError('La commande est introuvable.');
+      }
+
+      final QueueOrder order = FirestoreOrderMapper.fromMap(
+        id: orderSnapshot.id,
+        data: orderData,
+      );
+      _validateAcceptedAgentOrder(order: order, agentId: cleanedAgentId);
+      if (order.status != QueueOrderStatus.inProgress &&
+          order.status != QueueOrderStatus.onHold) {
+        throw StateError(
+          'La preuve peut être ajoutée uniquement pendant le traitement.',
+        );
+      }
+      if (order.reference != orderReference) {
+        throw StateError('La référence de commande ne correspond pas.');
+      }
+
+      final Map<String, dynamic>? oldProof = proofSnapshot.data();
+      final DateTime createdAt = oldProof == null
+          ? now
+          : _dateValue(oldProof['createdAt']);
+      final Object createdAtValue = oldProof == null
+          ? FieldValue.serverTimestamp()
+          : oldProof['createdAt'] as Object;
+
+      transaction.set(proofRef, <String, dynamic>{
+        'schemaVersion': 1,
+        'orderId': orderId,
+        'orderReference': orderReference,
+        'agentId': cleanedAgentId,
+        'fileName': cleanedFileName,
+        'mimeType': cleanedMimeType,
+        'proofBytes': Blob(proofBytes),
+        'sizeBytes': proofBytes.lengthInBytes,
+        'createdAt': createdAtValue,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      return OrderProof(
+        orderId: orderId,
+        orderReference: orderReference,
+        agentId: cleanedAgentId,
+        fileName: cleanedFileName,
+        mimeType: cleanedMimeType,
+        bytes: proofBytes,
+        createdAt: createdAt,
+        updatedAt: now,
+      );
+    });
+  }
+
+  @override
+  Future<QueueOrder> markAgentSuccessful({
+    required String orderId,
+    required String agentId,
+  }) async {
+    final String cleanedAgentId = agentId.trim();
+    if (cleanedAgentId.isEmpty) {
+      throw StateError('Agent invalide.');
+    }
+
+    final DocumentReference<Map<String, dynamic>> assignmentRef =
+        await _findAcceptedAssignmentReference(
+          orderId: orderId,
+          agentId: cleanedAgentId,
+        );
+    final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
+        .doc(orderId);
+    final DocumentReference<Map<String, dynamic>> proofRef = _proofsCollection
+        .doc(orderId);
+    final DateTime completedAt = DateTime.now();
+
+    return _firestore.runTransaction<QueueOrder>((
+      Transaction transaction,
+    ) async {
+      final DocumentSnapshot<Map<String, dynamic>> orderSnapshot =
+          await transaction.get(orderRef);
+      final DocumentSnapshot<Map<String, dynamic>> assignmentSnapshot =
+          await transaction.get(assignmentRef);
+      final DocumentSnapshot<Map<String, dynamic>> proofSnapshot =
+          await transaction.get(proofRef);
+      final Map<String, dynamic>? orderData = orderSnapshot.data();
+      final Map<String, dynamic>? assignmentData = assignmentSnapshot.data();
+      final Map<String, dynamic>? proofData = proofSnapshot.data();
+
+      if (!orderSnapshot.exists || orderData == null) {
+        throw StateError('La commande est introuvable.');
+      }
+      if (!assignmentSnapshot.exists || assignmentData == null) {
+        throw StateError('L’affectation active est introuvable.');
+      }
+      if (!proofSnapshot.exists || proofData == null) {
+        throw StateError('Ajoute une preuve avant de valider la réussite.');
+      }
+
+      final QueueOrder order = FirestoreOrderMapper.fromMap(
+        id: orderSnapshot.id,
+        data: orderData,
+      );
+      _validateAcceptedAgentOrder(order: order, agentId: cleanedAgentId);
+      _validateAcceptedAssignmentEvent(
+        assignmentData: assignmentData,
+        order: order,
+        agentId: cleanedAgentId,
+      );
+      if (order.status != QueueOrderStatus.inProgress) {
+        throw StateError('Cette commande n’est pas en cours de traitement.');
+      }
+      if (proofData['agentId'] != cleanedAgentId ||
+          proofData['orderId'] != orderId) {
+        throw StateError('La preuve enregistrée est invalide.');
+      }
+
+      transaction.update(orderRef, <String, dynamic>{
+        'status': QueueOrderStatus.awaitingCustomerConfirmation.name,
+        'completedAt': FieldValue.serverTimestamp(),
+        'failureReason': null,
+        'observation': null,
+        'customerConfirmationStatus': CustomerConfirmationStatus.pending.name,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      transaction.update(assignmentRef, <String, dynamic>{
+        'completedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      return order.copyWith(
+        status: QueueOrderStatus.awaitingCustomerConfirmation,
+        completedAt: completedAt,
+        customerConfirmationStatus: CustomerConfirmationStatus.pending,
+        clearFailureDetails: true,
+      );
+    });
+  }
+
+  @override
+  Future<QueueOrder> markAgentFailed({
+    required String orderId,
+    required String agentId,
+    required OrderFailureReason reason,
+    String? observation,
+  }) async {
+    final String cleanedAgentId = agentId.trim();
+    final String? cleanedObservation = _cleanNullable(observation);
+    if (cleanedAgentId.isEmpty) {
+      throw StateError('Agent invalide.');
+    }
+    if (cleanedObservation != null && cleanedObservation.length > 1000) {
+      throw StateError('L’observation est trop longue.');
+    }
+
+    final DocumentReference<Map<String, dynamic>> assignmentRef =
+        await _findAcceptedAssignmentReference(
+          orderId: orderId,
+          agentId: cleanedAgentId,
+        );
+    final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
+        .doc(orderId);
+    final DateTime completedAt = DateTime.now();
+
+    return _firestore.runTransaction<QueueOrder>((
+      Transaction transaction,
+    ) async {
+      final DocumentSnapshot<Map<String, dynamic>> orderSnapshot =
+          await transaction.get(orderRef);
+      final DocumentSnapshot<Map<String, dynamic>> assignmentSnapshot =
+          await transaction.get(assignmentRef);
+      final Map<String, dynamic>? orderData = orderSnapshot.data();
+      final Map<String, dynamic>? assignmentData = assignmentSnapshot.data();
+
+      if (!orderSnapshot.exists || orderData == null) {
+        throw StateError('La commande est introuvable.');
+      }
+      if (!assignmentSnapshot.exists || assignmentData == null) {
+        throw StateError('L’affectation active est introuvable.');
+      }
+
+      final QueueOrder order = FirestoreOrderMapper.fromMap(
+        id: orderSnapshot.id,
+        data: orderData,
+      );
+      _validateAcceptedAgentOrder(order: order, agentId: cleanedAgentId);
+      _validateAcceptedAssignmentEvent(
+        assignmentData: assignmentData,
+        order: order,
+        agentId: cleanedAgentId,
+      );
+      if (order.status != QueueOrderStatus.inProgress) {
+        throw StateError('Cette commande n’est pas en cours de traitement.');
+      }
+
+      transaction.update(orderRef, <String, dynamic>{
+        'status': QueueOrderStatus.failed.name,
+        'completedAt': FieldValue.serverTimestamp(),
+        'failureReason': reason.name,
+        'observation': cleanedObservation,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      transaction.update(assignmentRef, <String, dynamic>{
+        'completedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      return order.copyWith(
+        status: QueueOrderStatus.failed,
+        completedAt: completedAt,
+        failureReason: reason,
+        observation: cleanedObservation,
+      );
+    });
+  }
+
+  @override
+  Future<QueueOrder> putAgentOnHold({
+    required String orderId,
+    required String agentId,
+    required String reason,
+  }) async {
+    final String cleanedAgentId = agentId.trim();
+    final String cleanedReason = reason.trim();
+    if (cleanedAgentId.isEmpty) {
+      throw StateError('Agent invalide.');
+    }
+    if (cleanedReason.length < 3) {
+      throw StateError('Indique la raison de la mise en attente.');
+    }
+    if (cleanedReason.length > 300) {
+      throw StateError('Le motif de mise en attente est trop long.');
+    }
+
+    final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
+        .doc(orderId);
+    final DateTime heldAt = DateTime.now();
+
+    return _firestore.runTransaction<QueueOrder>((
+      Transaction transaction,
+    ) async {
+      final DocumentSnapshot<Map<String, dynamic>> snapshot = await transaction
+          .get(orderRef);
+      final Map<String, dynamic>? data = snapshot.data();
+      if (!snapshot.exists || data == null) {
+        throw StateError('La commande est introuvable.');
+      }
+
+      final QueueOrder order = FirestoreOrderMapper.fromMap(
+        id: snapshot.id,
+        data: data,
+      );
+      _validateAcceptedAgentOrder(order: order, agentId: cleanedAgentId);
+      if (order.status != QueueOrderStatus.inProgress) {
+        throw StateError('Cette commande n’est pas en cours de traitement.');
+      }
+
+      transaction.update(orderRef, <String, dynamic>{
+        'status': QueueOrderStatus.onHold.name,
+        'lastHoldReason': cleanedReason,
+        'lastHeldAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      return order.copyWith(
+        status: QueueOrderStatus.onHold,
+        lastHoldReason: cleanedReason,
+        lastHeldAt: heldAt,
+      );
+    });
+  }
+
   Future<DocumentReference<Map<String, dynamic>>>
   _findPendingAssignmentReference({
     required String orderId,
@@ -589,6 +1026,39 @@ class FirestoreOrdersRepository
     return candidates.first.reference;
   }
 
+  Future<DocumentReference<Map<String, dynamic>>>
+  _findAcceptedAssignmentReference({
+    required String orderId,
+    required String agentId,
+  }) async {
+    final QuerySnapshot<Map<String, dynamic>> snapshot =
+        await _assignmentsCollection
+            .where('agentId', isEqualTo: agentId)
+            .where('orderId', isEqualTo: orderId)
+            .limit(20)
+            .get();
+
+    final List<QueryDocumentSnapshot<Map<String, dynamic>>> candidates =
+        snapshot.docs
+            .where((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+              return doc.data()['status'] ==
+                  OrderAssignmentStatus.accepted.name;
+            })
+            .toList(growable: false);
+
+    if (candidates.isEmpty) {
+      throw StateError('Aucune affectation acceptée n’a été trouvée.');
+    }
+
+    candidates.sort((first, second) {
+      final DateTime firstDate = _dateValue(first.data()['acceptedAt']);
+      final DateTime secondDate = _dateValue(second.data()['acceptedAt']);
+      return secondDate.compareTo(firstDate);
+    });
+
+    return candidates.first.reference;
+  }
+
   void _validatePendingAgentAssignment({
     required QueueOrder order,
     required Map<String, dynamic> assignmentData,
@@ -607,6 +1077,50 @@ class FirestoreOrdersRepository
         assignmentData['status'] != OrderAssignmentStatus.assigned.name) {
       throw StateError('Cette affectation n’est plus active.');
     }
+  }
+
+  void _validateAcceptedAgentOrder({
+    required QueueOrder order,
+    required String agentId,
+  }) {
+    if (order.assignedAgentId != agentId ||
+        order.assignmentStatus != OrderAssignmentStatus.accepted) {
+      throw StateError('Cette commande ne t’est plus affectée.');
+    }
+    if (order.paymentStatus != OrderPaymentStatus.confirmed) {
+      throw StateError('Le paiement de cette commande n’est pas confirmé.');
+    }
+  }
+
+  void _validateAcceptedAssignmentEvent({
+    required Map<String, dynamic> assignmentData,
+    required QueueOrder order,
+    required String agentId,
+  }) {
+    if (assignmentData['agentId'] != agentId ||
+        assignmentData['orderId'] != order.id ||
+        assignmentData['status'] != OrderAssignmentStatus.accepted.name ||
+        assignmentData['completedAt'] != null) {
+      throw StateError('Cette affectation n’est plus active.');
+    }
+  }
+
+  OrderProof _mapOrderProof(Map<String, dynamic> data) {
+    final Object? rawBytes = data['proofBytes'];
+    if (rawBytes is! Blob) {
+      throw StateError('La preuve enregistrée est invalide.');
+    }
+
+    return OrderProof(
+      orderId: _stringValue(data['orderId']),
+      orderReference: _stringValue(data['orderReference']),
+      agentId: _stringValue(data['agentId']),
+      fileName: _stringValue(data['fileName'], fallback: 'preuve.jpg'),
+      mimeType: _stringValue(data['mimeType'], fallback: 'image/jpeg'),
+      bytes: rawBytes.bytes,
+      createdAt: _dateValue(data['createdAt']),
+      updatedAt: _dateValue(data['updatedAt']),
+    );
   }
 
   DateTime _dateValue(Object? value) {

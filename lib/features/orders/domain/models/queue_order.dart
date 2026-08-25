@@ -94,6 +94,9 @@ class QueueOrder {
     this.assignmentStatus = OrderAssignmentStatus.unassigned,
     this.lastAssignmentRefusalReason,
     this.lastAssignmentRefusedAt,
+    this.lastHoldReason,
+    this.lastHeldAt,
+    this.lastResumedAt,
   });
 
   final String id;
@@ -149,6 +152,10 @@ class QueueOrder {
   final String? lastAssignmentRefusalReason;
   final DateTime? lastAssignmentRefusedAt;
 
+  final String? lastHoldReason;
+  final DateTime? lastHeldAt;
+  final DateTime? lastResumedAt;
+
   bool get isAssignedToAgent {
     return assignedAgentId != null &&
         assignedAgentId!.trim().isNotEmpty &&
@@ -189,8 +196,12 @@ class QueueOrder {
     OrderAssignmentStatus? assignmentStatus,
     String? lastAssignmentRefusalReason,
     DateTime? lastAssignmentRefusedAt,
+    String? lastHoldReason,
+    DateTime? lastHeldAt,
+    DateTime? lastResumedAt,
     bool clearAssignment = false,
     bool clearAgentAssignment = false,
+    bool clearFailureDetails = false,
   }) {
     return QueueOrder(
       id: id,
@@ -227,8 +238,10 @@ class QueueOrder {
           : takenByUserId ?? this.takenByUserId,
       takenAt: clearAssignment ? null : takenAt ?? this.takenAt,
       completedAt: completedAt ?? this.completedAt,
-      failureReason: failureReason ?? this.failureReason,
-      observation: observation ?? this.observation,
+      failureReason: clearFailureDetails
+          ? null
+          : failureReason ?? this.failureReason,
+      observation: clearFailureDetails ? null : observation ?? this.observation,
       customerConfirmationStatus:
           customerConfirmationStatus ?? this.customerConfirmationStatus,
       customerConfirmationCompletedAt:
@@ -254,6 +267,9 @@ class QueueOrder {
           lastAssignmentRefusalReason ?? this.lastAssignmentRefusalReason,
       lastAssignmentRefusedAt:
           lastAssignmentRefusedAt ?? this.lastAssignmentRefusedAt,
+      lastHoldReason: lastHoldReason ?? this.lastHoldReason,
+      lastHeldAt: lastHeldAt ?? this.lastHeldAt,
+      lastResumedAt: lastResumedAt ?? this.lastResumedAt,
     );
   }
 }

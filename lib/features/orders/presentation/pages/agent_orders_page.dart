@@ -3,6 +3,7 @@ import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/features/orders/presentation/pages/agent_order_detail_view.dart';
 import 'package:cabine_flow/features/orders/presentation/view_models/agent_orders_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:flutter/material.dart';
@@ -23,6 +24,7 @@ class AgentOrdersPage extends StatefulWidget {
 
 class _AgentOrdersPageState extends State<AgentOrdersPage> {
   late final AgentOrdersViewModel _viewModel;
+  String? _openedOrderId;
 
   @override
   void initState() {
@@ -43,10 +45,26 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
   Future<void> _accept(QueueOrder order) async {
     final bool success = await _viewModel.accept(order);
     if (!mounted) return;
+
+    if (!success) {
+      _showMessage(_viewModel.errorMessage ?? 'Acceptation impossible.');
+      return;
+    }
+
+    final QueueOrder? acceptedOrder = _viewModel.orderById(order.id);
+    bool started = false;
+    if (acceptedOrder != null) {
+      started = await _viewModel.startProcessing(acceptedOrder);
+    }
+    if (!mounted) return;
+
+    setState(() {
+      _openedOrderId = order.id;
+    });
     _showMessage(
-      success
-          ? 'Commande ${order.reference} acceptée.'
-          : _viewModel.errorMessage ?? 'Acceptation impossible.',
+      started
+          ? 'Commande ${order.reference} acceptée. Traitement démarré.'
+          : 'Commande ${order.reference} acceptée. Ouvre le détail pour démarrer le traitement.',
     );
   }
 
@@ -71,6 +89,19 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
     );
   }
 
+  void _openOrder(QueueOrder order) {
+    setState(() {
+      _openedOrderId = order.id;
+    });
+  }
+
+  void _closeOrderDetail() {
+    if (_openedOrderId == null) return;
+    setState(() {
+      _openedOrderId = null;
+    });
+  }
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -85,6 +116,21 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
         child: ListenableBuilder(
           listenable: _viewModel,
           builder: (_, _) {
+            final String? openedOrderId = _openedOrderId;
+            if (openedOrderId != null) {
+              final QueueOrder? openedOrder = _viewModel.orderById(
+                openedOrderId,
+              );
+              if (openedOrder != null) {
+                return AgentOrderDetailView(
+                  user: widget.user,
+                  order: openedOrder,
+                  viewModel: _viewModel,
+                  onBack: _closeOrderDetail,
+                );
+              }
+            }
+
             return RefreshIndicator(
               onRefresh: _viewModel.start,
               child: ListView(
@@ -143,6 +189,7 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
                               _viewModel.selectedTab == AgentOrdersTab.toAccept,
                           onAccept: () => _accept(order),
                           onRefuse: () => _refuse(order),
+                          onOpen: () => _openOrder(order),
                         ),
                       );
                     }),
@@ -344,6 +391,7 @@ class _AgentOrderCard extends StatelessWidget {
     required this.showDecisionActions,
     required this.onAccept,
     required this.onRefuse,
+    required this.onOpen,
   });
 
   final QueueOrder order;
@@ -351,6 +399,7 @@ class _AgentOrderCard extends StatelessWidget {
   final bool showDecisionActions;
   final VoidCallback onAccept;
   final VoidCallback onRefuse;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -361,145 +410,175 @@ class _AgentOrderCard extends StatelessWidget {
     // peinture et remplacer toute la carte par un ErrorWidget vide/sombre sur
     // l'appareil. Le liseré est donc un calque interne, tandis que la bordure
     // externe reste uniforme.
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onOpen,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: 4,
-            child: ColoredBox(color: accent),
+        child: Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceContainer,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.outlineVariant),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          child: Stack(
+            children: [
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: 4,
+                child: ColoredBox(color: accent),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: accent.withAlpha(28),
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                      child: Text(
-                        networkLabel(order.network),
-                        style: TextStyle(
-                          color: accent,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        order.reference,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.end,
-                        style: const TextStyle(
-                          color: AppColors.onSurfaceVariant,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 13),
-                Text(
-                  order.offerLabel,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.onBackground,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  'Bénéficiaire : ${order.beneficiaryPhone}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.onSurfaceVariant,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _Info(
-                        label: 'MONTANT',
-                        value: formatCfa(order.amount),
-                        valueColor: accent,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _Info(label: 'CLIENT', value: order.clientName),
-                    ),
-                  ],
-                ),
-                if (!showDecisionActions) ...[
-                  const SizedBox(height: 12),
-                  _StatusLine(order: order),
-                ],
-                if (showDecisionActions) ...[
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: isBusy ? null : onRefuse,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.error,
-                            side: const BorderSide(color: AppColors.error),
-                            minimumSize: const Size.fromHeight(46),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 5,
                           ),
-                          child: const Text('Refuser'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: FilledButton(
-                          onPressed: isBusy ? null : onAccept,
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size.fromHeight(46),
+                          decoration: BoxDecoration(
+                            color: accent.withAlpha(28),
+                            borderRadius: BorderRadius.circular(99),
                           ),
-                          child: isBusy
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.onPrimary,
-                                  ),
-                                )
-                              : const Text('Accepter'),
+                          child: Text(
+                            networkLabel(order.network),
+                            style: TextStyle(
+                              color: accent,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
                         ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            order.reference,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: const TextStyle(
+                              color: AppColors.onSurfaceVariant,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 13),
+                    Text(
+                      order.offerLabel,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.onBackground,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      'Bénéficiaire : ${order.beneficiaryPhone}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _Info(
+                            label: 'MONTANT',
+                            value: formatCfa(order.amount),
+                            valueColor: accent,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _Info(
+                            label: 'CLIENT',
+                            value: order.clientName,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (!showDecisionActions) ...[
+                      const SizedBox(height: 12),
+                      _StatusLine(order: order),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            'Voir et traiter',
+                            style: TextStyle(
+                              color: accent,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            color: accent,
+                            size: 18,
+                          ),
+                        ],
                       ),
                     ],
-                  ),
-                ],
-              ],
-            ),
+                    if (showDecisionActions) ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: isBusy ? null : onRefuse,
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.error,
+                                side: const BorderSide(color: AppColors.error),
+                                minimumSize: const Size.fromHeight(46),
+                              ),
+                              child: const Text('Refuser'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: isBusy ? null : onAccept,
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(46),
+                              ),
+                              child: isBusy
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppColors.onPrimary,
+                                      ),
+                                    )
+                                  : const Text('Accepter'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

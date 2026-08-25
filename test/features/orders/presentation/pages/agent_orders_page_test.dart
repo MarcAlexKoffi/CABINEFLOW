@@ -51,11 +51,19 @@ void main() {
     expect(find.text('Refuser'), findsOneWidget);
 
     await tester.tap(find.text('Accepter'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
 
-    expect(find.text('Aucune commande en cours'), findsNothing);
-    expect(find.text(order.reference), findsOneWidget);
+    expect(find.textContaining('Détail de la commande'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('Traitement'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(find.text('Traitement'), findsOneWidget);
+    expect(find.text('Preuve de transfert'), findsOneWidget);
+    expect(find.text('Marquer comme réussi'), findsOneWidget);
   });
 
   testWidgets('demande un motif avant de refuser une commande', (

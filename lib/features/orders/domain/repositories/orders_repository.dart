@@ -1,4 +1,5 @@
 import 'package:cabine_flow/features/orders/domain/models/create_order_request.dart';
+import 'package:cabine_flow/features/orders/domain/models/order_proof.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 
 abstract class OrdersRepository {
@@ -32,6 +33,45 @@ abstract class OrdersRepository {
   });
 
   Future<QueueOrder> refuseAgentAssignment({
+    required String orderId,
+    required String agentId,
+    required String reason,
+  });
+
+  Future<QueueOrder> startAgentProcessing({
+    required String orderId,
+    required String agentId,
+  });
+
+  Future<QueueOrder> resumeAgentProcessing({
+    required String orderId,
+    required String agentId,
+  });
+
+  Future<OrderProof?> fetchOrderProof({required String orderId});
+
+  Future<OrderProof> saveOrderProof({
+    required String orderId,
+    required String orderReference,
+    required String agentId,
+    required String fileName,
+    required String mimeType,
+    required List<int> bytes,
+  });
+
+  Future<QueueOrder> markAgentSuccessful({
+    required String orderId,
+    required String agentId,
+  });
+
+  Future<QueueOrder> markAgentFailed({
+    required String orderId,
+    required String agentId,
+    required OrderFailureReason reason,
+    String? observation,
+  });
+
+  Future<QueueOrder> putAgentOnHold({
     required String orderId,
     required String agentId,
     required String reason,

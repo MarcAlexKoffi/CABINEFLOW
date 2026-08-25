@@ -80,4 +80,38 @@ void main() {
     expect(viewModel.inProgressCount, 0);
     viewModel.dispose();
   });
+
+  test('phase 9C : réussite déplace le travail agent vers Terminées', () async {
+    final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
+    final QueueOrder order = (await repository.fetchPaidQueue()).first;
+    await repository.assignToAgent(
+      orderId: order.id,
+      agentId: 'AGENT-001',
+      assignedByUserId: 'ADMIN-001',
+    );
+
+    final AgentOrdersViewModel viewModel = AgentOrdersViewModel(
+      agentId: 'AGENT-001',
+      ordersRepository: repository,
+    );
+    await viewModel.start();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(await viewModel.accept(viewModel.toAcceptOrders.single), isTrue);
+    final QueueOrder accepted = viewModel.inProgressOrders.single;
+    expect(await viewModel.startProcessing(accepted), isTrue);
+    final QueueOrder started = viewModel.inProgressOrders.single;
+
+    final proof = await viewModel.saveProof(
+      order: started,
+      fileName: 'preuve.jpg',
+      mimeType: 'image/jpeg',
+      bytes: <int>[1, 2, 3],
+    );
+    expect(proof, isNotNull);
+    expect(await viewModel.markSuccessful(started), isTrue);
+    expect(viewModel.completedCount, 1);
+    expect(viewModel.selectedTab, AgentOrdersTab.completed);
+    viewModel.dispose();
+  });
 }

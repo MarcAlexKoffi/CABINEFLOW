@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:cabine_flow/features/orders/domain/models/create_order_request.dart';
+import 'package:cabine_flow/features/orders/domain/models/order_proof.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
@@ -11,6 +13,7 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
   final bool isTest;
   List<QueueOrder>? _orders;
   final StreamController<void> _changes = StreamController<void>.broadcast();
+  final Map<String, OrderProof> _proofs = <String, OrderProof>{};
 
   void _notify() => _changes.add(null);
 
@@ -267,6 +270,195 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     _orders![index] = updatedOrder;
     _notify();
     return updatedOrder;
+  }
+
+  @override
+  Future<QueueOrder> startAgentProcessing({
+    required String orderId,
+    required String agentId,
+  }) async {
+    await _delay(180);
+    final int index = _findOrderIndex(orderId);
+    final QueueOrder currentOrder = _orders![index];
+    _verifyAcceptedAgentOrder(currentOrder, agentId);
+
+    if (currentOrder.status == QueueOrderStatus.inProgress &&
+        currentOrder.takenByUserId == agentId) {
+      return currentOrder;
+    }
+    if (currentOrder.status != QueueOrderStatus.paidReady) {
+      throw StateError('Cette commande ne peut pas être démarrée.');
+    }
+
+    final QueueOrder updatedOrder = currentOrder.copyWith(
+      status: QueueOrderStatus.inProgress,
+      takenByUserId: agentId,
+      takenAt: DateTime.now(),
+    );
+    _orders![index] = updatedOrder;
+    _notify();
+    return updatedOrder;
+  }
+
+  @override
+  Future<QueueOrder> resumeAgentProcessing({
+    required String orderId,
+    required String agentId,
+  }) async {
+    await _delay(180);
+    final int index = _findOrderIndex(orderId);
+    final QueueOrder currentOrder = _orders![index];
+    _verifyAcceptedAgentOrder(currentOrder, agentId);
+    if (currentOrder.status != QueueOrderStatus.onHold) {
+      throw StateError('Cette commande n’est pas en attente.');
+    }
+
+    final QueueOrder updatedOrder = currentOrder.copyWith(
+      status: QueueOrderStatus.inProgress,
+      lastResumedAt: DateTime.now(),
+    );
+    _orders![index] = updatedOrder;
+    _notify();
+    return updatedOrder;
+  }
+
+  @override
+  Future<OrderProof?> fetchOrderProof({required String orderId}) async {
+    await _delay(80);
+    return _proofs[orderId];
+  }
+
+  @override
+  Future<OrderProof> saveOrderProof({
+    required String orderId,
+    required String orderReference,
+    required String agentId,
+    required String fileName,
+    required String mimeType,
+    required List<int> bytes,
+  }) async {
+    await _delay(150);
+    final int index = _findOrderIndex(orderId);
+    final QueueOrder currentOrder = _orders![index];
+    _verifyAcceptedAgentOrder(currentOrder, agentId);
+    if (currentOrder.status != QueueOrderStatus.inProgress &&
+        currentOrder.status != QueueOrderStatus.onHold) {
+      throw StateError(
+        'La preuve peut être ajoutée uniquement pendant le traitement.',
+      );
+    }
+    if (bytes.isEmpty || bytes.length > 750000) {
+      throw StateError('La preuve dépasse la taille maximale autorisée.');
+    }
+
+    final DateTime now = DateTime.now();
+    final OrderProof? oldProof = _proofs[orderId];
+    final OrderProof proof = OrderProof(
+      orderId: orderId,
+      orderReference: orderReference,
+      agentId: agentId,
+      fileName: fileName,
+      mimeType: mimeType,
+      bytes: Uint8List.fromList(bytes),
+      createdAt: oldProof?.createdAt ?? now,
+      updatedAt: now,
+    );
+    _proofs[orderId] = proof;
+    return proof;
+  }
+
+  @override
+  Future<QueueOrder> markAgentSuccessful({
+    required String orderId,
+    required String agentId,
+  }) async {
+    await _delay(180);
+    final int index = _findOrderIndex(orderId);
+    final QueueOrder currentOrder = _orders![index];
+    _verifyAcceptedAgentOrder(currentOrder, agentId);
+    if (currentOrder.status != QueueOrderStatus.inProgress) {
+      throw StateError('Cette commande n’est pas en cours de traitement.');
+    }
+    if (_proofs[orderId] == null) {
+      throw StateError('Ajoute une preuve avant de valider la réussite.');
+    }
+
+    final QueueOrder updatedOrder = currentOrder.copyWith(
+      status: QueueOrderStatus.awaitingCustomerConfirmation,
+      completedAt: DateTime.now(),
+      customerConfirmationStatus: CustomerConfirmationStatus.pending,
+      clearFailureDetails: true,
+    );
+    _orders![index] = updatedOrder;
+    _notify();
+    return updatedOrder;
+  }
+
+  @override
+  Future<QueueOrder> markAgentFailed({
+    required String orderId,
+    required String agentId,
+    required OrderFailureReason reason,
+    String? observation,
+  }) async {
+    await _delay(180);
+    final int index = _findOrderIndex(orderId);
+    final QueueOrder currentOrder = _orders![index];
+    _verifyAcceptedAgentOrder(currentOrder, agentId);
+    if (currentOrder.status != QueueOrderStatus.inProgress) {
+      throw StateError('Cette commande n’est pas en cours de traitement.');
+    }
+
+    final QueueOrder updatedOrder = currentOrder.copyWith(
+      status: QueueOrderStatus.failed,
+      completedAt: DateTime.now(),
+      failureReason: reason,
+      observation: observation?.trim().isEmpty == true
+          ? null
+          : observation?.trim(),
+    );
+    _orders![index] = updatedOrder;
+    _notify();
+    return updatedOrder;
+  }
+
+  @override
+  Future<QueueOrder> putAgentOnHold({
+    required String orderId,
+    required String agentId,
+    required String reason,
+  }) async {
+    await _delay(180);
+    final String cleanedReason = reason.trim();
+    if (cleanedReason.length < 3 || cleanedReason.length > 300) {
+      throw StateError('Le motif de mise en attente est invalide.');
+    }
+
+    final int index = _findOrderIndex(orderId);
+    final QueueOrder currentOrder = _orders![index];
+    _verifyAcceptedAgentOrder(currentOrder, agentId);
+    if (currentOrder.status != QueueOrderStatus.inProgress) {
+      throw StateError('Cette commande n’est pas en cours de traitement.');
+    }
+
+    final QueueOrder updatedOrder = currentOrder.copyWith(
+      status: QueueOrderStatus.onHold,
+      lastHoldReason: cleanedReason,
+      lastHeldAt: DateTime.now(),
+    );
+    _orders![index] = updatedOrder;
+    _notify();
+    return updatedOrder;
+  }
+
+  void _verifyAcceptedAgentOrder(QueueOrder order, String agentId) {
+    if (order.assignedAgentId != agentId ||
+        order.assignmentStatus != OrderAssignmentStatus.accepted) {
+      throw StateError('Cette commande ne t’est plus affectée.');
+    }
+    if (order.paymentStatus != OrderPaymentStatus.confirmed) {
+      throw StateError('Le paiement de cette commande n’est pas confirmé.');
+    }
   }
 
   void _verifyPendingAgentAssignment(QueueOrder order, String agentId) {
