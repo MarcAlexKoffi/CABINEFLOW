@@ -1,4 +1,6 @@
 import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
+import 'package:cabine_flow/features/agents/presentation/pages/agent_management_page.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
 import 'package:cabine_flow/features/offers/presentation/pages/offer_management_page.dart';
@@ -10,10 +12,12 @@ class MorePage extends StatelessWidget {
     super.key,
     required this.user,
     required this.adminOfferRepository,
+    required this.agentRepository,
   });
 
   final AppUser user;
   final AdminOfferRepository adminOfferRepository;
+  final AgentRepository agentRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -92,11 +96,24 @@ class MorePage extends StatelessWidget {
             },
           ),
           const SizedBox(height: 12),
-          const _AdminFeatureCard(
+          _AdminFeatureCard(
             icon: Icons.groups_2_outlined,
             title: 'Agents et zones',
             description:
                 'Disponibilités, réseaux traités, zones et capacités opérationnelles.',
+            enabled: true,
+            onTap: () {
+              Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (BuildContext context) {
+                    return AgentManagementPage(
+                      user: user,
+                      repository: agentRepository,
+                    );
+                  },
+                ),
+              );
+            },
           ),
           const SizedBox(height: 12),
           const _AdminFeatureCard(

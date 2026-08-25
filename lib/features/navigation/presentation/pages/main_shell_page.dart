@@ -1,4 +1,6 @@
 import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
+import 'package:cabine_flow/features/agents/presentation/pages/agent_activity_page.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_repository.dart';
 import 'package:cabine_flow/features/dashboard/presentation/pages/dashboard_page.dart';
@@ -24,6 +26,7 @@ class MainShellPage extends StatefulWidget {
     required this.offerCatalogRepository,
     required this.adminOfferRepository,
     required this.paymentLinkRepository,
+    required this.agentRepository,
   });
 
   final AppUser user;
@@ -32,6 +35,7 @@ class MainShellPage extends StatefulWidget {
   final OfferCatalogRepository offerCatalogRepository;
   final AdminOfferRepository adminOfferRepository;
   final PaymentLinkRepository paymentLinkRepository;
+  final AgentRepository agentRepository;
 
   @override
   State<MainShellPage> createState() {
@@ -146,6 +150,13 @@ class _MainShellPageState extends State<MainShellPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.user.role == UserRole.agent) {
+      return AgentActivityPage(
+        user: widget.user,
+        repository: widget.agentRepository,
+      );
+    }
+
     final List<Widget> pages = [
       DashboardPage(
         user: widget.user,
@@ -156,6 +167,7 @@ class _MainShellPageState extends State<MainShellPage> {
         key: ValueKey<int>(_ordersPageVersion),
         user: widget.user,
         ordersRepository: widget.ordersRepository,
+        agentRepository: widget.agentRepository,
       ),
       PaymentsPage(
         key: ValueKey<int>(_paymentsPageVersion),
@@ -169,6 +181,7 @@ class _MainShellPageState extends State<MainShellPage> {
       MorePage(
         user: widget.user,
         adminOfferRepository: widget.adminOfferRepository,
+        agentRepository: widget.agentRepository,
       ),
     ];
 

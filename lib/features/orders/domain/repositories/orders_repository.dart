@@ -16,6 +16,14 @@ abstract class OrdersRepository {
 
   Future<List<QueueOrder>> fetchPaidQueue();
 
+  Future<QueueOrder> assignToAgent({
+    required String orderId,
+    required String agentId,
+    required String assignedByUserId,
+  });
+
+  Future<Map<String, int>> fetchActiveAssignmentCounts();
+
   Future<QueueOrder> takeCharge({
     required String orderId,
     required String operatorId,

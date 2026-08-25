@@ -46,6 +46,10 @@ enum OrderFailureReason {
 
 enum CustomerConfirmationStatus { pending, sent, skipped }
 
+enum OrderAssignmentStatus { unassigned, assigned, accepted, refused }
+
+enum OrderAssignmentMode { manual, automatic }
+
 class QueueOrder {
   const QueueOrder({
     required this.id,
@@ -82,6 +86,12 @@ class QueueOrder {
     this.observation,
     this.customerConfirmationStatus,
     this.customerConfirmationCompletedAt,
+    this.assignedAgentId,
+    this.assignedAgentName,
+    this.assignedByUserId,
+    this.assignedAt,
+    this.assignmentMode,
+    this.assignmentStatus = OrderAssignmentStatus.unassigned,
   });
 
   final String id;
@@ -128,6 +138,19 @@ class QueueOrder {
   final CustomerConfirmationStatus? customerConfirmationStatus;
   final DateTime? customerConfirmationCompletedAt;
 
+  final String? assignedAgentId;
+  final String? assignedAgentName;
+  final String? assignedByUserId;
+  final DateTime? assignedAt;
+  final OrderAssignmentMode? assignmentMode;
+  final OrderAssignmentStatus assignmentStatus;
+
+  bool get isAssignedToAgent {
+    return assignedAgentId != null &&
+        assignedAgentId!.trim().isNotEmpty &&
+        assignmentStatus != OrderAssignmentStatus.unassigned;
+  }
+
   bool get hasPaymentToReviewAfterExpiration {
     return status == QueueOrderStatus.expired &&
         paymentStatus == OrderPaymentStatus.declared;
@@ -154,7 +177,14 @@ class QueueOrder {
     String? observation,
     CustomerConfirmationStatus? customerConfirmationStatus,
     DateTime? customerConfirmationCompletedAt,
+    String? assignedAgentId,
+    String? assignedAgentName,
+    String? assignedByUserId,
+    DateTime? assignedAt,
+    OrderAssignmentMode? assignmentMode,
+    OrderAssignmentStatus? assignmentStatus,
     bool clearAssignment = false,
+    bool clearAgentAssignment = false,
   }) {
     return QueueOrder(
       id: id,
@@ -198,6 +228,22 @@ class QueueOrder {
       customerConfirmationCompletedAt:
           customerConfirmationCompletedAt ??
           this.customerConfirmationCompletedAt,
+      assignedAgentId: clearAgentAssignment
+          ? null
+          : assignedAgentId ?? this.assignedAgentId,
+      assignedAgentName: clearAgentAssignment
+          ? null
+          : assignedAgentName ?? this.assignedAgentName,
+      assignedByUserId: clearAgentAssignment
+          ? null
+          : assignedByUserId ?? this.assignedByUserId,
+      assignedAt: clearAgentAssignment ? null : assignedAt ?? this.assignedAt,
+      assignmentMode: clearAgentAssignment
+          ? null
+          : assignmentMode ?? this.assignmentMode,
+      assignmentStatus: clearAgentAssignment
+          ? OrderAssignmentStatus.unassigned
+          : assignmentStatus ?? this.assignmentStatus,
     );
   }
 }

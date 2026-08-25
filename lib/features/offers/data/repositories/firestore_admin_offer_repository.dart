@@ -15,11 +15,9 @@ class FirestoreAdminOfferRepository implements AdminOfferRepository {
   @override
   Stream<List<AdminOffer>> watchOffers() {
     return _offers.snapshots().map((QuerySnapshot<Map<String, dynamic>> snap) {
-      final List<AdminOffer> offers = snap.docs
-          .map(_fromDocument)
-          .whereType<AdminOffer>()
-          .toList()
-        ..sort(_compareOffers);
+      final List<AdminOffer> offers =
+          snap.docs.map(_fromDocument).whereType<AdminOffer>().toList()
+            ..sort(_compareOffers);
 
       return List<AdminOffer>.unmodifiable(offers);
     });
@@ -45,12 +43,10 @@ class FirestoreAdminOfferRepository implements AdminOfferRepository {
     }
 
     final Object? createdAt = current.data()!['createdAt'];
-    await ref.set(
-      <String, dynamic>{
-        ..._toFirestore(draft, isCreation: false),
-        'createdAt': createdAt ?? FieldValue.serverTimestamp(),
-      },
-    );
+    await ref.set(<String, dynamic>{
+      ..._toFirestore(draft, isCreation: false),
+      'createdAt': createdAt ?? FieldValue.serverTimestamp(),
+    });
   }
 
   @override
@@ -127,7 +123,8 @@ class FirestoreAdminOfferRepository implements AdminOfferRepository {
       catalogLabel: catalogLabel,
       sellingPrice: sellingPrice,
       details: _stringList(data['details']),
-      category: _requiredString(data['category']) ?? _categoryFor(operationType),
+      category:
+          _requiredString(data['category']) ?? _categoryFor(operationType),
       isActive: isActive,
       displayOrder: _nonNegativeInt(data['displayOrder']) ?? 9999,
       description: _optionalString(data['description']),
@@ -178,8 +175,11 @@ class FirestoreAdminOfferRepository implements AdminOfferRepository {
   }
 
   String _categoryFor(OrderOperationType type) {
-    return type == OrderOperationType.mixedBundle ? 'mixed' :
-        type == OrderOperationType.callBundle ? 'calls' : 'internet';
+    return type == OrderOperationType.mixedBundle
+        ? 'mixed'
+        : type == OrderOperationType.callBundle
+        ? 'calls'
+        : 'internet';
   }
 
   String? _requiredString(Object? value) {

@@ -171,10 +171,9 @@ class _DashboardPageState extends State<DashboardPage> {
                           ),
                           const SizedBox(height: 16),
 
-                          SizedBox(
-                            height:
-                                105, // Contraint la hauteur de la Row pour les cartes opérateurs
+                          IntrinsicHeight(
                             child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 Expanded(
                                   child: OperatorBalanceCard(

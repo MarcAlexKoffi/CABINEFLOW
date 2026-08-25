@@ -189,12 +189,16 @@ class _TabItem extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: isActive ? activeColor : AppColors.primary,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: isActive ? activeColor : AppColors.primary,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
             ),
           ),
           const SizedBox(width: 6),
@@ -434,6 +438,8 @@ class QueueOrderCard extends StatelessWidget {
     required this.isUrgent,
     required this.isProcessing,
     required this.onTakeCharge,
+    this.actionLabel = 'Prendre en charge',
+    this.assignmentLabel,
   });
 
   final QueueOrder order;
@@ -442,6 +448,8 @@ class QueueOrderCard extends StatelessWidget {
   final bool isUrgent;
   final bool isProcessing;
   final VoidCallback onTakeCharge;
+  final String actionLabel;
+  final String? assignmentLabel;
 
   String get networkLabel {
     switch (order.network) {
@@ -654,6 +662,43 @@ class QueueOrderCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                    if (assignmentLabel != null &&
+                        assignmentLabel!.trim().isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withAlpha(18),
+                          borderRadius: BorderRadius.circular(9),
+                          border: Border.all(
+                            color: AppColors.warning.withAlpha(80),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.person_pin_circle_outlined,
+                              size: 16,
+                              color: AppColors.warning,
+                            ),
+                            const SizedBox(width: 7),
+                            Expanded(
+                              child: Text(
+                                'Affectée à $assignmentLabel',
+                                style: const TextStyle(
+                                  color: AppColors.warning,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
@@ -682,7 +727,7 @@ class QueueOrderCard extends StatelessWidget {
                                   ),
                                   SizedBox(width: 10),
                                   Text(
-                                    'Prise en charge...',
+                                    'Traitement...',
                                     style: TextStyle(
                                       fontWeight: FontWeight.w600,
                                       color: Colors.white,
@@ -690,9 +735,9 @@ class QueueOrderCard extends StatelessWidget {
                                   ),
                                 ],
                               )
-                            : const Text(
-                                'Prendre en charge',
-                                style: TextStyle(
+                            : Text(
+                                actionLabel,
+                                style: const TextStyle(
                                   fontWeight: FontWeight.w600,
                                   color: Colors.white,
                                 ),

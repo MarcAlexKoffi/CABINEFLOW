@@ -275,6 +275,8 @@ class FirebaseAuthRepository implements AuthRepository {
         return UserRole.supervisor;
       case 'operator':
         return UserRole.operator;
+      case 'agent':
+        return UserRole.agent;
       default:
         return null;
     }

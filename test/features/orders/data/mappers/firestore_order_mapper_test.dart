@@ -44,6 +44,12 @@ void main() {
           'observation': null,
           'customerConfirmationStatus': 'pending',
           'customerConfirmationCompletedAt': null,
+          'assignedAgentId': 'agent-007',
+          'assignedAgentName': 'Koffi Kouassi',
+          'assignedByUserId': 'admin-001',
+          'assignedAt': Timestamp.fromDate(paidAt),
+          'assignmentMode': 'manual',
+          'assignmentStatus': 'assigned',
         },
       );
 
@@ -63,6 +69,10 @@ void main() {
       expect(order.paidAt, paidAt);
       expect(order.expiresAt, expiresAt);
       expect(order.expiredAt, expiredAt);
+      expect(order.assignedAgentId, 'agent-007');
+      expect(order.assignedAgentName, 'Koffi Kouassi');
+      expect(order.assignmentMode, OrderAssignmentMode.manual);
+      expect(order.assignmentStatus, OrderAssignmentStatus.assigned);
     });
 
     test('utilise des valeurs de repli pour un document incomplet', () {
@@ -80,6 +90,7 @@ void main() {
       expect(order.operationType, OrderOperationType.other);
       expect(order.status, QueueOrderStatus.awaitingPayment);
       expect(order.amount, 0);
+      expect(order.assignmentStatus, OrderAssignmentStatus.unassigned);
     });
   });
 }

@@ -4,17 +4,26 @@ import 'package:cabine_flow/features/offers/domain/models/admin_offer.dart';
 import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
 
 class FakeAdminOfferRepository implements AdminOfferRepository {
-  FakeAdminOfferRepository({List<AdminOffer> initialOffers = const <AdminOffer>[]})
-    : _offers = List<AdminOffer>.from(initialOffers);
+  FakeAdminOfferRepository({
+    List<AdminOffer> initialOffers = const <AdminOffer>[],
+  }) : _offers = List<AdminOffer>.from(initialOffers);
 
   final List<AdminOffer> _offers;
   final StreamController<List<AdminOffer>> _controller =
       StreamController<List<AdminOffer>>.broadcast();
 
   @override
-  Stream<List<AdminOffer>> watchOffers() async* {
-    yield List<AdminOffer>.unmodifiable(_offers);
-    yield* _controller.stream;
+  Stream<List<AdminOffer>> watchOffers() {
+    late final StreamController<List<AdminOffer>> controller;
+    controller = StreamController<List<AdminOffer>>(
+      onListen: () {
+        controller.add(List<AdminOffer>.unmodifiable(_offers));
+        final StreamSubscription<List<AdminOffer>> sub = _controller.stream
+            .listen(controller.add);
+        controller.onCancel = () => sub.cancel();
+      },
+    );
+    return controller.stream;
   }
 
   @override
@@ -51,7 +60,9 @@ class FakeAdminOfferRepository implements AdminOfferRepository {
     required String offerId,
     required AdminOfferDraft draft,
   }) async {
-    final int index = _offers.indexWhere((AdminOffer item) => item.id == offerId);
+    final int index = _offers.indexWhere(
+      (AdminOffer item) => item.id == offerId,
+    );
     if (index < 0) throw StateError('Offre introuvable.');
     final AdminOffer current = _offers[index];
     _offers[index] = AdminOffer(
@@ -84,7 +95,9 @@ class FakeAdminOfferRepository implements AdminOfferRepository {
     required String offerId,
     required bool isActive,
   }) async {
-    final int index = _offers.indexWhere((AdminOffer item) => item.id == offerId);
+    final int index = _offers.indexWhere(
+      (AdminOffer item) => item.id == offerId,
+    );
     if (index < 0) throw StateError('Offre introuvable.');
     _offers[index] = _offers[index].copyWith(
       isActive: isActive,

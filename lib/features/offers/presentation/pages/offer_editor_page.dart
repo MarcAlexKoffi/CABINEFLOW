@@ -7,11 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class OfferEditorPage extends StatefulWidget {
-  const OfferEditorPage({
-    super.key,
-    required this.repository,
-    this.offer,
-  });
+  const OfferEditorPage({super.key, required this.repository, this.offer});
 
   final AdminOfferRepository repository;
   final AdminOffer? offer;
@@ -69,7 +65,6 @@ class _OfferEditorPageState extends State<OfferEditorPage> {
     _viewModel.dispose();
     super.dispose();
   }
-
 
   InputDecoration _inputDecoration({String? hintText}) {
     final OutlineInputBorder border = OutlineInputBorder(
@@ -137,7 +132,9 @@ class _OfferEditorPageState extends State<OfferEditorPage> {
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.onBackground,
         elevation: 0,
-        title: Text(widget.offer == null ? 'Ajouter une offre' : 'Modifier l’offre'),
+        title: Text(
+          widget.offer == null ? 'Ajouter une offre' : 'Modifier l’offre',
+        ),
       ),
       body: SafeArea(
         top: false,
@@ -195,7 +192,8 @@ class _OfferEditorPageState extends State<OfferEditorPage> {
                         const SizedBox(height: 14),
                         _FieldLabel('Type de forfait'),
                         DropdownButtonFormField<OrderOperationType>(
-                          initialValue: _viewModel.operationType ==
+                          initialValue:
+                              _viewModel.operationType ==
                                   OrderOperationType.mixedBundle
                               ? OrderOperationType.mixedBundle
                               : OrderOperationType.callBundle,
@@ -226,7 +224,9 @@ class _OfferEditorPageState extends State<OfferEditorPage> {
                         controller: _titleController,
                         enabled: !_viewModel.isSaving,
                         textCapitalization: TextCapitalization.sentences,
-                        decoration: _inputDecoration(hintText: 'Ex. Pass Internet 5 Go - 30J'),
+                        decoration: _inputDecoration(
+                          hintText: 'Ex. Pass Internet 5 Go - 30J',
+                        ),
                         validator: (String? value) {
                           final String cleaned = value?.trim() ?? '';
                           if (cleaned.length < 2) {
@@ -244,7 +244,9 @@ class _OfferEditorPageState extends State<OfferEditorPage> {
                         controller: _priceController,
                         enabled: !_viewModel.isSaving,
                         keyboardType: TextInputType.number,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
                         decoration: _inputDecoration(hintText: '5000'),
                         validator: (String? value) {
                           final int? amount = int.tryParse(value?.trim() ?? '');
@@ -263,7 +265,9 @@ class _OfferEditorPageState extends State<OfferEditorPage> {
                         controller: _displayOrderController,
                         enabled: !_viewModel.isSaving,
                         keyboardType: TextInputType.number,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
                         decoration: _inputDecoration(hintText: '0'),
                         validator: (String? value) {
                           final int? order = int.tryParse(value?.trim() ?? '');
@@ -297,14 +301,18 @@ class _OfferEditorPageState extends State<OfferEditorPage> {
                       TextFormField(
                         controller: _minutesController,
                         enabled: !_viewModel.isSaving,
-                        decoration: _inputDecoration(hintText: 'Ex. 120 min / Illimité'),
+                        decoration: _inputDecoration(
+                          hintText: 'Ex. 120 min / Illimité',
+                        ),
                       ),
                       const SizedBox(height: 14),
                       _FieldLabel('SMS'),
                       TextFormField(
                         controller: _smsController,
                         enabled: !_viewModel.isSaving,
-                        decoration: _inputDecoration(hintText: 'Ex. 100 / Illimité'),
+                        decoration: _inputDecoration(
+                          hintText: 'Ex. 100 / Illimité',
+                        ),
                       ),
                       const SizedBox(height: 14),
                       _FieldLabel('Description (optionnelle)'),
@@ -313,7 +321,9 @@ class _OfferEditorPageState extends State<OfferEditorPage> {
                         enabled: !_viewModel.isSaving,
                         minLines: 3,
                         maxLines: 5,
-                        decoration: _inputDecoration(hintText: 'Informations utiles pour cette offre…'),
+                        decoration: _inputDecoration(
+                          hintText: 'Informations utiles pour cette offre…',
+                        ),
                       ),
                     ],
                   ),
@@ -326,7 +336,9 @@ class _OfferEditorPageState extends State<OfferEditorPage> {
                         value: _viewModel.isActive,
                         activeThumbColor: AppColors.success,
                         title: Text(
-                          _viewModel.isActive ? 'Offre active' : 'Offre suspendue',
+                          _viewModel.isActive
+                              ? 'Offre active'
+                              : 'Offre suspendue',
                           style: const TextStyle(
                             color: AppColors.onBackground,
                             fontWeight: FontWeight.w700,

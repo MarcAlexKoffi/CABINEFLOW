@@ -207,6 +207,11 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       _order.paymentReference ?? 'Confirmation manuelle',
     );
     add(
+      'Commande affectée',
+      _order.assignedAt,
+      _order.assignedAgentName ?? 'Agent affecté',
+    );
+    add(
       'Commande prise en charge',
       _order.takenAt,
       _operatorLabel(_order.takenByUserId),
@@ -474,6 +479,25 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                     title: 'Traitement',
                     child: Column(
                       children: [
+                        _DetailRow(
+                          label: 'Agent affecté',
+                          value: _order.assignedAgentName ?? 'Non affectée',
+                        ),
+                        _DetailRow(
+                          label: 'Mode d’affectation',
+                          value: _order.assignmentMode == null
+                              ? 'Non renseigné'
+                              : (_order.assignmentMode ==
+                                        OrderAssignmentMode.manual
+                                    ? 'Manuelle'
+                                    : 'Automatique'),
+                        ),
+                        _DetailRow(
+                          label: 'Date d’affectation',
+                          value: _order.assignedAt == null
+                              ? 'Non affectée'
+                              : formatOrderDateTime(_order.assignedAt!),
+                        ),
                         _DetailRow(
                           label: 'Opérateur responsable',
                           value: _operatorLabel(_order.takenByUserId),

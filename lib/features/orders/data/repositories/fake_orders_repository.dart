@@ -156,6 +156,49 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
   }
 
   @override
+  Future<QueueOrder> assignToAgent({
+    required String orderId,
+    required String agentId,
+    required String assignedByUserId,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    final int index = _findOrderIndex(orderId);
+    final QueueOrder currentOrder = _orders![index];
+
+    if (currentOrder.status != QueueOrderStatus.paidReady ||
+        currentOrder.paymentStatus != OrderPaymentStatus.confirmed) {
+      throw StateError('Seule une commande payée et prête peut être affectée.');
+    }
+
+    final QueueOrder updatedOrder = currentOrder.copyWith(
+      assignedAgentId: agentId,
+      assignedAgentName: agentId == 'AGENT-001' ? 'Koffi Kouassi' : 'Agent',
+      assignedByUserId: assignedByUserId,
+      assignedAt: DateTime.now(),
+      assignmentMode: OrderAssignmentMode.manual,
+      assignmentStatus: OrderAssignmentStatus.assigned,
+    );
+    _orders![index] = updatedOrder;
+    return updatedOrder;
+  }
+
+  @override
+  Future<Map<String, int>> fetchActiveAssignmentCounts() async {
+    _orders ??= _createInitialOrders();
+    final Map<String, int> counts = <String, int>{};
+    for (final QueueOrder order in _orders!) {
+      final String? agentId = order.assignedAgentId;
+      if (agentId == null || agentId.isEmpty) continue;
+      if (order.assignmentStatus != OrderAssignmentStatus.assigned &&
+          order.assignmentStatus != OrderAssignmentStatus.accepted) {
+        continue;
+      }
+      counts[agentId] = (counts[agentId] ?? 0) + 1;
+    }
+    return Map<String, int>.unmodifiable(counts);
+  }
+
+  @override
   Future<QueueOrder> takeCharge({
     required String orderId,
     required String operatorId,

@@ -1,4 +1,5 @@
 import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_history_filters.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
@@ -7,6 +8,7 @@ import 'package:cabine_flow/features/orders/domain/repositories/orders_repositor
 import 'package:cabine_flow/features/orders/presentation/view_models/orders_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/orders_widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:cabine_flow/features/orders/presentation/pages/agent_assignment_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/order_detail_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/order_history_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/order_processing_page.dart';
@@ -17,10 +19,12 @@ class OrdersPage extends StatefulWidget {
     super.key,
     required this.user,
     required this.ordersRepository,
+    required this.agentRepository,
   });
 
   final AppUser user;
   final OrdersRepository ordersRepository;
+  final AgentRepository agentRepository;
 
   @override
   State<OrdersPage> createState() {
@@ -272,6 +276,38 @@ class _OrdersPageState extends State<OrdersPage> {
       case QueueFilter.moov:
         return 'Moov';
     }
+  }
+
+  Future<void> _openAgentAssignment(QueueOrder order) async {
+    final QueueOrder? updatedOrder = await Navigator.of(context)
+        .push<QueueOrder>(
+          MaterialPageRoute<QueueOrder>(
+            fullscreenDialog: true,
+            builder: (BuildContext routeContext) {
+              return AgentAssignmentPage(
+                user: widget.user,
+                order: order,
+                agentRepository: widget.agentRepository,
+                ordersRepository: widget.ordersRepository,
+              );
+            },
+          ),
+        );
+
+    if (!mounted || updatedOrder == null) return;
+
+    await _viewModel.loadQueue();
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            'Commande ${updatedOrder.reference} affectée à ${updatedOrder.assignedAgentName ?? 'l’agent'}.',
+          ),
+        ),
+      );
   }
 
   Future<void> _confirmTakeCharge(QueueOrder order) async {
@@ -535,8 +571,20 @@ class _OrdersPageState extends State<OrdersPage> {
                               waitingMinutes: _viewModel.waitingMinutes(order),
                               isUrgent: _viewModel.isUrgent(order),
                               isProcessing: _viewModel.isTakingCharge(order.id),
+                              actionLabel:
+                                  widget.user.role == UserRole.administrator
+                                  ? (order.isAssignedToAgent
+                                        ? 'Réaffecter'
+                                        : 'Affecter')
+                                  : 'Prendre en charge',
+                              assignmentLabel: order.assignedAgentName,
                               onTakeCharge: () {
-                                _confirmTakeCharge(order);
+                                if (widget.user.role ==
+                                    UserRole.administrator) {
+                                  _openAgentAssignment(order);
+                                } else {
+                                  _confirmTakeCharge(order);
+                                }
                               },
                             ),
                           );

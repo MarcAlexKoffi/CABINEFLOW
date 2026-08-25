@@ -11,7 +11,8 @@ class OfferEditorViewModel extends ChangeNotifier {
        network = existingOffer?.network ?? MobileNetwork.orange,
        service = existingOffer?.service ?? OfferService.internet,
        operationType =
-           existingOffer?.operationType ?? OrderOperationType.internetSubscription,
+           existingOffer?.operationType ??
+           OrderOperationType.internetSubscription,
        isActive = existingOffer?.isActive ?? true;
 
   final AdminOfferRepository _repository;
@@ -71,7 +72,8 @@ class OfferEditorViewModel extends ChangeNotifier {
     final String? cleanedValidity = _clean(validity);
     final String? cleanedMinutes = _clean(minutes);
     final String? cleanedSms = _clean(sms);
-    final bool characteristicsUnchanged = existingOffer != null &&
+    final bool characteristicsUnchanged =
+        existingOffer != null &&
         _same(cleanedVolume, existingOffer!.volume) &&
         _same(cleanedValidity, existingOffer!.validity) &&
         _same(cleanedMinutes, existingOffer!.minutes) &&

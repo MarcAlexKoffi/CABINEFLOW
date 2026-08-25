@@ -30,7 +30,8 @@ class _OfferManagementPageState extends State<OfferManagementPage> {
   void initState() {
     super.initState();
     _searchController = TextEditingController();
-    _viewModel = OfferManagementViewModel(repository: widget.repository)..start();
+    _viewModel = OfferManagementViewModel(repository: widget.repository)
+      ..start();
   }
 
   @override
@@ -45,10 +46,7 @@ class _OfferManagementPageState extends State<OfferManagementPage> {
       MaterialPageRoute<bool>(
         fullscreenDialog: offer == null,
         builder: (BuildContext context) {
-          return OfferEditorPage(
-            repository: widget.repository,
-            offer: offer,
-          );
+          return OfferEditorPage(repository: widget.repository, offer: offer);
         },
       ),
     );
@@ -182,26 +180,32 @@ class _OfferManagementPageState extends State<OfferManagementPage> {
                   const SizedBox(height: 18),
                   _FilterSection(
                     title: 'Réseau',
-                    children: MobileNetwork.values.map((MobileNetwork network) {
-                      return _FilterChip(
-                        label: _networkLabel(network),
-                        color: _networkColor(network),
-                        selected: _viewModel.networkFilter == network,
-                        onPressed: () => _viewModel.setNetworkFilter(network),
-                      );
-                    }).toList(growable: false),
+                    children: MobileNetwork.values
+                        .map((MobileNetwork network) {
+                          return _FilterChip(
+                            label: _networkLabel(network),
+                            color: _networkColor(network),
+                            selected: _viewModel.networkFilter == network,
+                            onPressed: () =>
+                                _viewModel.setNetworkFilter(network),
+                          );
+                        })
+                        .toList(growable: false),
                   ),
                   const SizedBox(height: 12),
                   _FilterSection(
                     title: 'Service',
-                    children: OfferService.values.map((OfferService service) {
-                      return _FilterChip(
-                        label: service.label,
-                        color: AppColors.primary,
-                        selected: _viewModel.serviceFilter == service,
-                        onPressed: () => _viewModel.setServiceFilter(service),
-                      );
-                    }).toList(growable: false),
+                    children: OfferService.values
+                        .map((OfferService service) {
+                          return _FilterChip(
+                            label: service.label,
+                            color: AppColors.primary,
+                            selected: _viewModel.serviceFilter == service,
+                            onPressed: () =>
+                                _viewModel.setServiceFilter(service),
+                          );
+                        })
+                        .toList(growable: false),
                   ),
                   const SizedBox(height: 12),
                   _FilterSection(
@@ -212,9 +216,8 @@ class _OfferManagementPageState extends State<OfferManagementPage> {
                         color: AppColors.primary,
                         selected:
                             _viewModel.statusFilter == OfferStatusFilter.all,
-                        onPressed: () => _viewModel.setStatusFilter(
-                          OfferStatusFilter.all,
-                        ),
+                        onPressed: () =>
+                            _viewModel.setStatusFilter(OfferStatusFilter.all),
                       ),
                       _FilterChip(
                         label: 'Actives',
@@ -228,7 +231,8 @@ class _OfferManagementPageState extends State<OfferManagementPage> {
                       _FilterChip(
                         label: 'Suspendues',
                         color: AppColors.error,
-                        selected: _viewModel.statusFilter ==
+                        selected:
+                            _viewModel.statusFilter ==
                             OfferStatusFilter.suspended,
                         onPressed: () => _viewModel.setStatusFilter(
                           OfferStatusFilter.suspended,
@@ -245,7 +249,10 @@ class _OfferManagementPageState extends State<OfferManagementPage> {
                       alignment: Alignment.centerLeft,
                       child: TextButton.icon(
                         onPressed: _clearAll,
-                        icon: const Icon(Icons.filter_alt_off_rounded, size: 18),
+                        icon: const Icon(
+                          Icons.filter_alt_off_rounded,
+                          size: 18,
+                        ),
                         label: const Text('Effacer les filtres'),
                       ),
                     ),
@@ -318,9 +325,27 @@ class _SummaryHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Expanded(child: _Metric(label: 'Total', value: total, color: AppColors.primaryContainer)),
-          Expanded(child: _Metric(label: 'Actives', value: active, color: AppColors.success)),
-          Expanded(child: _Metric(label: 'Suspendues', value: suspended, color: AppColors.error)),
+          Expanded(
+            child: _Metric(
+              label: 'Total',
+              value: total,
+              color: AppColors.primaryContainer,
+            ),
+          ),
+          Expanded(
+            child: _Metric(
+              label: 'Actives',
+              value: active,
+              color: AppColors.success,
+            ),
+          ),
+          Expanded(
+            child: _Metric(
+              label: 'Suspendues',
+              value: suspended,
+              color: AppColors.error,
+            ),
+          ),
         ],
       ),
     );
@@ -328,7 +353,11 @@ class _SummaryHeader extends StatelessWidget {
 }
 
 class _Metric extends StatelessWidget {
-  const _Metric({required this.label, required this.value, required this.color});
+  const _Metric({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
   final String label;
   final int value;
   final Color color;
@@ -337,9 +366,22 @@ class _Metric extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text('$value', style: TextStyle(color: color, fontSize: 22, fontWeight: FontWeight.w800)),
+        Text(
+          '$value',
+          style: TextStyle(
+            color: color,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
         const SizedBox(height: 3),
-        Text(label, style: const TextStyle(color: AppColors.onSurfaceVariant, fontSize: 11)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.onSurfaceVariant,
+            fontSize: 11,
+          ),
+        ),
       ],
     );
   }
@@ -361,13 +403,15 @@ class _FilterSection extends StatelessWidget {
             padding: const EdgeInsets.only(top: 8),
             child: Text(
               '$title :',
-              style: const TextStyle(color: AppColors.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                color: AppColors.onSurfaceVariant,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ),
-        Expanded(
-          child: Wrap(spacing: 8, runSpacing: 8, children: children),
-        ),
+        Expanded(child: Wrap(spacing: 8, runSpacing: 8, children: children)),
       ],
     );
   }
@@ -397,14 +441,27 @@ class _FilterChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected ? color.withAlpha(35) : AppColors.surfaceContainer,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: selected ? color : AppColors.outlineVariant),
+          border: Border.all(
+            color: selected ? color : AppColors.outlineVariant,
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 7, height: 7, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
             const SizedBox(width: 6),
-            Text(label, style: TextStyle(color: selected ? color : AppColors.onBackground, fontSize: 11, fontWeight: FontWeight.w600)),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? color : AppColors.onBackground,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
       ),
@@ -449,55 +506,113 @@ class _OfferCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                        decoration: BoxDecoration(color: networkColor.withAlpha(30), borderRadius: BorderRadius.circular(999)),
-                        child: Row(
-                          children: [
-                            Icon(Icons.signal_cellular_alt_rounded, color: networkColor, size: 14),
-                            const SizedBox(width: 5),
-                            Text(_networkLabel(offer.network), style: TextStyle(color: networkColor, fontSize: 11, fontWeight: FontWeight.w700)),
-                          ],
-                        ),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 5,
                       ),
-                      const Spacer(),
-                      _StatusBadge(isActive: offer.isActive),
-                    ],
+                      decoration: BoxDecoration(
+                        color: networkColor.withAlpha(30),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.signal_cellular_alt_rounded,
+                            color: networkColor,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            _networkLabel(offer.network),
+                            style: TextStyle(
+                              color: networkColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    _StatusBadge(isActive: offer.isActive),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  offer.title,
+                  style: const TextStyle(
+                    color: AppColors.onBackground,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
                   ),
-                  const SizedBox(height: 14),
-                  Text(offer.title, style: const TextStyle(color: AppColors.onBackground, fontSize: 18, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 5),
-                  Text(_subtitle(offer), style: const TextStyle(color: AppColors.onSurfaceVariant, fontSize: 12, height: 1.35)),
-                  const SizedBox(height: 16),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Prix', style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 11)),
-                            const SizedBox(height: 2),
-                            Text(formatCfa(offer.sellingPrice), style: const TextStyle(color: AppColors.onBackground, fontSize: 20, fontWeight: FontWeight.w800)),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: offer.isActive ? 'Suspendre' : 'Réactiver',
-                        onPressed: isBusy ? null : onToggleStatus,
-                        icon: isBusy
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                            : Icon(offer.isActive ? Icons.pause_circle_outline_rounded : Icons.play_circle_outline_rounded, color: offer.isActive ? AppColors.warning : AppColors.success),
-                      ),
-                      IconButton(
-                        tooltip: 'Modifier',
-                        onPressed: onEdit,
-                        icon: const Icon(Icons.edit_rounded, color: AppColors.primaryContainer),
-                      ),
-                    ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  _subtitle(offer),
+                  style: const TextStyle(
+                    color: AppColors.onSurfaceVariant,
+                    fontSize: 12,
+                    height: 1.35,
                   ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Prix',
+                            style: TextStyle(
+                              color: AppColors.onSurfaceVariant,
+                              fontSize: 11,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            formatCfa(offer.sellingPrice),
+                            style: const TextStyle(
+                              color: AppColors.onBackground,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: offer.isActive ? 'Suspendre' : 'Réactiver',
+                      onPressed: isBusy ? null : onToggleStatus,
+                      icon: isBusy
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(
+                              offer.isActive
+                                  ? Icons.pause_circle_outline_rounded
+                                  : Icons.play_circle_outline_rounded,
+                              color: offer.isActive
+                                  ? AppColors.warning
+                                  : AppColors.success,
+                            ),
+                    ),
+                    IconButton(
+                      tooltip: 'Modifier',
+                      onPressed: onEdit,
+                      icon: const Icon(
+                        Icons.edit_rounded,
+                        color: AppColors.primaryContainer,
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -516,8 +631,19 @@ class _StatusBadge extends StatelessWidget {
     final Color color = isActive ? AppColors.success : AppColors.error;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(color: color.withAlpha(28), borderRadius: BorderRadius.circular(999), border: Border.all(color: color.withAlpha(90))),
-      child: Text(isActive ? 'Active' : 'Suspendue', style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700)),
+      decoration: BoxDecoration(
+        color: color.withAlpha(28),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withAlpha(90)),
+      ),
+      child: Text(
+        isActive ? 'Active' : 'Suspendue',
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }
@@ -526,7 +652,11 @@ class _EmptyState extends StatelessWidget {
   const _EmptyState();
   @override
   Widget build(BuildContext context) {
-    return const _MessageCard(icon: Icons.local_offer_outlined, title: 'Aucune offre', message: 'Aucune offre ne correspond aux filtres sélectionnés.');
+    return const _MessageCard(
+      icon: Icons.local_offer_outlined,
+      title: 'Aucune offre',
+      message: 'Aucune offre ne correspond aux filtres sélectionnés.',
+    );
   }
 }
 
@@ -536,12 +666,22 @@ class _ErrorState extends StatelessWidget {
   final VoidCallback onRetry;
   @override
   Widget build(BuildContext context) {
-    return _MessageCard(icon: Icons.cloud_off_rounded, title: 'Catalogue indisponible', message: message, action: TextButton(onPressed: onRetry, child: const Text('Réessayer')));
+    return _MessageCard(
+      icon: Icons.cloud_off_rounded,
+      title: 'Catalogue indisponible',
+      message: message,
+      action: TextButton(onPressed: onRetry, child: const Text('Réessayer')),
+    );
   }
 }
 
 class _MessageCard extends StatelessWidget {
-  const _MessageCard({required this.icon, required this.title, required this.message, this.action});
+  const _MessageCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.action,
+  });
   final IconData icon;
   final String title;
   final String message;
@@ -550,14 +690,32 @@ class _MessageCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: AppColors.surfaceContainer, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.outlineVariant)),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainer,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
       child: Column(
         children: [
           Icon(icon, color: AppColors.onSurfaceVariant, size: 34),
           const SizedBox(height: 10),
-          Text(title, style: const TextStyle(color: AppColors.onBackground, fontSize: 16, fontWeight: FontWeight.w700)),
+          Text(
+            title,
+            style: const TextStyle(
+              color: AppColors.onBackground,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 6),
-          Text(message, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.onSurfaceVariant, fontSize: 12)),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.onSurfaceVariant,
+              fontSize: 12,
+            ),
+          ),
           if (action != null) ...[const SizedBox(height: 10), action!],
         ],
       ),

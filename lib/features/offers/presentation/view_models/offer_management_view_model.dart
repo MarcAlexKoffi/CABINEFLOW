@@ -35,34 +35,38 @@ class OfferManagementViewModel extends ChangeNotifier {
 
   List<AdminOffer> get filteredOffers {
     final String query = _normalized(_searchQuery);
-    return _offers.where((AdminOffer offer) {
-      if (_networkFilter != null && offer.network != _networkFilter) {
-        return false;
-      }
-      if (_serviceFilter != null && offer.service != _serviceFilter) {
-        return false;
-      }
-      if (_statusFilter == OfferStatusFilter.active && !offer.isActive) {
-        return false;
-      }
-      if (_statusFilter == OfferStatusFilter.suspended && offer.isActive) {
-        return false;
-      }
-      if (query.isEmpty) return true;
+    return _offers
+        .where((AdminOffer offer) {
+          if (_networkFilter != null && offer.network != _networkFilter) {
+            return false;
+          }
+          if (_serviceFilter != null && offer.service != _serviceFilter) {
+            return false;
+          }
+          if (_statusFilter == OfferStatusFilter.active && !offer.isActive) {
+            return false;
+          }
+          if (_statusFilter == OfferStatusFilter.suspended && offer.isActive) {
+            return false;
+          }
+          if (query.isEmpty) return true;
 
-      final String haystack = _normalized(<String>[
-        offer.title,
-        offer.catalogLabel,
-        offer.network.name,
-        offer.service.label,
-        offer.description ?? '',
-        offer.validity ?? '',
-        offer.volume ?? '',
-        offer.minutes ?? '',
-        offer.sms ?? '',
-      ].join(' '));
-      return haystack.contains(query);
-    }).toList(growable: false);
+          final String haystack = _normalized(
+            <String>[
+              offer.title,
+              offer.catalogLabel,
+              offer.network.name,
+              offer.service.label,
+              offer.description ?? '',
+              offer.validity ?? '',
+              offer.volume ?? '',
+              offer.minutes ?? '',
+              offer.sms ?? '',
+            ].join(' '),
+          );
+          return haystack.contains(query);
+        })
+        .toList(growable: false);
   }
 
   void start() {

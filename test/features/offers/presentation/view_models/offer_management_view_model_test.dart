@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:cabine_flow/features/offers/data/repositories/fake_admin_offer_repository.dart';
 import 'package:cabine_flow/features/offers/domain/models/admin_offer.dart';
 import 'package:cabine_flow/features/offers/presentation/view_models/offer_management_view_model.dart';
@@ -106,7 +104,10 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(viewModel.offers.single.isActive, isFalse);
 
-    expect(await viewModel.setOfferActive(viewModel.offers.single, true), isTrue);
+    expect(
+      await viewModel.setOfferActive(viewModel.offers.single, true),
+      isTrue,
+    );
     await Future<void>.delayed(Duration.zero);
     expect(viewModel.offers.single.isActive, isTrue);
   });

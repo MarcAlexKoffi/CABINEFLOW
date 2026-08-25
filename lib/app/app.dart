@@ -1,4 +1,7 @@
 import 'package:cabine_flow/app/app_routes.dart';
+import 'package:cabine_flow/features/agents/data/repositories/fake_agent_repository.dart';
+import 'package:cabine_flow/features/agents/data/repositories/firestore_agent_repository.dart';
+import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/core/services/wave_payment_link_builder.dart';
 import 'package:cabine_flow/core/theme/app_theme.dart';
 import 'package:cabine_flow/features/auth/data/repositories/fake_auth_repository.dart';
@@ -36,6 +39,7 @@ class CabineFlowApp extends StatelessWidget {
     this.offerCatalogRepository,
     this.adminOfferRepository,
     this.paymentLinkRepository,
+    this.agentRepository,
   });
 
   final AuthRepository? authRepository;
@@ -44,6 +48,7 @@ class CabineFlowApp extends StatelessWidget {
   final OfferCatalogRepository? offerCatalogRepository;
   final AdminOfferRepository? adminOfferRepository;
   final PaymentLinkRepository? paymentLinkRepository;
+  final AgentRepository? agentRepository;
 
   Route<dynamic> _createErrorRoute() {
     return MaterialPageRoute<void>(
@@ -92,6 +97,12 @@ class CabineFlowApp extends StatelessWidget {
     final PaymentLinkRepository effectivePaymentLinkRepository =
         paymentLinkRepository ??
         const WavePaymentLinkRepository(linkBuilder: WavePaymentLinkBuilder());
+
+    final AgentRepository effectiveAgentRepository =
+        agentRepository ??
+        (isFirebaseInitialized
+            ? FirestoreAgentRepository()
+            : FakeAgentRepository());
 
     return MaterialApp(
       title: 'CabineFlow',
@@ -153,6 +164,7 @@ class CabineFlowApp extends StatelessWidget {
                   offerCatalogRepository: effectiveOfferCatalogRepository,
                   adminOfferRepository: effectiveAdminOfferRepository,
                   paymentLinkRepository: effectivePaymentLinkRepository,
+                  agentRepository: effectiveAgentRepository,
                 );
               },
             );

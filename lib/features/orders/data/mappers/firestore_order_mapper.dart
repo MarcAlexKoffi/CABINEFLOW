@@ -61,6 +61,12 @@ class FirestoreOrderMapper {
       customerConfirmationCompletedAt: _readDate(
         data['customerConfirmationCompletedAt'],
       ),
+      assignedAgentId: _readNullableString(data['assignedAgentId']),
+      assignedAgentName: _readNullableString(data['assignedAgentName']),
+      assignedByUserId: _readNullableString(data['assignedByUserId']),
+      assignedAt: _readDate(data['assignedAt']),
+      assignmentMode: _readAssignmentMode(data['assignmentMode']),
+      assignmentStatus: _readAssignmentStatus(data['assignmentStatus']),
     );
   }
 
@@ -229,6 +235,34 @@ class FirestoreOrderMapper {
     }
 
     return OrderFailureReason.other;
+  }
+
+  static OrderAssignmentMode? _readAssignmentMode(Object? value) {
+    if (value is! String || value.isEmpty) {
+      return null;
+    }
+
+    for (final OrderAssignmentMode mode in OrderAssignmentMode.values) {
+      if (mode.name == value) {
+        return mode;
+      }
+    }
+
+    return null;
+  }
+
+  static OrderAssignmentStatus _readAssignmentStatus(Object? value) {
+    if (value is! String || value.isEmpty) {
+      return OrderAssignmentStatus.unassigned;
+    }
+
+    for (final OrderAssignmentStatus status in OrderAssignmentStatus.values) {
+      if (status.name == value) {
+        return status;
+      }
+    }
+
+    return OrderAssignmentStatus.unassigned;
   }
 
   static CustomerConfirmationStatus? _readConfirmationStatus(Object? value) {

@@ -59,6 +59,8 @@ class OrderHistoryViewModel extends ChangeNotifier {
           order.paymentReference ?? '',
           order.paymentDeclaredReference ?? '',
           order.takenByUserId ?? '',
+          order.assignedAgentId ?? '',
+          order.assignedAgentName ?? '',
         ];
         final String searchable = _normalize(values.join(' '));
 

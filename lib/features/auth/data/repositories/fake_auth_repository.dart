@@ -14,22 +14,32 @@ class FakeAuthRepository implements AuthRepository {
 
     final String normalizedIdentifier = identifier.trim().toLowerCase();
 
-    final bool isValidIdentifier =
+    final bool isAdminIdentifier =
         normalizedIdentifier == 'marc@cabineflow.app' ||
         normalizedIdentifier == 'marc';
+    final bool isAgentIdentifier =
+        normalizedIdentifier == 'agent@cabineflow.app' ||
+        normalizedIdentifier == 'agent';
 
     final bool isValidPassword = password == '1234';
 
-    if (!isValidIdentifier || !isValidPassword) {
+    if ((!isAdminIdentifier && !isAgentIdentifier) || !isValidPassword) {
       return const AuthLoginResult.invalidCredentials();
     }
 
-    _currentUser = const AppUser(
-      id: 'USR-001',
-      name: 'Marc Alex',
-      phoneNumber: '0700000000',
-      role: UserRole.administrator,
-    );
+    _currentUser = isAgentIdentifier
+        ? const AppUser(
+            id: 'AGENT-001',
+            name: 'Koffi Kouassi',
+            phoneNumber: '0700000001',
+            role: UserRole.agent,
+          )
+        : const AppUser(
+            id: 'USR-001',
+            name: 'Marc Alex',
+            phoneNumber: '0700000000',
+            role: UserRole.administrator,
+          );
 
     return AuthLoginResult.authenticated(_currentUser!);
   }
