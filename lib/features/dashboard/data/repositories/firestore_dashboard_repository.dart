@@ -36,6 +36,26 @@ class FirestoreDashboardRepository implements DashboardRepository {
     return _buildDashboardData(orders, now: DateTime.now());
   }
 
+  @override
+  Stream<DashboardData> watchDashboardData() {
+    return _ordersCollection
+        .orderBy('createdAt', descending: true)
+        .limit(maximumLoadedOrders)
+        .snapshots()
+        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
+          final List<QueueOrder> orders = snapshot.docs
+              .map(
+                (QueryDocumentSnapshot<Map<String, dynamic>> document) =>
+                    FirestoreOrderMapper.fromMap(
+                      id: document.id,
+                      data: document.data(),
+                    ),
+              )
+              .toList(growable: false);
+          return _buildDashboardData(orders, now: DateTime.now());
+        });
+  }
+
   DashboardData _buildDashboardData(
     List<QueueOrder> orders, {
     required DateTime now,

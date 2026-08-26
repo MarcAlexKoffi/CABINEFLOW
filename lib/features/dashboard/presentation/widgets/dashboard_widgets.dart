@@ -865,9 +865,9 @@ class CabineBottomNavigationBar extends StatelessWidget {
       selectedIcon: Icons.receipt_long_rounded,
     ),
     _CabineNavigationItem(
-      label: 'Réseaux',
-      icon: Icons.sim_card_outlined,
-      selectedIcon: Icons.sim_card_rounded,
+      label: 'Paiements',
+      icon: Icons.account_balance_wallet_outlined,
+      selectedIcon: Icons.account_balance_wallet_rounded,
     ),
     _CabineNavigationItem(
       label: 'Finances',

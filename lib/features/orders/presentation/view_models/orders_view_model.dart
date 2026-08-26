@@ -22,6 +22,8 @@ class OrdersViewModel extends ChangeNotifier {
   final OrderHistoryRepository? _orderHistoryRepository;
 
   Timer? _clockTimer;
+  StreamSubscription<List<QueueOrder>>? _queueSubscription;
+  StreamSubscription<List<QueueOrder>>? _historySubscription;
 
   QueueOrder? _activeOrder;
   bool _isProcessingAction = false;
@@ -264,6 +266,42 @@ class OrdersViewModel extends ChangeNotifier {
     return (totalMinutes / orders.length).round();
   }
 
+  void startRealtime() {
+    if (_queueSubscription != null || _historySubscription != null) return;
+
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    _queueSubscription = _ordersRepository.watchPaidQueue().listen(
+      (List<QueueOrder> orders) {
+        _orders = orders;
+        _isLoading = false;
+        _errorMessage = null;
+        notifyListeners();
+      },
+      onError: (_) {
+        _isLoading = false;
+        _errorMessage = 'Impossible de charger la file d’attente.';
+        notifyListeners();
+      },
+    );
+
+    final OrderHistoryRepository? historyRepository = _orderHistoryRepository;
+    if (historyRepository != null) {
+      _historySubscription = historyRepository.watchOrderHistory().listen(
+        (List<QueueOrder> orders) {
+          _historyOrders = orders;
+          notifyListeners();
+        },
+        onError: (_) {
+          _historyOrders = <QueueOrder>[];
+          notifyListeners();
+        },
+      );
+    }
+  }
+
   Future<void> loadQueue() async {
     if (_isLoading) {
       return;
@@ -413,6 +451,8 @@ class OrdersViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _clockTimer?.cancel();
+    _queueSubscription?.cancel();
+    _historySubscription?.cancel();
     super.dispose();
   }
 }

@@ -9,6 +9,8 @@ abstract class AgentRepository {
 
   Stream<List<AgentIssue>> watchAgentIssues(String agentId);
 
+  Stream<List<AgentIssue>> watchAllAgentIssues();
+
   Future<List<StaffAccountSummary>> loadPendingAccounts();
 
   Future<void> activatePendingAccountAsAgent({

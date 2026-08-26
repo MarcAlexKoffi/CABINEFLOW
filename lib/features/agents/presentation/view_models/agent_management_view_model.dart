@@ -11,9 +11,11 @@ class AgentManagementViewModel extends ChangeNotifier {
   final AgentRepository _repository;
   StreamSubscription<List<AgentDirectoryEntry>>? _agentsSub;
   StreamSubscription<List<AgentZone>>? _zonesSub;
+  StreamSubscription<List<AgentIssue>>? _issuesSub;
 
   List<AgentDirectoryEntry> agents = const <AgentDirectoryEntry>[];
   List<AgentZone> zones = const <AgentZone>[];
+  List<AgentIssue> issues = const <AgentIssue>[];
   bool isLoading = true;
   String? errorMessage;
   String searchQuery = '';
@@ -63,9 +65,25 @@ class AgentManagementViewModel extends ChangeNotifier {
       )
       .length;
 
+  int get openIssueCount => issues
+      .where(
+        (issue) => issue.status != 'resolved' && issue.status != 'cancelled',
+      )
+      .length;
+
+  List<AgentIssue> get recentIssues => issues.take(5).toList(growable: false);
+
+  String agentNameFor(String agentId) {
+    for (final AgentDirectoryEntry agent in agents) {
+      if (agent.userId == agentId) return agent.name;
+    }
+    return 'Agent';
+  }
+
   Future<void> start() async {
     await _agentsSub?.cancel();
     await _zonesSub?.cancel();
+    await _issuesSub?.cancel();
     isLoading = true;
     errorMessage = null;
     notifyListeners();
@@ -87,6 +105,16 @@ class AgentManagementViewModel extends ChangeNotifier {
       zones = value;
       notifyListeners();
     });
+    _issuesSub = _repository.watchAllAgentIssues().listen(
+      (value) {
+        issues = value;
+        notifyListeners();
+      },
+      onError: (_) {
+        // La gestion des agents reste utilisable même si le flux incidents
+        // rencontre temporairement un problème.
+      },
+    );
   }
 
   void updateSearch(String value) {
@@ -132,6 +160,7 @@ class AgentManagementViewModel extends ChangeNotifier {
   void dispose() {
     _agentsSub?.cancel();
     _zonesSub?.cancel();
+    _issuesSub?.cancel();
     super.dispose();
   }
 }

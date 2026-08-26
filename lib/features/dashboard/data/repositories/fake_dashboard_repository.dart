@@ -56,4 +56,9 @@ class FakeDashboardRepository implements DashboardRepository {
       ],
     );
   }
+
+  @override
+  Stream<DashboardData> watchDashboardData() async* {
+    yield await fetchDashboardData();
+  }
 }

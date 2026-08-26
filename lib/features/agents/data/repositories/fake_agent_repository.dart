@@ -97,6 +97,21 @@ class FakeAgentRepository implements AgentRepository {
   }
 
   @override
+  Stream<List<AgentIssue>> watchAllAgentIssues() async* {
+    List<AgentIssue> current() {
+      final List<AgentIssue> issues =
+          _issues.values.expand((items) => items).toList(growable: false)
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return List<AgentIssue>.unmodifiable(issues);
+    }
+
+    yield current();
+    await for (final _ in _changes.stream) {
+      yield current();
+    }
+  }
+
+  @override
   Future<List<StaffAccountSummary>> loadPendingAccounts() async {
     return const <StaffAccountSummary>[
       StaffAccountSummary(

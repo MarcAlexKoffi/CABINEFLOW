@@ -3,8 +3,6 @@ import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
-import 'package:cabine_flow/features/payments/domain/repositories/payment_link_repository.dart';
-import 'package:cabine_flow/features/payments/presentation/pages/send_wave_link_page.dart';
 import 'package:cabine_flow/features/payments/presentation/view_models/payments_view_model.dart';
 import 'package:cabine_flow/features/payments/presentation/widgets/payments_widgets.dart';
 import 'package:flutter/material.dart';
@@ -14,15 +12,12 @@ class PaymentsPage extends StatefulWidget {
     super.key,
     required this.user,
     required this.ordersRepository,
-    required this.paymentLinkRepository,
     required this.onPaymentConfirmed,
     required this.onOpenOrders,
   });
 
   final AppUser user;
   final OrdersRepository ordersRepository;
-  final PaymentLinkRepository paymentLinkRepository;
-
   final VoidCallback onPaymentConfirmed;
   final VoidCallback onOpenOrders;
 
@@ -41,7 +36,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
 
     _viewModel = PaymentsViewModel(ordersRepository: widget.ordersRepository);
 
-    _viewModel.loadPayments();
+    _viewModel.startRealtime();
   }
 
   @override
@@ -73,37 +68,6 @@ class _PaymentsPageState extends State<PaymentsPage> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Future<void> _openPaymentLinkPage(QueueOrder order) async {
-    final bool? wasSent = await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
-        fullscreenDialog: true,
-        builder: (BuildContext routeContext) {
-          return SendWaveLinkPage(
-            order: order,
-            ordersRepository: widget.ordersRepository,
-            paymentLinkRepository: widget.paymentLinkRepository,
-          );
-        },
-      ),
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    if (wasSent == true) {
-      await _viewModel.loadPayments();
-
-      if (!mounted) {
-        return;
-      }
-
-      _showMessage(
-        'Le lien Wave de la commande ${order.reference} a été envoyé.',
-      );
-    }
   }
 
   String _formatIvorianPhone(String value) {
@@ -240,7 +204,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                                   ),
                                 ),
                                 Text(
-                                  '${formatCfa(order.amount)} F CFA',
+                                  '${formatCfa(order.amount)} CFA',
                                   style: const TextStyle(
                                     color: AppColors.primary,
                                     fontWeight: FontWeight.w700,
@@ -505,21 +469,26 @@ class _PaymentsPageState extends State<PaymentsPage> {
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Row(
-                          children: PaymentOrderFilter.values.map((
-                            PaymentOrderFilter filter,
-                          ) {
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: PaymentFilterPill(
-                                label: _filterLabel(filter),
-                                count: _viewModel.countForFilter(filter),
-                                isSelected: _viewModel.selectedFilter == filter,
-                                onPressed: () {
-                                  _viewModel.selectFilter(filter);
-                                },
-                              ),
-                            );
-                          }).toList(),
+                          children:
+                              const <PaymentOrderFilter>[
+                                PaymentOrderFilter.all,
+                                PaymentOrderFilter.awaitingPayment,
+                                PaymentOrderFilter.afterExpiration,
+                                PaymentOrderFilter.confirmed,
+                              ].map((PaymentOrderFilter filter) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: PaymentFilterPill(
+                                    label: _filterLabel(filter),
+                                    count: _viewModel.countForFilter(filter),
+                                    isSelected:
+                                        _viewModel.selectedFilter == filter,
+                                    onPressed: () {
+                                      _viewModel.selectFilter(filter);
+                                    },
+                                  ),
+                                );
+                              }).toList(),
                         ),
                       ),
                       const SizedBox(height: 18),
@@ -543,9 +512,6 @@ class _PaymentsPageState extends State<PaymentsPage> {
                             child: PaymentTrackingCard(
                               order: order,
                               isProcessing: _viewModel.isProcessing(order.id),
-                              onSendPaymentLink: () {
-                                _openPaymentLinkPage(order);
-                              },
                               onConfirmPayment: () {
                                 _openPaymentConfirmation(order);
                               },

@@ -6,6 +6,7 @@ import 'package:cabine_flow/features/customer_order/domain/models/payment_declar
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_repository.dart';
+import 'package:cabine_flow/features/orders/domain/models/order_event.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/services/order_expiration_policy.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -28,6 +29,10 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
     return _firestore.collection('orders');
   }
 
+  CollectionReference<Map<String, dynamic>> get _eventsCollection {
+    return _firestore.collection('orderEvents');
+  }
+
   @override
   Future<CustomerOrderReceipt> createOrder({
     required CustomerOrderDraft draft,
@@ -45,14 +50,34 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
       documentId: document.id,
     );
 
-    await document.set(
-      _buildOrderData(
-        draft: draft,
-        customerUid: customer.uid,
-        reference: reference,
-        expiresAt: expiresAt,
+    final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
+        .doc();
+    final OrderEventType eventType = OrderEventType.orderCreated;
+    final Map<String, dynamic> orderData = _buildOrderData(
+      draft: draft,
+      customerUid: customer.uid,
+      reference: reference,
+      expiresAt: expiresAt,
+    )..addAll(_auditLinkData(eventRef: eventRef, type: eventType));
+
+    final WriteBatch batch = _firestore.batch();
+    batch.set(document, orderData);
+    batch.set(
+      eventRef,
+      _eventDocumentData(
+        orderId: document.id,
+        orderReference: reference,
+        type: eventType,
+        actorId: customer.uid,
+        actorRole: 'customer',
+        metadata: <String, dynamic>{
+          'source': OrderSource.customerWeb.name,
+          'network': draft.network!.name,
+          'amount': draft.amount,
+        },
       ),
     );
+    await batch.commit();
 
     return CustomerOrderReceipt(
       id: document.id,
@@ -73,6 +98,9 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
     final User customer = await _ensureAnonymousCustomer();
     final DocumentReference<Map<String, dynamic>> document = _ordersCollection
         .doc(order.id);
+    final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
+        .doc();
+    final OrderEventType eventType = OrderEventType.paymentDeclared;
     final DateTime declaredAt = DateTime.now();
 
     return _firestore.runTransaction<CustomerOrderReceipt>((
@@ -132,6 +160,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
         'paymentApproximateTime': declaration.approximatePaymentTime,
         'paymentDeclaredReference': declaration.declaredWaveReference,
         'updatedAt': FieldValue.serverTimestamp(),
+        ..._auditLinkData(eventRef: eventRef, type: eventType),
       };
 
       if (declaredAfterExpiration && data['expiredAt'] == null) {
@@ -139,6 +168,16 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
       }
 
       transaction.update(document, update);
+      transaction.set(
+        eventRef,
+        _eventDocumentData(
+          orderId: order.id,
+          orderReference: order.reference,
+          type: eventType,
+          actorId: customer.uid,
+          actorRole: 'customer',
+        ),
+      );
 
       return order.copyWith(
         status: nextStatus,
@@ -310,6 +349,37 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
     }
 
     return signedInUser;
+  }
+
+  Map<String, dynamic> _auditLinkData({
+    required DocumentReference<Map<String, dynamic>> eventRef,
+    required OrderEventType type,
+  }) {
+    return <String, dynamic>{
+      'lastEventId': eventRef.id,
+      'lastEventType': type.value,
+      'lastEventAt': FieldValue.serverTimestamp(),
+    };
+  }
+
+  Map<String, dynamic> _eventDocumentData({
+    required String orderId,
+    required String orderReference,
+    required OrderEventType type,
+    required String actorId,
+    required String actorRole,
+    Map<String, dynamic> metadata = const <String, dynamic>{},
+  }) {
+    return <String, dynamic>{
+      'schemaVersion': 1,
+      'orderId': orderId,
+      'orderReference': orderReference,
+      'type': type.value,
+      'actorId': actorId,
+      'actorRole': actorRole,
+      'createdAt': FieldValue.serverTimestamp(),
+      'metadata': metadata,
+    };
   }
 
   Map<String, dynamic> _buildOrderData({

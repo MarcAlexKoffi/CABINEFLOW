@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:cabine_flow/features/orders/domain/models/create_order_request.dart';
+import 'package:cabine_flow/features/orders/domain/models/order_event.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_proof.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
@@ -14,8 +15,33 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
   List<QueueOrder>? _orders;
   final StreamController<void> _changes = StreamController<void>.broadcast();
   final Map<String, OrderProof> _proofs = <String, OrderProof>{};
+  final List<OrderEvent> _orderEvents = <OrderEvent>[];
+
+  List<OrderEvent> get debugOrderEvents =>
+      List<OrderEvent>.unmodifiable(_orderEvents);
 
   void _notify() => _changes.add(null);
+
+  void _recordEvent({
+    required QueueOrder order,
+    required OrderEventType type,
+    required String actorId,
+    required String actorRole,
+    Map<String, Object?> metadata = const <String, Object?>{},
+  }) {
+    _orderEvents.add(
+      OrderEvent(
+        id: 'fake-event-${_orderEvents.length + 1}',
+        orderId: order.id,
+        orderReference: order.reference,
+        type: type,
+        actorId: actorId,
+        actorRole: actorRole,
+        createdAt: DateTime.now(),
+        metadata: Map<String, Object?>.unmodifiable(metadata),
+      ),
+    );
+  }
 
   Future<void> _delay([int ms = 400]) async {
     if (isTest) return;
@@ -38,6 +64,7 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     );
 
     _orders![index] = updatedOrder;
+    _notify();
 
     return updatedOrder;
   }
@@ -49,9 +76,6 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     _orders ??= _createInitialOrders();
 
     final List<QueueOrder> paymentOrders = _orders!.where((QueueOrder order) {
-      final bool isOperatorPaymentInProgress =
-          order.source == OrderSource.operatorApp &&
-          order.status == QueueOrderStatus.awaitingPayment;
       final bool isCustomerPaymentToVerify =
           order.source == OrderSource.customerWeb &&
           order.paymentStatus == OrderPaymentStatus.declared &&
@@ -63,9 +87,7 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
           order.paymentReference != null &&
           order.paymentReference!.trim().isNotEmpty;
 
-      return isOperatorPaymentInProgress ||
-          isCustomerPaymentToVerify ||
-          wasManuallyConfirmed;
+      return isCustomerPaymentToVerify || wasManuallyConfirmed;
     }).toList();
 
     paymentOrders.sort((QueueOrder firstOrder, QueueOrder secondOrder) {
@@ -85,6 +107,14 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     });
 
     return List<QueueOrder>.unmodifiable(paymentOrders);
+  }
+
+  @override
+  Stream<List<QueueOrder>> watchPaymentTrackingOrders() async* {
+    yield await fetchPaymentTrackingOrders();
+    await for (final _ in _changes.stream) {
+      yield await fetchPaymentTrackingOrders();
+    }
   }
 
   @override
@@ -133,6 +163,14 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     );
 
     _orders![index] = updatedOrder;
+    _recordEvent(
+      order: updatedOrder,
+      type: OrderEventType.paymentConfirmed,
+      actorId: 'ADMIN-001',
+      actorRole: 'admin',
+      metadata: <String, Object?>{'paymentReference': finalReference},
+    );
+    _notify();
 
     return updatedOrder;
   }
@@ -149,6 +187,14 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     });
 
     return List<QueueOrder>.unmodifiable(orders);
+  }
+
+  @override
+  Stream<List<QueueOrder>> watchOrderHistory() async* {
+    yield await fetchOrderHistory();
+    await for (final _ in _changes.stream) {
+      yield await fetchOrderHistory();
+    }
   }
 
   @override
@@ -169,6 +215,14 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
         return order.status == QueueOrderStatus.paidReady;
       }),
     );
+  }
+
+  @override
+  Stream<List<QueueOrder>> watchPaidQueue() async* {
+    yield await fetchPaidQueue();
+    await for (final _ in _changes.stream) {
+      yield await fetchPaidQueue();
+    }
   }
 
   @override
@@ -195,6 +249,13 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
       assignmentStatus: OrderAssignmentStatus.assigned,
     );
     _orders![index] = updatedOrder;
+    _recordEvent(
+      order: updatedOrder,
+      type: OrderEventType.assigned,
+      actorId: assignedByUserId,
+      actorRole: 'admin',
+      metadata: <String, Object?>{'agentId': agentId},
+    );
     _notify();
     return updatedOrder;
   }
@@ -239,6 +300,12 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
       assignmentStatus: OrderAssignmentStatus.accepted,
     );
     _orders![index] = updatedOrder;
+    _recordEvent(
+      order: updatedOrder,
+      type: OrderEventType.assignmentAccepted,
+      actorId: agentId,
+      actorRole: 'agent',
+    );
     _notify();
     return updatedOrder;
   }
@@ -268,6 +335,13 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
       lastAssignmentRefusedAt: DateTime.now(),
     );
     _orders![index] = updatedOrder;
+    _recordEvent(
+      order: currentOrder,
+      type: OrderEventType.assignmentRefused,
+      actorId: agentId,
+      actorRole: 'agent',
+      metadata: <String, Object?>{'reason': cleanedReason},
+    );
     _notify();
     return updatedOrder;
   }
@@ -296,6 +370,12 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
       takenAt: DateTime.now(),
     );
     _orders![index] = updatedOrder;
+    _recordEvent(
+      order: updatedOrder,
+      type: OrderEventType.processingStarted,
+      actorId: agentId,
+      actorRole: 'agent',
+    );
     _notify();
     return updatedOrder;
   }
@@ -318,6 +398,12 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
       lastResumedAt: DateTime.now(),
     );
     _orders![index] = updatedOrder;
+    _recordEvent(
+      order: updatedOrder,
+      type: OrderEventType.processingResumed,
+      actorId: agentId,
+      actorRole: 'agent',
+    );
     _notify();
     return updatedOrder;
   }
@@ -364,6 +450,16 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
       updatedAt: now,
     );
     _proofs[orderId] = proof;
+    _recordEvent(
+      order: currentOrder,
+      type: OrderEventType.proofAdded,
+      actorId: agentId,
+      actorRole: 'agent',
+      metadata: <String, Object?>{
+        'fileName': fileName.trim(),
+        'sizeBytes': bytes.length,
+      },
+    );
     return proof;
   }
 
@@ -390,6 +486,12 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
       clearFailureDetails: true,
     );
     _orders![index] = updatedOrder;
+    _recordEvent(
+      order: updatedOrder,
+      type: OrderEventType.processingSucceeded,
+      actorId: agentId,
+      actorRole: 'agent',
+    );
     _notify();
     return updatedOrder;
   }
@@ -418,6 +520,17 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
           : observation?.trim(),
     );
     _orders![index] = updatedOrder;
+    _recordEvent(
+      order: updatedOrder,
+      type: OrderEventType.processingFailed,
+      actorId: agentId,
+      actorRole: 'agent',
+      metadata: <String, Object?>{
+        'failureReason': reason.name,
+        if (updatedOrder.observation != null)
+          'observation': updatedOrder.observation,
+      },
+    );
     _notify();
     return updatedOrder;
   }
@@ -447,6 +560,13 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
       lastHeldAt: DateTime.now(),
     );
     _orders![index] = updatedOrder;
+    _recordEvent(
+      order: updatedOrder,
+      type: OrderEventType.putOnHold,
+      actorId: agentId,
+      actorRole: 'agent',
+      metadata: <String, Object?>{'reason': cleanedReason},
+    );
     _notify();
     return updatedOrder;
   }
@@ -489,6 +609,14 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
   }
 
   @override
+  Stream<Map<String, int>> watchActiveAssignmentCounts() async* {
+    yield await fetchActiveAssignmentCounts();
+    await for (final _ in _changes.stream) {
+      yield await fetchActiveAssignmentCounts();
+    }
+  }
+
+  @override
   Future<QueueOrder> takeCharge({
     required String orderId,
     required String operatorId,
@@ -509,6 +637,13 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     );
 
     _orders![index] = updatedOrder;
+    _recordEvent(
+      order: updatedOrder,
+      type: OrderEventType.processingStarted,
+      actorId: operatorId,
+      actorRole: 'operator',
+    );
+    _notify();
 
     return updatedOrder;
   }
@@ -529,6 +664,13 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     );
 
     _orders![index] = updatedOrder;
+    _recordEvent(
+      order: updatedOrder,
+      type: OrderEventType.processingSucceeded,
+      actorId: 'OPERATOR-001',
+      actorRole: 'operator',
+    );
+    _notify();
 
     return updatedOrder;
   }
@@ -556,6 +698,14 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     );
 
     _orders![index] = updatedOrder;
+    _recordEvent(
+      order: updatedOrder,
+      type: OrderEventType.customerContacted,
+      actorId: 'ADMIN-001',
+      actorRole: 'admin',
+      metadata: <String, Object?>{'messageSent': messageSent},
+    );
+    _notify();
 
     return updatedOrder;
   }
@@ -581,6 +731,18 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     );
 
     _orders![index] = updatedOrder;
+    _recordEvent(
+      order: updatedOrder,
+      type: OrderEventType.processingFailed,
+      actorId: 'OPERATOR-001',
+      actorRole: 'operator',
+      metadata: <String, Object?>{
+        'failureReason': reason.name,
+        if (observation != null && observation.trim().isNotEmpty)
+          'observation': observation.trim(),
+      },
+    );
+    _notify();
 
     return updatedOrder;
   }
@@ -600,6 +762,14 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     );
 
     _orders![index] = updatedOrder;
+    _recordEvent(
+      order: updatedOrder,
+      type: OrderEventType.putOnHold,
+      actorId: 'OPERATOR-001',
+      actorRole: 'operator',
+      metadata: const <String, Object?>{'releasedToQueue': true},
+    );
+    _notify();
 
     return updatedOrder;
   }
@@ -656,6 +826,18 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     );
 
     _orders!.insert(0, order);
+    _recordEvent(
+      order: order,
+      type: OrderEventType.orderCreated,
+      actorId: 'ADMIN-001',
+      actorRole: 'admin',
+      metadata: <String, Object?>{
+        'source': order.source.name,
+        'network': order.network.name,
+        'amount': order.amount,
+      },
+    );
+    _notify();
 
     return order;
   }
@@ -826,10 +1008,31 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
         Duration(minutes: waitingMinutes[index]),
       );
 
+      final bool isPendingPayment = index == 0;
+      final bool isDeclaredPayment = index == 1;
+
+      final QueueOrderStatus status = isPendingPayment
+          ? QueueOrderStatus.awaitingPayment
+          : (isDeclaredPayment
+                ? QueueOrderStatus.paymentToVerify
+                : QueueOrderStatus.paidReady);
+
+      final OrderPaymentStatus paymentStatus = isPendingPayment
+          ? OrderPaymentStatus.pending
+          : (isDeclaredPayment
+                ? OrderPaymentStatus.declared
+                : OrderPaymentStatus.confirmed);
+
+      final DateTime? confirmedAt = (isPendingPayment || isDeclaredPayment)
+          ? null
+          : paidAt;
+
       return QueueOrder(
         id: 'order-${index + 1}',
         reference: 'ORD-${9823 + index}',
-        source: OrderSource.operatorApp,
+        source: isDeclaredPayment
+            ? OrderSource.customerWeb
+            : OrderSource.operatorApp,
         clientName: clients[index],
         clientWhatsappPhone: clientWhatsappPhones[index],
         network: networks[index],
@@ -838,10 +1041,14 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
         offerLabel: offers[index],
         amount: amounts[index],
         createdAt: paidAt.subtract(const Duration(minutes: 2)),
-        paidAt: paidAt,
-        paymentConfirmedAt: paidAt,
-        status: QueueOrderStatus.paidReady,
-        paymentStatus: OrderPaymentStatus.confirmed,
+        paidAt: confirmedAt,
+        paymentConfirmedAt: confirmedAt,
+        paymentDeclaredAt: isDeclaredPayment ? paidAt : null,
+        paymentPayerName: isDeclaredPayment ? clients[index] : null,
+        paymentPayerPhone: isDeclaredPayment ? phones[index] : null,
+        paymentApproximateTime: isDeclaredPayment ? '14:30' : null,
+        status: status,
+        paymentStatus: paymentStatus,
       );
     });
   }

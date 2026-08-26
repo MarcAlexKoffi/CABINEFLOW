@@ -132,6 +132,19 @@ class FirestoreAgentRepository implements AgentRepository {
   }
 
   @override
+  Stream<List<AgentIssue>> watchAllAgentIssues() {
+    return _issues.snapshots().map((snapshot) {
+      final List<AgentIssue> issues =
+          snapshot.docs
+              .map(_issueFromDocument)
+              .whereType<AgentIssue>()
+              .toList(growable: false)
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return List<AgentIssue>.unmodifiable(issues);
+    });
+  }
+
+  @override
   Future<List<StaffAccountSummary>> loadPendingAccounts() async {
     final QuerySnapshot<Map<String, dynamic>> snapshot = await _users
         .where('role', isEqualTo: 'pending')

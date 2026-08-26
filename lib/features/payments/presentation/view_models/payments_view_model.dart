@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:flutter/foundation.dart';
@@ -15,6 +17,7 @@ class PaymentsViewModel extends ChangeNotifier {
     : _ordersRepository = ordersRepository;
 
   final OrdersRepository _ordersRepository;
+  StreamSubscription<List<QueueOrder>>? _subscription;
 
   List<QueueOrder> _orders = [];
 
@@ -123,6 +126,29 @@ class PaymentsViewModel extends ChangeNotifier {
     }
   }
 
+  void startRealtime() {
+    if (_subscription != null) return;
+
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    _subscription = _ordersRepository.watchPaymentTrackingOrders().listen(
+      (List<QueueOrder> orders) {
+        _orders = orders;
+        _isLoading = false;
+        _errorMessage = null;
+        notifyListeners();
+      },
+      onError: (Object error) {
+        debugPrint('[Payments][watch] $error');
+        _isLoading = false;
+        _errorMessage = 'Impossible de charger les paiements.';
+        notifyListeners();
+      },
+    );
+  }
+
   Future<void> loadPayments() async {
     if (_isLoading) {
       return;
@@ -180,7 +206,9 @@ class PaymentsViewModel extends ChangeNotifier {
       _replaceOrder(updatedOrder);
 
       return true;
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('[Payments][confirm] $error');
+      debugPrint('[Payments][confirm] $stackTrace');
       _errorMessage = error is StateError
           ? error.message.toString()
           : 'Impossible de confirmer ce paiement.';
@@ -205,5 +233,11 @@ class PaymentsViewModel extends ChangeNotifier {
 
       return order;
     }).toList();
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 }

@@ -33,7 +33,7 @@ class _DashboardPageState extends State<DashboardPage> {
     _viewModel = DashboardViewModel(
       dashboardRepository: widget.dashboardRepository,
     );
-    _viewModel.loadDashboard();
+    _viewModel.startRealtime();
   }
 
   @override

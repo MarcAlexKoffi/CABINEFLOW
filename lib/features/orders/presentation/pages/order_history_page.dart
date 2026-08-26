@@ -50,11 +50,14 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> {
       initialSearchQuery: widget.initialSearchQuery,
       initialFilters: widget.initialFilters,
     );
-    _viewModel.loadHistory().then((_) {
-      if (mounted && widget.openFiltersOnStart) {
-        _openFilters();
-      }
-    });
+    _viewModel.startRealtime();
+    if (widget.openFiltersOnStart) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _openFilters();
+        }
+      });
+    }
   }
 
   @override

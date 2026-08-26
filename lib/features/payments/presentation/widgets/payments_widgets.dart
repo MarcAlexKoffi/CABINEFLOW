@@ -109,7 +109,6 @@ class PaymentTrackingCard extends StatelessWidget {
     super.key,
     required this.order,
     required this.isProcessing,
-    required this.onSendPaymentLink,
     required this.onConfirmPayment,
     required this.onOpenOrders,
   });
@@ -117,7 +116,6 @@ class PaymentTrackingCard extends StatelessWidget {
   final QueueOrder order;
   final bool isProcessing;
 
-  final VoidCallback onSendPaymentLink;
   final VoidCallback onConfirmPayment;
   final VoidCallback onOpenOrders;
 
@@ -127,9 +125,9 @@ class PaymentTrackingCard extends StatelessWidget {
 
   bool get isConfirmed {
     return order.paymentStatus == OrderPaymentStatus.confirmed &&
-        order.status == QueueOrderStatus.paidReady &&
         order.paidAt != null &&
-        order.paymentReference != null;
+        order.paymentReference != null &&
+        order.paymentReference!.trim().isNotEmpty;
   }
 
   bool get isCustomerPaymentDeclared {
@@ -139,10 +137,6 @@ class PaymentTrackingCard extends StatelessWidget {
 
   bool get isPaymentToReviewAfterExpiration {
     return order.hasPaymentToReviewAfterExpiration;
-  }
-
-  bool get wasPaymentLinkSent {
-    return order.paymentRequestSentAt != null;
   }
 
   String get networkLabel {
@@ -267,7 +261,7 @@ class PaymentTrackingCard extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Text(
-          '${formatCfa(order.amount)} F CFA',
+          '${formatCfa(order.amount)} CFA',
           style: const TextStyle(
             color: AppColors.primary,
             fontSize: 18,
@@ -354,16 +348,11 @@ class PaymentTrackingCard extends StatelessWidget {
       subtitle = order.paymentDeclaredAt == null
           ? 'Déclaration reçue depuis l’espace client.'
           : 'Déclaré ${_formatDate(order.paymentDeclaredAt!)}';
-    } else if (wasPaymentLinkSent) {
+    } else {
       color = _waitingColor;
       icon = Icons.hourglass_top_rounded;
-      title = 'En attente de paiement';
-      subtitle = 'Lien envoyé ${_formatDate(order.paymentRequestSentAt!)}';
-    } else {
-      color = _warningColor;
-      icon = Icons.link_off_rounded;
-      title = 'Lien de paiement non envoyé';
-      subtitle = 'Commande créée ${_formatDate(order.createdAt)}';
+      title = 'Paiement en attente';
+      subtitle = 'Aucune déclaration de paiement à vérifier.';
     }
 
     return Container(
@@ -527,47 +516,10 @@ class PaymentTrackingCard extends StatelessWidget {
       );
     }
 
-    if (!wasPaymentLinkSent) {
-      return FilledButton.icon(
-        onPressed: isProcessing ? null : onSendPaymentLink,
-        icon: isProcessing
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColors.onPrimary,
-                ),
-              )
-            : const Icon(Icons.link_rounded, size: 19),
-        label: const Text('Préparer le lien Wave'),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        FilledButton.icon(
-          onPressed: isProcessing ? null : onConfirmPayment,
-          icon: isProcessing
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.onPrimary,
-                  ),
-                )
-              : const Icon(Icons.verified_rounded, size: 19),
-          label: const Text('Confirmer le paiement'),
-        ),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-          onPressed: isProcessing ? null : onSendPaymentLink,
-          icon: const Icon(Icons.refresh_rounded, size: 18),
-          label: const Text('Renvoyer le lien'),
-        ),
-      ],
+    return OutlinedButton.icon(
+      onPressed: onOpenOrders,
+      icon: const Icon(Icons.receipt_long_outlined, size: 18),
+      label: const Text('Voir la commande'),
     );
   }
 }

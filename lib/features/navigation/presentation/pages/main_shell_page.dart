@@ -47,13 +47,8 @@ class MainShellPage extends StatefulWidget {
 class _MainShellPageState extends State<MainShellPage> {
   int _selectedIndex = 0;
 
-  int _ordersPageVersion = 0;
-  int _paymentsPageVersion = 0;
-
   void _handlePaymentConfirmed() {
-    setState(() {
-      _ordersPageVersion++;
-    });
+    // Les onglets écoutent Firestore en temps réel : aucun rebuild forcé.
   }
 
   void _openOrdersTab() {
@@ -91,10 +86,6 @@ class _MainShellPageState extends State<MainShellPage> {
       return;
     }
 
-    setState(() {
-      _paymentsPageVersion++;
-    });
-
     if (!result.preparePayment) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -122,12 +113,6 @@ class _MainShellPageState extends State<MainShellPage> {
 
     if (!mounted) {
       return;
-    }
-
-    if (paymentRequestWasSent == true) {
-      setState(() {
-        _paymentsPageVersion++;
-      });
     }
 
     final String message;
@@ -166,16 +151,13 @@ class _MainShellPageState extends State<MainShellPage> {
         onOpenOrders: _openOrdersTab,
       ),
       OrdersPage(
-        key: ValueKey<int>(_ordersPageVersion),
         user: widget.user,
         ordersRepository: widget.ordersRepository,
         agentRepository: widget.agentRepository,
       ),
       PaymentsPage(
-        key: ValueKey<int>(_paymentsPageVersion),
         user: widget.user,
         ordersRepository: widget.ordersRepository,
-        paymentLinkRepository: widget.paymentLinkRepository,
         onPaymentConfirmed: _handlePaymentConfirmed,
         onOpenOrders: _openOrdersTab,
       ),

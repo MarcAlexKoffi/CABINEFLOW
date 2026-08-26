@@ -96,7 +96,13 @@ service cloud.firestore {
         'assignmentMode',
         'assignmentStatus',
         'lastAssignmentRefusalReason',
-        'lastAssignmentRefusedAt'
+        'lastAssignmentRefusedAt',
+        'lastHoldReason',
+        'lastHeldAt',
+        'lastResumedAt',
+        'lastEventId',
+        'lastEventType',
+        'lastEventAt'
       ]);
     }
 
@@ -142,12 +148,62 @@ service cloud.firestore {
         && (
           request.resource.data.get('lastAssignmentRefusedAt', null) == null
           || request.resource.data.get('lastAssignmentRefusedAt', null) is timestamp
+        )
+        && (
+          request.resource.data.get('lastHoldReason', null) == null
+          || (
+            request.resource.data.get('lastHoldReason', null) is string
+            && request.resource.data.get('lastHoldReason', null).size() >= 3
+            && request.resource.data.get('lastHoldReason', null).size() <= 300
+          )
+        )
+        && (
+          request.resource.data.get('lastHeldAt', null) == null
+          || request.resource.data.get('lastHeldAt', null) is timestamp
+        )
+        && (
+          request.resource.data.get('lastResumedAt', null) == null
+          || request.resource.data.get('lastResumedAt', null) is timestamp
+        );
+    }
+
+    function hasValidOrderAuditValues() {
+      return (
+          request.resource.data.get('lastEventId', null) == null
+          || (
+            request.resource.data.get('lastEventId', null) is string
+            && request.resource.data.get('lastEventId', null).size() >= 8
+            && request.resource.data.get('lastEventId', null).size() <= 120
+          )
+        )
+        && (
+          request.resource.data.get('lastEventType', null) == null
+          || request.resource.data.get('lastEventType', null) in [
+            'ORDER_CREATED',
+            'PAYMENT_DECLARED',
+            'PAYMENT_CONFIRMED',
+            'ASSIGNED',
+            'ASSIGNMENT_ACCEPTED',
+            'ASSIGNMENT_REFUSED',
+            'PROCESSING_STARTED',
+            'PUT_ON_HOLD',
+            'PROCESSING_RESUMED',
+            'PROOF_ADDED',
+            'PROCESSING_SUCCEEDED',
+            'PROCESSING_FAILED',
+            'CUSTOMER_CONTACTED'
+          ]
+        )
+        && (
+          request.resource.data.get('lastEventAt', null) == null
+          || request.resource.data.get('lastEventAt', null) is timestamp
         );
     }
 
     function hasValidCommonOrderValues() {
       return hasValidOrderKeys()
         && hasValidOrderAssignmentValues()
+        && hasValidOrderAuditValues()
         && request.resource.data.schemaVersion == 1
         && request.resource.data.reference is string
         && request.resource.data.reference.size() >= 12
@@ -215,6 +271,30 @@ service cloud.firestore {
         ];
     }
 
+    function hasMatchingOrderEvent(orderId, eventType) {
+      let eventId = request.resource.data.get('lastEventId', null);
+      let event = getAfter(
+        /databases/$(database)/documents/orderEvents/$(eventId)
+      ).data;
+
+      return eventId is string
+        && request.resource.data.get('lastEventType', null) == eventType
+        && request.resource.data.get('lastEventAt', null) == request.time
+        && event.orderId == orderId
+        && event.orderReference == request.resource.data.reference
+        && event.type == eventType
+        && event.createdAt == request.time;
+    }
+
+    function auditLinkIsUnchanged() {
+      return request.resource.data.get('lastEventId', null)
+          == resource.data.get('lastEventId', null)
+        && request.resource.data.get('lastEventType', null)
+          == resource.data.get('lastEventType', null)
+        && request.resource.data.get('lastEventAt', null)
+          == resource.data.get('lastEventAt', null);
+    }
+
     function isValidOfferSnapshotAtCreation() {
       let offerId = request.resource.data.offerId;
 
@@ -253,7 +333,7 @@ service cloud.firestore {
       );
     }
 
-    function isValidCustomerOrderCreation() {
+    function isValidCustomerOrderCreation(orderId) {
       return isSignedIn()
         && hasValidCommonOrderValues()
         && isValidOfferSnapshotAtCreation()
@@ -298,7 +378,11 @@ service cloud.firestore {
         && request.resource.data.get('assignmentMode', null) == null
         && request.resource.data.get('assignmentStatus', 'unassigned') == 'unassigned'
         && request.resource.data.get('lastAssignmentRefusalReason', null) == null
-        && request.resource.data.get('lastAssignmentRefusedAt', null) == null;
+        && request.resource.data.get('lastAssignmentRefusedAt', null) == null
+        && request.resource.data.get('lastHoldReason', null) == null
+        && request.resource.data.get('lastHeldAt', null) == null
+        && request.resource.data.get('lastResumedAt', null) == null
+        && hasMatchingOrderEvent(orderId, 'ORDER_CREATED');
     }
 
     function isValidStaffOfferReferenceAtCreation() {
@@ -318,7 +402,7 @@ service cloud.firestore {
         );
     }
 
-    function isValidStaffOrderCreation() {
+    function isValidStaffOrderCreation(orderId) {
       return isStaff()
         && hasValidCommonOrderValues()
         && isValidStaffOfferReferenceAtCreation()
@@ -352,7 +436,11 @@ service cloud.firestore {
         && request.resource.data.get('assignmentMode', null) == null
         && request.resource.data.get('assignmentStatus', 'unassigned') == 'unassigned'
         && request.resource.data.get('lastAssignmentRefusalReason', null) == null
-        && request.resource.data.get('lastAssignmentRefusedAt', null) == null;
+        && request.resource.data.get('lastAssignmentRefusedAt', null) == null
+        && request.resource.data.get('lastHoldReason', null) == null
+        && request.resource.data.get('lastHeldAt', null) == null
+        && request.resource.data.get('lastResumedAt', null) == null
+        && hasMatchingOrderEvent(orderId, 'ORDER_CREATED');
     }
 
     function immutableCoreOrderFieldsAreUnchanged() {
@@ -398,16 +486,62 @@ service cloud.firestore {
         'assignedByUserId',
         'assignedAt',
         'assignmentMode',
-        'assignmentStatus'
+        'assignmentStatus',
+        'lastEventId',
+        'lastEventType',
+        'lastEventAt'
       ]);
     }
 
-    function isValidStaffOrderUpdate() {
+    function isValidStaffPaymentConfirmation(orderId) {
+      return isStaff()
+        && resource.data.status in [
+          'awaitingPayment',
+          'paymentToVerify',
+          'expired'
+        ]
+        && resource.data.paymentStatus in [
+          'pending',
+          'declared',
+          'notDeclared',
+          'expired'
+        ]
+        && request.resource.data.status == 'paidReady'
+        && request.resource.data.paymentStatus == 'confirmed'
+        && request.resource.data.get('paidAt', null) is timestamp
+        && request.resource.data.get('paymentConfirmedAt', null) == request.time
+        && request.resource.data.get('paymentReference', null) is string
+        && request.resource.data.get('paymentReference', null).size() >= 3
+        && request.resource.data.get('paymentReference', null).size() <= 120
+        && immutableCoreOrderFieldsAreUnchanged()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'updatedAt',
+          'status',
+          'paymentStatus',
+          'paidAt',
+          'paymentConfirmedAt',
+          'paymentReference',
+          'lastEventId',
+          'lastEventType',
+          'lastEventAt'
+        ])
+        && request.resource.data.updatedAt == request.time
+        && hasMatchingOrderEvent(orderId, 'PAYMENT_CONFIRMED');
+    }
+
+    function isValidStaffOrderUpdate(orderId) {
       return isStaff()
         && hasValidCommonOrderValues()
         && immutableCoreOrderFieldsAreUnchanged()
         && onlyStaffMutableFieldsChanged()
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.updatedAt == request.time
+        && (
+          auditLinkIsUnchanged()
+          || hasMatchingOrderEvent(
+            orderId,
+            request.resource.data.get('lastEventType', null)
+          )
+        );
     }
 
 
@@ -440,7 +574,7 @@ service cloud.firestore {
         );
     }
 
-    function isValidAdminManualAssignment() {
+    function isValidAdminManualAssignment(orderId) {
       let agentId = request.resource.data.get('assignedAgentId', null);
 
       return isAdmin()
@@ -458,7 +592,10 @@ service cloud.firestore {
           'assignedByUserId',
           'assignedAt',
           'assignmentMode',
-          'assignmentStatus'
+          'assignmentStatus',
+          'lastEventId',
+          'lastEventType',
+          'lastEventAt'
         ])
         && exists(
           /databases/$(database)/documents/users/$(agentId)
@@ -480,50 +617,43 @@ service cloud.firestore {
         && request.resource.data.assignedAt == request.time
         && request.resource.data.assignmentMode == 'manual'
         && request.resource.data.assignmentStatus == 'assigned'
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.updatedAt == request.time
+        && hasMatchingOrderEvent(orderId, 'ASSIGNED');
     }
 
-    function isValidAgentAssignmentAcceptance() {
+    function isValidAgentAssignmentAcceptance(orderId) {
       return isCurrentAssignedAgent()
-        && hasValidCommonOrderValues()
-        && immutableCoreOrderFieldsAreUnchanged()
         && resource.data.status == 'paidReady'
         && resource.data.paymentStatus == 'confirmed'
         && resource.data.get('assignmentStatus', 'unassigned') == 'assigned'
-        && request.resource.data.status == resource.data.status
-        && request.resource.data.paymentStatus == resource.data.paymentStatus
-        && request.resource.data.assignedAgentId == resource.data.assignedAgentId
-        && request.resource.data.assignedAgentName == resource.data.assignedAgentName
-        && request.resource.data.assignedByUserId == resource.data.assignedByUserId
-        && request.resource.data.assignedAt == resource.data.assignedAt
-        && request.resource.data.assignmentMode == resource.data.assignmentMode
-        && request.resource.data.assignmentStatus == 'accepted'
+        && request.resource.data.get('assignedAgentId', null) == request.auth.uid
+        && request.resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'updatedAt',
-          'assignmentStatus'
+          'assignmentStatus',
+          'lastEventId',
+          'lastEventType',
+          'lastEventAt'
         ])
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.updatedAt == request.time
+        && hasMatchingOrderEvent(orderId, 'ASSIGNMENT_ACCEPTED');
     }
 
-    function isValidAgentAssignmentRefusal() {
+    function isValidAgentAssignmentRefusal(orderId) {
       return isCurrentAssignedAgent()
-        && hasValidCommonOrderValues()
-        && immutableCoreOrderFieldsAreUnchanged()
         && resource.data.status == 'paidReady'
         && resource.data.paymentStatus == 'confirmed'
         && resource.data.get('assignmentStatus', 'unassigned') == 'assigned'
-        && request.resource.data.status == resource.data.status
-        && request.resource.data.paymentStatus == resource.data.paymentStatus
         && request.resource.data.get('assignedAgentId', null) == null
         && request.resource.data.get('assignedAgentName', null) == null
         && request.resource.data.get('assignedByUserId', null) == null
         && request.resource.data.get('assignedAt', null) == null
         && request.resource.data.get('assignmentMode', null) == null
         && request.resource.data.get('assignmentStatus', 'unassigned') == 'unassigned'
-        && request.resource.data.lastAssignmentRefusalReason is string
-        && request.resource.data.lastAssignmentRefusalReason.size() >= 3
-        && request.resource.data.lastAssignmentRefusalReason.size() <= 500
-        && request.resource.data.lastAssignmentRefusedAt == request.time
+        && request.resource.data.get('lastAssignmentRefusalReason', null) is string
+        && request.resource.data.get('lastAssignmentRefusalReason', null).size() >= 3
+        && request.resource.data.get('lastAssignmentRefusalReason', null).size() <= 500
+        && request.resource.data.get('lastAssignmentRefusedAt', null) == request.time
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'updatedAt',
           'assignedAgentId',
@@ -533,12 +663,187 @@ service cloud.firestore {
           'assignmentMode',
           'assignmentStatus',
           'lastAssignmentRefusalReason',
-          'lastAssignmentRefusedAt'
+          'lastAssignmentRefusedAt',
+          'lastEventId',
+          'lastEventType',
+          'lastEventAt'
         ])
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.updatedAt == request.time
+        && hasMatchingOrderEvent(orderId, 'ASSIGNMENT_REFUSED');
     }
 
-    function isValidCustomerPaymentDeclaration() {
+    function isValidAgentProcessingStart(orderId) {
+      return isCurrentAssignedAgent()
+        && resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && resource.data.status == 'paidReady'
+        && resource.data.paymentStatus == 'confirmed'
+        && request.resource.data.get('assignedAgentId', null) == request.auth.uid
+        && request.resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && request.resource.data.status == 'inProgress'
+        && request.resource.data.get('takenByUserId', null) == request.auth.uid
+        && request.resource.data.get('takenAt', null) == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'takenByUserId',
+          'takenAt',
+          'updatedAt',
+          'lastEventId',
+          'lastEventType',
+          'lastEventAt'
+        ])
+        && request.resource.data.updatedAt == request.time
+        && hasMatchingOrderEvent(orderId, 'PROCESSING_STARTED');
+    }
+
+    function isValidAgentProcessingResume(orderId) {
+      return isCurrentAssignedAgent()
+        && resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && resource.data.status == 'onHold'
+        && resource.data.paymentStatus == 'confirmed'
+        && resource.data.get('takenByUserId', null) == request.auth.uid
+        && request.resource.data.status == 'inProgress'
+        && request.resource.data.get('lastResumedAt', null) == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'lastResumedAt',
+          'updatedAt',
+          'lastEventId',
+          'lastEventType',
+          'lastEventAt'
+        ])
+        && request.resource.data.updatedAt == request.time
+        && hasMatchingOrderEvent(orderId, 'PROCESSING_RESUMED');
+    }
+
+    function isValidAgentProcessingHold(orderId) {
+      return isCurrentAssignedAgent()
+        && resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && resource.data.status == 'inProgress'
+        && resource.data.paymentStatus == 'confirmed'
+        && resource.data.get('takenByUserId', null) == request.auth.uid
+        && request.resource.data.status == 'onHold'
+        && request.resource.data.get('lastHoldReason', null) is string
+        && request.resource.data.get('lastHoldReason', null).size() >= 3
+        && request.resource.data.get('lastHoldReason', null).size() <= 300
+        && request.resource.data.get('lastHeldAt', null) == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'lastHoldReason',
+          'lastHeldAt',
+          'updatedAt',
+          'lastEventId',
+          'lastEventType',
+          'lastEventAt'
+        ])
+        && request.resource.data.updatedAt == request.time
+        && hasMatchingOrderEvent(orderId, 'PUT_ON_HOLD');
+    }
+
+    function hasValidAgentProofForOrder(orderId) {
+      return exists(
+          /databases/$(database)/documents/orderProofs/$(orderId)
+        )
+        && get(
+          /databases/$(database)/documents/orderProofs/$(orderId)
+        ).data.agentId == request.auth.uid
+        && get(
+          /databases/$(database)/documents/orderProofs/$(orderId)
+        ).data.orderId == orderId;
+    }
+
+    function isValidAgentProcessingSuccess(orderId) {
+      return isCurrentAssignedAgent()
+        && resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && resource.data.status == 'inProgress'
+        && resource.data.paymentStatus == 'confirmed'
+        && resource.data.get('takenByUserId', null) == request.auth.uid
+        && hasValidAgentProofForOrder(orderId)
+        && request.resource.data.status == 'awaitingCustomerConfirmation'
+        && request.resource.data.get('completedAt', null) == request.time
+        && request.resource.data.get('failureReason', null) == null
+        && request.resource.data.get('observation', null) == null
+        && request.resource.data.get('customerConfirmationStatus', 'pending') == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'completedAt',
+          'failureReason',
+          'observation',
+          'customerConfirmationStatus',
+          'updatedAt',
+          'lastEventId',
+          'lastEventType',
+          'lastEventAt'
+        ])
+        && request.resource.data.updatedAt == request.time
+        && hasMatchingOrderEvent(orderId, 'PROCESSING_SUCCEEDED');
+    }
+
+    function isValidAgentProcessingFailure(orderId) {
+      return isCurrentAssignedAgent()
+        && resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && resource.data.status == 'inProgress'
+        && resource.data.paymentStatus == 'confirmed'
+        && resource.data.get('takenByUserId', null) == request.auth.uid
+        && request.resource.data.status == 'failed'
+        && request.resource.data.get('completedAt', null) == request.time
+        && request.resource.data.get('failureReason', null) in [
+          'incorrectNumber',
+          'networkUnavailable',
+          'offerUnavailable',
+          'insufficientBalance',
+          'technicalError',
+          'incorrectPayment',
+          'other'
+        ]
+        && (
+          request.resource.data.get('observation', null) == null
+          || (
+            request.resource.data.get('observation', null) is string
+            && request.resource.data.get('observation', null).size() <= 1000
+          )
+        )
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'completedAt',
+          'failureReason',
+          'observation',
+          'updatedAt',
+          'lastEventId',
+          'lastEventType',
+          'lastEventAt'
+        ])
+        && request.resource.data.updatedAt == request.time
+        && hasMatchingOrderEvent(orderId, 'PROCESSING_FAILED');
+    }
+
+    function isValidAgentProofAuditUpdate(orderId) {
+      return isCurrentAssignedAgent()
+        && resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && resource.data.status in ['inProgress', 'onHold']
+        && resource.data.paymentStatus == 'confirmed'
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.get('assignedAgentId', null) == request.auth.uid
+        && request.resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'updatedAt',
+          'lastEventId',
+          'lastEventType',
+          'lastEventAt'
+        ])
+        && request.resource.data.updatedAt == request.time
+        && hasMatchingOrderEvent(orderId, 'PROOF_ADDED')
+        && existsAfter(
+          /databases/$(database)/documents/orderProofs/$(orderId)
+        )
+        && getAfter(
+          /databases/$(database)/documents/orderProofs/$(orderId)
+        ).data.orderId == orderId
+        && getAfter(
+          /databases/$(database)/documents/orderProofs/$(orderId)
+        ).data.agentId == request.auth.uid;
+    }
+
+    function isValidCustomerPaymentDeclaration(orderId) {
       let wasExpired = resource.data.status == 'expired';
       let isLate = request.time >= resource.data.expiresAt;
       let oldExpiredAt = resource.data.get('expiredAt', null);
@@ -556,7 +861,10 @@ service cloud.firestore {
           'paymentPayerPhone',
           'paymentApproximateTime',
           'paymentDeclaredReference',
-          'expiredAt'
+          'expiredAt',
+          'lastEventId',
+          'lastEventType',
+          'lastEventAt'
         ])
         && resource.data.source == 'customerWeb'
         && resource.data.status in ['awaitingPayment', 'expired']
@@ -591,7 +899,8 @@ service cloud.firestore {
             )
           )
         )
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.updatedAt == request.time
+        && hasMatchingOrderEvent(orderId, 'PAYMENT_DECLARED');
     }
 
     function isValidCustomerExpiration() {
@@ -1081,88 +1390,431 @@ service cloud.firestore {
         ).data.reference == request.resource.data.orderReference
         && getAfter(
           /databases/$(database)/documents/orders/$(orderId)
-        ).data.assignmentStatus == 'assigned';
-    }
-
-    function immutableAssignmentEventFieldsAreUnchanged() {
-      return request.resource.data.schemaVersion == resource.data.schemaVersion
-        && request.resource.data.orderId == resource.data.orderId
-        && request.resource.data.orderReference == resource.data.orderReference
-        && request.resource.data.agentId == resource.data.agentId
-        && request.resource.data.agentName == resource.data.agentName
-        && request.resource.data.assignedByUserId == resource.data.assignedByUserId
-        && request.resource.data.mode == resource.data.mode
-        && request.resource.data.assignedAt == resource.data.assignedAt;
+        ).data.assignmentStatus == 'assigned'
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('assignedAt', null) == request.time
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('lastEventType', null) == 'ASSIGNED'
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('lastEventAt', null) == request.time;
     }
 
     function isValidAgentAssignmentEventAcceptance() {
+      let orderId = resource.data.get('orderId', '');
+
       return isAgent()
-        && resource.data.agentId == request.auth.uid
-        && hasValidOrderAssignmentEventKeys()
-        && immutableAssignmentEventFieldsAreUnchanged()
-        && resource.data.status == 'assigned'
-        && resource.data.acceptedAt == null
-        && resource.data.refusedAt == null
-        && resource.data.refusalReason == null
-        && request.resource.data.status == 'accepted'
-        && request.resource.data.acceptedAt == request.time
-        && request.resource.data.refusedAt == null
-        && request.resource.data.refusalReason == null
-        && request.resource.data.completedAt == resource.data.completedAt
+        && resource.data.get('agentId', null) == request.auth.uid
+        && orderId is string
+        && orderId.size() > 0
+        && resource.data.get('status', '') == 'assigned'
+        && resource.data.get('acceptedAt', null) == null
+        && resource.data.get('refusedAt', null) == null
+        && resource.data.get('refusalReason', null) == null
+        && request.resource.data.get('status', '') == 'accepted'
+        && request.resource.data.get('acceptedAt', null) == request.time
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status',
           'acceptedAt',
           'updatedAt'
         ])
-        && existsAfter(
-          /databases/$(database)/documents/orders/$(resource.data.orderId)
-        )
         && getAfter(
-          /databases/$(database)/documents/orders/$(resource.data.orderId)
-        ).data.assignedAgentId == request.auth.uid
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('assignedAgentId', null) == request.auth.uid
         && getAfter(
-          /databases/$(database)/documents/orders/$(resource.data.orderId)
-        ).data.assignmentStatus == 'accepted'
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('lastEventType', null) == 'ASSIGNMENT_ACCEPTED'
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('lastEventAt', null) == request.time
         && request.resource.data.updatedAt == request.time;
     }
 
     function isValidAgentAssignmentEventRefusal() {
+      let orderId = resource.data.get('orderId', '');
+
       return isAgent()
-        && resource.data.agentId == request.auth.uid
-        && hasValidOrderAssignmentEventKeys()
-        && immutableAssignmentEventFieldsAreUnchanged()
-        && resource.data.status == 'assigned'
-        && resource.data.acceptedAt == null
-        && resource.data.refusedAt == null
-        && resource.data.refusalReason == null
-        && request.resource.data.status == 'refused'
-        && request.resource.data.acceptedAt == null
-        && request.resource.data.refusedAt == request.time
-        && request.resource.data.refusalReason is string
-        && request.resource.data.refusalReason.size() >= 3
-        && request.resource.data.refusalReason.size() <= 500
-        && request.resource.data.completedAt == resource.data.completedAt
+        && resource.data.get('agentId', null) == request.auth.uid
+        && orderId is string
+        && orderId.size() > 0
+        && resource.data.get('status', '') == 'assigned'
+        && resource.data.get('acceptedAt', null) == null
+        && resource.data.get('refusedAt', null) == null
+        && resource.data.get('refusalReason', null) == null
+        && request.resource.data.get('status', '') == 'refused'
+        && request.resource.data.get('acceptedAt', null) == null
+        && request.resource.data.get('refusedAt', null) == request.time
+        && request.resource.data.get('refusalReason', null) is string
+        && request.resource.data.get('refusalReason', null).size() >= 3
+        && request.resource.data.get('refusalReason', null).size() <= 500
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status',
           'refusedAt',
           'refusalReason',
           'updatedAt'
         ])
-        && existsAfter(
-          /databases/$(database)/documents/orders/$(resource.data.orderId)
-        )
         && getAfter(
-          /databases/$(database)/documents/orders/$(resource.data.orderId)
+          /databases/$(database)/documents/orders/$(orderId)
         ).data.get('assignedAgentId', null) == null
         && getAfter(
-          /databases/$(database)/documents/orders/$(resource.data.orderId)
+          /databases/$(database)/documents/orders/$(orderId)
         ).data.get('assignmentStatus', 'unassigned') == 'unassigned'
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('lastEventType', null) == 'ASSIGNMENT_REFUSED'
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('lastEventAt', null) == request.time
         && request.resource.data.updatedAt == request.time;
     }
 
+    function isValidAgentAssignmentEventCompletion() {
+      let orderId = resource.data.get('orderId', '');
+
+      return isAgent()
+        && resource.data.get('agentId', null) == request.auth.uid
+        && orderId is string
+        && orderId.size() > 0
+        && resource.data.get('status', '') == 'accepted'
+        && resource.data.get('completedAt', null) == null
+        && request.resource.data.get('status', '') == 'accepted'
+        && request.resource.data.get('completedAt', null) == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'completedAt',
+          'updatedAt'
+        ])
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('assignedAgentId', null) == request.auth.uid
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.status in ['awaitingCustomerConfirmation', 'failed']
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('lastEventType', null) in [
+          'PROCESSING_SUCCEEDED',
+          'PROCESSING_FAILED'
+        ]
+        && getAfter(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('lastEventAt', null) == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function hasValidOrderProofKeys() {
+      return request.resource.data.keys().hasOnly([
+        'schemaVersion',
+        'orderId',
+        'orderReference',
+        'agentId',
+        'fileName',
+        'mimeType',
+        'proofBytes',
+        'sizeBytes',
+        'createdAt',
+        'updatedAt'
+      ]);
+    }
+
+    function hasValidOrderProofValues(orderId) {
+      return hasValidOrderProofKeys()
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.orderId == orderId
+        && request.resource.data.orderReference is string
+        && request.resource.data.orderReference.size() >= 12
+        && request.resource.data.agentId == request.auth.uid
+        && request.resource.data.fileName is string
+        && request.resource.data.fileName.size() >= 1
+        && request.resource.data.fileName.size() <= 120
+        && request.resource.data.mimeType == 'image/jpeg'
+        && request.resource.data.proofBytes is bytes
+        && request.resource.data.proofBytes.size() > 0
+        && request.resource.data.proofBytes.size() <= 750000
+        && request.resource.data.sizeBytes is int
+        && request.resource.data.sizeBytes == request.resource.data.proofBytes.size()
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function currentAgentCanWriteProof(orderId) {
+      return isAgent()
+        && exists(
+          /databases/$(database)/documents/orders/$(orderId)
+        )
+        && get(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('assignedAgentId', null) == request.auth.uid
+        && get(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.get('assignmentStatus', 'unassigned') == 'accepted'
+        && get(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.paymentStatus == 'confirmed'
+        && get(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.status in ['inProgress', 'onHold']
+        && get(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.reference == request.resource.data.orderReference;
+    }
+
+    function orderHasCurrentProofAudit(orderId) {
+      let order = getAfter(
+        /databases/$(database)/documents/orders/$(orderId)
+      ).data;
+      let eventId = order.get('lastEventId', null);
+
+      return eventId is string
+        && order.get('lastEventType', null) == 'PROOF_ADDED'
+        && order.get('lastEventAt', null) == request.time
+        && existsAfter(
+          /databases/$(database)/documents/orderEvents/$(eventId)
+        )
+        && getAfter(
+          /databases/$(database)/documents/orderEvents/$(eventId)
+        ).data.type == 'PROOF_ADDED'
+        && getAfter(
+          /databases/$(database)/documents/orderEvents/$(eventId)
+        ).data.actorId == request.auth.uid;
+    }
+
+    function isValidAgentOrderProofCreation(orderId) {
+      return currentAgentCanWriteProof(orderId)
+        && hasValidOrderProofValues(orderId)
+        && orderHasCurrentProofAudit(orderId)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidAgentOrderProofUpdate(orderId) {
+      return currentAgentCanWriteProof(orderId)
+        && hasValidOrderProofValues(orderId)
+        && orderHasCurrentProofAudit(orderId)
+        && request.resource.data.orderId == resource.data.orderId
+        && request.resource.data.orderReference == resource.data.orderReference
+        && request.resource.data.agentId == resource.data.agentId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'fileName',
+          'mimeType',
+          'proofBytes',
+          'sizeBytes',
+          'updatedAt'
+        ])
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function hasValidOrderEventKeys() {
+      return request.resource.data.keys().hasOnly([
+        'schemaVersion',
+        'orderId',
+        'orderReference',
+        'type',
+        'actorId',
+        'actorRole',
+        'createdAt',
+        'metadata'
+      ]);
+    }
+
+    function hasValidOrderEventMetadata() {
+      let metadata = request.resource.data.metadata;
+
+      return metadata is map
+        && metadata.keys().hasOnly([
+          'source',
+          'network',
+          'amount',
+          'paymentReference',
+          'assignmentId',
+          'agentId',
+          'reason',
+          'fileName',
+          'sizeBytes',
+          'failureReason',
+          'observation',
+          'messageSent',
+          'releasedToQueue'
+        ])
+        && (
+          metadata.get('source', null) == null
+          || metadata.get('source', null) in ['customerWeb', 'operatorApp']
+        )
+        && (
+          metadata.get('network', null) == null
+          || metadata.get('network', null) in ['orange', 'mtn', 'moov']
+        )
+        && (
+          metadata.get('amount', null) == null
+          || metadata.get('amount', null) is int
+        )
+        && (
+          metadata.get('paymentReference', null) == null
+          || metadata.get('paymentReference', null) is string
+        )
+        && (
+          metadata.get('assignmentId', null) == null
+          || metadata.get('assignmentId', null) is string
+        )
+        && (
+          metadata.get('agentId', null) == null
+          || metadata.get('agentId', null) is string
+        )
+        && (
+          metadata.get('reason', null) == null
+          || (
+            metadata.get('reason', null) is string
+            && metadata.get('reason', null).size() <= 500
+          )
+        )
+        && (
+          metadata.get('fileName', null) == null
+          || (
+            metadata.get('fileName', null) is string
+            && metadata.get('fileName', null).size() <= 120
+          )
+        )
+        && (
+          metadata.get('sizeBytes', null) == null
+          || (
+            metadata.get('sizeBytes', null) is int
+            && metadata.get('sizeBytes', null) >= 0
+            && metadata.get('sizeBytes', null) <= 750000
+          )
+        )
+        && (
+          metadata.get('failureReason', null) == null
+          || metadata.get('failureReason', null) in [
+            'incorrectNumber',
+            'networkUnavailable',
+            'offerUnavailable',
+            'insufficientBalance',
+            'technicalError',
+            'incorrectPayment',
+            'other'
+          ]
+        )
+        && (
+          metadata.get('observation', null) == null
+          || (
+            metadata.get('observation', null) is string
+            && metadata.get('observation', null).size() <= 1000
+          )
+        )
+        && (
+          metadata.get('messageSent', null) == null
+          || metadata.get('messageSent', null) is bool
+        )
+        && (
+          metadata.get('releasedToQueue', null) == null
+          || metadata.get('releasedToQueue', null) is bool
+        );
+    }
+
+    function orderEventTypeIsValid() {
+      return request.resource.data.type in [
+        'ORDER_CREATED',
+        'PAYMENT_DECLARED',
+        'PAYMENT_CONFIRMED',
+        'ASSIGNED',
+        'ASSIGNMENT_ACCEPTED',
+        'ASSIGNMENT_REFUSED',
+        'PROCESSING_STARTED',
+        'PUT_ON_HOLD',
+        'PROCESSING_RESUMED',
+        'PROOF_ADDED',
+        'PROCESSING_SUCCEEDED',
+        'PROCESSING_FAILED',
+        'CUSTOMER_CONTACTED'
+      ];
+    }
+
+    function orderEventActorIsValid() {
+      let eventType = request.resource.data.type;
+
+      return (
+          isSignedIn()
+          && request.resource.data.actorId == request.auth.uid
+          && request.resource.data.actorRole == 'customer'
+          && eventType in ['ORDER_CREATED', 'PAYMENT_DECLARED']
+        ) || (
+          isAgent()
+          && request.resource.data.actorId == request.auth.uid
+          && request.resource.data.actorRole == 'agent'
+          && eventType in [
+            'ASSIGNMENT_ACCEPTED',
+            'ASSIGNMENT_REFUSED',
+            'PROCESSING_STARTED',
+            'PUT_ON_HOLD',
+            'PROCESSING_RESUMED',
+            'PROOF_ADDED',
+            'PROCESSING_SUCCEEDED',
+            'PROCESSING_FAILED'
+          ]
+        ) || (
+          isStaff()
+          && request.resource.data.actorId == request.auth.uid
+          && request.resource.data.actorRole == staffProfile().role
+          && eventType in [
+            'ORDER_CREATED',
+            'PAYMENT_CONFIRMED',
+            'ASSIGNED',
+            'PROCESSING_STARTED',
+            'PUT_ON_HOLD',
+            'PROCESSING_SUCCEEDED',
+            'PROCESSING_FAILED',
+            'CUSTOMER_CONTACTED'
+          ]
+          && (eventType != 'ASSIGNED' || isAdmin())
+        );
+    }
+
+    function orderEventIsLinkedToOrder(eventId) {
+      let orderId = request.resource.data.orderId;
+      let order = getAfter(
+        /databases/$(database)/documents/orders/$(orderId)
+      ).data;
+
+      return order.reference == request.resource.data.orderReference
+        && order.get('lastEventId', null) == eventId
+        && order.get('lastEventType', null) == request.resource.data.type
+        && order.get('lastEventAt', null) == request.time;
+    }
+
+    function isValidOrderEventCreation(eventId) {
+      return hasValidOrderEventKeys()
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.orderId is string
+        && request.resource.data.orderId.size() >= 1
+        && request.resource.data.orderReference is string
+        && request.resource.data.orderReference.size() >= 8
+        && orderEventTypeIsValid()
+        && request.resource.data.actorId is string
+        && request.resource.data.actorId.size() >= 1
+        && request.resource.data.actorRole in [
+          'customer',
+          'operator',
+          'supervisor',
+          'agent',
+          'admin'
+        ]
+        && request.resource.data.createdAt == request.time
+        && hasValidOrderEventMetadata()
+        && orderEventActorIsValid()
+        && orderEventIsLinkedToOrder(eventId);
+    }
+
     match /orders/{orderId} {
-      allow create: if isValidCustomerOrderCreation()
-        || isValidStaffOrderCreation();
+      allow create: if isValidCustomerOrderCreation(orderId)
+        || isValidStaffOrderCreation(orderId);
       allow get: if isOrderOwner()
         || isStaff()
         || (
@@ -1175,12 +1827,23 @@ service cloud.firestore {
           isAgent()
           && resource.data.get('assignedAgentId', null) == request.auth.uid
         );
-      allow update: if isValidCustomerPaymentDeclaration()
+      // Les actions client sont testées en premier. Un client Web utilise
+      // Firebase Anonymous Auth et ne possède pas de document /users/{uid}.
+      // Cela évite d'évaluer inutilement toutes les règles Agent (et leurs
+      // lectures de profil) avant une déclaration de paiement auditée.
+      allow update: if isValidCustomerPaymentDeclaration(orderId)
         || isValidCustomerExpiration()
-        || isValidStaffOrderUpdate()
-        || isValidAdminManualAssignment()
-        || isValidAgentAssignmentAcceptance()
-        || isValidAgentAssignmentRefusal();
+        || isValidStaffPaymentConfirmation(orderId)
+        || isValidAdminManualAssignment(orderId)
+        || isValidStaffOrderUpdate(orderId)
+        || isValidAgentAssignmentAcceptance(orderId)
+        || isValidAgentAssignmentRefusal(orderId)
+        || isValidAgentProcessingStart(orderId)
+        || isValidAgentProcessingResume(orderId)
+        || isValidAgentProcessingHold(orderId)
+        || isValidAgentProcessingSuccess(orderId)
+        || isValidAgentProcessingFailure(orderId)
+        || isValidAgentProofAuditUpdate(orderId);
       allow delete: if false;
     }
 
@@ -1197,8 +1860,32 @@ service cloud.firestore {
         );
       allow create: if isValidManualAssignmentEventCreation();
       allow update: if isValidAgentAssignmentEventAcceptance()
-        || isValidAgentAssignmentEventRefusal();
+        || isValidAgentAssignmentEventRefusal()
+        || isValidAgentAssignmentEventCompletion();
       allow delete: if false;
+    }
+
+    match /orderProofs/{orderId} {
+      allow get: if isStaff()
+        || (
+          isAgent()
+          && exists(
+            /databases/$(database)/documents/orders/$(orderId)
+          )
+          && get(
+            /databases/$(database)/documents/orders/$(orderId)
+          ).data.get('assignedAgentId', null) == request.auth.uid
+        );
+      allow list: if isStaff();
+      allow create: if isValidAgentOrderProofCreation(orderId);
+      allow update: if isValidAgentOrderProofUpdate(orderId);
+      allow delete: if false;
+    }
+
+    match /orderEvents/{eventId} {
+      allow get, list: if isStaff();
+      allow create: if isValidOrderEventCreation(eventId);
+      allow update, delete: if false;
     }
 
     match /offers/{offerId} {

@@ -1,23 +1,29 @@
 import 'package:cabine_flow/features/orders/data/mappers/firestore_order_mapper.dart';
-import 'dart:typed_data';
 
 import 'package:cabine_flow/features/orders/domain/models/create_order_request.dart';
+import 'package:cabine_flow/features/orders/domain/models/order_event.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_proof.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/orders/domain/services/order_expiration_policy.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 class FirestoreOrdersRepository
     implements OrdersRepository, OrderHistoryRepository {
-  FirestoreOrdersRepository({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+  FirestoreOrdersRepository({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance;
 
   static const Duration paymentValidity = Duration(hours: 6);
   static const int maximumLoadedOrders = 250;
 
   final FirebaseFirestore _firestore;
+  final FirebaseAuth _firebaseAuth;
 
   CollectionReference<Map<String, dynamic>> get _ordersCollection {
     return _firestore.collection('orders');
@@ -39,35 +45,60 @@ class FirestoreOrdersRepository
     return _firestore.collection('orderProofs');
   }
 
+  CollectionReference<Map<String, dynamic>> get _eventsCollection {
+    return _firestore.collection('orderEvents');
+  }
+
   @override
   Future<QueueOrder> createOrder({required CreateOrderRequest request}) async {
     _validateCreateRequest(request);
 
+    final _AuditActor actor = await _currentStaffActor();
     final DocumentReference<Map<String, dynamic>> document = _ordersCollection
+        .doc();
+    final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
         .doc();
     final DateTime now = DateTime.now();
     final String reference = _buildManualReference(
       date: now,
       documentId: document.id,
     );
+    final OrderEventType eventType = OrderEventType.orderCreated;
 
-    await document.set(
-      FirestoreOrderMapper.operatorOrderCreationData(
-        reference: reference,
-        clientName: request.clientName,
-        clientWhatsappPhone: request.clientWhatsappPhone,
-        network: request.network,
-        beneficiaryPhone: request.beneficiaryPhone,
-        operationType: request.operationType,
-        offerLabel: request.offerLabel,
-        amount: request.amount,
-        offerId: request.offerId,
-        isCustomOffer: request.isCustomOffer,
-        originalWhatsappMessage: request.originalWhatsappMessage,
-        internalNotes: request.internalNotes,
-        expiresAt: now.add(paymentValidity),
+    final Map<String, dynamic> orderData =
+        FirestoreOrderMapper.operatorOrderCreationData(
+          reference: reference,
+          clientName: request.clientName,
+          clientWhatsappPhone: request.clientWhatsappPhone,
+          network: request.network,
+          beneficiaryPhone: request.beneficiaryPhone,
+          operationType: request.operationType,
+          offerLabel: request.offerLabel,
+          amount: request.amount,
+          offerId: request.offerId,
+          isCustomOffer: request.isCustomOffer,
+          originalWhatsappMessage: request.originalWhatsappMessage,
+          internalNotes: request.internalNotes,
+          expiresAt: now.add(paymentValidity),
+        )..addAll(_auditLinkData(eventRef: eventRef, type: eventType));
+
+    final WriteBatch batch = _firestore.batch();
+    batch.set(document, orderData);
+    batch.set(
+      eventRef,
+      _eventDocumentData(
+        orderId: document.id,
+        orderReference: reference,
+        type: eventType,
+        actor: actor,
+        metadata: <String, dynamic>{
+          'source': OrderSource.operatorApp.name,
+          'network': request.network.name,
+          'amount': request.amount,
+        },
       ),
     );
+    await batch.commit();
 
     return QueueOrder(
       id: document.id,
@@ -116,43 +147,24 @@ class FirestoreOrdersRepository
     final List<QueueOrder> orders = await _synchronizeExpiredOrders(
       await _fetchRecentOrders(),
     );
+    return _buildPaymentTrackingOrders(orders);
+  }
 
-    final List<QueueOrder> paymentOrders = orders.where((QueueOrder order) {
-      final bool isOperatorPaymentInProgress =
-          order.source == OrderSource.operatorApp &&
-          order.status == QueueOrderStatus.awaitingPayment;
-      final bool isCustomerPaymentToVerify =
-          order.source == OrderSource.customerWeb &&
-          order.paymentStatus == OrderPaymentStatus.declared &&
-          (order.status == QueueOrderStatus.paymentToVerify ||
-              order.status == QueueOrderStatus.awaitingPayment ||
-              order.status == QueueOrderStatus.expired);
-      final bool wasConfirmed =
-          order.paymentStatus == OrderPaymentStatus.confirmed &&
-          order.paymentReference != null &&
-          order.paymentReference!.trim().isNotEmpty;
-
-      return isOperatorPaymentInProgress ||
-          isCustomerPaymentToVerify ||
-          wasConfirmed;
-    }).toList();
-
-    paymentOrders.sort((QueueOrder first, QueueOrder second) {
-      final DateTime firstDate =
-          first.paidAt ??
-          first.paymentDeclaredAt ??
-          first.paymentRequestSentAt ??
-          first.createdAt;
-      final DateTime secondDate =
-          second.paidAt ??
-          second.paymentDeclaredAt ??
-          second.paymentRequestSentAt ??
-          second.createdAt;
-
-      return secondDate.compareTo(firstDate);
-    });
-
-    return List<QueueOrder>.unmodifiable(paymentOrders);
+  @override
+  Stream<List<QueueOrder>> watchPaymentTrackingOrders() {
+    return _ordersCollection
+        .orderBy('createdAt', descending: true)
+        .limit(maximumLoadedOrders)
+        .snapshots()
+        .asyncMap((QuerySnapshot<Map<String, dynamic>> snapshot) async {
+          final List<QueueOrder> orders = snapshot.docs
+              .map(_mapDocument)
+              .toList(growable: false);
+          final List<QueueOrder> synchronized = await _synchronizeExpiredOrders(
+            orders,
+          );
+          return _buildPaymentTrackingOrders(synchronized);
+        });
   }
 
   @override
@@ -160,43 +172,70 @@ class FirestoreOrdersRepository
     required String orderId,
     required DateTime paidAt,
     String? paymentReference,
-  }) {
+  }) async {
+    final _AuditActor actor = await _currentStaffActor();
     final String finalReference = _buildPaymentReference(
       paidAt: paidAt,
       suppliedReference: paymentReference,
     );
+    final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
+        .doc(orderId);
+    final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
+        .doc();
+    final OrderEventType eventType = OrderEventType.paymentConfirmed;
 
-    return _updateOrderInTransaction(
-      orderId: orderId,
-      validate: (QueueOrder order) {
-        final bool canConfirm =
-            order.status == QueueOrderStatus.awaitingPayment ||
-            order.status == QueueOrderStatus.paymentToVerify ||
-            order.hasPaymentToReviewAfterExpiration;
+    return _firestore.runTransaction<QueueOrder>((
+      Transaction transaction,
+    ) async {
+      final DocumentSnapshot<Map<String, dynamic>> snapshot = await transaction
+          .get(orderRef);
+      final Map<String, dynamic>? data = snapshot.data();
 
-        if (!canConfirm ||
-            order.paymentStatus == OrderPaymentStatus.confirmed) {
-          throw StateError('Cette commande n’est plus en attente de paiement.');
-        }
-      },
-      firestoreUpdate: <String, dynamic>{
+      if (!snapshot.exists || data == null) {
+        throw StateError('La commande est introuvable.');
+      }
+
+      final QueueOrder order = FirestoreOrderMapper.fromMap(
+        id: snapshot.id,
+        data: data,
+      );
+      final bool canConfirm =
+          order.status == QueueOrderStatus.awaitingPayment ||
+          order.status == QueueOrderStatus.paymentToVerify ||
+          order.hasPaymentToReviewAfterExpiration;
+
+      if (!canConfirm || order.paymentStatus == OrderPaymentStatus.confirmed) {
+        throw StateError('Cette commande n’est plus en attente de paiement.');
+      }
+
+      transaction.update(orderRef, <String, dynamic>{
         'status': QueueOrderStatus.paidReady.name,
         'paymentStatus': OrderPaymentStatus.confirmed.name,
         'paidAt': Timestamp.fromDate(paidAt.toUtc()),
         'paymentConfirmedAt': FieldValue.serverTimestamp(),
         'paymentReference': finalReference,
         'updatedAt': FieldValue.serverTimestamp(),
-      },
-      localUpdate: (QueueOrder order) {
-        return order.copyWith(
-          status: QueueOrderStatus.paidReady,
-          paymentStatus: OrderPaymentStatus.confirmed,
-          paidAt: paidAt,
-          paymentConfirmedAt: paidAt,
-          paymentReference: finalReference,
-        );
-      },
-    );
+        ..._auditLinkData(eventRef: eventRef, type: eventType),
+      });
+      transaction.set(
+        eventRef,
+        _eventDocumentData(
+          orderId: order.id,
+          orderReference: order.reference,
+          type: eventType,
+          actor: actor,
+          metadata: <String, dynamic>{'paymentReference': finalReference},
+        ),
+      );
+
+      return order.copyWith(
+        status: QueueOrderStatus.paidReady,
+        paymentStatus: OrderPaymentStatus.confirmed,
+        paidAt: paidAt,
+        paymentConfirmedAt: paidAt,
+        paymentReference: finalReference,
+      );
+    });
   }
 
   @override
@@ -218,6 +257,25 @@ class FirestoreOrdersRepository
   }
 
   @override
+  Stream<List<QueueOrder>> watchPaidQueue() {
+    return _ordersCollection
+        .where('status', isEqualTo: QueueOrderStatus.paidReady.name)
+        .limit(maximumLoadedOrders)
+        .snapshots()
+        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
+          final List<QueueOrder> orders = snapshot.docs
+              .map(_mapDocument)
+              .toList();
+          orders.sort((QueueOrder first, QueueOrder second) {
+            final DateTime firstDate = first.paidAt ?? first.createdAt;
+            final DateTime secondDate = second.paidAt ?? second.createdAt;
+            return firstDate.compareTo(secondDate);
+          });
+          return List<QueueOrder>.unmodifiable(orders);
+        });
+  }
+
+  @override
   Future<List<QueueOrder>> fetchOrderHistory() async {
     final List<QueueOrder> orders = await _synchronizeExpiredOrders(
       await _fetchRecentOrders(),
@@ -228,6 +286,26 @@ class FirestoreOrdersRepository
     });
 
     return List<QueueOrder>.unmodifiable(orders);
+  }
+
+  @override
+  Stream<List<QueueOrder>> watchOrderHistory() {
+    return _ordersCollection
+        .orderBy('createdAt', descending: true)
+        .limit(maximumLoadedOrders)
+        .snapshots()
+        .asyncMap((QuerySnapshot<Map<String, dynamic>> snapshot) async {
+          final List<QueueOrder> orders = snapshot.docs
+              .map(_mapDocument)
+              .toList(growable: false);
+          final List<QueueOrder> synchronized = await _synchronizeExpiredOrders(
+            orders,
+          );
+          synchronized.sort((QueueOrder first, QueueOrder second) {
+            return second.createdAt.compareTo(first.createdAt);
+          });
+          return List<QueueOrder>.unmodifiable(synchronized);
+        });
   }
 
   @override
@@ -254,6 +332,23 @@ class FirestoreOrdersRepository
     required String agentId,
     required String assignedByUserId,
   }) async {
+    final String? authenticatedUserId = _firebaseAuth.currentUser?.uid;
+    if (authenticatedUserId == null) {
+      throw StateError('Aucun administrateur connecté.');
+    }
+    if (authenticatedUserId != assignedByUserId) {
+      throw StateError(
+        'La session administrateur ne correspond pas à l’utilisateur courant.',
+      );
+    }
+
+    final _AuditActor adminActor = await _currentStaffActor();
+    if (adminActor.role != 'admin') {
+      throw StateError(
+        'Seul un compte ayant le rôle admin peut affecter une commande.',
+      );
+    }
+
     final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
         .doc(orderId);
     final DocumentReference<Map<String, dynamic>> userRef = _usersCollection
@@ -262,6 +357,9 @@ class FirestoreOrdersRepository
         _agentProfilesCollection.doc(agentId);
     final DocumentReference<Map<String, dynamic>> assignmentRef =
         _assignmentsCollection.doc();
+    final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
+        .doc();
+    final OrderEventType eventType = OrderEventType.assigned;
     final DateTime assignedAt = DateTime.now();
 
     return _firestore.runTransaction<QueueOrder>((
@@ -305,6 +403,13 @@ class FirestoreOrdersRepository
         );
       }
 
+      if (order.assignedAgentId != null ||
+          order.assignmentStatus != OrderAssignmentStatus.unassigned) {
+        throw StateError(
+          'Cette commande est déjà affectée ou n’est plus disponible.',
+        );
+      }
+
       final List<dynamic> authorizedNetworks =
           profileData['authorizedNetworks'] is List
           ? profileData['authorizedNetworks'] as List<dynamic>
@@ -327,6 +432,21 @@ class FirestoreOrdersRepository
         throw StateError('La capacité déclarée de cet agent est insuffisante.');
       }
 
+      debugPrint(
+        '[AgentAssignment][preflight] '
+        'orderId=${order.id} status=${order.status.name} '
+        'payment=${order.paymentStatus.name} network=$network amount=${order.amount} '
+        'previousAgent=${order.assignedAgentId ?? 'null'} '
+        'assignment=${order.assignmentStatus.name}',
+      );
+      debugPrint(
+        '[AgentAssignment][preflight] '
+        'agentId=$agentId role=${userData['role']} active=${userData['isActive']} '
+        'availability=${profileData['availability']} '
+        'authorized=${profileData['authorizedNetworks']} '
+        'activeNetworks=${profileData['activeNetworks']} capacity=$capacity',
+      );
+
       final String agentName = _stringValue(
         userData['name'],
         fallback: 'Agent',
@@ -340,6 +460,7 @@ class FirestoreOrdersRepository
         'assignmentMode': OrderAssignmentMode.manual.name,
         'assignmentStatus': OrderAssignmentStatus.assigned.name,
         'updatedAt': FieldValue.serverTimestamp(),
+        ..._auditLinkData(eventRef: eventRef, type: eventType),
       });
 
       transaction.set(assignmentRef, <String, dynamic>{
@@ -358,6 +479,19 @@ class FirestoreOrdersRepository
         'completedAt': null,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      transaction.set(
+        eventRef,
+        _eventDocumentData(
+          orderId: order.id,
+          orderReference: order.reference,
+          type: eventType,
+          actor: adminActor,
+          metadata: <String, dynamic>{
+            'assignmentId': assignmentRef.id,
+            'agentId': agentId,
+          },
+        ),
+      );
 
       return order.copyWith(
         assignedAgentId: agentId,
@@ -372,26 +506,21 @@ class FirestoreOrdersRepository
 
   @override
   Future<Map<String, int>> fetchActiveAssignmentCounts() async {
-    final List<QueueOrder> orders = await _fetchRecentOrders();
-    final Map<String, int> counts = <String, int>{};
+    return _buildActiveAssignmentCounts(await _fetchRecentOrders());
+  }
 
-    for (final QueueOrder order in orders) {
-      final String? agentId = order.assignedAgentId;
-      if (agentId == null || agentId.isEmpty) continue;
-      if (order.assignmentStatus != OrderAssignmentStatus.assigned &&
-          order.assignmentStatus != OrderAssignmentStatus.accepted) {
-        continue;
-      }
-      if (order.status == QueueOrderStatus.completed ||
-          order.status == QueueOrderStatus.failed ||
-          order.status == QueueOrderStatus.cancelled ||
-          order.status == QueueOrderStatus.refunded) {
-        continue;
-      }
-      counts[agentId] = (counts[agentId] ?? 0) + 1;
-    }
-
-    return Map<String, int>.unmodifiable(counts);
+  @override
+  Stream<Map<String, int>> watchActiveAssignmentCounts() {
+    return _ordersCollection
+        .orderBy('createdAt', descending: true)
+        .limit(maximumLoadedOrders)
+        .snapshots()
+        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
+          final List<QueueOrder> orders = snapshot.docs
+              .map(_mapDocument)
+              .toList();
+          return _buildActiveAssignmentCounts(orders);
+        });
   }
 
   @override
@@ -441,6 +570,9 @@ class FirestoreOrdersRepository
         );
     final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
         .doc(orderId);
+    final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
+        .doc();
+    final OrderEventType eventType = OrderEventType.assignmentAccepted;
 
     return _firestore.runTransaction<QueueOrder>((
       Transaction transaction,
@@ -472,12 +604,23 @@ class FirestoreOrdersRepository
       transaction.update(orderRef, <String, dynamic>{
         'assignmentStatus': OrderAssignmentStatus.accepted.name,
         'updatedAt': FieldValue.serverTimestamp(),
+        ..._auditLinkData(eventRef: eventRef, type: eventType),
       });
       transaction.update(assignmentRef, <String, dynamic>{
         'status': OrderAssignmentStatus.accepted.name,
         'acceptedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      transaction.set(
+        eventRef,
+        _eventDocumentData(
+          orderId: order.id,
+          orderReference: order.reference,
+          type: eventType,
+          actor: _AuditActor(id: cleanedAgentId, role: 'agent'),
+          metadata: <String, dynamic>{'assignmentId': assignmentRef.id},
+        ),
+      );
 
       return order.copyWith(assignmentStatus: OrderAssignmentStatus.accepted);
     });
@@ -509,6 +652,9 @@ class FirestoreOrdersRepository
         );
     final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
         .doc(orderId);
+    final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
+        .doc();
+    final OrderEventType eventType = OrderEventType.assignmentRefused;
 
     return _firestore.runTransaction<QueueOrder>((
       Transaction transaction,
@@ -547,6 +693,7 @@ class FirestoreOrdersRepository
         'lastAssignmentRefusalReason': cleanedReason,
         'lastAssignmentRefusedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
+        ..._auditLinkData(eventRef: eventRef, type: eventType),
       });
       transaction.update(assignmentRef, <String, dynamic>{
         'status': OrderAssignmentStatus.refused.name,
@@ -554,6 +701,19 @@ class FirestoreOrdersRepository
         'refusalReason': cleanedReason,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      transaction.set(
+        eventRef,
+        _eventDocumentData(
+          orderId: order.id,
+          orderReference: order.reference,
+          type: eventType,
+          actor: _AuditActor(id: cleanedAgentId, role: 'agent'),
+          metadata: <String, dynamic>{
+            'assignmentId': assignmentRef.id,
+            'reason': cleanedReason,
+          },
+        ),
+      );
 
       return order.copyWith(
         clearAgentAssignment: true,
@@ -575,6 +735,9 @@ class FirestoreOrdersRepository
 
     final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
         .doc(orderId);
+    final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
+        .doc();
+    final OrderEventType eventType = OrderEventType.processingStarted;
     final DateTime startedAt = DateTime.now();
 
     return _firestore.runTransaction<QueueOrder>((
@@ -609,7 +772,18 @@ class FirestoreOrdersRepository
         'takenByUserId': cleanedAgentId,
         'takenAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
+        ..._auditLinkData(eventRef: eventRef, type: eventType),
       });
+
+      transaction.set(
+        eventRef,
+        _eventDocumentData(
+          orderId: order.id,
+          orderReference: order.reference,
+          type: eventType,
+          actor: _AuditActor(id: cleanedAgentId, role: 'agent'),
+        ),
+      );
 
       return order.copyWith(
         status: QueueOrderStatus.inProgress,
@@ -631,6 +805,9 @@ class FirestoreOrdersRepository
 
     final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
         .doc(orderId);
+    final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
+        .doc();
+    final OrderEventType eventType = OrderEventType.processingResumed;
     final DateTime resumedAt = DateTime.now();
 
     return _firestore.runTransaction<QueueOrder>((
@@ -658,7 +835,18 @@ class FirestoreOrdersRepository
         'status': QueueOrderStatus.inProgress.name,
         'lastResumedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
+        ..._auditLinkData(eventRef: eventRef, type: eventType),
       });
+
+      transaction.set(
+        eventRef,
+        _eventDocumentData(
+          orderId: order.id,
+          orderReference: order.reference,
+          type: eventType,
+          actor: _AuditActor(id: cleanedAgentId, role: 'agent'),
+        ),
+      );
 
       return order.copyWith(
         status: QueueOrderStatus.inProgress,
@@ -712,6 +900,9 @@ class FirestoreOrdersRepository
         .doc(orderId);
     final DocumentReference<Map<String, dynamic>> proofRef = _proofsCollection
         .doc(orderId);
+    final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
+        .doc();
+    final OrderEventType eventType = OrderEventType.proofAdded;
     final DateTime now = DateTime.now();
 
     return _firestore.runTransaction<OrderProof>((
@@ -762,6 +953,23 @@ class FirestoreOrdersRepository
         'createdAt': createdAtValue,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      transaction.update(orderRef, <String, dynamic>{
+        'updatedAt': FieldValue.serverTimestamp(),
+        ..._auditLinkData(eventRef: eventRef, type: eventType),
+      });
+      transaction.set(
+        eventRef,
+        _eventDocumentData(
+          orderId: order.id,
+          orderReference: order.reference,
+          type: eventType,
+          actor: _AuditActor(id: cleanedAgentId, role: 'agent'),
+          metadata: <String, dynamic>{
+            'fileName': cleanedFileName,
+            'sizeBytes': proofBytes.lengthInBytes,
+          },
+        ),
+      );
 
       return OrderProof(
         orderId: orderId,
@@ -795,6 +1003,9 @@ class FirestoreOrdersRepository
         .doc(orderId);
     final DocumentReference<Map<String, dynamic>> proofRef = _proofsCollection
         .doc(orderId);
+    final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
+        .doc();
+    final OrderEventType eventType = OrderEventType.processingSucceeded;
     final DateTime completedAt = DateTime.now();
 
     return _firestore.runTransaction<QueueOrder>((
@@ -845,11 +1056,22 @@ class FirestoreOrdersRepository
         'observation': null,
         'customerConfirmationStatus': CustomerConfirmationStatus.pending.name,
         'updatedAt': FieldValue.serverTimestamp(),
+        ..._auditLinkData(eventRef: eventRef, type: eventType),
       });
       transaction.update(assignmentRef, <String, dynamic>{
         'completedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      transaction.set(
+        eventRef,
+        _eventDocumentData(
+          orderId: order.id,
+          orderReference: order.reference,
+          type: eventType,
+          actor: _AuditActor(id: cleanedAgentId, role: 'agent'),
+          metadata: <String, dynamic>{'assignmentId': assignmentRef.id},
+        ),
+      );
 
       return order.copyWith(
         status: QueueOrderStatus.awaitingCustomerConfirmation,
@@ -883,6 +1105,9 @@ class FirestoreOrdersRepository
         );
     final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
         .doc(orderId);
+    final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
+        .doc();
+    final OrderEventType eventType = OrderEventType.processingFailed;
     final DateTime completedAt = DateTime.now();
 
     return _firestore.runTransaction<QueueOrder>((
@@ -922,11 +1147,26 @@ class FirestoreOrdersRepository
         'failureReason': reason.name,
         'observation': cleanedObservation,
         'updatedAt': FieldValue.serverTimestamp(),
+        ..._auditLinkData(eventRef: eventRef, type: eventType),
       });
       transaction.update(assignmentRef, <String, dynamic>{
         'completedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      transaction.set(
+        eventRef,
+        _eventDocumentData(
+          orderId: order.id,
+          orderReference: order.reference,
+          type: eventType,
+          actor: _AuditActor(id: cleanedAgentId, role: 'agent'),
+          metadata: <String, dynamic>{
+            'assignmentId': assignmentRef.id,
+            'failureReason': reason.name,
+            'observation': ?cleanedObservation,
+          },
+        ),
+      );
 
       return order.copyWith(
         status: QueueOrderStatus.failed,
@@ -957,6 +1197,9 @@ class FirestoreOrdersRepository
 
     final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
         .doc(orderId);
+    final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
+        .doc();
+    final OrderEventType eventType = OrderEventType.putOnHold;
     final DateTime heldAt = DateTime.now();
 
     return _firestore.runTransaction<QueueOrder>((
@@ -983,7 +1226,19 @@ class FirestoreOrdersRepository
         'lastHoldReason': cleanedReason,
         'lastHeldAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
+        ..._auditLinkData(eventRef: eventRef, type: eventType),
       });
+
+      transaction.set(
+        eventRef,
+        _eventDocumentData(
+          orderId: order.id,
+          orderReference: order.reference,
+          type: eventType,
+          actor: _AuditActor(id: cleanedAgentId, role: 'agent'),
+          metadata: <String, dynamic>{'reason': cleanedReason},
+        ),
+      );
 
       return order.copyWith(
         status: QueueOrderStatus.onHold,
@@ -1133,7 +1388,13 @@ class FirestoreOrdersRepository
   Future<QueueOrder> takeCharge({
     required String orderId,
     required String operatorId,
-  }) {
+  }) async {
+    final _AuditActor actor = await _currentStaffActor();
+    if (operatorId != actor.id) {
+      throw StateError(
+        'L’opérateur connecté ne correspond pas à la prise en charge.',
+      );
+    }
     final DateTime takenAt = DateTime.now();
 
     return _updateOrderInTransaction(
@@ -1156,11 +1417,14 @@ class FirestoreOrdersRepository
           takenAt: takenAt,
         );
       },
+      auditType: OrderEventType.processingStarted,
+      auditActor: actor,
     );
   }
 
   @override
-  Future<QueueOrder> markSuccessful({required String orderId}) {
+  Future<QueueOrder> markSuccessful({required String orderId}) async {
+    final _AuditActor actor = await _currentStaffActor();
     final DateTime completedAt = DateTime.now();
 
     return _updateOrderInTransaction(
@@ -1181,6 +1445,8 @@ class FirestoreOrdersRepository
           customerConfirmationStatus: CustomerConfirmationStatus.pending,
         );
       },
+      auditType: OrderEventType.processingSucceeded,
+      auditActor: actor,
     );
   }
 
@@ -1189,7 +1455,8 @@ class FirestoreOrdersRepository
     required String orderId,
     required OrderFailureReason reason,
     String? observation,
-  }) {
+  }) async {
+    final _AuditActor actor = await _currentStaffActor();
     final DateTime completedAt = DateTime.now();
     final String? cleanedObservation = _cleanNullable(observation);
 
@@ -1211,11 +1478,18 @@ class FirestoreOrdersRepository
           observation: cleanedObservation,
         );
       },
+      auditType: OrderEventType.processingFailed,
+      auditActor: actor,
+      auditMetadata: (QueueOrder _) => <String, dynamic>{
+        'failureReason': reason.name,
+        'observation': ?cleanedObservation,
+      },
     );
   }
 
   @override
-  Future<QueueOrder> putOnHold({required String orderId}) {
+  Future<QueueOrder> putOnHold({required String orderId}) async {
+    final _AuditActor actor = await _currentStaffActor();
     return _updateOrderInTransaction(
       orderId: orderId,
       validate: _verifyOrderIsInProgress,
@@ -1231,6 +1505,11 @@ class FirestoreOrdersRepository
           clearAssignment: true,
         );
       },
+      auditType: OrderEventType.putOnHold,
+      auditActor: actor,
+      auditMetadata: (QueueOrder _) => const <String, dynamic>{
+        'releasedToQueue': true,
+      },
     );
   }
 
@@ -1238,7 +1517,8 @@ class FirestoreOrdersRepository
   Future<QueueOrder> completeCustomerConfirmation({
     required String orderId,
     required bool messageSent,
-  }) {
+  }) async {
+    final _AuditActor actor = await _currentStaffActor();
     final DateTime confirmationCompletedAt = DateTime.now();
     final CustomerConfirmationStatus confirmationStatus = messageSent
         ? CustomerConfirmationStatus.sent
@@ -1265,6 +1545,11 @@ class FirestoreOrdersRepository
           customerConfirmationStatus: confirmationStatus,
           customerConfirmationCompletedAt: confirmationCompletedAt,
         );
+      },
+      auditType: OrderEventType.customerContacted,
+      auditActor: actor,
+      auditMetadata: (QueueOrder _) => <String, dynamic>{
+        'messageSent': messageSent,
       },
     );
   }
@@ -1360,9 +1645,19 @@ class FirestoreOrdersRepository
     required void Function(QueueOrder order) validate,
     required Map<String, dynamic> firestoreUpdate,
     required QueueOrder Function(QueueOrder order) localUpdate,
+    OrderEventType? auditType,
+    _AuditActor? auditActor,
+    Map<String, dynamic> Function(QueueOrder order)? auditMetadata,
   }) {
     final DocumentReference<Map<String, dynamic>> reference = _ordersCollection
         .doc(orderId);
+    final DocumentReference<Map<String, dynamic>>? eventRef = auditType == null
+        ? null
+        : _eventsCollection.doc();
+
+    if ((auditType == null) != (auditActor == null)) {
+      throw StateError('Configuration d’audit incomplète.');
+    }
 
     return _firestore.runTransaction<QueueOrder>((
       Transaction transaction,
@@ -1381,10 +1676,134 @@ class FirestoreOrdersRepository
       );
 
       validate(currentOrder);
-      transaction.update(reference, firestoreUpdate);
+      final Map<String, dynamic> update = <String, dynamic>{...firestoreUpdate};
+      if (eventRef != null && auditType != null) {
+        update.addAll(_auditLinkData(eventRef: eventRef, type: auditType));
+      }
+      transaction.update(reference, update);
+
+      if (eventRef != null && auditType != null && auditActor != null) {
+        transaction.set(
+          eventRef,
+          _eventDocumentData(
+            orderId: currentOrder.id,
+            orderReference: currentOrder.reference,
+            type: auditType,
+            actor: auditActor,
+            metadata:
+                auditMetadata?.call(currentOrder) ?? const <String, dynamic>{},
+          ),
+        );
+      }
 
       return localUpdate(currentOrder);
     });
+  }
+
+  List<QueueOrder> _buildPaymentTrackingOrders(List<QueueOrder> orders) {
+    final List<QueueOrder> paymentOrders = orders.where((QueueOrder order) {
+      final bool isCustomerPaymentToVerify =
+          order.source == OrderSource.customerWeb &&
+          order.paymentStatus == OrderPaymentStatus.declared &&
+          (order.status == QueueOrderStatus.paymentToVerify ||
+              order.status == QueueOrderStatus.awaitingPayment ||
+              order.status == QueueOrderStatus.expired);
+      final bool wasConfirmed =
+          order.paymentStatus == OrderPaymentStatus.confirmed &&
+          order.paymentReference != null &&
+          order.paymentReference!.trim().isNotEmpty;
+
+      return isCustomerPaymentToVerify || wasConfirmed;
+    }).toList();
+
+    paymentOrders.sort((QueueOrder first, QueueOrder second) {
+      final DateTime firstDate =
+          first.paidAt ??
+          first.paymentDeclaredAt ??
+          first.paymentRequestSentAt ??
+          first.createdAt;
+      final DateTime secondDate =
+          second.paidAt ??
+          second.paymentDeclaredAt ??
+          second.paymentRequestSentAt ??
+          second.createdAt;
+      return secondDate.compareTo(firstDate);
+    });
+
+    return List<QueueOrder>.unmodifiable(paymentOrders);
+  }
+
+  Map<String, int> _buildActiveAssignmentCounts(List<QueueOrder> orders) {
+    final Map<String, int> counts = <String, int>{};
+    for (final QueueOrder order in orders) {
+      final String? agentId = order.assignedAgentId;
+      if (agentId == null || agentId.isEmpty) continue;
+      if (order.assignmentStatus != OrderAssignmentStatus.assigned &&
+          order.assignmentStatus != OrderAssignmentStatus.accepted) {
+        continue;
+      }
+      if (order.status == QueueOrderStatus.completed ||
+          order.status == QueueOrderStatus.failed ||
+          order.status == QueueOrderStatus.cancelled ||
+          order.status == QueueOrderStatus.refunded) {
+        continue;
+      }
+      counts[agentId] = (counts[agentId] ?? 0) + 1;
+    }
+    return Map<String, int>.unmodifiable(counts);
+  }
+
+  Map<String, dynamic> _auditLinkData({
+    required DocumentReference<Map<String, dynamic>> eventRef,
+    required OrderEventType type,
+  }) {
+    return <String, dynamic>{
+      'lastEventId': eventRef.id,
+      'lastEventType': type.value,
+      'lastEventAt': FieldValue.serverTimestamp(),
+    };
+  }
+
+  Map<String, dynamic> _eventDocumentData({
+    required String orderId,
+    required String orderReference,
+    required OrderEventType type,
+    required _AuditActor actor,
+    Map<String, dynamic> metadata = const <String, dynamic>{},
+  }) {
+    return <String, dynamic>{
+      'schemaVersion': 1,
+      'orderId': orderId,
+      'orderReference': orderReference,
+      'type': type.value,
+      'actorId': actor.id,
+      'actorRole': actor.role,
+      'createdAt': FieldValue.serverTimestamp(),
+      'metadata': metadata,
+    };
+  }
+
+  Future<_AuditActor> _currentStaffActor() async {
+    final User? currentUser = _firebaseAuth.currentUser;
+    if (currentUser == null) {
+      throw StateError('Aucun utilisateur connecté pour cette action.');
+    }
+
+    final DocumentSnapshot<Map<String, dynamic>> snapshot =
+        await _usersCollection.doc(currentUser.uid).get();
+    final Map<String, dynamic>? data = snapshot.data();
+    final String role = _stringValue(data?['role']);
+
+    if (!snapshot.exists ||
+        data == null ||
+        data['isActive'] != true ||
+        !<String>{'operator', 'supervisor', 'admin'}.contains(role)) {
+      throw StateError(
+        'Le profil connecté ne peut pas effectuer cette action.',
+      );
+    }
+
+    return _AuditActor(id: currentUser.uid, role: role);
   }
 
   int _agentCapacityForNetwork(
@@ -1469,4 +1888,11 @@ class FirestoreOrdersRepository
     final String cleaned = value?.trim() ?? '';
     return cleaned.isEmpty ? null : cleaned;
   }
+}
+
+class _AuditActor {
+  const _AuditActor({required this.id, required this.role});
+
+  final String id;
+  final String role;
 }

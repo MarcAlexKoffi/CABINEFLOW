@@ -4,6 +4,7 @@ import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 class AgentAssignmentCandidate {
@@ -41,6 +42,7 @@ class AgentAssignmentViewModel extends ChangeNotifier {
 
   StreamSubscription<List<AgentDirectoryEntry>>? _agentsSubscription;
   StreamSubscription<List<AgentZone>>? _zonesSubscription;
+  StreamSubscription<Map<String, int>>? _assignmentCountsSubscription;
 
   List<AgentDirectoryEntry> _agents = const <AgentDirectoryEntry>[];
   List<AgentZone> _zones = const <AgentZone>[];
@@ -123,6 +125,7 @@ class AgentAssignmentViewModel extends ChangeNotifier {
 
     await _agentsSubscription?.cancel();
     await _zonesSubscription?.cancel();
+    await _assignmentCountsSubscription?.cancel();
 
     _agentsSubscription = agentRepository.watchAgents().listen(
       (List<AgentDirectoryEntry> agents) {
@@ -150,13 +153,18 @@ class AgentAssignmentViewModel extends ChangeNotifier {
       },
     );
 
-    try {
-      _activeAssignmentCounts = await ordersRepository
-          .fetchActiveAssignmentCounts();
-    } catch (_) {
-      _activeAssignmentCounts = const <String, int>{};
-    }
-    notifyListeners();
+    _assignmentCountsSubscription = ordersRepository
+        .watchActiveAssignmentCounts()
+        .listen(
+          (Map<String, int> counts) {
+            _activeAssignmentCounts = counts;
+            notifyListeners();
+          },
+          onError: (_) {
+            _activeAssignmentCounts = const <String, int>{};
+            notifyListeners();
+          },
+        );
   }
 
   Future<bool> assign(AgentAssignmentCandidate candidate) async {
@@ -172,13 +180,23 @@ class AgentAssignmentViewModel extends ChangeNotifier {
         agentId: candidate.agent.userId,
         assignedByUserId: adminUserId,
       );
-      _activeAssignmentCounts = <String, int>{
-        ..._activeAssignmentCounts,
-        candidate.agent.userId:
-            (_activeAssignmentCounts[candidate.agent.userId] ?? 0) + 1,
-      };
+      // Le listener Firestore met à jour automatiquement la charge de l'agent.
       return true;
-    } catch (error) {
+    } on FirebaseException catch (error, stackTrace) {
+      debugPrint(
+        '[AgentAssignment][assign] FirebaseException: '
+        '[${error.plugin}/${error.code}] ${error.message}',
+      );
+      debugPrint(
+        '[AgentAssignment][assign] orderId=${order.id} '
+        'agentId=${candidate.agent.userId} adminId=$adminUserId',
+      );
+      debugPrint('[AgentAssignment][assign] stack\n$stackTrace');
+      _errorMessage = _friendlyError(error);
+      return false;
+    } catch (error, stackTrace) {
+      debugPrint('[AgentAssignment][assign] $error');
+      debugPrint('[AgentAssignment][assign] stack\n$stackTrace');
       _errorMessage = _friendlyError(error);
       return false;
     } finally {
@@ -191,6 +209,18 @@ class AgentAssignmentViewModel extends ChangeNotifier {
     final String raw = error.toString();
     if (raw.startsWith('Bad state: ')) {
       return raw.substring('Bad state: '.length);
+    }
+    if (error is FirebaseException) {
+      switch (error.code) {
+        case 'permission-denied':
+          return 'Firestore refuse l’affectation (permission-denied).';
+        case 'failed-precondition':
+          return 'L’affectation ne remplit plus les conditions requises.';
+        case 'unavailable':
+          return 'Firestore est temporairement indisponible. Réessaie.';
+        default:
+          return 'Impossible d’affecter la commande (${error.code}).';
+      }
     }
     return 'Impossible d’affecter la commande pour le moment.';
   }
@@ -210,6 +240,7 @@ class AgentAssignmentViewModel extends ChangeNotifier {
   void dispose() {
     _agentsSubscription?.cancel();
     _zonesSubscription?.cancel();
+    _assignmentCountsSubscription?.cancel();
     super.dispose();
   }
 }

@@ -422,7 +422,14 @@ class CustomerOrderViewModel extends ChangeNotifier {
       _startOrderTracking(createdOrder);
       _currentStep = 7;
       return true;
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('[CustomerOrder][create] ERROR type=${error.runtimeType}');
+      debugPrint('[CustomerOrder][create] ERROR $error');
+      debugPrintStack(
+        label: '[CustomerOrder][create] STACK',
+        stackTrace: stackTrace,
+      );
+
       _submissionErrorMessage = error is StateError
           ? error.message.toString()
           : 'Impossible de créer la commande avant le paiement.';

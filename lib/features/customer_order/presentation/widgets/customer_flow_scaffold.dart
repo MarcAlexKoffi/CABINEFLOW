@@ -62,60 +62,58 @@ class CustomerFlowScaffold extends StatelessWidget {
                 children: [
                   _CustomerTopBar(onBack: onTopBack),
                   Expanded(
-                    child: LayoutBuilder(
-                      builder:
-                          (BuildContext context, BoxConstraints constraints) {
-                            return SingleChildScrollView(
+                    child: CustomScrollView(
+                      slivers: [
+                        SliverPadding(
+                          padding: EdgeInsets.fromLTRB(
+                            20,
+                            18,
+                            20,
+                            footer != null ? 0 : 24,
+                          ),
+                          sliver: SliverList(
+                            delegate: SliverChildListDelegate([
+                              CustomerProgressIndicator(
+                                currentStep: currentStep,
+                                totalSteps: totalSteps,
+                              ),
+                              const SizedBox(height: 34),
+                              Text(
+                                title,
+                                textAlign: titleTextAlign,
+                                style: Theme.of(context).textTheme.displaySmall,
+                              ),
+                              if (visibleSubtitle != null) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  visibleSubtitle,
+                                  textAlign: titleTextAlign,
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                ),
+                              ],
+                              const SizedBox(height: 26),
+                              content,
+                            ]),
+                          ),
+                        ),
+                        if (footer != null)
+                          SliverFillRemaining(
+                            hasScrollBody: false,
+                            fillOverscroll: true,
+                            child: Padding(
                               padding: const EdgeInsets.fromLTRB(
                                 20,
-                                18,
+                                36,
                                 20,
                                 24,
                               ),
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  minHeight: constraints.maxHeight - 42,
-                                ),
-                                child: IntrinsicHeight(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      CustomerProgressIndicator(
-                                        currentStep: currentStep,
-                                        totalSteps: totalSteps,
-                                      ),
-                                      const SizedBox(height: 34),
-                                      Text(
-                                        title,
-                                        textAlign: titleTextAlign,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.displaySmall,
-                                      ),
-                                      if (visibleSubtitle != null) ...[
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          visibleSubtitle,
-                                          textAlign: titleTextAlign,
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.bodyLarge,
-                                        ),
-                                      ],
-                                      const SizedBox(height: 26),
-                                      content,
-                                      if (footer != null) ...[
-                                        const Spacer(),
-                                        const SizedBox(height: 36),
-                                        footer!,
-                                      ],
-                                    ],
-                                  ),
-                                ),
+                              child: Align(
+                                alignment: Alignment.bottomCenter,
+                                child: footer!,
                               ),
-                            );
-                          },
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                   CustomerBottomActions(

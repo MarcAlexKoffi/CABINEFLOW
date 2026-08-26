@@ -9,6 +9,8 @@ abstract class OrdersRepository {
 
   Future<List<QueueOrder>> fetchPaymentTrackingOrders();
 
+  Stream<List<QueueOrder>> watchPaymentTrackingOrders();
+
   Future<QueueOrder> confirmPayment({
     required String orderId,
     required DateTime paidAt,
@@ -17,6 +19,8 @@ abstract class OrdersRepository {
 
   Future<List<QueueOrder>> fetchPaidQueue();
 
+  Stream<List<QueueOrder>> watchPaidQueue();
+
   Future<QueueOrder> assignToAgent({
     required String orderId,
     required String agentId,
@@ -24,6 +28,8 @@ abstract class OrdersRepository {
   });
 
   Future<Map<String, int>> fetchActiveAssignmentCounts();
+
+  Stream<Map<String, int>> watchActiveAssignmentCounts();
 
   Stream<List<QueueOrder>> watchAssignedOrders({required String agentId});
 

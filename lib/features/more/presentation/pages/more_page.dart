@@ -100,7 +100,7 @@ class MorePage extends StatelessWidget {
             icon: Icons.groups_2_outlined,
             title: 'Agents et zones',
             description:
-                'Disponibilités, réseaux traités, zones et capacités opérationnelles.',
+                'Disponibilités, réseaux, zones, capacités et signalements opérationnels.',
             enabled: true,
             onTap: () {
               Navigator.of(context).push<void>(

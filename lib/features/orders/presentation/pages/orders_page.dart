@@ -149,7 +149,7 @@ class _OrdersPageState extends State<OrdersPage> {
       orderHistoryRepository: _historyRepository,
     );
 
-    _viewModel.loadQueue();
+    _viewModel.startRealtime();
   }
 
   @override

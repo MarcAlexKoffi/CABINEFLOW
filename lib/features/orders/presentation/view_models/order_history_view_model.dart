@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cabine_flow/features/orders/domain/models/order_history_filters.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
@@ -16,6 +18,7 @@ class OrderHistoryViewModel extends ChangeNotifier {
   static const int pageSize = 20;
 
   final OrderHistoryRepository _ordersRepository;
+  StreamSubscription<List<QueueOrder>>? _subscription;
 
   List<QueueOrder> _orders = <QueueOrder>[];
   String _searchQuery;
@@ -127,6 +130,28 @@ class OrderHistoryViewModel extends ChangeNotifier {
 
   bool get canLoadMore => _visibleCount < filteredOrders.length;
 
+  void startRealtime() {
+    if (_subscription != null) return;
+
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    _subscription = _ordersRepository.watchOrderHistory().listen(
+      (List<QueueOrder> orders) {
+        _orders = orders;
+        _isLoading = false;
+        _errorMessage = null;
+        notifyListeners();
+      },
+      onError: (_) {
+        _isLoading = false;
+        _errorMessage = 'Impossible de charger l’historique des commandes.';
+        notifyListeners();
+      },
+    );
+  }
+
   Future<void> loadHistory() async {
     if (_isLoading) {
       return;
@@ -216,5 +241,11 @@ class OrderHistoryViewModel extends ChangeNotifier {
         .replaceAll(RegExp(r'[^a-z0-9+]'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 }

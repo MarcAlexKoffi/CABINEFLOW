@@ -430,6 +430,14 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                     ],
                   ),
                   const SizedBox(height: 16),
+                  if (_viewModel.recentIssues.isNotEmpty) ...[
+                    _AgentIssuesPanel(
+                      issues: _viewModel.recentIssues,
+                      openCount: _viewModel.openIssueCount,
+                      agentNameFor: _viewModel.agentNameFor,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   TextField(
                     controller: _searchController,
                     onChanged: _viewModel.updateSearch,
@@ -491,6 +499,139 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+class _AgentIssuesPanel extends StatelessWidget {
+  const _AgentIssuesPanel({
+    required this.issues,
+    required this.openCount,
+    required this.agentNameFor,
+  });
+
+  final List<AgentIssue> issues;
+  final int openCount;
+  final String Function(String agentId) agentNameFor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainer,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.warning.withAlpha(105)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.report_problem_outlined,
+                color: AppColors.warning,
+                size: 21,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Signalements agents',
+                  style: TextStyle(
+                    color: AppColors.onBackground,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withAlpha(28),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: AppColors.warning.withAlpha(95)),
+                ),
+                child: Text(
+                  '$openCount ouvert${openCount > 1 ? 's' : ''}',
+                  style: const TextStyle(
+                    color: AppColors.warning,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Les derniers incidents transmis par les agents apparaissent ici en temps réel.',
+            style: TextStyle(
+              color: AppColors.onSurfaceVariant,
+              fontSize: 11,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...issues.map((issue) {
+            final String agentName = agentNameFor(issue.agentId);
+            final String network = issue.network?.label ?? 'Tous réseaux';
+            final Color statusColor = _issueStatusColor(issue.status);
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.outlineVariant),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '$agentName • ${_issueTypeLabel(issue.type)}',
+                          style: const TextStyle(
+                            color: AppColors.onBackground,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      _StatusBadge(
+                        label: _issueStatusLabel(issue.status),
+                        color: statusColor,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    issue.description,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.onSurfaceVariant,
+                      fontSize: 11,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    '$network • ${_relative(issue.createdAt)}',
+                    style: const TextStyle(
+                      color: AppColors.primaryContainer,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
       ),
     );
   }
@@ -749,6 +890,50 @@ class _MessageCard extends StatelessWidget {
       ],
     ),
   );
+}
+
+String _issueTypeLabel(String value) {
+  switch (value) {
+    case 'network':
+      return 'Réseau';
+    case 'balance':
+      return 'Solde / capacité';
+    case 'technical':
+      return 'Technique';
+    case 'other':
+      return 'Autre';
+    default:
+      return 'Incident';
+  }
+}
+
+String _issueStatusLabel(String value) {
+  switch (value) {
+    case 'open':
+      return 'Ouvert';
+    case 'acknowledged':
+      return 'Pris en compte';
+    case 'resolved':
+      return 'Résolu';
+    case 'cancelled':
+      return 'Annulé';
+    default:
+      return value;
+  }
+}
+
+Color _issueStatusColor(String value) {
+  switch (value) {
+    case 'resolved':
+      return AppColors.success;
+    case 'cancelled':
+      return AppColors.onSurfaceVariant;
+    case 'acknowledged':
+      return AppColors.primaryContainer;
+    case 'open':
+    default:
+      return AppColors.warning;
+  }
 }
 
 String _zoneLabel(AgentProfile? profile, List<AgentZone> zones) {
