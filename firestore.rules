@@ -1,4 +1,5 @@
 rules_version = '2';
+// PHASE 9E AUTO ASSIGNMENT FIX V2 - artefacts unidirectionnels
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -647,6 +648,26 @@ service cloud.firestore {
         );
     }
 
+    // Garde-fous sans lecture Firestore pour distinguer les deux
+    // chemins d'affectation avant d'executer leurs validations couteuses.
+    // Cela evite de consommer des get()/exists()/getAfter() du chemin manuel
+    // pendant une affectation automatique (et inversement).
+    function isManualAssignmentTransitionRequest() {
+      return resource.data.status == 'paidReady'
+        && resource.data.paymentStatus == 'confirmed'
+        && resource.data.get('assignmentStatus', 'unassigned') == 'unassigned'
+        && request.resource.data.get('assignmentStatus', 'unassigned') == 'assigned'
+        && request.resource.data.get('assignmentMode', null) == 'manual';
+    }
+
+    function isAutomaticAssignmentTransitionRequest() {
+      return resource.data.status == 'paidReady'
+        && resource.data.paymentStatus == 'confirmed'
+        && resource.data.get('assignmentStatus', 'unassigned') == 'unassigned'
+        && request.resource.data.get('assignmentStatus', 'unassigned') == 'assigned'
+        && request.resource.data.get('assignmentMode', null) == 'automatic';
+    }
+
     function isValidAdminManualAssignment(orderId) {
       let agentId = request.resource.data.get('assignedAgentId', null);
       let agentUserExists = exists(
@@ -737,7 +758,40 @@ service cloud.firestore {
         );
     }
 
-    function hasValidAutomaticAssignmentTransition(agentId) {
+    // Validation 9E sans dependance circulaire : la commande est la seule
+    // ecriture qui relit les artefacts futurs. Les regles orderAssignments et
+    // orderEvents valident ensuite leur propre document sans relire orders.
+    function hasMatchingAutomaticAssignmentArtifacts(orderId, agentId) {
+      let eventId = request.resource.data.get('lastEventId', null);
+      let event = getAfter(
+        /databases/$(database)/documents/orderEvents/$(eventId)
+      ).data;
+      let assignmentId = event.metadata.get('assignmentId', null);
+      let assignment = getAfter(
+        /databases/$(database)/documents/orderAssignments/$(assignmentId)
+      ).data;
+
+      return eventId is string
+        && event.orderId == orderId
+        && event.orderReference == request.resource.data.reference
+        && event.type == 'ASSIGNED'
+        && event.actorId == request.auth.uid
+        && event.createdAt == request.time
+        && event.metadata is map
+        && event.metadata.get('agentId', null) == agentId
+        && assignmentId is string
+        && assignment.orderId == orderId
+        && assignment.orderReference == request.resource.data.reference
+        && assignment.agentId == agentId
+        && assignment.agentName == request.resource.data.get('assignedAgentName', '')
+        && assignment.assignedByUserId == request.auth.uid
+        && assignment.mode == 'automatic'
+        && assignment.status == 'assigned'
+        && assignment.assignedAt == request.time
+        && assignment.updatedAt == request.time;
+    }
+
+    function hasValidAutomaticAssignmentTransition(orderId, agentId) {
       return agentId is string
         && resource.data.status == 'paidReady'
         && resource.data.paymentStatus == 'confirmed'
@@ -772,20 +826,21 @@ service cloud.firestore {
         && immutableCoreOrderFieldsAreUnchanged()
         && request.resource.data.updatedAt == request.time
         && automaticAssignmentTargetIsEligible(agentId)
-        && hasMatchingOrderEvent(orderId, 'ASSIGNED');
+        && hasMatchingAutomaticAssignmentArtifacts(orderId, agentId);
     }
 
     function isValidStaffAutomaticAssignment(orderId) {
       let agentId = request.resource.data.get('assignedAgentId', null);
-      return isStaff()
-        && hasValidAutomaticAssignmentTransition(agentId);
+      return agentId != request.auth.uid
+        && isStaff()
+        && hasValidAutomaticAssignmentTransition(orderId, agentId);
     }
 
     function isValidAgentAutomaticSelfAssignment(orderId) {
       let agentId = request.resource.data.get('assignedAgentId', null);
-      return isAgent()
-        && agentId == request.auth.uid
-        && hasValidAutomaticAssignmentTransition(agentId);
+      return agentId == request.auth.uid
+        && isAgent()
+        && hasValidAutomaticAssignmentTransition(orderId, agentId);
     }
 
     function isValidAgentAssignmentAcceptance(orderId) {
@@ -1579,18 +1634,15 @@ service cloud.firestore {
     }
 
     function isValidAutomaticAssignmentEventCreation() {
-      let orderId = request.resource.data.orderId;
       let agentId = request.resource.data.agentId;
-      let orderAfter = getAfter(
-        /databases/$(database)/documents/orders/$(orderId)
-      ).data;
-      let actorAllowed = isStaff()
-        || (isAgent() && agentId == request.auth.uid);
+      let isSelfAssignment = agentId == request.auth.uid;
 
       return request.resource.data.schemaVersion == 1
-        && orderId is string
+        && request.resource.data.orderId is string
+        && request.resource.data.orderId.size() > 0
         && agentId is string
         && request.resource.data.orderReference is string
+        && request.resource.data.orderReference.size() >= 8
         && request.resource.data.agentName is string
         && request.resource.data.agentName.size() >= 2
         && request.resource.data.agentName.size() <= 80
@@ -1604,16 +1656,10 @@ service cloud.firestore {
         && request.resource.data.completedAt == null
         && request.resource.data.updatedAt == request.time
         && hasValidOrderAssignmentEventKeys()
-        && actorAllowed
-        && orderAfter.assignedAgentId == agentId
-        && orderAfter.assignedAgentName == request.resource.data.agentName
-        && orderAfter.assignedByUserId == request.auth.uid
-        && orderAfter.reference == request.resource.data.orderReference
-        && orderAfter.assignmentMode == 'automatic'
-        && orderAfter.assignmentStatus == 'assigned'
-        && orderAfter.get('assignedAt', null) == request.time
-        && orderAfter.get('lastEventType', null) == 'ASSIGNED'
-        && orderAfter.get('lastEventAt', null) == request.time;
+        && (
+          (isSelfAssignment && isAgent())
+          || (!isSelfAssignment && isStaff())
+        );
     }
 
     function isValidAgentAssignmentEventAcceptance() {
@@ -2063,6 +2109,52 @@ service cloud.firestore {
         && order.status in ['inProgress', 'onHold'];
     }
 
+    // ASSIGNED est valide de maniere autonome. La liaison forte avec orders
+    // et orderAssignments est verifiee depuis la regle de mise a jour orders,
+    // ce qui supprime les getAfter circulaires responsables des refus 9E.
+    function isValidAssignedOrderEventCreation() {
+      let metadata = request.resource.data.metadata;
+      let agentId = metadata.get('agentId', null);
+      let isSelfAssignment = agentId == request.auth.uid;
+
+      return isSignedIn()
+        && hasValidOrderEventKeys()
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.orderId is string
+        && request.resource.data.orderId.size() >= 1
+        && request.resource.data.orderReference is string
+        && request.resource.data.orderReference.size() >= 8
+        && request.resource.data.type == 'ASSIGNED'
+        && request.resource.data.actorId == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && metadata is map
+        && metadata.keys().hasOnly([
+          'assignmentId',
+          'agentId'
+        ])
+        && metadata.get('assignmentId', null) is string
+        && metadata.get('assignmentId', '').size() >= 1
+        && agentId is string
+        && agentId.size() >= 1
+        && (
+          (
+            isSelfAssignment
+            && request.resource.data.actorRole == 'agent'
+            && isAgent()
+          )
+          || (
+            !isSelfAssignment
+            && request.resource.data.actorRole in [
+              'operator',
+              'supervisor',
+              'admin'
+            ]
+            && isStaff()
+            && request.resource.data.actorRole == staffProfile().role
+          )
+        );
+    }
+
     function isValidOrderEventCreation(eventId) {
       return (
         request.resource.data.type == 'ORDER_CREATED'
@@ -2073,17 +2165,16 @@ service cloud.firestore {
         && request.resource.data.actorRole == 'customer'
         && isValidCustomerPaymentDeclaredEvent()
       ) || (
-        // Les evenements client ci-dessus ont leurs validations dediees.
-        // Ils ne doivent pas retomber dans la branche generique avec
-        // orderEventIsLinkedToOrder(getAfter), sinon on recree la dependance
-        // croisee qui provoquait permission-denied.
-        !(
-          request.resource.data.actorRole == 'customer'
-          && request.resource.data.type in [
-            'ORDER_CREATED',
-            'PAYMENT_DECLARED'
-          ]
-        )
+        request.resource.data.type == 'ASSIGNED'
+        && isValidAssignedOrderEventCreation()
+      ) || (
+        // ORDER_CREATED, PAYMENT_DECLARED et ASSIGNED ont leurs validations
+        // dediees et ne retombent jamais dans la branche generique getAfter.
+        !(request.resource.data.type in [
+          'ORDER_CREATED',
+          'PAYMENT_DECLARED',
+          'ASSIGNED'
+        ])
         && hasValidOrderEventKeys()
         && request.resource.data.schemaVersion == 1
         && request.resource.data.orderId is string
@@ -2196,24 +2287,42 @@ service cloud.firestore {
       // Firebase Anonymous Auth et ne possède pas de document /users/{uid}.
       // Cela évite d'évaluer inutilement toutes les règles Agent (et leurs
       // lectures de profil) avant une déclaration de paiement auditée.
-      allow update: if isValidCustomerPaymentDeclaration(orderId)
-        || isValidCustomerExpiration()
-        || isValidAgentProcessingSuccess(orderId)
-        || isValidAgentProcessingFailure(orderId)
-        || isValidAgentProofAuditUpdate(orderId)
-        || isValidStaffPaymentConfirmation(orderId)
-        // Le chemin manuel validé en 9D est testé avant les branches 9E.
-        // Cela évite qu'une affectation manuelle traverse inutilement les
-        // contrôles de l'affectation automatique.
-        || isValidAdminManualAssignment(orderId)
-        || isValidStaffAutomaticAssignment(orderId)
-        || isValidAgentAutomaticSelfAssignment(orderId)
-        || isValidAgentAssignmentAcceptance(orderId)
-        || isValidAgentAssignmentRefusal(orderId)
-        || isValidAgentProcessingStart(orderId)
-        || isValidAgentProcessingResume(orderId)
-        || isValidAgentProcessingHold(orderId)
-        || isValidStaffOrderUpdate(orderId);
+      // L'affectation automatique est isolee du reste des transitions.
+      // Si la requete est automatique, aucune autre branche couteuse n'est
+      // evaluee apres elle, meme si sa validation echoue.
+      allow update: if (
+          isAutomaticAssignmentTransitionRequest()
+          && (
+            (
+              request.resource.data.get('assignedAgentId', null) == request.auth.uid
+              && isValidAgentAutomaticSelfAssignment(orderId)
+            )
+            || (
+              request.resource.data.get('assignedAgentId', null) != request.auth.uid
+              && isValidStaffAutomaticAssignment(orderId)
+            )
+          )
+        ) || (
+          !isAutomaticAssignmentTransitionRequest()
+          && (
+            isValidCustomerPaymentDeclaration(orderId)
+            || isValidCustomerExpiration()
+            || isValidStaffPaymentConfirmation(orderId)
+            || (
+              isManualAssignmentTransitionRequest()
+              && isValidAdminManualAssignment(orderId)
+            )
+            || isValidAgentProcessingSuccess(orderId)
+            || isValidAgentProcessingFailure(orderId)
+            || isValidAgentProofAuditUpdate(orderId)
+            || isValidAgentAssignmentAcceptance(orderId)
+            || isValidAgentAssignmentRefusal(orderId)
+            || isValidAgentProcessingStart(orderId)
+            || isValidAgentProcessingResume(orderId)
+            || isValidAgentProcessingHold(orderId)
+            || isValidStaffOrderUpdate(orderId)
+          )
+        );
       allow delete: if false;
     }
 
@@ -2228,8 +2337,16 @@ service cloud.firestore {
           isAgent()
           && resource.data.agentId == request.auth.uid
         );
-      allow create: if isValidManualAssignmentEventCreation()
-        || isValidAutomaticAssignmentEventCreation();
+      // Même principe : ne jamais évaluer la branche manuelle pendant
+      // une affectation automatique. Cela évite des lectures getAfter/isAdmin
+      // inutiles dans une transaction qui écrit déjà plusieurs documents.
+      allow create: if (
+          request.resource.data.get('mode', null) == 'manual'
+          && isValidManualAssignmentEventCreation()
+        ) || (
+          request.resource.data.get('mode', null) == 'automatic'
+          && isValidAutomaticAssignmentEventCreation()
+        );
       allow update: if isValidAgentAssignmentEventCompletion()
         || isValidAgentAssignmentEventAcceptance()
         || isValidAgentAssignmentEventRefusal();
