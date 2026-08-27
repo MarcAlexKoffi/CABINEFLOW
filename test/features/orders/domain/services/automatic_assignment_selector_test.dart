@@ -6,7 +6,10 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const AutomaticAssignmentSelector selector = AutomaticAssignmentSelector();
 
-  QueueOrder order({String? lastRefusedAgentId}) => QueueOrder(
+  QueueOrder order({
+    String? lastRefusedAgentId,
+    List<String> refusedAgentIds = const <String>[],
+  }) => QueueOrder(
     id: 'order-1',
     reference: 'CF-20260826-TEST01',
     clientName: 'Test',
@@ -21,6 +24,7 @@ void main() {
     status: QueueOrderStatus.paidReady,
     paymentStatus: OrderPaymentStatus.confirmed,
     lastAssignmentRefusedAgentId: lastRefusedAgentId,
+    autoAssignmentRefusedAgentIds: refusedAgentIds,
   );
 
   AutomaticAssignmentAgent agent({
@@ -182,5 +186,78 @@ void main() {
     );
 
     expect(selected?.agentId, 'B');
+  });
+  test('exclut tous les agents qui ont déjà refusé cette commande', () {
+    final QueueOrder refusedByBoth = order(
+      lastRefusedAgentId: 'B',
+      refusedAgentIds: const <String>['A', 'B'],
+    );
+
+    final ranked = selector.rankEligible(
+      order: refusedByBoth,
+      agents: <AutomaticAssignmentAgent>[
+        agent(id: 'A'),
+        agent(id: 'B'),
+      ],
+    );
+
+    expect(ranked, isEmpty);
+    expect(
+      selector.shouldRequireManualAssignment(
+        order: refusedByBoth,
+        agents: <AutomaticAssignmentAgent>[
+          agent(id: 'A'),
+          agent(id: 'B'),
+        ],
+      ),
+      isTrue,
+    );
+  });
+
+  test(
+    'essaie un troisième agent apte avant de demander une affectation manuelle',
+    () {
+      final QueueOrder refusedByTwo = order(
+        lastRefusedAgentId: 'B',
+        refusedAgentIds: const <String>['A', 'B'],
+      );
+      final agents = <AutomaticAssignmentAgent>[
+        agent(id: 'A'),
+        agent(id: 'B'),
+        agent(id: 'C'),
+      ];
+
+      expect(
+        selector.select(order: refusedByTwo, agents: agents)?.agentId,
+        'C',
+      );
+      expect(
+        selector.shouldRequireManualAssignment(
+          order: refusedByTwo,
+          agents: agents,
+        ),
+        isFalse,
+      );
+    },
+  );
+
+  test('reste en attente si aucun agent ne serait actuellement apte', () {
+    final QueueOrder refusedByOne = order(
+      lastRefusedAgentId: 'A',
+      refusedAgentIds: const <String>['A'],
+    );
+    final agents = <AutomaticAssignmentAgent>[
+      agent(id: 'A', available: false),
+      agent(id: 'B', capacity: 1000),
+    ];
+
+    expect(selector.rankEligible(order: refusedByOne, agents: agents), isEmpty);
+    expect(
+      selector.shouldRequireManualAssignment(
+        order: refusedByOne,
+        agents: agents,
+      ),
+      isFalse,
+    );
   });
 }

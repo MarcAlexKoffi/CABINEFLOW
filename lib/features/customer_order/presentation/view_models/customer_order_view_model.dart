@@ -54,6 +54,8 @@ class CustomerOrderViewModel extends ChangeNotifier {
   CustomerBeneficiaryTarget _beneficiaryTarget = CustomerBeneficiaryTarget.self;
   bool _isLoadingCustomerProfile = false;
   String? _customerProfileErrorMessage;
+  bool _isRecoveringOrder = false;
+  String? _recoveryErrorMessage;
 
   CustomerOrderDraft get draft => _draft;
   CustomerOrderReceipt? get receipt => _receipt;
@@ -70,6 +72,8 @@ class CustomerOrderViewModel extends ChangeNotifier {
   CustomerBeneficiaryTarget get beneficiaryTarget => _beneficiaryTarget;
   bool get isLoadingCustomerProfile => _isLoadingCustomerProfile;
   String? get customerProfileErrorMessage => _customerProfileErrorMessage;
+  bool get isRecoveringOrder => _isRecoveringOrder;
+  String? get recoveryErrorMessage => _recoveryErrorMessage;
 
   BeneficiaryPhoneNumber? get defaultBeneficiaryNumber {
     final CustomerIdentity? identity = _draft.identity;
@@ -139,7 +143,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
         },
         onError: (Object error, StackTrace stackTrace) {
           debugPrint('[CustomerProfile][watch] ERROR $error');
-          debugPrint('[CustomerProfile][watch] STACK:\n$stackTrace');
+          _logStackTrace('[CustomerProfile][watch] STACK', stackTrace);
           _customerProfile = null;
           _isLoadingCustomerProfile = false;
           _customerProfileErrorMessage =
@@ -149,7 +153,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
       );
     } on Object catch (error, stackTrace) {
       debugPrint('[CustomerProfile][watch] ERROR $error');
-      debugPrint('[CustomerProfile][watch] STACK:\n$stackTrace');
+      _logStackTrace('[CustomerProfile][watch] STACK', stackTrace);
       _customerProfile = null;
       _isLoadingCustomerProfile = false;
       _customerProfileErrorMessage =
@@ -226,6 +230,29 @@ class CustomerOrderViewModel extends ChangeNotifier {
         return;
       }
     }
+
+    // Le document peut appartenir à l'UID anonyme d'un autre appareil.
+    // Dans ce cas, la référence + le WhatsApp mémorisés localement permettent
+    // de restaurer l'accès limité accordé par la Phase 10B.
+    unawaited(_restoreRecoveredSession(session));
+  }
+
+  Future<void> _restoreRecoveredSession(CustomerOrderSession session) async {
+    try {
+      final CustomerOrderReceipt order = await _orderRepository.recoverOrder(
+        reference: session.reference,
+        whatsappInput: session.whatsappPhone,
+      );
+      if (_receipt != null) {
+        return;
+      }
+      _applyRecoveredOrder(order, rememberLocally: false);
+      _replaceOrderInHistory(order);
+      notifyListeners();
+    } on Object {
+      // Une restauration automatique silencieuse ne doit pas afficher une
+      // erreur au démarrage. Le client peut toujours ouvrir l'écran 10B.
+    }
   }
 
   void _applyResumedOrder(
@@ -249,6 +276,66 @@ class CustomerOrderViewModel extends ChangeNotifier {
     if (rememberLocally) {
       unawaited(_rememberOrder(order));
     }
+  }
+
+  void _applyRecoveredOrder(
+    CustomerOrderReceipt order, {
+    required bool rememberLocally,
+  }) {
+    _receipt = order;
+    _draft = order.draft;
+    _submissionErrorMessage = null;
+    _trackingErrorMessage = null;
+    _paymentLinkWasOpened = false;
+
+    // 10B donne un accès de suivi à la commande, pas le droit de modifier le
+    // paiement d'une commande créée avec l'UID anonyme d'un autre appareil.
+    _currentStep = 8;
+    _startOrderTracking(order);
+
+    if (rememberLocally) {
+      unawaited(_rememberOrder(order));
+    }
+  }
+
+  Future<bool> recoverOrder({
+    required String reference,
+    required String whatsappInput,
+  }) async {
+    if (_isRecoveringOrder) {
+      return false;
+    }
+
+    _isRecoveringOrder = true;
+    _recoveryErrorMessage = null;
+    notifyListeners();
+
+    try {
+      final CustomerOrderReceipt recoveredOrder = await _orderRepository
+          .recoverOrder(reference: reference, whatsappInput: whatsappInput);
+      _applyRecoveredOrder(recoveredOrder, rememberLocally: true);
+      _replaceOrderInHistory(recoveredOrder);
+      return true;
+    } on Object catch (error, stackTrace) {
+      debugPrint('[CustomerOrder][recover] ERROR $error');
+      _logStackTrace('[CustomerOrder][recover] STACK', stackTrace);
+      // Toujours rester volontairement neutre : ne jamais révéler si la
+      // référence existe avec un autre numéro WhatsApp.
+      _recoveryErrorMessage =
+          'Commande introuvable ou informations incorrectes. Vérifiez la référence et le numéro WhatsApp saisis.';
+      return false;
+    } finally {
+      _isRecoveringOrder = false;
+      notifyListeners();
+    }
+  }
+
+  void clearRecoveryError() {
+    if (_recoveryErrorMessage == null) {
+      return;
+    }
+    _recoveryErrorMessage = null;
+    notifyListeners();
   }
 
   bool get canGoBack => _currentStep > 1 && _currentStep < 8;
@@ -553,7 +640,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
       // La mémorisation est un confort : une erreur ne doit jamais bloquer la
       // commande qui contient déjà le bon beneficiaryPhone dans le brouillon.
       debugPrint('[CustomerProfile][save] ERROR $error');
-      debugPrint('[CustomerProfile][save] STACK:\n$stackTrace');
+      _logStackTrace('[CustomerProfile][save] STACK', stackTrace);
       _customerProfileErrorMessage =
           'Votre commande peut continuer, mais le numéro habituel n’a pas pu être mémorisé.';
     }
@@ -588,7 +675,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
     } catch (error, stackTrace) {
       debugPrint('[CustomerOrder][create] ERROR type=${error.runtimeType}');
       debugPrint('[CustomerOrder][create] ERROR $error');
-      debugPrint('[CustomerOrder][create] STACK:\n$stackTrace');
+      _logStackTrace('[CustomerOrder][create] STACK', stackTrace);
 
       _submissionErrorMessage = error is StateError
           ? error.message.toString()
@@ -827,6 +914,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
     _paymentLinkWasOpened = false;
     _submissionErrorMessage = null;
     _trackingErrorMessage = null;
+    _recoveryErrorMessage = null;
     notifyListeners();
   }
 
@@ -844,8 +932,15 @@ class CustomerOrderViewModel extends ChangeNotifier {
         _draft.service != null &&
         _draft.network != null &&
         _draft.selectedOfferLabel != null &&
-        (_draft.amount ?? 0) > 0 &&
         _draft.beneficiaryNumber != null;
+  }
+
+  void _logStackTrace(String label, StackTrace stackTrace) {
+    try {
+      debugPrintStack(label: label, stackTrace: stackTrace);
+    } catch (_) {
+      debugPrint('$label:\n$stackTrace');
+    }
   }
 }
 

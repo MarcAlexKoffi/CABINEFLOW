@@ -17,6 +17,7 @@ import 'package:cabine_flow/features/customer_order/presentation/pages/customer_
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_network_page.dart';
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_offer_page.dart';
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_order_history_page.dart';
+import 'package:cabine_flow/features/customer_order/presentation/pages/customer_order_recovery_page.dart';
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_payment_page.dart';
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_service_page.dart';
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_summary_page.dart';
@@ -38,6 +39,7 @@ class CustomerOrderFlowPage extends StatefulWidget {
 class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
   late final CustomerOrderViewModel _viewModel;
   bool _isShowingHistory = false;
+  bool _isShowingRecovery = false;
 
   late final CustomerOfferRepository _offerRepository;
   late final CustomerProfileRepository _profileRepository;
@@ -85,6 +87,19 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
     });
   }
 
+  void _openRecovery() {
+    _viewModel.clearRecoveryError();
+    setState(() {
+      _isShowingRecovery = true;
+    });
+  }
+
+  void _closeRecovery() {
+    setState(() {
+      _isShowingRecovery = false;
+    });
+  }
+
   void _openOrder(CustomerOrderReceipt order) {
     _viewModel.resumeOrder(order);
     _closeHistory();
@@ -99,7 +114,14 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
           duration: const Duration(milliseconds: 220),
           switchInCurve: Curves.easeOut,
           switchOutCurve: Curves.easeIn,
-          child: _isShowingHistory
+          child: _isShowingRecovery
+              ? CustomerOrderRecoveryPage(
+                  key: const ValueKey<String>('customer-recovery'),
+                  viewModel: _viewModel,
+                  onBack: _closeRecovery,
+                  onRecovered: _closeRecovery,
+                )
+              : _isShowingHistory
               ? CustomerOrderHistoryPage(
                   key: const ValueKey<String>('customer-history'),
                   viewModel: _viewModel,
@@ -119,6 +141,7 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
           key: const ValueKey<int>(1),
           viewModel: _viewModel,
           onOpenHistory: _openHistory,
+          onOpenRecovery: _openRecovery,
           onResumeOrder: _openOrder,
         );
 
@@ -171,6 +194,7 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
           key: const ValueKey<int>(1),
           viewModel: _viewModel,
           onOpenHistory: _openHistory,
+          onOpenRecovery: _openRecovery,
           onResumeOrder: _openOrder,
         );
     }

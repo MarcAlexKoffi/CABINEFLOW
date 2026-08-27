@@ -409,7 +409,10 @@ class AgentOrdersViewModel extends ChangeNotifier {
       );
     } catch (error, stackTrace) {
       debugPrint('[AutoAssignment][claim] $error');
-      debugPrint('[AutoAssignment][claim] stack:\n$stackTrace');
+      debugPrintStack(
+        label: '[AutoAssignment][claim] stack',
+        stackTrace: stackTrace,
+      );
     } finally {
       _autoClaimInFlight = false;
     }
@@ -434,7 +437,10 @@ class AgentOrdersViewModel extends ChangeNotifier {
     }
 
     for (final AutomaticAssignmentQueueItem item in _autoQueue) {
-      if (item.lastRefusedAgentId == agentId) continue;
+      if (item.refusedAgentIds.contains(agentId) ||
+          item.lastRefusedAgentId == agentId) {
+        continue;
+      }
       final AgentNetwork network = _agentNetwork(item.network);
       if (!profile.authorizedNetworks.contains(network) ||
           !profile.activeNetworks.contains(network)) {
@@ -589,7 +595,10 @@ class AgentOrdersViewModel extends ChangeNotifier {
         'code=${error.code} message=${error.message}',
       );
     }
-    debugPrint('[AgentOrders][$action] stack:\n$stackTrace');
+    debugPrintStack(
+      label: '[AgentOrders][$action] stack',
+      stackTrace: stackTrace,
+    );
   }
 
   @override

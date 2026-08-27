@@ -8,6 +8,7 @@ class AutomaticAssignmentQueueItem {
     required this.amount,
     required this.createdAt,
     this.lastRefusedAgentId,
+    this.refusedAgentIds = const <String>[],
   });
 
   final String orderId;
@@ -16,6 +17,7 @@ class AutomaticAssignmentQueueItem {
   final int amount;
   final DateTime createdAt;
   final String? lastRefusedAgentId;
+  final List<String> refusedAgentIds;
 }
 
 class AutomaticAssignmentAgent {
@@ -86,7 +88,10 @@ class AutomaticAssignmentAgent {
     return available < 0 ? 0 : available;
   }
 
-  String? ineligibilityReason({required QueueOrder order}) {
+  String? ineligibilityReason({
+    required QueueOrder order,
+    bool ignorePreviousRefusals = false,
+  }) {
     if (!isActive) return 'agent-inactive';
     if (!isAvailable) return 'agent-unavailable';
     if (!authorizedNetworks.contains(order.network)) {
@@ -98,8 +103,10 @@ class AutomaticAssignmentAgent {
     if (availableCapacityFor(order.network) < order.amount) {
       return 'insufficient-capacity';
     }
-    if (order.lastAssignmentRefusedAgentId == agentId) {
-      return 'just-refused-this-order';
+    if (!ignorePreviousRefusals &&
+        (order.autoAssignmentRefusedAgentIds.contains(agentId) ||
+            order.lastAssignmentRefusedAgentId == agentId)) {
+      return 'already-refused-this-order';
     }
 
     // Une valeur 0 signifie « aucune limite configurée ». C'est important
@@ -118,5 +125,10 @@ class AutomaticAssignmentAgent {
 
   bool canReceive({required QueueOrder order}) {
     return ineligibilityReason(order: order) == null;
+  }
+
+  bool canReceiveIgnoringPreviousRefusals({required QueueOrder order}) {
+    return ineligibilityReason(order: order, ignorePreviousRefusals: true) ==
+        null;
   }
 }

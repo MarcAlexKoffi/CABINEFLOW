@@ -574,7 +574,9 @@ class _OrdersPageState extends State<OrdersPage> {
                               actionLabel: order.isAssignedToAgent
                                   ? 'En attente de l’agent'
                                   : widget.user.role == UserRole.administrator
-                                  ? 'Affecter'
+                                  ? order.manualAssignmentRequired
+                                        ? 'Affecter manuellement'
+                                        : 'Affecter'
                                   : 'Prendre en charge',
                               assignmentLabel: order.assignedAgentName,
                               isActionEnabled: !order.isAssignedToAgent,

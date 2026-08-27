@@ -32,6 +32,34 @@ class AutomaticAssignmentSelector {
     return ranked.isEmpty ? null : ranked.first;
   }
 
+  bool shouldRequireManualAssignment({
+    required QueueOrder order,
+    required Iterable<AutomaticAssignmentAgent> agents,
+  }) {
+    if (order.autoAssignmentRefusedAgentIds.isEmpty &&
+        order.lastAssignmentRefusedAgentId == null) {
+      return false;
+    }
+
+    final Set<String> refusedAgentIds = <String>{
+      ...order.autoAssignmentRefusedAgentIds,
+      if (order.lastAssignmentRefusedAgentId != null)
+        order.lastAssignmentRefusedAgentId!,
+    };
+    final List<AutomaticAssignmentAgent> otherwiseEligible = agents
+        .where(
+          (AutomaticAssignmentAgent agent) =>
+              agent.canReceiveIgnoringPreviousRefusals(order: order),
+        )
+        .toList(growable: false);
+
+    return otherwiseEligible.isNotEmpty &&
+        otherwiseEligible.every(
+          (AutomaticAssignmentAgent agent) =>
+              refusedAgentIds.contains(agent.agentId),
+        );
+  }
+
   int _compareAgents(
     QueueOrder order,
     AutomaticAssignmentAgent first,

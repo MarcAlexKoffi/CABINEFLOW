@@ -261,7 +261,8 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
           order.status == QueueOrderStatus.paidReady &&
           order.paymentStatus == OrderPaymentStatus.confirmed &&
           order.assignedAgentId == null &&
-          order.assignmentStatus == OrderAssignmentStatus.unassigned;
+          order.assignmentStatus == OrderAssignmentStatus.unassigned &&
+          !order.manualAssignmentRequired;
       if (!waiting || _automaticQueue.containsKey(order.id)) continue;
       _automaticQueue[order.id] = AutomaticAssignmentQueueItem(
         orderId: order.id,
@@ -270,6 +271,7 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
         amount: order.amount,
         createdAt: order.paidAt ?? order.createdAt,
         lastRefusedAgentId: order.lastAssignmentRefusedAgentId,
+        refusedAgentIds: order.autoAssignmentRefusedAgentIds,
       );
       changed = true;
     }
@@ -289,7 +291,11 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
   }) async {
     await _delay(80);
     final AutomaticAssignmentQueueItem? queued = _automaticQueue[item.orderId];
-    if (queued == null || queued.lastRefusedAgentId == agentId) return false;
+    if (queued == null ||
+        queued.refusedAgentIds.contains(agentId) ||
+        queued.lastRefusedAgentId == agentId) {
+      return false;
+    }
     final int index = _findOrderIndex(item.orderId);
     final QueueOrder currentOrder = _orders![index];
     if (currentOrder.status != QueueOrderStatus.paidReady ||
@@ -344,6 +350,7 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
       assignedAt: DateTime.now(),
       assignmentMode: OrderAssignmentMode.manual,
       assignmentStatus: OrderAssignmentStatus.assigned,
+      manualAssignmentRequired: false,
     );
     _orders![index] = updatedOrder;
     _automaticQueue.remove(orderId);
@@ -427,11 +434,17 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     final QueueOrder currentOrder = _orders![index];
     _verifyPendingAgentAssignment(currentOrder, agentId);
 
+    final List<String> refusedAgentIds = <String>{
+      ...currentOrder.autoAssignmentRefusedAgentIds,
+      agentId,
+    }.toList(growable: false);
     final QueueOrder updatedOrder = currentOrder.copyWith(
       clearAgentAssignment: true,
       lastAssignmentRefusalReason: cleanedReason,
       lastAssignmentRefusedAt: DateTime.now(),
       lastAssignmentRefusedAgentId: agentId,
+      autoAssignmentRefusedAgentIds: refusedAgentIds,
+      manualAssignmentRequired: false,
     );
     _orders![index] = updatedOrder;
     _automaticQueue[updatedOrder.id] = AutomaticAssignmentQueueItem(
@@ -441,6 +454,7 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
       amount: updatedOrder.amount,
       createdAt: updatedOrder.paidAt ?? updatedOrder.createdAt,
       lastRefusedAgentId: agentId,
+      refusedAgentIds: refusedAgentIds,
     );
     _recordEvent(
       order: currentOrder,

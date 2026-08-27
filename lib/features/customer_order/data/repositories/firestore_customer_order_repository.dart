@@ -2,6 +2,7 @@ import 'package:cabine_flow/features/customer_order/domain/models/beneficiary_ph
 import 'package:cabine_flow/features/customer_order/domain/models/customer_identity.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/customer_order_recovery_key.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/payment_declaration.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone_number.dart';
@@ -11,6 +12,7 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/services/order_expiration_policy.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
   FirestoreCustomerOrderRepository({
@@ -24,6 +26,8 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _firebaseAuth;
   Future<User>? _anonymousCustomerFuture;
+  final Set<String> _recoveredOrderIds = <String>{};
+  final Set<String> _recoveryKeysEnsuredForOrderIds = <String>{};
 
   CollectionReference<Map<String, dynamic>> get _ordersCollection {
     return _firestore.collection('orders');
@@ -31,6 +35,10 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
 
   CollectionReference<Map<String, dynamic>> get _eventsCollection {
     return _firestore.collection('orderEvents');
+  }
+
+  CollectionReference<Map<String, dynamic>> get _recoveryKeysCollection {
+    return _firestore.collection('orderRecoveryKeys');
   }
 
   @override
@@ -79,7 +87,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
     );
     await batch.commit();
 
-    return CustomerOrderReceipt(
+    final CustomerOrderReceipt createdOrder = CustomerOrderReceipt(
       id: document.id,
       reference: reference,
       draft: draft,
@@ -88,6 +96,8 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
       status: QueueOrderStatus.awaitingPayment,
       paymentStatus: OrderPaymentStatus.notDeclared,
     );
+    await _ensureRecoveryKeySafely(createdOrder);
+    return createdOrder;
   }
 
   @override
@@ -199,6 +209,90 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
   }
 
   @override
+  Future<CustomerOrderReceipt> recoverOrder({
+    required String reference,
+    required String whatsappInput,
+  }) async {
+    final User customer = await _ensureAnonymousCustomer();
+    final String normalizedReference =
+        CustomerOrderRecoveryKey.normalizeReference(reference);
+    if (CustomerOrderRecoveryKey.validateReference(normalizedReference) !=
+        null) {
+      throw const FormatException('Référence de commande invalide.');
+    }
+
+    final WhatsappPhoneNumber whatsappPhone = WhatsappPhoneNumber.parse(
+      whatsappInput,
+    );
+    final String recoveryKey = CustomerOrderRecoveryKey.build(
+      reference: normalizedReference,
+      whatsappPhone: whatsappPhone,
+    );
+    final DocumentReference<Map<String, dynamic>> recoveryKeyRef =
+        _recoveryKeysCollection.doc(recoveryKey);
+
+    final DocumentSnapshot<Map<String, dynamic>> recoverySnapshot =
+        await recoveryKeyRef.get();
+    final Map<String, dynamic>? recoveryData = recoverySnapshot.data();
+    if (!recoverySnapshot.exists || recoveryData == null) {
+      throw StateError('Commande introuvable ou informations incorrectes.');
+    }
+
+    final String? orderId = _readNullableString(recoveryData['orderId']);
+    final String? storedReference = _readNullableString(
+      recoveryData['orderReference'],
+    );
+    final String? storedWhatsapp = _readNullableString(
+      recoveryData['whatsappPhone'],
+    );
+    if (orderId == null ||
+        storedReference != normalizedReference ||
+        storedWhatsapp != whatsappPhone.normalized) {
+      throw StateError('Commande introuvable ou informations incorrectes.');
+    }
+
+    final DocumentReference<Map<String, dynamic>> accessRef = _firestore
+        .collection('orderRecoveryAccess')
+        .doc(orderId)
+        .collection('customers')
+        .doc(customer.uid);
+    final DocumentSnapshot<Map<String, dynamic>> accessSnapshot =
+        await accessRef.get();
+    if (!accessSnapshot.exists) {
+      await accessRef.set(<String, dynamic>{
+        'schemaVersion': 1,
+        'customerAuthUid': customer.uid,
+        'recoveryKey': recoveryKey,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    final DocumentSnapshot<Map<String, dynamic>> orderSnapshot =
+        await _ordersCollection.doc(orderId).get();
+    final Map<String, dynamic>? orderData = orderSnapshot.data();
+    if (!orderSnapshot.exists || orderData == null) {
+      throw StateError('Commande introuvable ou informations incorrectes.');
+    }
+
+    if (_readNullableString(orderData['reference']) != normalizedReference ||
+        _readNullableString(orderData['clientWhatsappPhone']) !=
+            whatsappPhone.normalized) {
+      throw StateError('Commande introuvable ou informations incorrectes.');
+    }
+
+    final CustomerOrderReceipt? recoveredOrder = _receiptFromDocument(
+      id: orderSnapshot.id,
+      data: orderData,
+    );
+    if (recoveredOrder == null) {
+      throw StateError('Commande introuvable ou informations incorrectes.');
+    }
+
+    _recoveredOrderIds.add(orderId);
+    return recoveredOrder;
+  }
+
+  @override
   Stream<CustomerOrderReceipt> watchOrder({
     required CustomerOrderReceipt order,
   }) {
@@ -216,6 +310,9 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
         data: data,
       );
 
+      if (_recoveredOrderIds.contains(order.id)) {
+        return currentOrder;
+      }
       return _synchronizeExpirationIfNeeded(currentOrder);
     });
   }
@@ -240,6 +337,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
 
           final List<CustomerOrderReceipt> synchronizedOrders =
               await Future.wait(orders.map(_synchronizeExpirationIfNeeded));
+          await Future.wait(synchronizedOrders.map(_ensureRecoveryKeySafely));
 
           synchronizedOrders.sort((
             CustomerOrderReceipt first,
@@ -250,6 +348,47 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
 
           return synchronizedOrders;
         });
+  }
+
+  Future<void> _ensureRecoveryKeySafely(CustomerOrderReceipt order) async {
+    if (_recoveryKeysEnsuredForOrderIds.contains(order.id)) {
+      return;
+    }
+
+    final CustomerIdentity? identity = order.draft.identity;
+    if (identity == null) {
+      return;
+    }
+
+    final String recoveryKey = CustomerOrderRecoveryKey.build(
+      reference: order.reference,
+      whatsappPhone: identity.whatsappNumber,
+    );
+    final DocumentReference<Map<String, dynamic>> recoveryRef =
+        _recoveryKeysCollection.doc(recoveryKey);
+
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> existing = await recoveryRef
+          .get();
+      if (!existing.exists) {
+        await recoveryRef.set(<String, dynamic>{
+          'schemaVersion': 1,
+          'orderId': order.id,
+          'orderReference': order.reference,
+          'whatsappPhone': identity.whatsappNumber.normalized,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+      _recoveryKeysEnsuredForOrderIds.add(order.id);
+    } on Object catch (error, stackTrace) {
+      // L'index de récupération est un mécanisme de confort. Une panne de cet
+      // artefact ne doit jamais empêcher la création ou le suivi normal de la
+      // commande par son propriétaire d'origine.
+      debugPrint(
+        '[CustomerOrder][recovery-key] order=${order.reference} ERROR $error',
+      );
+      debugPrint('[CustomerOrder][recovery-key] STACK:\n$stackTrace');
+    }
   }
 
   Future<CustomerOrderReceipt> _synchronizeExpirationIfNeeded(

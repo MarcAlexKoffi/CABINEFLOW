@@ -74,6 +74,10 @@ class FirestoreOrderMapper {
       lastAssignmentRefusedAgentId: _readNullableString(
         data['lastAssignmentRefusedAgentId'],
       ),
+      autoAssignmentRefusedAgentIds: _readStringList(
+        data['autoAssignmentRefusedAgentIds'],
+      ),
+      manualAssignmentRequired: _readBool(data['manualAssignmentRequired']),
       lastHoldReason: _readNullableString(data['lastHoldReason']),
       lastHeldAt: _readDate(data['lastHeldAt']),
       lastResumedAt: _readDate(data['lastResumedAt']),
@@ -172,6 +176,23 @@ class FirestoreOrderMapper {
 
     final String cleaned = value.trim();
     return cleaned.isEmpty ? null : cleaned;
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+
+    return value
+        .whereType<String>()
+        .map((String item) => item.trim())
+        .where((String item) => item.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+  }
+
+  static bool _readBool(Object? value) {
+    return value is bool ? value : false;
   }
 
   static int _readInt(Object? value) {

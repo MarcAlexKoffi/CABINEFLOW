@@ -61,4 +61,39 @@ void main() {
     );
     expect(declaredOrder.draft.amount, 2000);
   });
+
+  test(
+    'retrouve uniquement la commande correspondant à la référence et au WhatsApp',
+    () async {
+      final FakeCustomerOrderRepository repository =
+          FakeCustomerOrderRepository(now: () => DateTime(2026, 8, 27, 14));
+      final CustomerOrderDraft draft = CustomerOrderDraft(
+        identity: CustomerIdentity(
+          name: 'Mariam',
+          whatsappNumber: WhatsappPhoneNumber.parse('07 12 34 56 78'),
+        ),
+        service: CustomerService.unitTransfer,
+        network: MobileNetwork.mtn,
+        amount: 1500,
+        beneficiaryNumber: BeneficiaryPhoneNumber.parse('05 11 22 33 44'),
+      );
+      final CustomerOrderReceipt created = await repository.createOrder(
+        draft: draft,
+      );
+
+      final CustomerOrderReceipt recovered = await repository.recoverOrder(
+        reference: created.reference.toLowerCase(),
+        whatsappInput: '+225 07 12 34 56 78',
+      );
+
+      expect(recovered.id, created.id);
+      await expectLater(
+        repository.recoverOrder(
+          reference: created.reference,
+          whatsappInput: '05 00 00 00 00',
+        ),
+        throwsA(isA<StateError>()),
+      );
+    },
+  );
 }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/payment_declaration.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/services/order_expiration_policy.dart';
@@ -134,6 +135,27 @@ class FakeCustomerOrderRepository implements CustomerOrderRepository {
   }) async {
     _expireDueOrders();
     return _orders[order.id] ?? order;
+  }
+
+  @override
+  Future<CustomerOrderReceipt> recoverOrder({
+    required String reference,
+    required String whatsappInput,
+  }) async {
+    final WhatsappPhoneNumber whatsapp = WhatsappPhoneNumber.parse(
+      whatsappInput,
+    );
+    final String normalizedReference = reference.trim().toUpperCase();
+
+    for (final CustomerOrderReceipt order in _orders.values) {
+      if (order.reference.toUpperCase() == normalizedReference &&
+          order.draft.identity?.whatsappNumber.normalized ==
+              whatsapp.normalized) {
+        return order;
+      }
+    }
+
+    throw StateError('Commande introuvable ou informations incorrectes.');
   }
 
   void _expireDueOrders() {

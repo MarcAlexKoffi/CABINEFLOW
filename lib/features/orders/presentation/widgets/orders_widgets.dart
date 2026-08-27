@@ -664,6 +664,42 @@ class QueueOrderCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                    if (order.manualAssignmentRequired) ...[
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withAlpha(18),
+                          borderRadius: BorderRadius.circular(9),
+                          border: Border.all(
+                            color: AppColors.warning.withAlpha(80),
+                          ),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.assignment_ind_outlined,
+                              size: 16,
+                              color: AppColors.warning,
+                            ),
+                            SizedBox(width: 7),
+                            Expanded(
+                              child: Text(
+                                'AFFECTATION MANUELLE REQUISE',
+                                style: TextStyle(
+                                  color: AppColors.warning,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     if (assignmentLabel != null &&
                         assignmentLabel!.trim().isNotEmpty) ...[
                       const SizedBox(height: 14),

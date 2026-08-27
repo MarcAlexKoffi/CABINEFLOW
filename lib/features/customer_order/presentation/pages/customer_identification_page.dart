@@ -14,11 +14,13 @@ class CustomerIdentificationPage extends StatefulWidget {
     super.key,
     required this.viewModel,
     required this.onOpenHistory,
+    required this.onOpenRecovery,
     required this.onResumeOrder,
   });
 
   final CustomerOrderViewModel viewModel;
   final VoidCallback onOpenHistory;
+  final VoidCallback onOpenRecovery;
   final ValueChanged<CustomerOrderReceipt> onResumeOrder;
 
   @override
@@ -103,6 +105,7 @@ class _CustomerIdentificationPageState
       onContinue: _continue,
       footer: _IdentificationFooter(
         onOpenHistory: widget.onOpenHistory,
+        onOpenRecovery: widget.onOpenRecovery,
         hasHistory: widget.viewModel.customerOrders.isNotEmpty,
       ),
       content: Column(
@@ -348,10 +351,12 @@ class _FieldLabel extends StatelessWidget {
 class _IdentificationFooter extends StatelessWidget {
   const _IdentificationFooter({
     required this.onOpenHistory,
+    required this.onOpenRecovery,
     required this.hasHistory,
   });
 
   final VoidCallback onOpenHistory;
+  final VoidCallback onOpenRecovery;
   final bool hasHistory;
 
   @override
@@ -363,7 +368,13 @@ class _IdentificationFooter extends StatelessWidget {
           icon: const Icon(Icons.history_rounded),
           label: Text(hasHistory ? 'Voir mes commandes' : 'Historique'),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 8),
+        TextButton.icon(
+          onPressed: onOpenRecovery,
+          icon: const Icon(Icons.manage_search_rounded),
+          label: const Text('Retrouver une commande'),
+        ),
+        const SizedBox(height: 10),
         const _NoAccountMessage(),
       ],
     );

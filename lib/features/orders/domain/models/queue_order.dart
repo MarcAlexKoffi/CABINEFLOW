@@ -95,6 +95,8 @@ class QueueOrder {
     this.lastAssignmentRefusalReason,
     this.lastAssignmentRefusedAt,
     this.lastAssignmentRefusedAgentId,
+    this.autoAssignmentRefusedAgentIds = const <String>[],
+    this.manualAssignmentRequired = false,
     this.lastHoldReason,
     this.lastHeldAt,
     this.lastResumedAt,
@@ -153,6 +155,8 @@ class QueueOrder {
   final String? lastAssignmentRefusalReason;
   final DateTime? lastAssignmentRefusedAt;
   final String? lastAssignmentRefusedAgentId;
+  final List<String> autoAssignmentRefusedAgentIds;
+  final bool manualAssignmentRequired;
 
   final String? lastHoldReason;
   final DateTime? lastHeldAt;
@@ -199,6 +203,8 @@ class QueueOrder {
     String? lastAssignmentRefusalReason,
     DateTime? lastAssignmentRefusedAt,
     String? lastAssignmentRefusedAgentId,
+    List<String>? autoAssignmentRefusedAgentIds,
+    bool? manualAssignmentRequired,
     String? lastHoldReason,
     DateTime? lastHeldAt,
     DateTime? lastResumedAt,
@@ -272,6 +278,10 @@ class QueueOrder {
           lastAssignmentRefusedAt ?? this.lastAssignmentRefusedAt,
       lastAssignmentRefusedAgentId:
           lastAssignmentRefusedAgentId ?? this.lastAssignmentRefusedAgentId,
+      autoAssignmentRefusedAgentIds:
+          autoAssignmentRefusedAgentIds ?? this.autoAssignmentRefusedAgentIds,
+      manualAssignmentRequired:
+          manualAssignmentRequired ?? this.manualAssignmentRequired,
       lastHoldReason: lastHoldReason ?? this.lastHoldReason,
       lastHeldAt: lastHeldAt ?? this.lastHeldAt,
       lastResumedAt: lastResumedAt ?? this.lastResumedAt,

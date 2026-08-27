@@ -14,6 +14,11 @@ abstract class CustomerOrderRepository {
     required CustomerOrderReceipt order,
   });
 
+  Future<CustomerOrderReceipt> recoverOrder({
+    required String reference,
+    required String whatsappInput,
+  });
+
   Stream<CustomerOrderReceipt> watchOrder({
     required CustomerOrderReceipt order,
   });
