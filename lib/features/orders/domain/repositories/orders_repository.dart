@@ -1,3 +1,4 @@
+import 'package:cabine_flow/features/orders/domain/models/automatic_assignment.dart';
 import 'package:cabine_flow/features/orders/domain/models/create_order_request.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_proof.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
@@ -20,6 +21,17 @@ abstract class OrdersRepository {
   Future<List<QueueOrder>> fetchPaidQueue();
 
   Stream<List<QueueOrder>> watchPaidQueue();
+
+  Stream<List<AutomaticAssignmentQueueItem>> watchAutomaticAssignmentQueue();
+
+  Future<void> synchronizeAutomaticAssignmentBacklog();
+
+  Future<QueueOrder?> tryAutomaticAssignment({required String orderId});
+
+  Future<bool> claimAutomaticQueueItem({
+    required AutomaticAssignmentQueueItem item,
+    required String agentId,
+  });
 
   Future<QueueOrder> assignToAgent({
     required String orderId,

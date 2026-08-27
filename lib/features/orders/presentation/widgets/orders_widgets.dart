@@ -440,6 +440,7 @@ class QueueOrderCard extends StatelessWidget {
     required this.onTakeCharge,
     this.actionLabel = 'Prendre en charge',
     this.assignmentLabel,
+    this.isActionEnabled = true,
   });
 
   final QueueOrder order;
@@ -450,6 +451,7 @@ class QueueOrderCard extends StatelessWidget {
   final VoidCallback onTakeCharge;
   final String actionLabel;
   final String? assignmentLabel;
+  final bool isActionEnabled;
 
   String get networkLabel {
     switch (order.network) {
@@ -703,7 +705,9 @@ class QueueOrderCard extends StatelessWidget {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
-                        onPressed: isProcessing ? null : onTakeCharge,
+                        onPressed: isProcessing || !isActionEnabled
+                            ? null
+                            : onTakeCharge,
                         style: FilledButton.styleFrom(
                           backgroundColor: const Color(
                             0xFF0F52BA,

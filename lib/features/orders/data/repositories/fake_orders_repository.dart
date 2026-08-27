@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:cabine_flow/features/orders/domain/models/automatic_assignment.dart';
 import 'package:cabine_flow/features/orders/domain/models/create_order_request.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_event.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_proof.dart';
@@ -16,6 +17,8 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
   final StreamController<void> _changes = StreamController<void>.broadcast();
   final Map<String, OrderProof> _proofs = <String, OrderProof>{};
   final List<OrderEvent> _orderEvents = <OrderEvent>[];
+  final Map<String, AutomaticAssignmentQueueItem> _automaticQueue =
+      <String, AutomaticAssignmentQueueItem>{};
 
   List<OrderEvent> get debugOrderEvents =>
       List<OrderEvent>.unmodifiable(_orderEvents);
@@ -163,6 +166,14 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     );
 
     _orders![index] = updatedOrder;
+    _automaticQueue[updatedOrder.id] = AutomaticAssignmentQueueItem(
+      orderId: updatedOrder.id,
+      orderReference: updatedOrder.reference,
+      network: updatedOrder.network,
+      amount: updatedOrder.amount,
+      createdAt: paidAt,
+      lastRefusedAgentId: updatedOrder.lastAssignmentRefusedAgentId,
+    );
     _recordEvent(
       order: updatedOrder,
       type: OrderEventType.paymentConfirmed,
@@ -226,6 +237,92 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
   }
 
   @override
+  Stream<List<AutomaticAssignmentQueueItem>>
+  watchAutomaticAssignmentQueue() async* {
+    List<AutomaticAssignmentQueueItem> current() {
+      final List<AutomaticAssignmentQueueItem> items =
+          _automaticQueue.values.toList(growable: false)
+            ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      return List<AutomaticAssignmentQueueItem>.unmodifiable(items);
+    }
+
+    yield current();
+    await for (final _ in _changes.stream) {
+      yield current();
+    }
+  }
+
+  @override
+  Future<void> synchronizeAutomaticAssignmentBacklog() async {
+    _orders ??= _createInitialOrders();
+    bool changed = false;
+    for (final QueueOrder order in _orders!) {
+      final bool waiting =
+          order.status == QueueOrderStatus.paidReady &&
+          order.paymentStatus == OrderPaymentStatus.confirmed &&
+          order.assignedAgentId == null &&
+          order.assignmentStatus == OrderAssignmentStatus.unassigned;
+      if (!waiting || _automaticQueue.containsKey(order.id)) continue;
+      _automaticQueue[order.id] = AutomaticAssignmentQueueItem(
+        orderId: order.id,
+        orderReference: order.reference,
+        network: order.network,
+        amount: order.amount,
+        createdAt: order.paidAt ?? order.createdAt,
+        lastRefusedAgentId: order.lastAssignmentRefusedAgentId,
+      );
+      changed = true;
+    }
+    if (changed) _notify();
+  }
+
+  @override
+  Future<QueueOrder?> tryAutomaticAssignment({required String orderId}) async {
+    await _delay(50);
+    return null;
+  }
+
+  @override
+  Future<bool> claimAutomaticQueueItem({
+    required AutomaticAssignmentQueueItem item,
+    required String agentId,
+  }) async {
+    await _delay(80);
+    final AutomaticAssignmentQueueItem? queued = _automaticQueue[item.orderId];
+    if (queued == null || queued.lastRefusedAgentId == agentId) return false;
+    final int index = _findOrderIndex(item.orderId);
+    final QueueOrder currentOrder = _orders![index];
+    if (currentOrder.status != QueueOrderStatus.paidReady ||
+        currentOrder.paymentStatus != OrderPaymentStatus.confirmed ||
+        currentOrder.assignedAgentId != null ||
+        currentOrder.assignmentStatus != OrderAssignmentStatus.unassigned) {
+      _automaticQueue.remove(item.orderId);
+      _notify();
+      return false;
+    }
+
+    final QueueOrder updatedOrder = currentOrder.copyWith(
+      assignedAgentId: agentId,
+      assignedAgentName: agentId == 'AGENT-001' ? 'Koffi Kouassi' : 'Agent',
+      assignedByUserId: agentId,
+      assignedAt: DateTime.now(),
+      assignmentMode: OrderAssignmentMode.automatic,
+      assignmentStatus: OrderAssignmentStatus.assigned,
+    );
+    _orders![index] = updatedOrder;
+    _automaticQueue.remove(item.orderId);
+    _recordEvent(
+      order: updatedOrder,
+      type: OrderEventType.assigned,
+      actorId: agentId,
+      actorRole: 'agent',
+      metadata: <String, Object?>{'agentId': agentId},
+    );
+    _notify();
+    return true;
+  }
+
+  @override
   Future<QueueOrder> assignToAgent({
     required String orderId,
     required String agentId,
@@ -249,6 +346,7 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
       assignmentStatus: OrderAssignmentStatus.assigned,
     );
     _orders![index] = updatedOrder;
+    _automaticQueue.remove(orderId);
     _recordEvent(
       order: updatedOrder,
       type: OrderEventType.assigned,
@@ -333,14 +431,26 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
       clearAgentAssignment: true,
       lastAssignmentRefusalReason: cleanedReason,
       lastAssignmentRefusedAt: DateTime.now(),
+      lastAssignmentRefusedAgentId: agentId,
     );
     _orders![index] = updatedOrder;
+    _automaticQueue[updatedOrder.id] = AutomaticAssignmentQueueItem(
+      orderId: updatedOrder.id,
+      orderReference: updatedOrder.reference,
+      network: updatedOrder.network,
+      amount: updatedOrder.amount,
+      createdAt: updatedOrder.paidAt ?? updatedOrder.createdAt,
+      lastRefusedAgentId: agentId,
+    );
     _recordEvent(
       order: currentOrder,
       type: OrderEventType.assignmentRefused,
       actorId: agentId,
       actorRole: 'agent',
-      metadata: <String, Object?>{'reason': cleanedReason},
+      metadata: <String, Object?>{
+        'reason': cleanedReason,
+        'releasedToQueue': true,
+      },
     );
     _notify();
     return updatedOrder;

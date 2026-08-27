@@ -71,6 +71,9 @@ class FirestoreOrderMapper {
         data['lastAssignmentRefusalReason'],
       ),
       lastAssignmentRefusedAt: _readDate(data['lastAssignmentRefusedAt']),
+      lastAssignmentRefusedAgentId: _readNullableString(
+        data['lastAssignmentRefusedAgentId'],
+      ),
       lastHoldReason: _readNullableString(data['lastHoldReason']),
       lastHeldAt: _readDate(data['lastHeldAt']),
       lastResumedAt: _readDate(data['lastResumedAt']),

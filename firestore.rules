@@ -97,6 +97,7 @@ service cloud.firestore {
         'assignmentStatus',
         'lastAssignmentRefusalReason',
         'lastAssignmentRefusedAt',
+        'lastAssignmentRefusedAgentId',
         'lastHoldReason',
         'lastHeldAt',
         'lastResumedAt',
@@ -148,6 +149,10 @@ service cloud.firestore {
         && (
           request.resource.data.get('lastAssignmentRefusedAt', null) == null
           || request.resource.data.get('lastAssignmentRefusedAt', null) is timestamp
+        )
+        && (
+          request.resource.data.get('lastAssignmentRefusedAgentId', null) == null
+          || request.resource.data.get('lastAssignmentRefusedAgentId', null) is string
         )
         && (
           request.resource.data.get('lastHoldReason', null) == null
@@ -337,30 +342,89 @@ service cloud.firestore {
         && request.resource.data['service'] in ['internetSubscription', 'calls']
         && isValidCustomerServiceOperationPair()
         && offerId is string
-        && exists(
-          /databases/$(database)/documents/offers/$(offerId)
-        )
         && activeOfferMatchesOrderSnapshot(offerId)
       );
     }
 
+    // Validation dédiée à la création Web. Elle correspond exactement au
+    // document construit par FirestoreCustomerOrderRepository._buildOrderData
+    // + les trois champs d'audit ajoutés par _auditLinkData.
+    //
+    // Important : aucune lecture de orderEvents n'est faite ici. Le document
+    // ORDER_CREATED écrit dans le même batch possède sa propre règle stricte.
+    // Cela évite qu'une création de commande dépende de l'autorisation d'une
+    // autre création pendant l'évaluation du même batch.
     function isValidCustomerOrderCreation(orderId) {
       return isSignedIn()
-        && hasValidCommonOrderValues()
-        && isValidOfferSnapshotAtCreation()
+        && request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'reference',
+          'source',
+          'customerAuthUid',
+          'clientName',
+          'clientWhatsappPhone',
+          'service',
+          'network',
+          'operationType',
+          'offerId',
+          'offerLabel',
+          'isCustomOffer',
+          'amount',
+          'beneficiaryPhone',
+          'status',
+          'paymentStatus',
+          'createdAt',
+          'updatedAt',
+          'paymentRequestSentAt',
+          'paymentDeclaredAt',
+          'paymentPayerName',
+          'paymentPayerPhone',
+          'paymentApproximateTime',
+          'paymentDeclaredReference',
+          'expiresAt',
+          'expiredAt',
+          'paymentConfirmedAt',
+          'paidAt',
+          'paymentReference',
+          'originalWhatsappMessage',
+          'internalNotes',
+          'takenByUserId',
+          'takenAt',
+          'completedAt',
+          'failureReason',
+          'observation',
+          'customerConfirmationStatus',
+          'customerConfirmationCompletedAt',
+          'lastEventId',
+          'lastEventType',
+          'lastEventAt'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.reference is string
+        && request.resource.data.reference.size() >= 12
+        && request.resource.data.reference.size() <= 40
         && request.resource.data.source == 'customerWeb'
         && request.resource.data.customerAuthUid == request.auth.uid
+        && request.resource.data.clientName is string
+        && request.resource.data.clientName.size() >= 2
+        && request.resource.data.clientName.size() <= 80
+        && request.resource.data.clientWhatsappPhone is string
         && request.resource.data['service'] in [
           'unitTransfer',
           'internetSubscription',
           'calls'
         ]
-        && request.resource.data.operationType in [
-          'unitTransfer',
-          'internetSubscription',
-          'callBundle',
-          'mixedBundle'
-        ]
+        && request.resource.data.network in ['orange', 'mtn', 'moov']
+        && isValidCustomerServiceOperationPair()
+        && request.resource.data.offerLabel is string
+        && request.resource.data.offerLabel.size() >= 2
+        && request.resource.data.offerLabel.size() <= 200
+        && request.resource.data.isCustomOffer is bool
+        && request.resource.data.amount is int
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 1000000
+        && request.resource.data.beneficiaryPhone is string
+        && isValidOfferSnapshotAtCreation()
         && request.resource.data.status == 'awaitingPayment'
         && request.resource.data.paymentStatus == 'notDeclared'
         && request.resource.data.createdAt == request.time
@@ -371,10 +435,13 @@ service cloud.firestore {
         && request.resource.data.paymentPayerPhone == null
         && request.resource.data.paymentApproximateTime == null
         && request.resource.data.paymentDeclaredReference == null
-        && request.resource.data.get('expiredAt', null) == null
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiredAt == null
         && request.resource.data.paymentConfirmedAt == null
         && request.resource.data.paidAt == null
         && request.resource.data.paymentReference == null
+        && request.resource.data.originalWhatsappMessage == null
+        && request.resource.data.internalNotes == null
         && request.resource.data.takenByUserId == null
         && request.resource.data.takenAt == null
         && request.resource.data.completedAt == null
@@ -382,18 +449,11 @@ service cloud.firestore {
         && request.resource.data.observation == null
         && request.resource.data.customerConfirmationStatus == 'pending'
         && request.resource.data.customerConfirmationCompletedAt == null
-        && request.resource.data.get('assignedAgentId', null) == null
-        && request.resource.data.get('assignedAgentName', null) == null
-        && request.resource.data.get('assignedByUserId', null) == null
-        && request.resource.data.get('assignedAt', null) == null
-        && request.resource.data.get('assignmentMode', null) == null
-        && request.resource.data.get('assignmentStatus', 'unassigned') == 'unassigned'
-        && request.resource.data.get('lastAssignmentRefusalReason', null) == null
-        && request.resource.data.get('lastAssignmentRefusedAt', null) == null
-        && request.resource.data.get('lastHoldReason', null) == null
-        && request.resource.data.get('lastHeldAt', null) == null
-        && request.resource.data.get('lastResumedAt', null) == null
-        && hasMatchingOrderEvent(orderId, 'ORDER_CREATED');
+        && request.resource.data.lastEventId is string
+        && request.resource.data.lastEventId.size() >= 8
+        && request.resource.data.lastEventId.size() <= 120
+        && request.resource.data.lastEventType == 'ORDER_CREATED'
+        && request.resource.data.lastEventAt == request.time;
     }
 
     function isValidStaffOfferReferenceAtCreation() {
@@ -655,6 +715,79 @@ service cloud.firestore {
         && hasMatchingOrderEvent(orderId, 'ASSIGNED');
     }
 
+    function automaticAssignmentTargetIsEligible(agentId) {
+      let agentUser = get(
+        /databases/$(database)/documents/users/$(agentId)
+      ).data;
+      let agentProfile = get(
+        /databases/$(database)/documents/agentProfiles/$(agentId)
+      ).data;
+      let network = request.resource.data.network;
+      let amount = request.resource.data.amount;
+
+      return agentUser.role == 'agent'
+        && agentUser.isActive == true
+        && agentProfile.availability == 'available'
+        && network in agentProfile.authorizedNetworks
+        && network in agentProfile.activeNetworks
+        && (
+          (network == 'orange' && agentProfile.orangeCapacity >= amount)
+          || (network == 'mtn' && agentProfile.mtnCapacity >= amount)
+          || (network == 'moov' && agentProfile.moovCapacity >= amount)
+        );
+    }
+
+    function hasValidAutomaticAssignmentTransition(agentId) {
+      return agentId is string
+        && resource.data.status == 'paidReady'
+        && resource.data.paymentStatus == 'confirmed'
+        && resource.data.get('assignedAgentId', null) == null
+        && resource.data.get('assignmentStatus', 'unassigned') == 'unassigned'
+        && resource.data.get('lastAssignmentRefusedAgentId', null) != agentId
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.paymentStatus == resource.data.paymentStatus
+        && request.resource.data.get('assignedAgentId', null) == agentId
+        && request.resource.data.get('assignedAgentName', null) is string
+        && request.resource.data.get('assignedAgentName', '').size() >= 2
+        && request.resource.data.get('assignedAgentName', '').size() <= 80
+        && request.resource.data.get('assignedByUserId', null) == request.auth.uid
+        && request.resource.data.get('assignedAt', null) == request.time
+        && request.resource.data.get('assignmentMode', null) == 'automatic'
+        && request.resource.data.get('assignmentStatus', 'unassigned') == 'assigned'
+        && request.resource.data.get('lastEventId', null) is string
+        && request.resource.data.get('lastEventType', null) == 'ASSIGNED'
+        && request.resource.data.get('lastEventAt', null) == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'updatedAt',
+          'assignedAgentId',
+          'assignedAgentName',
+          'assignedByUserId',
+          'assignedAt',
+          'assignmentMode',
+          'assignmentStatus',
+          'lastEventId',
+          'lastEventType',
+          'lastEventAt'
+        ])
+        && immutableCoreOrderFieldsAreUnchanged()
+        && request.resource.data.updatedAt == request.time
+        && automaticAssignmentTargetIsEligible(agentId)
+        && hasMatchingOrderEvent(orderId, 'ASSIGNED');
+    }
+
+    function isValidStaffAutomaticAssignment(orderId) {
+      let agentId = request.resource.data.get('assignedAgentId', null);
+      return isStaff()
+        && hasValidAutomaticAssignmentTransition(agentId);
+    }
+
+    function isValidAgentAutomaticSelfAssignment(orderId) {
+      let agentId = request.resource.data.get('assignedAgentId', null);
+      return isAgent()
+        && agentId == request.auth.uid
+        && hasValidAutomaticAssignmentTransition(agentId);
+    }
+
     function isValidAgentAssignmentAcceptance(orderId) {
       return isCurrentAssignedAgent()
         && resource.data.status == 'paidReady'
@@ -688,6 +821,7 @@ service cloud.firestore {
         && request.resource.data.get('lastAssignmentRefusalReason', null).size() >= 3
         && request.resource.data.get('lastAssignmentRefusalReason', null).size() <= 500
         && request.resource.data.get('lastAssignmentRefusedAt', null) == request.time
+        && request.resource.data.get('lastAssignmentRefusedAgentId', null) == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'updatedAt',
           'assignedAgentId',
@@ -698,6 +832,7 @@ service cloud.firestore {
           'assignmentStatus',
           'lastAssignmentRefusalReason',
           'lastAssignmentRefusedAt',
+          'lastAssignmentRefusedAgentId',
           'lastEventId',
           'lastEventType',
           'lastEventAt'
@@ -878,9 +1013,20 @@ service cloud.firestore {
       let oldExpiredAt = resource.data.get('expiredAt', null);
       let newExpiredAt = request.resource.data.get('expiredAt', null);
 
-      return isOrderOwner()
-        && hasValidCommonOrderValues()
-        && immutableCoreOrderFieldsAreUnchanged()
+      // Validation volontairement locale a cette transition.
+      // Le diff ci-dessous interdit deja toute modification des champs
+      // metier de la commande. On ne revalide donc pas tout le schema
+      // historique via hasValidCommonOrderValues()/immutableCore..., ce qui
+      // pouvait faire echouer une commande pourtant valide creee par la V3.
+      return isSignedIn()
+        && resource.data.get('customerAuthUid', null) == request.auth.uid
+        && request.resource.data.get('customerAuthUid', null) == request.auth.uid
+        && resource.data.source == 'customerWeb'
+        && resource.data.status in ['awaitingPayment', 'expired']
+        && resource.data.paymentStatus in ['notDeclared', 'expired']
+        && resource.data.get('paymentDeclaredAt', null) == null
+
+        // Seuls les champs de declaration + audit peuvent changer.
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'updatedAt',
           'status',
@@ -895,22 +1041,27 @@ service cloud.firestore {
           'lastEventType',
           'lastEventAt'
         ])
-        && resource.data.source == 'customerWeb'
-        && resource.data.status in ['awaitingPayment', 'expired']
-        && resource.data.paymentStatus in ['notDeclared', 'expired']
-        && resource.data.paymentDeclaredAt == null
+
         && request.resource.data.status == (
           wasExpired || isLate ? 'expired' : 'paymentToVerify'
         )
         && request.resource.data.paymentStatus == 'declared'
         && request.resource.data.paymentDeclaredAt == request.time
+
         && request.resource.data.paymentPayerName is string
         && request.resource.data.paymentPayerName.size() >= 2
         && request.resource.data.paymentPayerName.size() <= 80
+
         && request.resource.data.paymentPayerPhone is string
-        && request.resource.data.paymentPayerPhone.matches('^[+]225(01|05|07)[0-9]{8}$')
+        && request.resource.data.paymentPayerPhone.matches(
+          '^[+]225(01|05|07)[0-9]{8}$'
+        )
+
         && request.resource.data.paymentApproximateTime is string
-        && request.resource.data.paymentApproximateTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
+        && request.resource.data.paymentApproximateTime.matches(
+          '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+        )
+
         && (
           request.resource.data.paymentDeclaredReference == null
           || (
@@ -918,6 +1069,7 @@ service cloud.firestore {
             && request.resource.data.paymentDeclaredReference.size() <= 80
           )
         )
+
         && (
           (!wasExpired && !isLate && newExpiredAt == oldExpiredAt)
           || (
@@ -928,7 +1080,16 @@ service cloud.firestore {
             )
           )
         )
+
         && request.resource.data.updatedAt == request.time
+        && request.resource.data.get('lastEventId', null) is string
+        && request.resource.data.get('lastEventId', null).size() >= 8
+        && request.resource.data.get('lastEventId', null).size() <= 120
+        && request.resource.data.get('lastEventType', null) == 'PAYMENT_DECLARED'
+        && request.resource.data.get('lastEventAt', null) == request.time
+
+        // L'evenement PAYMENT_DECLARED doit toujours etre cree dans la meme
+        // transaction. C'est la seule lecture getAfter() de cette transition.
         && hasMatchingOrderEvent(orderId, 'PAYMENT_DECLARED');
     }
 
@@ -1417,6 +1578,44 @@ service cloud.firestore {
         && orderAfter.get('lastEventAt', null) == request.time;
     }
 
+    function isValidAutomaticAssignmentEventCreation() {
+      let orderId = request.resource.data.orderId;
+      let agentId = request.resource.data.agentId;
+      let orderAfter = getAfter(
+        /databases/$(database)/documents/orders/$(orderId)
+      ).data;
+      let actorAllowed = isStaff()
+        || (isAgent() && agentId == request.auth.uid);
+
+      return request.resource.data.schemaVersion == 1
+        && orderId is string
+        && agentId is string
+        && request.resource.data.orderReference is string
+        && request.resource.data.agentName is string
+        && request.resource.data.agentName.size() >= 2
+        && request.resource.data.agentName.size() <= 80
+        && request.resource.data.assignedByUserId == request.auth.uid
+        && request.resource.data.mode == 'automatic'
+        && request.resource.data.status == 'assigned'
+        && request.resource.data.assignedAt == request.time
+        && request.resource.data.acceptedAt == null
+        && request.resource.data.refusedAt == null
+        && request.resource.data.refusalReason == null
+        && request.resource.data.completedAt == null
+        && request.resource.data.updatedAt == request.time
+        && hasValidOrderAssignmentEventKeys()
+        && actorAllowed
+        && orderAfter.assignedAgentId == agentId
+        && orderAfter.assignedAgentName == request.resource.data.agentName
+        && orderAfter.assignedByUserId == request.auth.uid
+        && orderAfter.reference == request.resource.data.orderReference
+        && orderAfter.assignmentMode == 'automatic'
+        && orderAfter.assignmentStatus == 'assigned'
+        && orderAfter.get('assignedAt', null) == request.time
+        && orderAfter.get('lastEventType', null) == 'ASSIGNED'
+        && orderAfter.get('lastEventAt', null) == request.time;
+    }
+
     function isValidAgentAssignmentEventAcceptance() {
       let orderId = resource.data.get('orderId', '');
 
@@ -1728,6 +1927,7 @@ service cloud.firestore {
         ) || (
           actorRole == 'agent'
           && eventType in [
+            'ASSIGNED',
             'ASSIGNMENT_ACCEPTED',
             'ASSIGNMENT_REFUSED',
             'PROCESSING_STARTED',
@@ -1752,6 +1952,7 @@ service cloud.firestore {
           && eventType in [
             'ORDER_CREATED',
             'PAYMENT_CONFIRMED',
+            'ASSIGNED',
             'PROCESSING_STARTED',
             'PUT_ON_HOLD',
             'PROCESSING_SUCCEEDED',
@@ -1776,18 +1977,33 @@ service cloud.firestore {
         && order.get('lastEventAt', null) == request.time;
     }
 
-    // Création Web : le document orders/{orderId} vérifie déjà, via
-    // getAfter(), que l'événement ORDER_CREATED est bien présent dans le même
-    // batch et qu'il correspond à la commande. Pour ce seul événement client,
-    // on évite donc la vérification inverse event -> order, qui crée une
-    // dépendance circulaire inutile pendant la création atomique.
+    // ORDER_CREATED client : validation autonome, sans get/getAfter vers
+    // orders. Le batch de l'application crée toujours orders + orderEvents,
+    // mais chaque écriture peut désormais être autorisée indépendamment.
     function isValidCustomerOrderCreatedEvent() {
       let metadata = request.resource.data.metadata;
 
-      return request.resource.data.type == 'ORDER_CREATED'
+      return isSignedIn()
+        && request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'orderId',
+          'orderReference',
+          'type',
+          'actorId',
+          'actorRole',
+          'createdAt',
+          'metadata'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.orderId is string
+        && request.resource.data.orderId.size() >= 1
+        && request.resource.data.orderReference is string
+        && request.resource.data.orderReference.size() >= 8
+        && request.resource.data.type == 'ORDER_CREATED'
         && request.resource.data.actorRole == 'customer'
-        && isSignedIn()
         && request.resource.data.actorId == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && metadata is map
         && metadata.keys().hasOnly([
           'source',
           'network',
@@ -1798,6 +2014,36 @@ service cloud.firestore {
         && metadata.amount is int
         && metadata.amount > 0
         && metadata.amount <= 1000000;
+    }
+
+
+    // PAYMENT_DECLARED client : la commande exige toujours l'evenement
+    // correspondant via hasMatchingOrderEvent(). L'evenement, lui, valide
+    // l'etat ACTUEL de la commande avec un simple get(), sans getAfter()
+    // circulaire vers la mise a jour en cours.
+    function isValidCustomerPaymentDeclaredEvent() {
+      let orderId = request.resource.data.orderId;
+      let order = get(
+        /databases/$(database)/documents/orders/$(orderId)
+      ).data;
+
+      return isSignedIn()
+        && hasValidOrderEventKeys()
+        && request.resource.data.schemaVersion == 1
+        && orderId is string
+        && orderId.size() >= 1
+        && request.resource.data.orderReference is string
+        && request.resource.data.orderReference.size() >= 8
+        && request.resource.data.type == 'PAYMENT_DECLARED'
+        && request.resource.data.actorRole == 'customer'
+        && request.resource.data.actorId == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && hasValidOrderEventMetadata()
+        && order.customerAuthUid == request.auth.uid
+        && order.source == 'customerWeb'
+        && order.reference == request.resource.data.orderReference
+        && order.status in ['awaitingPayment', 'expired']
+        && order.paymentStatus in ['notDeclared', 'expired'];
     }
 
     function isValidProofAddedEventForCurrentAgent() {
@@ -1818,7 +2064,27 @@ service cloud.firestore {
     }
 
     function isValidOrderEventCreation(eventId) {
-      return hasValidOrderEventKeys()
+      return (
+        request.resource.data.type == 'ORDER_CREATED'
+        && request.resource.data.actorRole == 'customer'
+        && isValidCustomerOrderCreatedEvent()
+      ) || (
+        request.resource.data.type == 'PAYMENT_DECLARED'
+        && request.resource.data.actorRole == 'customer'
+        && isValidCustomerPaymentDeclaredEvent()
+      ) || (
+        // Les evenements client ci-dessus ont leurs validations dediees.
+        // Ils ne doivent pas retomber dans la branche generique avec
+        // orderEventIsLinkedToOrder(getAfter), sinon on recree la dependance
+        // croisee qui provoquait permission-denied.
+        !(
+          request.resource.data.actorRole == 'customer'
+          && request.resource.data.type in [
+            'ORDER_CREATED',
+            'PAYMENT_DECLARED'
+          ]
+        )
+        && hasValidOrderEventKeys()
         && request.resource.data.schemaVersion == 1
         && request.resource.data.orderId is string
         && request.resource.data.orderId.size() >= 1
@@ -1838,24 +2104,77 @@ service cloud.firestore {
         && hasValidOrderEventMetadata()
         && (
           (
-            request.resource.data.type == 'ORDER_CREATED'
-            && request.resource.data.actorRole == 'customer'
-            && isValidCustomerOrderCreatedEvent()
-          )
-          || (
             request.resource.data.type == 'PROOF_ADDED'
             && isValidProofAddedEventForCurrentAgent()
           )
           || (
-            !(
-              request.resource.data.type == 'ORDER_CREATED'
-              && request.resource.data.actorRole == 'customer'
-            )
-            && request.resource.data.type != 'PROOF_ADDED'
+            request.resource.data.type != 'PROOF_ADDED'
             && orderEventActorIsValid()
             && orderEventIsLinkedToOrder(eventId)
           )
+        )
+      );
+    }
+
+    function hasValidAutomaticQueueValues(orderId) {
+      return request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'orderId',
+          'orderReference',
+          'network',
+          'amount',
+          'createdAt',
+          'updatedAt',
+          'lastRefusedAgentId'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.orderId == orderId
+        && request.resource.data.orderReference is string
+        && request.resource.data.orderReference.size() >= 8
+        && request.resource.data.network in ['orange', 'mtn', 'moov']
+        && request.resource.data.amount is int
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 1000000
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt == request.time
+        && (
+          request.resource.data.lastRefusedAgentId == null
+          || request.resource.data.lastRefusedAgentId is string
         );
+    }
+
+    function isValidAgentQueueRecreationAfterRefusal(orderId) {
+      let orderAfter = getAfter(
+        /databases/$(database)/documents/orders/$(orderId)
+      ).data;
+
+      return isAgent()
+        && hasValidAutomaticQueueValues(orderId)
+        && request.resource.data.lastRefusedAgentId == request.auth.uid
+        && orderAfter.reference == request.resource.data.orderReference
+        && orderAfter.network == request.resource.data.network
+        && orderAfter.amount == request.resource.data.amount
+        && orderAfter.status == 'paidReady'
+        && orderAfter.paymentStatus == 'confirmed'
+        && orderAfter.get('assignedAgentId', null) == null
+        && orderAfter.get('assignmentStatus', 'unassigned') == 'unassigned'
+        && orderAfter.get('lastAssignmentRefusedAgentId', null) == request.auth.uid
+        && orderAfter.get('lastEventType', null) == 'ASSIGNMENT_REFUSED'
+        && orderAfter.get('lastEventAt', null) == request.time;
+    }
+
+    function isValidAgentAutomaticQueueDelete(orderId) {
+      let orderAfter = getAfter(
+        /databases/$(database)/documents/orders/$(orderId)
+      ).data;
+
+      return isAgent()
+        && orderAfter.get('assignedAgentId', null) == request.auth.uid
+        && orderAfter.get('assignedByUserId', null) == request.auth.uid
+        && orderAfter.get('assignmentMode', null) == 'automatic'
+        && orderAfter.get('assignmentStatus', 'unassigned') == 'assigned'
+        && orderAfter.get('lastEventType', null) == 'ASSIGNED'
+        && orderAfter.get('lastEventAt', null) == request.time;
     }
 
     match /orders/{orderId} {
@@ -1883,7 +2202,12 @@ service cloud.firestore {
         || isValidAgentProcessingFailure(orderId)
         || isValidAgentProofAuditUpdate(orderId)
         || isValidStaffPaymentConfirmation(orderId)
+        // Le chemin manuel validé en 9D est testé avant les branches 9E.
+        // Cela évite qu'une affectation manuelle traverse inutilement les
+        // contrôles de l'affectation automatique.
         || isValidAdminManualAssignment(orderId)
+        || isValidStaffAutomaticAssignment(orderId)
+        || isValidAgentAutomaticSelfAssignment(orderId)
         || isValidAgentAssignmentAcceptance(orderId)
         || isValidAgentAssignmentRefusal(orderId)
         || isValidAgentProcessingStart(orderId)
@@ -1904,11 +2228,22 @@ service cloud.firestore {
           isAgent()
           && resource.data.agentId == request.auth.uid
         );
-      allow create: if isValidManualAssignmentEventCreation();
+      allow create: if isValidManualAssignmentEventCreation()
+        || isValidAutomaticAssignmentEventCreation();
       allow update: if isValidAgentAssignmentEventCompletion()
         || isValidAgentAssignmentEventAcceptance()
         || isValidAgentAssignmentEventRefusal();
       allow delete: if false;
+    }
+
+    match /autoAssignmentQueue/{orderId} {
+      allow get, list: if isStaff() || isAgent();
+      allow create, update: if (
+          isStaff()
+          && hasValidAutomaticQueueValues(orderId)
+        ) || isValidAgentQueueRecreationAfterRefusal(orderId);
+      allow delete: if isStaff()
+        || isValidAgentAutomaticQueueDelete(orderId);
     }
 
     match /orderProofs/{orderId} {
@@ -1942,9 +2277,8 @@ service cloud.firestore {
     }
 
     match /agentProfiles/{agentId} {
-      allow get: if isAdmin()
+      allow get, list: if isStaff()
         || (isAgent() && request.auth.uid == agentId);
-      allow list: if isAdmin();
       allow create: if isValidAdminAgentProfileCreation(agentId);
       allow update: if isValidAdminAgentProfileUpdate(agentId)
         || isValidAgentOperationalUpdate(agentId);

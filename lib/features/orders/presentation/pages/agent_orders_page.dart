@@ -1,5 +1,6 @@
 import 'package:cabine_flow/core/theme/app_colors.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
+import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
@@ -13,10 +14,12 @@ class AgentOrdersPage extends StatefulWidget {
     super.key,
     required this.user,
     required this.ordersRepository,
+    this.agentRepository,
   });
 
   final AppUser user;
   final OrdersRepository ordersRepository;
+  final AgentRepository? agentRepository;
 
   @override
   State<AgentOrdersPage> createState() => _AgentOrdersPageState();
@@ -32,6 +35,7 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
     _viewModel = AgentOrdersViewModel(
       agentId: widget.user.id,
       ordersRepository: widget.ordersRepository,
+      agentRepository: widget.agentRepository,
     );
     _viewModel.start();
   }

@@ -94,6 +94,7 @@ class QueueOrder {
     this.assignmentStatus = OrderAssignmentStatus.unassigned,
     this.lastAssignmentRefusalReason,
     this.lastAssignmentRefusedAt,
+    this.lastAssignmentRefusedAgentId,
     this.lastHoldReason,
     this.lastHeldAt,
     this.lastResumedAt,
@@ -151,6 +152,7 @@ class QueueOrder {
   final OrderAssignmentStatus assignmentStatus;
   final String? lastAssignmentRefusalReason;
   final DateTime? lastAssignmentRefusedAt;
+  final String? lastAssignmentRefusedAgentId;
 
   final String? lastHoldReason;
   final DateTime? lastHeldAt;
@@ -196,6 +198,7 @@ class QueueOrder {
     OrderAssignmentStatus? assignmentStatus,
     String? lastAssignmentRefusalReason,
     DateTime? lastAssignmentRefusedAt,
+    String? lastAssignmentRefusedAgentId,
     String? lastHoldReason,
     DateTime? lastHeldAt,
     DateTime? lastResumedAt,
@@ -267,6 +270,8 @@ class QueueOrder {
           lastAssignmentRefusalReason ?? this.lastAssignmentRefusalReason,
       lastAssignmentRefusedAt:
           lastAssignmentRefusedAt ?? this.lastAssignmentRefusedAt,
+      lastAssignmentRefusedAgentId:
+          lastAssignmentRefusedAgentId ?? this.lastAssignmentRefusedAgentId,
       lastHoldReason: lastHoldReason ?? this.lastHoldReason,
       lastHeldAt: lastHeldAt ?? this.lastHeldAt,
       lastResumedAt: lastResumedAt ?? this.lastResumedAt,

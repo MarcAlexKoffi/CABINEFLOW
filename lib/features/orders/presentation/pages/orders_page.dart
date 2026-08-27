@@ -571,13 +571,13 @@ class _OrdersPageState extends State<OrdersPage> {
                               waitingMinutes: _viewModel.waitingMinutes(order),
                               isUrgent: _viewModel.isUrgent(order),
                               isProcessing: _viewModel.isTakingCharge(order.id),
-                              actionLabel:
-                                  widget.user.role == UserRole.administrator
-                                  ? (order.isAssignedToAgent
-                                        ? 'Réaffecter'
-                                        : 'Affecter')
+                              actionLabel: order.isAssignedToAgent
+                                  ? 'En attente de l’agent'
+                                  : widget.user.role == UserRole.administrator
+                                  ? 'Affecter'
                                   : 'Prendre en charge',
                               assignmentLabel: order.assignedAgentName,
+                              isActionEnabled: !order.isAssignedToAgent,
                               onTakeCharge: () {
                                 if (widget.user.role ==
                                     UserRole.administrator) {

@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_activity_page.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
@@ -8,6 +11,7 @@ import 'package:cabine_flow/features/dashboard/presentation/widgets/dashboard_wi
 import 'package:cabine_flow/features/finances/presentation/pages/finances_page.dart';
 import 'package:cabine_flow/features/more/presentation/pages/more_page.dart';
 import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
+import 'package:cabine_flow/features/orders/domain/models/automatic_assignment.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/orders_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/agent_orders_page.dart';
 import 'package:cabine_flow/features/payments/domain/repositories/payment_link_repository.dart';
@@ -46,9 +50,88 @@ class MainShellPage extends StatefulWidget {
 
 class _MainShellPageState extends State<MainShellPage> {
   int _selectedIndex = 0;
+  StreamSubscription<List<AgentDirectoryEntry>>? _staffAgentsSubscription;
+  StreamSubscription<List<AutomaticAssignmentQueueItem>>?
+      _staffQueueSubscription;
+  Timer? _automaticAssignmentDebounce;
+  bool _automaticAssignmentSyncRunning = false;
+  bool _automaticAssignmentSyncPending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.user.role != UserRole.agent) {
+      _startAutomaticAssignmentWatchers();
+      _scheduleAutomaticAssignmentSync(immediate: true);
+    }
+  }
+
+  void _startAutomaticAssignmentWatchers() {
+    _staffAgentsSubscription = widget.agentRepository.watchAgents().listen(
+      (_) => _scheduleAutomaticAssignmentSync(),
+      onError: (Object error) {
+        debugPrint('[AutoAssignment][staff-watch-agents] $error');
+      },
+    );
+    _staffQueueSubscription = widget.ordersRepository
+        .watchAutomaticAssignmentQueue()
+        .listen(
+          (_) => _scheduleAutomaticAssignmentSync(),
+          onError: (Object error) {
+            debugPrint('[AutoAssignment][staff-watch-queue] $error');
+          },
+        );
+  }
+
+  void _scheduleAutomaticAssignmentSync({bool immediate = false}) {
+    _automaticAssignmentDebounce?.cancel();
+    if (immediate) {
+      unawaited(_synchronizeAutomaticAssignmentBacklog());
+      return;
+    }
+    _automaticAssignmentDebounce = Timer(
+      const Duration(milliseconds: 180),
+      () => unawaited(_synchronizeAutomaticAssignmentBacklog()),
+    );
+  }
+
+  Future<void> _synchronizeAutomaticAssignmentBacklog() async {
+    if (_automaticAssignmentSyncRunning) {
+      _automaticAssignmentSyncPending = true;
+      return;
+    }
+
+    _automaticAssignmentSyncRunning = true;
+    try {
+      await widget.ordersRepository.synchronizeAutomaticAssignmentBacklog();
+    } catch (error, stackTrace) {
+      debugPrint('[AutoAssignment][backlog] $error');
+      debugPrintStack(
+        label: '[AutoAssignment][backlog] stack',
+        stackTrace: stackTrace,
+      );
+    } finally {
+      _automaticAssignmentSyncRunning = false;
+      if (_automaticAssignmentSyncPending) {
+        _automaticAssignmentSyncPending = false;
+        _scheduleAutomaticAssignmentSync();
+      }
+    }
+  }
 
   void _handlePaymentConfirmed() {
-    // Les onglets écoutent Firestore en temps réel : aucun rebuild forcé.
+    // Le repository tente déjà l'affectation juste après la confirmation.
+    // Ce second déclencheur est volontaire : il rend le flux résilient à une
+    // course Firestore ou à un profil agent qui vient d'être actualisé.
+    _scheduleAutomaticAssignmentSync(immediate: true);
+  }
+
+  @override
+  void dispose() {
+    _automaticAssignmentDebounce?.cancel();
+    _staffAgentsSubscription?.cancel();
+    _staffQueueSubscription?.cancel();
+    super.dispose();
   }
 
   void _openOrdersTab() {
@@ -219,6 +302,7 @@ class _AgentShellState extends State<_AgentShell> {
           AgentOrdersPage(
             user: widget.user,
             ordersRepository: widget.ordersRepository,
+            agentRepository: widget.agentRepository,
           ),
           AgentActivityPage(
             user: widget.user,

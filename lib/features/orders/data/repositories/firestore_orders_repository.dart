@@ -1,11 +1,14 @@
 import 'package:cabine_flow/features/orders/data/mappers/firestore_order_mapper.dart';
 
+import 'package:cabine_flow/features/orders/domain/models/automatic_assignment.dart';
 import 'package:cabine_flow/features/orders/domain/models/create_order_request.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_event.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_proof.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/features/orders/domain/services/agent_capacity_policy.dart';
+import 'package:cabine_flow/features/orders/domain/services/automatic_assignment_selector.dart';
 import 'package:cabine_flow/features/orders/domain/services/order_expiration_policy.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -21,6 +24,7 @@ class FirestoreOrdersRepository
 
   static const Duration paymentValidity = Duration(hours: 6);
   static const int maximumLoadedOrders = 250;
+  static const int automaticBacklogAssignmentLimit = 25;
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _firebaseAuth;
@@ -47,6 +51,10 @@ class FirestoreOrdersRepository
 
   CollectionReference<Map<String, dynamic>> get _eventsCollection {
     return _firestore.collection('orderEvents');
+  }
+
+  CollectionReference<Map<String, dynamic>> get _autoAssignmentQueueCollection {
+    return _firestore.collection('autoAssignmentQueue');
   }
 
   @override
@@ -182,9 +190,11 @@ class FirestoreOrdersRepository
         .doc(orderId);
     final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
         .doc();
+    final DocumentReference<Map<String, dynamic>> queueRef =
+        _autoAssignmentQueueCollection.doc(orderId);
     final OrderEventType eventType = OrderEventType.paymentConfirmed;
 
-    return _firestore.runTransaction<QueueOrder>((
+    final QueueOrder confirmedOrder = await _firestore.runTransaction<QueueOrder>((
       Transaction transaction,
     ) async {
       final DocumentSnapshot<Map<String, dynamic>> snapshot = await transaction
@@ -227,6 +237,14 @@ class FirestoreOrdersRepository
           metadata: <String, dynamic>{'paymentReference': finalReference},
         ),
       );
+      transaction.set(
+        queueRef,
+        _automaticQueueDocumentData(
+          order: order,
+          createdAt: paidAt,
+          lastRefusedAgentId: order.lastAssignmentRefusedAgentId,
+        ),
+      );
 
       return order.copyWith(
         status: QueueOrderStatus.paidReady,
@@ -236,6 +254,21 @@ class FirestoreOrdersRepository
         paymentReference: finalReference,
       );
     });
+
+    // Phase 9E : une confirmation de paiement déclenche immédiatement une
+    // tentative d'affectation automatique. Si aucun agent n'est éligible,
+    // l'entrée autoAssignmentQueue reste disponible pour le prochain agent
+    // qui devient disponible.
+    try {
+      return await tryAutomaticAssignment(orderId: orderId) ?? confirmedOrder;
+    } catch (error, stackTrace) {
+      debugPrint('[AutoAssignment][after-payment] $error');
+      debugPrintStack(
+        label: '[AutoAssignment][after-payment] stack',
+        stackTrace: stackTrace,
+      );
+      return confirmedOrder;
+    }
   }
 
   @override
@@ -273,6 +306,305 @@ class FirestoreOrdersRepository
           });
           return List<QueueOrder>.unmodifiable(orders);
         });
+  }
+
+  @override
+  Stream<List<AutomaticAssignmentQueueItem>> watchAutomaticAssignmentQueue() {
+    return _autoAssignmentQueueCollection
+        .orderBy('createdAt')
+        .limit(maximumLoadedOrders)
+        .snapshots()
+        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
+          final List<AutomaticAssignmentQueueItem> items = snapshot.docs
+              .map(_automaticQueueItemFromDocument)
+              .whereType<AutomaticAssignmentQueueItem>()
+              .toList(growable: false);
+          return List<AutomaticAssignmentQueueItem>.unmodifiable(items);
+        });
+  }
+
+  @override
+  Future<void> synchronizeAutomaticAssignmentBacklog() async {
+    await _currentStaffActor();
+
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _ordersCollection
+        .where('status', isEqualTo: QueueOrderStatus.paidReady.name)
+        .limit(maximumLoadedOrders)
+        .get();
+
+    final List<QueueOrder> waiting = snapshot.docs
+        .map(_mapDocument)
+        .where(_isWaitingForAutomaticAssignment)
+        .toList(growable: false)
+      ..sort((QueueOrder first, QueueOrder second) {
+        final DateTime firstDate = first.paidAt ?? first.createdAt;
+        final DateTime secondDate = second.paidAt ?? second.createdAt;
+        return firstDate.compareTo(secondDate);
+      });
+
+    for (final QueueOrder order in waiting) {
+      try {
+        await _ensureAutomaticQueueDocument(order);
+      } on FirebaseException catch (error) {
+        debugPrint(
+          '[AutoAssignment][backlog] order=${order.id} skipped: $error',
+        );
+      }
+    }
+
+    for (final QueueOrder order in waiting.take(automaticBacklogAssignmentLimit)) {
+      try {
+        await tryAutomaticAssignment(orderId: order.id);
+      } catch (error) {
+        debugPrint(
+          '[AutoAssignment][backlog] automatic attempt order=${order.id}: $error',
+        );
+      }
+    }
+  }
+
+  @override
+  Future<QueueOrder?> tryAutomaticAssignment({required String orderId}) async {
+    final _AuditActor actor = await _currentStaffActor();
+    final DocumentSnapshot<Map<String, dynamic>> snapshot =
+        await _ordersCollection.doc(orderId).get();
+    final Map<String, dynamic>? data = snapshot.data();
+    if (!snapshot.exists || data == null) {
+      throw StateError('La commande est introuvable.');
+    }
+
+    final QueueOrder order = FirestoreOrderMapper.fromMap(
+      id: snapshot.id,
+      data: data,
+    );
+    if (!_isWaitingForAutomaticAssignment(order)) {
+      await _autoAssignmentQueueCollection.doc(order.id).delete();
+      return null;
+    }
+
+    await _ensureAutomaticQueueDocument(order);
+
+    final List<AutomaticAssignmentAgent> candidates =
+        await _loadAutomaticAssignmentAgents();
+    final AutomaticAssignmentSelector selector =
+        const AutomaticAssignmentSelector();
+    final List<AutomaticAssignmentAgent> ranked = selector.rankEligible(
+      order: order,
+      agents: candidates,
+    );
+
+    debugPrint(
+      '[AutoAssignment][staff] order=${order.reference} '
+      'network=${order.network.name} amount=${order.amount} '
+      'candidates=${candidates.length} eligible=${ranked.length}',
+    );
+    for (final AutomaticAssignmentAgent candidate in candidates) {
+      final String? reason = candidate.ineligibilityReason(order: order);
+      debugPrint(
+        '[AutoAssignment][candidate] agent=${candidate.agentId} '
+        'active=${candidate.isActive} available=${candidate.isAvailable} '
+        'authorized=${candidate.authorizedNetworks.map((e) => e.name).toList()} '
+        'activeNetworks=${candidate.activeNetworks.map((e) => e.name).toList()} '
+        'capacity=${candidate.capacityFor(order.network)} '
+        'reserved=${candidate.reservedFor(order.network)} '
+        'availableCapacity=${candidate.availableCapacityFor(order.network)} '
+        'todayCount=${candidate.todayAssignmentCount} '
+        'maxCount=${candidate.maxTransactionsPerDay} '
+        'todayAmount=${candidate.todayAssignedAmount} '
+        'dailyLimit=${candidate.dailyTransactionLimit} '
+        'result=${reason ?? 'ELIGIBLE'}',
+      );
+    }
+
+    for (final AutomaticAssignmentAgent candidate in ranked) {
+      try {
+        final QueueOrder assigned = await _assignAutomaticallyAsStaff(
+          orderId: order.id,
+          agent: candidate,
+          actor: actor,
+        );
+        debugPrint(
+          '[AutoAssignment][staff] order=${order.reference} assigned=${candidate.agentId}',
+        );
+        return assigned;
+      } on StateError catch (error) {
+        debugPrint(
+          '[AutoAssignment][staff] candidate=${candidate.agentId} skipped: $error',
+        );
+      } on FirebaseException catch (error, stackTrace) {
+        if (error.code == 'aborted' || error.code == 'failed-precondition') {
+          debugPrint(
+            '[AutoAssignment][staff] candidate=${candidate.agentId} race: $error',
+          );
+          continue;
+        }
+        debugPrint(
+          '[AutoAssignment][staff] candidate=${candidate.agentId} '
+          'firebase=${error.code} message=${error.message}',
+        );
+        debugPrintStack(
+          label: '[AutoAssignment][staff] candidate stack',
+          stackTrace: stackTrace,
+        );
+        rethrow;
+      }
+    }
+
+    final DocumentSnapshot<Map<String, dynamic>> latestSnapshot =
+        await _ordersCollection.doc(order.id).get();
+    final Map<String, dynamic>? latestData = latestSnapshot.data();
+    if (latestSnapshot.exists && latestData != null) {
+      final QueueOrder latestOrder = FirestoreOrderMapper.fromMap(
+        id: latestSnapshot.id,
+        data: latestData,
+      );
+      if (latestOrder.assignedAgentId != null &&
+          latestOrder.assignmentStatus == OrderAssignmentStatus.assigned) {
+        return latestOrder;
+      }
+    }
+
+    debugPrint(
+      '[AutoAssignment][staff] no eligible agent for order=${order.id}',
+    );
+    return null;
+  }
+
+  @override
+  Future<bool> claimAutomaticQueueItem({
+    required AutomaticAssignmentQueueItem item,
+    required String agentId,
+  }) async {
+    final String cleanedAgentId = agentId.trim();
+    final User? currentUser = _firebaseAuth.currentUser;
+    if (currentUser == null || currentUser.uid != cleanedAgentId) {
+      throw StateError('La session agent ne correspond pas à cette action.');
+    }
+    if (item.lastRefusedAgentId == cleanedAgentId) {
+      return false;
+    }
+
+    final _AutomaticAssignmentUsage usage = await _loadAgentUsage(
+      cleanedAgentId,
+    );
+    final DocumentReference<Map<String, dynamic>> queueRef =
+        _autoAssignmentQueueCollection.doc(item.orderId);
+    final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
+        .doc(item.orderId);
+    final DocumentReference<Map<String, dynamic>> userRef = _usersCollection
+        .doc(cleanedAgentId);
+    final DocumentReference<Map<String, dynamic>> profileRef =
+        _agentProfilesCollection.doc(cleanedAgentId);
+    final DocumentReference<Map<String, dynamic>> assignmentRef =
+        _assignmentsCollection.doc();
+    final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
+        .doc();
+    final OrderEventType eventType = OrderEventType.assigned;
+
+    try {
+      await _firestore.runTransaction<void>((Transaction transaction) async {
+        final DocumentSnapshot<Map<String, dynamic>> queueSnapshot =
+            await transaction.get(queueRef);
+        final DocumentSnapshot<Map<String, dynamic>> userSnapshot =
+            await transaction.get(userRef);
+        final DocumentSnapshot<Map<String, dynamic>> profileSnapshot =
+            await transaction.get(profileRef);
+
+        final Map<String, dynamic>? queueData = queueSnapshot.data();
+        final Map<String, dynamic>? userData = userSnapshot.data();
+        final Map<String, dynamic>? profileData = profileSnapshot.data();
+        if (!queueSnapshot.exists || queueData == null) {
+          throw StateError('Cette commande a déjà été prise par un autre agent.');
+        }
+        if (!userSnapshot.exists || userData == null) {
+          throw StateError('Le compte agent est introuvable.');
+        }
+        if (!profileSnapshot.exists || profileData == null) {
+          throw StateError('Le profil opérationnel de l’agent est introuvable.');
+        }
+
+        final AutomaticAssignmentQueueItem? currentItem =
+            _automaticQueueItemFromSnapshot(queueSnapshot);
+        if (currentItem == null || currentItem.orderId != item.orderId) {
+          throw StateError('La file d’affectation est invalide.');
+        }
+        if (currentItem.lastRefusedAgentId == cleanedAgentId) {
+          throw StateError('Cette commande vient d’être refusée par cet agent.');
+        }
+
+        _validateAutomaticAgentProfile(
+          userData: userData,
+          profileData: profileData,
+          network: currentItem.network,
+          amount: currentItem.amount,
+          usage: usage,
+        );
+
+        final String agentName = _stringValue(
+          userData['name'],
+          fallback: 'Agent',
+        );
+        transaction.update(orderRef, <String, dynamic>{
+          'assignedAgentId': cleanedAgentId,
+          'assignedAgentName': agentName,
+          'assignedByUserId': cleanedAgentId,
+          'assignedAt': FieldValue.serverTimestamp(),
+          'assignmentMode': OrderAssignmentMode.automatic.name,
+          'assignmentStatus': OrderAssignmentStatus.assigned.name,
+          'updatedAt': FieldValue.serverTimestamp(),
+          ..._auditLinkData(eventRef: eventRef, type: eventType),
+        });
+        transaction.set(assignmentRef, <String, dynamic>{
+          'schemaVersion': 1,
+          'orderId': currentItem.orderId,
+          'orderReference': currentItem.orderReference,
+          'agentId': cleanedAgentId,
+          'agentName': agentName,
+          'assignedByUserId': cleanedAgentId,
+          'mode': OrderAssignmentMode.automatic.name,
+          'status': OrderAssignmentStatus.assigned.name,
+          'assignedAt': FieldValue.serverTimestamp(),
+          'acceptedAt': null,
+          'refusedAt': null,
+          'refusalReason': null,
+          'completedAt': null,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        transaction.set(
+          eventRef,
+          _eventDocumentData(
+            orderId: currentItem.orderId,
+            orderReference: currentItem.orderReference,
+            type: eventType,
+            actor: _AuditActor(id: cleanedAgentId, role: 'agent'),
+            metadata: <String, dynamic>{
+              'assignmentId': assignmentRef.id,
+              'agentId': cleanedAgentId,
+            },
+          ),
+        );
+        transaction.delete(queueRef);
+      });
+      debugPrint(
+        '[AutoAssignment][agent] agent=$cleanedAgentId claimed order=${item.orderId}',
+      );
+      return true;
+    } on StateError catch (error) {
+      debugPrint(
+        '[AutoAssignment][agent] agent=$cleanedAgentId skipped order=${item.orderId}: $error',
+      );
+      return false;
+    } on FirebaseException catch (error) {
+      if (error.code == 'aborted' ||
+          error.code == 'failed-precondition' ||
+          error.code == 'permission-denied') {
+        debugPrint(
+          '[AutoAssignment][agent] race/denied order=${item.orderId}: $error',
+        );
+        return false;
+      }
+      rethrow;
+    }
   }
 
   @override
@@ -357,6 +689,8 @@ class FirestoreOrdersRepository
         _agentProfilesCollection.doc(agentId);
     final DocumentReference<Map<String, dynamic>> assignmentRef =
         _assignmentsCollection.doc();
+    final DocumentReference<Map<String, dynamic>> queueRef =
+        _autoAssignmentQueueCollection.doc(orderId);
     final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
         .doc();
     final OrderEventType eventType = OrderEventType.assigned;
@@ -492,6 +826,7 @@ class FirestoreOrdersRepository
           },
         ),
       );
+      transaction.delete(queueRef);
 
       return order.copyWith(
         assignedAgentId: agentId,
@@ -652,6 +987,8 @@ class FirestoreOrdersRepository
         );
     final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
         .doc(orderId);
+    final DocumentReference<Map<String, dynamic>> queueRef =
+        _autoAssignmentQueueCollection.doc(orderId);
     final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
         .doc();
     final OrderEventType eventType = OrderEventType.assignmentRefused;
@@ -692,6 +1029,7 @@ class FirestoreOrdersRepository
         'assignmentStatus': OrderAssignmentStatus.unassigned.name,
         'lastAssignmentRefusalReason': cleanedReason,
         'lastAssignmentRefusedAt': FieldValue.serverTimestamp(),
+        'lastAssignmentRefusedAgentId': cleanedAgentId,
         'updatedAt': FieldValue.serverTimestamp(),
         ..._auditLinkData(eventRef: eventRef, type: eventType),
       });
@@ -711,7 +1049,16 @@ class FirestoreOrdersRepository
           metadata: <String, dynamic>{
             'assignmentId': assignmentRef.id,
             'reason': cleanedReason,
+            'releasedToQueue': true,
           },
+        ),
+      );
+      transaction.set(
+        queueRef,
+        _automaticQueueDocumentData(
+          order: order,
+          createdAt: order.paidAt ?? order.createdAt,
+          lastRefusedAgentId: cleanedAgentId,
         ),
       );
 
@@ -719,6 +1066,7 @@ class FirestoreOrdersRepository
         clearAgentAssignment: true,
         lastAssignmentRefusalReason: cleanedReason,
         lastAssignmentRefusedAt: DateTime.now(),
+        lastAssignmentRefusedAgentId: cleanedAgentId,
       );
     });
   }
@@ -1003,6 +1351,8 @@ class FirestoreOrdersRepository
         .doc(orderId);
     final DocumentReference<Map<String, dynamic>> proofRef = _proofsCollection
         .doc(orderId);
+    final DocumentReference<Map<String, dynamic>> profileRef =
+        _agentProfilesCollection.doc(cleanedAgentId);
     final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
         .doc();
     final OrderEventType eventType = OrderEventType.processingSucceeded;
@@ -1017,9 +1367,12 @@ class FirestoreOrdersRepository
           await transaction.get(assignmentRef);
       final DocumentSnapshot<Map<String, dynamic>> proofSnapshot =
           await transaction.get(proofRef);
+      final DocumentSnapshot<Map<String, dynamic>> profileSnapshot =
+          await transaction.get(profileRef);
       final Map<String, dynamic>? orderData = orderSnapshot.data();
       final Map<String, dynamic>? assignmentData = assignmentSnapshot.data();
       final Map<String, dynamic>? proofData = proofSnapshot.data();
+      final Map<String, dynamic>? profileData = profileSnapshot.data();
 
       if (!orderSnapshot.exists || orderData == null) {
         throw StateError('La commande est introuvable.');
@@ -1029,6 +1382,11 @@ class FirestoreOrdersRepository
       }
       if (!proofSnapshot.exists || proofData == null) {
         throw StateError('Ajoute une preuve avant de valider la réussite.');
+      }
+      if (!profileSnapshot.exists || profileData == null) {
+        throw StateError(
+          'Le profil opérationnel de cet agent est introuvable.',
+        );
       }
 
       final QueueOrder order = FirestoreOrderMapper.fromMap(
@@ -1049,6 +1407,16 @@ class FirestoreOrdersRepository
         throw StateError('La preuve enregistrée est invalide.');
       }
 
+      final int previousCapacity = _agentCapacityForNetwork(
+        profileData,
+        order.network,
+      );
+      final int remainingCapacity = AgentCapacityPolicy.remainingAfterSuccess(
+        currentCapacity: previousCapacity,
+        operationAmount: order.amount,
+      );
+      final String capacityField = _agentCapacityFieldForNetwork(order.network);
+
       transaction.update(orderRef, <String, dynamic>{
         'status': QueueOrderStatus.awaitingCustomerConfirmation.name,
         'completedAt': FieldValue.serverTimestamp(),
@@ -1062,6 +1430,11 @@ class FirestoreOrdersRepository
         'completedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      transaction.update(profileRef, <String, dynamic>{
+        capacityField: remainingCapacity,
+        'lastCapacityUpdateAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
       transaction.set(
         eventRef,
         _eventDocumentData(
@@ -1071,6 +1444,12 @@ class FirestoreOrdersRepository
           actor: _AuditActor(id: cleanedAgentId, role: 'agent'),
           metadata: <String, dynamic>{'assignmentId': assignmentRef.id},
         ),
+      );
+
+      debugPrint(
+        '[AgentCapacity][deduct] agentId=$cleanedAgentId '
+        'network=${order.network.name} amount=${order.amount} '
+        'before=$previousCapacity after=$remainingCapacity',
       );
 
       return order.copyWith(
@@ -1733,6 +2112,441 @@ class FirestoreOrdersRepository
     return List<QueueOrder>.unmodifiable(paymentOrders);
   }
 
+  Future<QueueOrder> _assignAutomaticallyAsStaff({
+    required String orderId,
+    required AutomaticAssignmentAgent agent,
+    required _AuditActor actor,
+  }) async {
+    final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
+        .doc(orderId);
+    final DocumentReference<Map<String, dynamic>> userRef = _usersCollection
+        .doc(agent.agentId);
+    final DocumentReference<Map<String, dynamic>> profileRef =
+        _agentProfilesCollection.doc(agent.agentId);
+    final DocumentReference<Map<String, dynamic>> queueRef =
+        _autoAssignmentQueueCollection.doc(orderId);
+    final DocumentReference<Map<String, dynamic>> assignmentRef =
+        _assignmentsCollection.doc();
+    final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
+        .doc();
+    final OrderEventType eventType = OrderEventType.assigned;
+    final DateTime assignedAt = DateTime.now();
+
+    return _firestore.runTransaction<QueueOrder>((Transaction transaction) async {
+      final DocumentSnapshot<Map<String, dynamic>> orderSnapshot =
+          await transaction.get(orderRef);
+      final DocumentSnapshot<Map<String, dynamic>> userSnapshot =
+          await transaction.get(userRef);
+      final DocumentSnapshot<Map<String, dynamic>> profileSnapshot =
+          await transaction.get(profileRef);
+      final DocumentSnapshot<Map<String, dynamic>> queueSnapshot =
+          await transaction.get(queueRef);
+
+      final Map<String, dynamic>? orderData = orderSnapshot.data();
+      final Map<String, dynamic>? userData = userSnapshot.data();
+      final Map<String, dynamic>? profileData = profileSnapshot.data();
+      if (!orderSnapshot.exists || orderData == null) {
+        throw StateError('La commande est introuvable.');
+      }
+      if (!queueSnapshot.exists || queueSnapshot.data() == null) {
+        throw StateError('La commande a déjà quitté la file automatique.');
+      }
+      if (!userSnapshot.exists || userData == null) {
+        throw StateError('Le compte agent est introuvable.');
+      }
+      if (!profileSnapshot.exists || profileData == null) {
+        throw StateError('Le profil opérationnel de l’agent est introuvable.');
+      }
+
+      final QueueOrder currentOrder = FirestoreOrderMapper.fromMap(
+        id: orderSnapshot.id,
+        data: orderData,
+      );
+      if (!_isWaitingForAutomaticAssignment(currentOrder)) {
+        throw StateError('La commande n’est plus disponible à l’affectation.');
+      }
+      if (currentOrder.lastAssignmentRefusedAgentId == agent.agentId) {
+        throw StateError('Cet agent vient de refuser cette commande.');
+      }
+
+      _validateAutomaticAgentProfile(
+        userData: userData,
+        profileData: profileData,
+        network: currentOrder.network,
+        amount: currentOrder.amount,
+        usage: _AutomaticAssignmentUsage(
+          activeCount: agent.activeAssignmentCount,
+          orangeReservedAmount: agent.orangeReservedAmount,
+          mtnReservedAmount: agent.mtnReservedAmount,
+          moovReservedAmount: agent.moovReservedAmount,
+          todayCount: agent.todayAssignmentCount,
+          todayAmount: agent.todayAssignedAmount,
+          lastAssignedAt: agent.lastAssignedAt,
+        ),
+      );
+
+      final String agentName = _stringValue(
+        userData['name'],
+        fallback: agent.name,
+      );
+      transaction.update(orderRef, <String, dynamic>{
+        'assignedAgentId': agent.agentId,
+        'assignedAgentName': agentName,
+        'assignedByUserId': actor.id,
+        'assignedAt': FieldValue.serverTimestamp(),
+        'assignmentMode': OrderAssignmentMode.automatic.name,
+        'assignmentStatus': OrderAssignmentStatus.assigned.name,
+        'updatedAt': FieldValue.serverTimestamp(),
+        ..._auditLinkData(eventRef: eventRef, type: eventType),
+      });
+      transaction.set(assignmentRef, <String, dynamic>{
+        'schemaVersion': 1,
+        'orderId': currentOrder.id,
+        'orderReference': currentOrder.reference,
+        'agentId': agent.agentId,
+        'agentName': agentName,
+        'assignedByUserId': actor.id,
+        'mode': OrderAssignmentMode.automatic.name,
+        'status': OrderAssignmentStatus.assigned.name,
+        'assignedAt': FieldValue.serverTimestamp(),
+        'acceptedAt': null,
+        'refusedAt': null,
+        'refusalReason': null,
+        'completedAt': null,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      transaction.set(
+        eventRef,
+        _eventDocumentData(
+          orderId: currentOrder.id,
+          orderReference: currentOrder.reference,
+          type: eventType,
+          actor: actor,
+          metadata: <String, dynamic>{
+            'assignmentId': assignmentRef.id,
+            'agentId': agent.agentId,
+          },
+        ),
+      );
+      transaction.delete(queueRef);
+
+      return currentOrder.copyWith(
+        assignedAgentId: agent.agentId,
+        assignedAgentName: agentName,
+        assignedByUserId: actor.id,
+        assignedAt: assignedAt,
+        assignmentMode: OrderAssignmentMode.automatic,
+        assignmentStatus: OrderAssignmentStatus.assigned,
+      );
+    });
+  }
+
+  Future<List<AutomaticAssignmentAgent>> _loadAutomaticAssignmentAgents() async {
+    final QuerySnapshot<Map<String, dynamic>> users = await _usersCollection
+        .where('role', isEqualTo: 'agent')
+        .get();
+    final QuerySnapshot<Map<String, dynamic>> profiles =
+        await _agentProfilesCollection.get();
+    final QuerySnapshot<Map<String, dynamic>> ordersSnapshot =
+        await _ordersCollection
+            .orderBy('createdAt', descending: true)
+            .limit(1000)
+            .get();
+
+    final Map<String, Map<String, dynamic>> profileByAgent =
+        <String, Map<String, dynamic>>{
+          for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+              in profiles.docs)
+            doc.id: doc.data(),
+        };
+    final List<QueueOrder> orders = ordersSnapshot.docs
+        .map(_mapDocument)
+        .toList(growable: false);
+    final DateTime now = DateTime.now().toUtc();
+
+    final List<AutomaticAssignmentAgent> agents = <AutomaticAssignmentAgent>[];
+    for (final QueryDocumentSnapshot<Map<String, dynamic>> user in users.docs) {
+      final Map<String, dynamic> userData = user.data();
+      final Map<String, dynamic>? profileData = profileByAgent[user.id];
+      if (profileData == null) continue;
+      final _AutomaticAssignmentUsage usage = _buildUsageFromOrders(
+        orders: orders,
+        agentId: user.id,
+        now: now,
+      );
+      agents.add(
+        AutomaticAssignmentAgent(
+          agentId: user.id,
+          name: _stringValue(userData['name'], fallback: 'Agent'),
+          isActive: userData['isActive'] == true,
+          isAvailable: profileData['availability'] == 'available',
+          authorizedNetworks: _mobileNetworkSet(
+            profileData['authorizedNetworks'],
+          ),
+          activeNetworks: _mobileNetworkSet(profileData['activeNetworks']),
+          orangeCapacity: _intValue(profileData['orangeCapacity']),
+          mtnCapacity: _intValue(profileData['mtnCapacity']),
+          moovCapacity: _intValue(profileData['moovCapacity']),
+          dailyTransactionLimit: _intValue(
+            profileData['dailyTransactionLimit'],
+          ),
+          maxTransactionsPerDay: _intValue(
+            profileData['maxTransactionsPerDay'],
+          ),
+          activeAssignmentCount: usage.activeCount,
+          orangeReservedAmount: usage.orangeReservedAmount,
+          mtnReservedAmount: usage.mtnReservedAmount,
+          moovReservedAmount: usage.moovReservedAmount,
+          todayAssignmentCount: usage.todayCount,
+          todayAssignedAmount: usage.todayAmount,
+          lastAssignedAt: usage.lastAssignedAt,
+        ),
+      );
+    }
+    return List<AutomaticAssignmentAgent>.unmodifiable(agents);
+  }
+
+  Future<_AutomaticAssignmentUsage> _loadAgentUsage(String agentId) async {
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _ordersCollection
+        .where('assignedAgentId', isEqualTo: agentId)
+        .limit(500)
+        .get();
+    final List<QueueOrder> orders = snapshot.docs
+        .map(_mapDocument)
+        .toList(growable: false);
+    return _buildUsageFromOrders(
+      orders: orders,
+      agentId: agentId,
+      now: DateTime.now().toUtc(),
+    );
+  }
+
+  _AutomaticAssignmentUsage _buildUsageFromOrders({
+    required Iterable<QueueOrder> orders,
+    required String agentId,
+    required DateTime now,
+  }) {
+    int activeCount = 0;
+    int orangeReservedAmount = 0;
+    int mtnReservedAmount = 0;
+    int moovReservedAmount = 0;
+    int todayCount = 0;
+    int todayAmount = 0;
+    DateTime? lastAssignedAt;
+
+    for (final QueueOrder order in orders) {
+      if (order.assignedAgentId != agentId) continue;
+      final DateTime? assignedAt = order.assignedAt;
+      if (_isActiveAssignedOrder(order)) {
+        activeCount += 1;
+        switch (order.network) {
+          case MobileNetwork.orange:
+            orangeReservedAmount += order.amount;
+            break;
+          case MobileNetwork.mtn:
+            mtnReservedAmount += order.amount;
+            break;
+          case MobileNetwork.moov:
+            moovReservedAmount += order.amount;
+            break;
+        }
+      }
+      if (assignedAt != null) {
+        final DateTime utc = assignedAt.toUtc();
+        if (_sameUtcDay(utc, now)) {
+          todayCount += 1;
+          todayAmount += order.amount;
+        }
+        if (lastAssignedAt == null || assignedAt.isAfter(lastAssignedAt)) {
+          lastAssignedAt = assignedAt;
+        }
+      }
+    }
+
+    return _AutomaticAssignmentUsage(
+      activeCount: activeCount,
+      orangeReservedAmount: orangeReservedAmount,
+      mtnReservedAmount: mtnReservedAmount,
+      moovReservedAmount: moovReservedAmount,
+      todayCount: todayCount,
+      todayAmount: todayAmount,
+      lastAssignedAt: lastAssignedAt,
+    );
+  }
+
+  bool _isActiveAssignedOrder(QueueOrder order) {
+    if (order.assignmentStatus != OrderAssignmentStatus.assigned &&
+        order.assignmentStatus != OrderAssignmentStatus.accepted) {
+      return false;
+    }
+    return order.status != QueueOrderStatus.completed &&
+        order.status != QueueOrderStatus.failed &&
+        order.status != QueueOrderStatus.cancelled &&
+        order.status != QueueOrderStatus.refunded;
+  }
+
+  bool _sameUtcDay(DateTime first, DateTime second) {
+    return first.year == second.year &&
+        first.month == second.month &&
+        first.day == second.day;
+  }
+
+  Set<MobileNetwork> _mobileNetworkSet(Object? value) {
+    if (value is! List) return <MobileNetwork>{};
+    return value
+        .whereType<String>()
+        .map((String raw) {
+          for (final MobileNetwork network in MobileNetwork.values) {
+            if (network.name == raw) return network;
+          }
+          return null;
+        })
+        .whereType<MobileNetwork>()
+        .toSet();
+  }
+
+  int _intValue(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return 0;
+  }
+
+  void _validateAutomaticAgentProfile({
+    required Map<String, dynamic> userData,
+    required Map<String, dynamic> profileData,
+    required MobileNetwork network,
+    required int amount,
+    required _AutomaticAssignmentUsage usage,
+  }) {
+    if (userData['role'] != 'agent' || userData['isActive'] != true) {
+      throw StateError('Cet agent est inactif.');
+    }
+    if (profileData['availability'] != 'available') {
+      throw StateError('Cet agent est indisponible.');
+    }
+    final Set<MobileNetwork> authorized = _mobileNetworkSet(
+      profileData['authorizedNetworks'],
+    );
+    final Set<MobileNetwork> active = _mobileNetworkSet(
+      profileData['activeNetworks'],
+    );
+    if (!authorized.contains(network) || !active.contains(network)) {
+      throw StateError('Ce réseau n’est pas actif pour cet agent.');
+    }
+    final int availableCapacity =
+        _agentCapacityForNetwork(profileData, network) - usage.reservedFor(network);
+    if (availableCapacity < amount) {
+      throw StateError('La capacité disponible de cet agent est insuffisante.');
+    }
+    final int maxCount = _intValue(profileData['maxTransactionsPerDay']);
+    final int maxAmount = _intValue(profileData['dailyTransactionLimit']);
+
+    // 0 = limite non configurée. Les profils historiques ne doivent pas être
+    // exclus de l'affectation automatique uniquement parce qu'ils ont été
+    // créés avant l'ajout de ces deux champs.
+    if (maxCount > 0 && usage.todayCount >= maxCount) {
+      throw StateError('La limite quotidienne de transactions est atteinte.');
+    }
+    if (maxAmount > 0 && usage.todayAmount + amount > maxAmount) {
+      throw StateError('La limite quotidienne de montant est atteinte.');
+    }
+  }
+
+  bool _isWaitingForAutomaticAssignment(QueueOrder order) {
+    return order.status == QueueOrderStatus.paidReady &&
+        order.paymentStatus == OrderPaymentStatus.confirmed &&
+        order.assignedAgentId == null &&
+        order.assignmentStatus == OrderAssignmentStatus.unassigned;
+  }
+
+  Future<void> _ensureAutomaticQueueDocument(QueueOrder order) async {
+    if (!_isWaitingForAutomaticAssignment(order)) return;
+    final DocumentReference<Map<String, dynamic>> ref =
+        _autoAssignmentQueueCollection.doc(order.id);
+    final DocumentSnapshot<Map<String, dynamic>> snapshot = await ref.get();
+    if (snapshot.exists) return;
+    await ref.set(
+      _automaticQueueDocumentData(
+        order: order,
+        createdAt: order.paidAt ?? order.createdAt,
+        lastRefusedAgentId: order.lastAssignmentRefusedAgentId,
+      ),
+    );
+  }
+
+  Map<String, dynamic> _automaticQueueDocumentData({
+    required QueueOrder order,
+    required DateTime createdAt,
+    String? lastRefusedAgentId,
+  }) {
+    return <String, dynamic>{
+      'schemaVersion': 1,
+      'orderId': order.id,
+      'orderReference': order.reference,
+      'network': order.network.name,
+      'amount': order.amount,
+      'createdAt': Timestamp.fromDate(createdAt.toUtc()),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'lastRefusedAgentId': lastRefusedAgentId,
+    };
+  }
+
+  AutomaticAssignmentQueueItem? _automaticQueueItemFromDocument(
+    QueryDocumentSnapshot<Map<String, dynamic>> document,
+  ) {
+    return _automaticQueueItemFromMap(document.id, document.data());
+  }
+
+  AutomaticAssignmentQueueItem? _automaticQueueItemFromSnapshot(
+    DocumentSnapshot<Map<String, dynamic>> document,
+  ) {
+    final Map<String, dynamic>? data = document.data();
+    if (data == null) return null;
+    return _automaticQueueItemFromMap(document.id, data);
+  }
+
+  AutomaticAssignmentQueueItem? _automaticQueueItemFromMap(
+    String documentId,
+    Map<String, dynamic> data,
+  ) {
+    final String orderId = _stringValue(data['orderId'], fallback: documentId);
+    final String orderReference = _stringValue(data['orderReference']);
+    final String networkRaw = _stringValue(data['network']);
+    final int amount = _intValue(data['amount']);
+    final Object? createdRaw = data['createdAt'];
+    final DateTime? createdAt = createdRaw is Timestamp
+        ? createdRaw.toDate()
+        : createdRaw is DateTime
+        ? createdRaw
+        : null;
+    MobileNetwork? network;
+    for (final MobileNetwork item in MobileNetwork.values) {
+      if (item.name == networkRaw) {
+        network = item;
+        break;
+      }
+    }
+    if (orderId.isEmpty ||
+        orderReference.isEmpty ||
+        network == null ||
+        amount <= 0 ||
+        createdAt == null) {
+      return null;
+    }
+    return AutomaticAssignmentQueueItem(
+      orderId: orderId,
+      orderReference: orderReference,
+      network: network,
+      amount: amount,
+      createdAt: createdAt,
+      lastRefusedAgentId: _cleanNullable(
+        data['lastRefusedAgentId'] is String
+            ? data['lastRefusedAgentId'] as String
+            : null,
+      ),
+    );
+  }
+
   Map<String, int> _buildActiveAssignmentCounts(List<QueueOrder> orders) {
     final Map<String, int> counts = <String, int>{};
     for (final QueueOrder order in orders) {
@@ -1804,6 +2618,17 @@ class FirestoreOrdersRepository
     }
 
     return _AuditActor(id: currentUser.uid, role: role);
+  }
+
+  String _agentCapacityFieldForNetwork(MobileNetwork network) {
+    switch (network) {
+      case MobileNetwork.orange:
+        return 'orangeCapacity';
+      case MobileNetwork.mtn:
+        return 'mtnCapacity';
+      case MobileNetwork.moov:
+        return 'moovCapacity';
+    }
   }
 
   int _agentCapacityForNetwork(
@@ -1887,6 +2712,37 @@ class FirestoreOrdersRepository
   String? _cleanNullable(String? value) {
     final String cleaned = value?.trim() ?? '';
     return cleaned.isEmpty ? null : cleaned;
+  }
+}
+
+class _AutomaticAssignmentUsage {
+  const _AutomaticAssignmentUsage({
+    required this.activeCount,
+    required this.orangeReservedAmount,
+    required this.mtnReservedAmount,
+    required this.moovReservedAmount,
+    required this.todayCount,
+    required this.todayAmount,
+    required this.lastAssignedAt,
+  });
+
+  final int activeCount;
+  final int orangeReservedAmount;
+  final int mtnReservedAmount;
+  final int moovReservedAmount;
+  final int todayCount;
+  final int todayAmount;
+  final DateTime? lastAssignedAt;
+
+  int reservedFor(MobileNetwork network) {
+    switch (network) {
+      case MobileNetwork.orange:
+        return orangeReservedAmount;
+      case MobileNetwork.mtn:
+        return mtnReservedAmount;
+      case MobileNetwork.moov:
+        return moovReservedAmount;
+    }
   }
 }
 
