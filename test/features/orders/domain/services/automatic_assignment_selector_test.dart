@@ -61,7 +61,7 @@ void main() {
     );
   }
 
-  test('choisit en priorité l’agent éligible le moins chargé', () {
+  test('à ancienneté égale, choisit l’agent éligible le moins chargé', () {
     final selected = selector.select(
       order: order(),
       agents: <AutomaticAssignmentAgent>[
@@ -122,6 +122,55 @@ void main() {
 
     expect(selected?.agentId, 'B');
   });
+
+  test(
+    'alterne vers l’agent le moins récemment affecté quand les deux sont aptes',
+    () {
+      final selected = selector.select(
+        order: order(),
+        agents: <AutomaticAssignmentAgent>[
+          agent(
+            id: 'A',
+            active: 0,
+            todayCount: 8,
+            lastAssignedAt: DateTime(2026, 8, 26, 10, 5),
+          ),
+          agent(
+            id: 'B',
+            active: 4,
+            todayCount: 5,
+            lastAssignedAt: DateTime(2026, 8, 26, 10),
+          ),
+        ],
+      );
+
+      expect(selected?.agentId, 'B');
+    },
+  );
+
+  test(
+    'peut réutiliser le même agent si les autres agents ne sont pas aptes',
+    () {
+      final selected = selector.select(
+        order: order(),
+        agents: <AutomaticAssignmentAgent>[
+          agent(
+            id: 'A',
+            active: 1,
+            lastAssignedAt: DateTime(2026, 8, 26, 10, 5),
+          ),
+          agent(
+            id: 'B',
+            active: 0,
+            available: false,
+            lastAssignedAt: DateTime(2026, 8, 26, 9),
+          ),
+        ],
+      );
+
+      expect(selected?.agentId, 'A');
+    },
+  );
 
   test('réserve la capacité des commandes actives déjà affectées', () {
     final selected = selector.select(

@@ -2268,6 +2268,68 @@ service cloud.firestore {
         && orderAfter.get('lastEventAt', null) == request.time;
     }
 
+    // PHASE 10A - profil client regulier.
+    // Le document a pour identifiant l'UID Firebase Anonymous du client.
+    // Aucune regle 9E n'est modifiee et ce bloc n'ajoute aucune dependance croisee.
+    function hasValidCustomerProfileValues(profileId) {
+      return isSignedIn()
+        && request.auth.uid == profileId
+        && request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'customerAuthUid',
+          'name',
+          'whatsappPhone',
+          'defaultBeneficiaryPhone',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.customerAuthUid == request.auth.uid
+        && request.resource.data.customerAuthUid == profileId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.whatsappPhone is string
+        && request.resource.data.whatsappPhone.matches(
+          '^[+]225(01|05|07)[0-9]{8}$'
+        )
+        && request.resource.data.defaultBeneficiaryPhone is string
+        && request.resource.data.defaultBeneficiaryPhone.matches(
+          '^[+]225(01|05|07)[0-9]{8}$'
+        )
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function isValidCustomerProfileCreation(profileId) {
+      return hasValidCustomerProfileValues(profileId)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidCustomerProfileUpdate(profileId) {
+      return hasValidCustomerProfileValues(profileId)
+        && resource.data.schemaVersion == 1
+        && resource.data.customerAuthUid == request.auth.uid
+        && resource.data.customerAuthUid == profileId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name',
+          'whatsappPhone',
+          'defaultBeneficiaryPhone',
+          'updatedAt'
+        ]);
+    }
+
+    match /customerProfiles/{profileId} {
+      allow get: if isSignedIn() && request.auth.uid == profileId;
+      allow list: if false;
+      allow create: if isValidCustomerProfileCreation(profileId);
+      allow update: if isValidCustomerProfileUpdate(profileId);
+      allow delete: if false;
+    }
+
     match /orders/{orderId} {
       allow create: if isValidCustomerOrderCreation(orderId)
         || isValidStaffOrderCreation(orderId);

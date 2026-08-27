@@ -3,10 +3,13 @@ import 'dart:async';
 import 'package:cabine_flow/features/customer_order/data/local/customer_order_session_store.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/fake_customer_offer_repository.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/firestore_customer_offer_repository.dart';
+import 'package:cabine_flow/features/customer_order/data/repositories/fake_customer_profile_repository.dart';
+import 'package:cabine_flow/features/customer_order/data/repositories/firestore_customer_profile_repository.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/firestore_customer_order_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_offer_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_repository.dart';
+import 'package:cabine_flow/features/customer_order/domain/repositories/customer_profile_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_session_store.dart';
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_beneficiary_page.dart';
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_confirmation_page.dart';
@@ -37,6 +40,7 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
   bool _isShowingHistory = false;
 
   late final CustomerOfferRepository _offerRepository;
+  late final CustomerProfileRepository _profileRepository;
 
   final CustomerOrderRepository _orderRepository =
       FirestoreCustomerOrderRepository();
@@ -52,9 +56,13 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
         (Firebase.apps.isNotEmpty
             ? FirestoreCustomerOfferRepository()
             : const FakeCustomerOfferRepository());
+    _profileRepository = Firebase.apps.isNotEmpty
+        ? FirestoreCustomerProfileRepository()
+        : FakeCustomerProfileRepository();
     _viewModel = CustomerOrderViewModel(
       orderRepository: _orderRepository,
       sessionStore: _sessionStore,
+      profileRepository: _profileRepository,
     );
     unawaited(_viewModel.initialize());
   }

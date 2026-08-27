@@ -52,7 +52,7 @@ class _MainShellPageState extends State<MainShellPage> {
   int _selectedIndex = 0;
   StreamSubscription<List<AgentDirectoryEntry>>? _staffAgentsSubscription;
   StreamSubscription<List<AutomaticAssignmentQueueItem>>?
-      _staffQueueSubscription;
+  _staffQueueSubscription;
   Timer? _automaticAssignmentDebounce;
   bool _automaticAssignmentSyncRunning = false;
   bool _automaticAssignmentSyncPending = false;
@@ -106,10 +106,7 @@ class _MainShellPageState extends State<MainShellPage> {
       await widget.ordersRepository.synchronizeAutomaticAssignmentBacklog();
     } catch (error, stackTrace) {
       debugPrint('[AutoAssignment][backlog] $error');
-      debugPrintStack(
-        label: '[AutoAssignment][backlog] stack',
-        stackTrace: stackTrace,
-      );
+      debugPrint('[AutoAssignment][backlog] stack:\n$stackTrace');
     } finally {
       _automaticAssignmentSyncRunning = false;
       if (_automaticAssignmentSyncPending) {

@@ -409,10 +409,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
       );
     } catch (error, stackTrace) {
       debugPrint('[AutoAssignment][claim] $error');
-      debugPrintStack(
-        label: '[AutoAssignment][claim] stack',
-        stackTrace: stackTrace,
-      );
+      debugPrint('[AutoAssignment][claim] stack:\n$stackTrace');
     } finally {
       _autoClaimInFlight = false;
     }
@@ -592,10 +589,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
         'code=${error.code} message=${error.message}',
       );
     }
-    debugPrintStack(
-      label: '[AgentOrders][$action] stack',
-      stackTrace: stackTrace,
-    );
+    debugPrint('[AgentOrders][$action] stack:\n$stackTrace');
   }
 
   @override

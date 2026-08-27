@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:cabine_flow/features/customer_order/domain/models/beneficiary_phone_number.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/customer_beneficiary_target.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_identity.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/customer_profile.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_offer.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
@@ -10,6 +12,7 @@ import 'package:cabine_flow/features/customer_order/domain/models/payment_declar
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_repository.dart';
+import 'package:cabine_flow/features/customer_order/domain/repositories/customer_profile_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_session_store.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:flutter/foundation.dart';
@@ -20,11 +23,15 @@ class CustomerOrderViewModel extends ChangeNotifier {
   CustomerOrderViewModel({
     required CustomerOrderRepository orderRepository,
     CustomerOrderSessionStore? sessionStore,
+    CustomerProfileRepository? profileRepository,
   }) : _orderRepository = orderRepository,
-       _sessionStore = sessionStore ?? _NoopCustomerOrderSessionStore();
+       _sessionStore = sessionStore ?? _NoopCustomerOrderSessionStore(),
+       _profileRepository =
+           profileRepository ?? _NoopCustomerProfileRepository();
 
   final CustomerOrderRepository _orderRepository;
   final CustomerOrderSessionStore _sessionStore;
+  final CustomerProfileRepository _profileRepository;
 
   CustomerOrderDraft _draft = const CustomerOrderDraft();
   CustomerOrderReceipt? _receipt;
@@ -35,6 +42,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
   String? _trackingErrorMessage;
   StreamSubscription<CustomerOrderReceipt>? _trackingSubscription;
   StreamSubscription<List<CustomerOrderReceipt>>? _historySubscription;
+  StreamSubscription<CustomerProfile?>? _profileSubscription;
   Timer? _expirationTimer;
   List<CustomerOrderReceipt> _customerOrders = <CustomerOrderReceipt>[];
   CustomerOrderSession? _savedSession;
@@ -42,6 +50,10 @@ class CustomerOrderViewModel extends ChangeNotifier {
   bool _isHistoryInitialized = false;
   bool _hasAttemptedAutomaticRestore = false;
   String? _historyErrorMessage;
+  CustomerProfile? _customerProfile;
+  CustomerBeneficiaryTarget _beneficiaryTarget = CustomerBeneficiaryTarget.self;
+  bool _isLoadingCustomerProfile = false;
+  String? _customerProfileErrorMessage;
 
   CustomerOrderDraft get draft => _draft;
   CustomerOrderReceipt? get receipt => _receipt;
@@ -55,6 +67,25 @@ class CustomerOrderViewModel extends ChangeNotifier {
       List<CustomerOrderReceipt>.unmodifiable(_customerOrders);
   bool get isLoadingHistory => _isLoadingHistory;
   String? get historyErrorMessage => _historyErrorMessage;
+  CustomerBeneficiaryTarget get beneficiaryTarget => _beneficiaryTarget;
+  bool get isLoadingCustomerProfile => _isLoadingCustomerProfile;
+  String? get customerProfileErrorMessage => _customerProfileErrorMessage;
+
+  BeneficiaryPhoneNumber? get defaultBeneficiaryNumber {
+    final CustomerIdentity? identity = _draft.identity;
+    final CustomerProfile? profile = _customerProfile;
+
+    if (identity == null ||
+        profile == null ||
+        !profile.matchesIdentity(identity)) {
+      return null;
+    }
+
+    return profile.defaultBeneficiaryPhone;
+  }
+
+  bool get hasDefaultBeneficiaryForCurrentIdentity =>
+      defaultBeneficiaryNumber != null;
 
   CustomerOrderReceipt? get activeOrder {
     final CustomerOrderSession? session = _savedSession;
@@ -83,12 +114,48 @@ class CustomerOrderViewModel extends ChangeNotifier {
 
     _isHistoryInitialized = true;
     await _subscribeToHistory(readSavedSession: true);
+    await _subscribeToCustomerProfile();
   }
 
   Future<void> reloadHistory() async {
     await _historySubscription?.cancel();
     _historySubscription = null;
     await _subscribeToHistory(readSavedSession: false);
+  }
+
+  Future<void> _subscribeToCustomerProfile() async {
+    _isLoadingCustomerProfile = true;
+    _customerProfileErrorMessage = null;
+    notifyListeners();
+
+    try {
+      await _profileSubscription?.cancel();
+      _profileSubscription = _profileRepository.watchCurrentProfile().listen(
+        (CustomerProfile? profile) {
+          _customerProfile = profile;
+          _isLoadingCustomerProfile = false;
+          _customerProfileErrorMessage = null;
+          notifyListeners();
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          debugPrint('[CustomerProfile][watch] ERROR $error');
+          debugPrint('[CustomerProfile][watch] STACK:\n$stackTrace');
+          _customerProfile = null;
+          _isLoadingCustomerProfile = false;
+          _customerProfileErrorMessage =
+              'Votre numéro habituel n’a pas pu être chargé. Vous pouvez le saisir ci-dessous.';
+          notifyListeners();
+        },
+      );
+    } on Object catch (error, stackTrace) {
+      debugPrint('[CustomerProfile][watch] ERROR $error');
+      debugPrint('[CustomerProfile][watch] STACK:\n$stackTrace');
+      _customerProfile = null;
+      _isLoadingCustomerProfile = false;
+      _customerProfileErrorMessage =
+          'Votre numéro habituel n’a pas pu être chargé. Vous pouvez le saisir ci-dessous.';
+      notifyListeners();
+    }
   }
 
   Future<void> _subscribeToHistory({required bool readSavedSession}) async {
@@ -213,13 +280,22 @@ class CustomerOrderViewModel extends ChangeNotifier {
     final WhatsappPhoneNumber whatsappNumber = WhatsappPhoneNumber.parse(
       whatsappInput,
     );
+    final String? previousWhatsapp = _draft.identity?.whatsappNumber.normalized;
+    final bool identityChanged =
+        previousWhatsapp != null &&
+        previousWhatsapp != whatsappNumber.normalized;
 
     _draft = _draft.copyWith(
       identity: CustomerIdentity(
         name: name.trim(),
         whatsappNumber: whatsappNumber,
       ),
+      clearBeneficiaryNumber: identityChanged,
     );
+
+    if (identityChanged) {
+      _beneficiaryTarget = CustomerBeneficiaryTarget.self;
+    }
 
     _currentStep = 2;
     notifyListeners();
@@ -376,13 +452,81 @@ class CustomerOrderViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void selectBeneficiaryTarget(CustomerBeneficiaryTarget target) {
+    if (_beneficiaryTarget == target) {
+      return;
+    }
+
+    _beneficiaryTarget = target;
+    _draft = _draft.copyWith(clearBeneficiaryNumber: true);
+    notifyListeners();
+  }
+
+  void useSavedBeneficiaryForMe() {
+    final BeneficiaryPhoneNumber? beneficiary = defaultBeneficiaryNumber;
+
+    if (beneficiary == null) {
+      return;
+    }
+
+    _beneficiaryTarget = CustomerBeneficiaryTarget.self;
+    _draft = _draft.copyWith(beneficiaryNumber: beneficiary);
+    _currentStep = 6;
+    notifyListeners();
+  }
+
+  void saveBeneficiaryForMe({
+    required String phoneInput,
+    required String confirmationInput,
+  }) {
+    final BeneficiaryPhoneNumber beneficiary = _parseConfirmedBeneficiary(
+      phoneInput: phoneInput,
+      confirmationInput: confirmationInput,
+    );
+    final CustomerIdentity? identity = _draft.identity;
+
+    if (identity == null) {
+      throw StateError(
+        'Identifiez-vous avant de choisir votre numéro habituel.',
+      );
+    }
+
+    _beneficiaryTarget = CustomerBeneficiaryTarget.self;
+    _draft = _draft.copyWith(beneficiaryNumber: beneficiary);
+    _customerProfile = CustomerProfile(
+      name: identity.name,
+      whatsappPhone: identity.whatsappNumber,
+      defaultBeneficiaryPhone: beneficiary,
+    );
+    _currentStep = 6;
+    notifyListeners();
+
+    unawaited(
+      _persistDefaultBeneficiary(identity: identity, beneficiary: beneficiary),
+    );
+  }
+
   void saveBeneficiary({
+    required String phoneInput,
+    required String confirmationInput,
+  }) {
+    final BeneficiaryPhoneNumber beneficiary = _parseConfirmedBeneficiary(
+      phoneInput: phoneInput,
+      confirmationInput: confirmationInput,
+    );
+
+    _beneficiaryTarget = CustomerBeneficiaryTarget.other;
+    _draft = _draft.copyWith(beneficiaryNumber: beneficiary);
+    _currentStep = 6;
+    notifyListeners();
+  }
+
+  BeneficiaryPhoneNumber _parseConfirmedBeneficiary({
     required String phoneInput,
     required String confirmationInput,
   }) {
     final BeneficiaryPhoneNumber beneficiaryNumber =
         BeneficiaryPhoneNumber.parse(phoneInput);
-
     final BeneficiaryPhoneNumber confirmationNumber =
         BeneficiaryPhoneNumber.parse(confirmationInput);
 
@@ -392,9 +536,28 @@ class CustomerOrderViewModel extends ChangeNotifier {
       );
     }
 
-    _draft = _draft.copyWith(beneficiaryNumber: beneficiaryNumber);
+    return beneficiaryNumber;
+  }
 
-    _currentStep = 6;
+  Future<void> _persistDefaultBeneficiary({
+    required CustomerIdentity identity,
+    required BeneficiaryPhoneNumber beneficiary,
+  }) async {
+    try {
+      await _profileRepository.saveDefaultBeneficiary(
+        identity: identity,
+        beneficiaryPhone: beneficiary,
+      );
+      _customerProfileErrorMessage = null;
+    } on Object catch (error, stackTrace) {
+      // La mémorisation est un confort : une erreur ne doit jamais bloquer la
+      // commande qui contient déjà le bon beneficiaryPhone dans le brouillon.
+      debugPrint('[CustomerProfile][save] ERROR $error');
+      debugPrint('[CustomerProfile][save] STACK:\n$stackTrace');
+      _customerProfileErrorMessage =
+          'Votre commande peut continuer, mais le numéro habituel n’a pas pu être mémorisé.';
+    }
+
     notifyListeners();
   }
 
@@ -425,10 +588,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
     } catch (error, stackTrace) {
       debugPrint('[CustomerOrder][create] ERROR type=${error.runtimeType}');
       debugPrint('[CustomerOrder][create] ERROR $error');
-      debugPrintStack(
-        label: '[CustomerOrder][create] STACK',
-        stackTrace: stackTrace,
-      );
+      debugPrint('[CustomerOrder][create] STACK:\n$stackTrace');
 
       _submissionErrorMessage = error is StateError
           ? error.message.toString()
@@ -661,6 +821,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
     _expirationTimer = null;
     _draft = const CustomerOrderDraft();
     _receipt = null;
+    _beneficiaryTarget = CustomerBeneficiaryTarget.self;
     _currentStep = 1;
     _isSubmitting = false;
     _paymentLinkWasOpened = false;
@@ -674,6 +835,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
     _expirationTimer?.cancel();
     unawaited(_trackingSubscription?.cancel());
     unawaited(_historySubscription?.cancel());
+    unawaited(_profileSubscription?.cancel());
     super.dispose();
   }
 
@@ -685,6 +847,18 @@ class CustomerOrderViewModel extends ChangeNotifier {
         (_draft.amount ?? 0) > 0 &&
         _draft.beneficiaryNumber != null;
   }
+}
+
+class _NoopCustomerProfileRepository implements CustomerProfileRepository {
+  @override
+  Future<void> saveDefaultBeneficiary({
+    required CustomerIdentity identity,
+    required BeneficiaryPhoneNumber beneficiaryPhone,
+  }) async {}
+
+  @override
+  Stream<CustomerProfile?> watchCurrentProfile() =>
+      Stream<CustomerProfile?>.value(null);
 }
 
 class _NoopCustomerOrderSessionStore implements CustomerOrderSessionStore {

@@ -398,6 +398,10 @@ class FirestoreOrdersRepository
       'network=${order.network.name} amount=${order.amount} '
       'candidates=${candidates.length} eligible=${ranked.length}',
     );
+    final Map<String, int> rankByAgent = <String, int>{
+      for (int index = 0; index < ranked.length; index += 1)
+        ranked[index].agentId: index + 1,
+    };
     for (final AutomaticAssignmentAgent candidate in candidates) {
       final String? reason = candidate.ineligibilityReason(order: order);
       debugPrint(
@@ -408,10 +412,13 @@ class FirestoreOrdersRepository
         'capacity=${candidate.capacityFor(order.network)} '
         'reserved=${candidate.reservedFor(order.network)} '
         'availableCapacity=${candidate.availableCapacityFor(order.network)} '
+        'activeCount=${candidate.activeAssignmentCount} '
         'todayCount=${candidate.todayAssignmentCount} '
         'maxCount=${candidate.maxTransactionsPerDay} '
         'todayAmount=${candidate.todayAssignedAmount} '
         'dailyLimit=${candidate.dailyTransactionLimit} '
+        'lastAssignedAt=${candidate.lastAssignedAt?.toIso8601String() ?? 'never'} '
+        'rank=${rankByAgent[candidate.agentId] ?? '-'} '
         'result=${reason ?? 'ELIGIBLE'}',
       );
     }

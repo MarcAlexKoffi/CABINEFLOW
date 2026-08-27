@@ -9,7 +9,12 @@ void main() {
     expect(rules, contains('match /autoAssignmentQueue/{orderId}'));
     expect(rules, contains('isValidStaffAutomaticAssignment'));
     expect(rules, contains('isValidAgentAutomaticSelfAssignment'));
-    expect(rules, contains("request.resource.data.get('assignmentMode', null) == 'automatic'"));
+    expect(
+      rules,
+      contains(
+        "request.resource.data.get('assignmentMode', null) == 'automatic'",
+      ),
+    );
     expect(rules, contains("lastAssignmentRefusedAgentId"));
     expect(rules, contains('isValidManualAssignmentEventCreation'));
     expect(rules, contains('isValidAutomaticAssignmentEventCreation'));
