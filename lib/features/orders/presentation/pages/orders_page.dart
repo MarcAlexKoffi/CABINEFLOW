@@ -7,6 +7,11 @@ import 'package:cabine_flow/features/orders/domain/repositories/order_history_re
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/orders/presentation/view_models/orders_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/orders_widgets.dart';
+import 'package:cabine_flow/features/support/data/repositories/fake_support_request_repository.dart';
+import 'package:cabine_flow/features/support/data/repositories/firestore_support_request_repository.dart';
+import 'package:cabine_flow/features/support/domain/models/support_request.dart';
+import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/agent_assignment_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/order_detail_page.dart';
@@ -41,6 +46,8 @@ class _OrdersPageState extends State<OrdersPage> {
   String _historyInitialSearchQuery = '';
   OrderHistoryFilters _historyInitialFilters = const OrderHistoryFilters();
   QueueOrder? _detailOrder;
+  bool _detailOpenedFromSupportInbox = false;
+  late final SupportRequestRepository _supportRequestRepository;
 
   Future<void> _markTransactionSuccessful() async {
     final bool isSuccessful = await _viewModel.markActiveOrderSuccessful();
@@ -148,6 +155,9 @@ class _OrdersPageState extends State<OrdersPage> {
       ordersRepository: widget.ordersRepository,
       orderHistoryRepository: _historyRepository,
     );
+    _supportRequestRepository = Firebase.apps.isNotEmpty
+        ? FirestoreSupportRequestRepository()
+        : FakeSupportRequestRepository();
 
     _viewModel.startRealtime();
   }
@@ -191,6 +201,7 @@ class _OrdersPageState extends State<OrdersPage> {
     setState(() {
       _showHistory = true;
       _detailOrder = null;
+      _detailOpenedFromSupportInbox = false;
       _historyInitialSearchQuery = initialSearchQuery;
       _historyInitialFilters = initialFilters;
       _openHistoryFiltersOnStart = openFiltersOnStart;
@@ -202,6 +213,7 @@ class _OrdersPageState extends State<OrdersPage> {
     setState(() {
       _showHistory = false;
       _detailOrder = null;
+      _detailOpenedFromSupportInbox = false;
       _activeTabIndex = 0;
     });
 
@@ -223,20 +235,66 @@ class _OrdersPageState extends State<OrdersPage> {
       _historyInitialFilters = filters;
       _openHistoryFiltersOnStart = false;
       _detailOrder = order;
+      _detailOpenedFromSupportInbox = false;
       _showHistory = false;
     });
   }
 
   void _closeOrderDetail() {
+    final bool returnToOrders = _detailOpenedFromSupportInbox;
     setState(() {
       _detailOrder = null;
-      _showHistory = true;
-      _historyVersion++;
+      _detailOpenedFromSupportInbox = false;
+      _showHistory = !returnToOrders;
+      if (!returnToOrders) {
+        _historyVersion++;
+      }
     });
   }
 
   void _openCustomerHistory(String whatsappPhone) {
     _openHistory(initialSearchQuery: whatsappPhone);
+  }
+
+  Future<void> _openSupportRequestOrder(SupportRequest request) async {
+    final OrderHistoryRepository? repository = _historyRepository;
+    if (repository == null) {
+      _showHistoryUnavailable();
+      return;
+    }
+
+    try {
+      final QueueOrder order = await repository.fetchOrderById(
+        orderId: request.orderId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _detailOrder = order;
+        _detailOpenedFromSupportInbox = true;
+        _showHistory = false;
+        _historyInitialSearchQuery = '';
+        _historyInitialFilters = const OrderHistoryFilters();
+        _openHistoryFiltersOnStart = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'Impossible d’ouvrir la commande ${request.orderReference}.',
+            ),
+          ),
+        );
+    }
   }
 
   void _handleOrdersTabChanged(int index) {
@@ -387,6 +445,7 @@ class _OrdersPageState extends State<OrdersPage> {
         ordersRepository: historyRepository,
         onBack: _closeOrderDetail,
         onOpenCustomerHistory: _openCustomerHistory,
+        supportRequestRepository: _supportRequestRepository,
       );
     }
 
@@ -482,6 +541,10 @@ class _OrdersPageState extends State<OrdersPage> {
                         onTabChanged: _handleOrdersTabChanged,
                       ),
                       const SizedBox(height: 16),
+                      _SupportRequestInboxPanel(
+                        repository: _supportRequestRepository,
+                        onOpenRequest: _openSupportRequestOrder,
+                      ),
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Row(
@@ -599,6 +662,171 @@ class _OrdersPageState extends State<OrdersPage> {
           ),
         );
       },
+    );
+  }
+}
+
+class _SupportRequestInboxPanel extends StatefulWidget {
+  const _SupportRequestInboxPanel({
+    required this.repository,
+    required this.onOpenRequest,
+  });
+
+  final SupportRequestRepository repository;
+  final ValueChanged<SupportRequest> onOpenRequest;
+
+  @override
+  State<_SupportRequestInboxPanel> createState() =>
+      _SupportRequestInboxPanelState();
+}
+
+class _SupportRequestInboxPanelState extends State<_SupportRequestInboxPanel> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<SupportRequest>>(
+      stream: widget.repository.watchNewRequests(),
+      builder:
+          (BuildContext context, AsyncSnapshot<List<SupportRequest>> snapshot) {
+            if (snapshot.hasError) {
+              return const SizedBox.shrink();
+            }
+
+            final List<SupportRequest> requests =
+                snapshot.data ?? const <SupportRequest>[];
+            if (requests.isEmpty) {
+              return const SizedBox.shrink();
+            }
+
+            final bool canCollapse = requests.length > 3;
+            final List<SupportRequest> visible = _isExpanded || !canCollapse
+                ? requests
+                : requests.take(3).toList(growable: false);
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.warning.withAlpha(90)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.report_problem_outlined,
+                        color: AppColors.warning,
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          'Demandes client à vérifier',
+                          style: TextStyle(
+                            color: AppColors.onSurface,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withAlpha(28),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '${requests.length}',
+                          style: const TextStyle(
+                            color: AppColors.warning,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ...visible.map(
+                    (SupportRequest request) => Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Material(
+                        color: AppColors.surfaceContainer,
+                        borderRadius: BorderRadius.circular(10),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: () => widget.onOpenRequest(request),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        request.orderReference,
+                                        style: const TextStyle(
+                                          color: AppColors.onSurface,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        request.type.label,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: AppColors.onSurfaceVariant,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: AppColors.primaryContainer,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (canCollapse) ...[
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: () {
+                        setState(() => _isExpanded = !_isExpanded);
+                      },
+                      icon: Icon(
+                        _isExpanded
+                            ? Icons.expand_less_rounded
+                            : Icons.expand_more_rounded,
+                      ),
+                      label: Text(
+                        _isExpanded
+                            ? 'Réduire'
+                            : 'Afficher les ${requests.length} demandes',
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
     );
   }
 }

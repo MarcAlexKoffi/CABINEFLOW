@@ -4,6 +4,11 @@ import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
+import 'package:cabine_flow/features/support/data/repositories/fake_support_request_repository.dart';
+import 'package:cabine_flow/features/support/data/repositories/firestore_support_request_repository.dart';
+import 'package:cabine_flow/features/support/domain/models/support_request.dart';
+import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -16,6 +21,7 @@ class OrderDetailPage extends StatefulWidget {
     required this.ordersRepository,
     required this.onBack,
     required this.onOpenCustomerHistory,
+    this.supportRequestRepository,
   });
 
   final AppUser user;
@@ -23,6 +29,7 @@ class OrderDetailPage extends StatefulWidget {
   final OrderHistoryRepository ordersRepository;
   final VoidCallback onBack;
   final ValueChanged<String> onOpenCustomerHistory;
+  final SupportRequestRepository? supportRequestRepository;
 
   @override
   State<OrderDetailPage> createState() => _OrderDetailPageState();
@@ -32,11 +39,17 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   late QueueOrder _order;
   bool _isRefreshing = false;
   String? _errorMessage;
+  late final SupportRequestRepository _supportRequestRepository;
 
   @override
   void initState() {
     super.initState();
     _order = widget.initialOrder;
+    _supportRequestRepository =
+        widget.supportRequestRepository ??
+        (Firebase.apps.isNotEmpty
+            ? FirestoreSupportRequestRepository()
+            : FakeSupportRequestRepository());
     _refreshOrder(showLoader: false);
   }
 
@@ -406,6 +419,15 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                   ),
                   const SizedBox(height: 16),
                   _DetailSection(
+                    icon: Icons.report_problem_outlined,
+                    title: 'Demandes de vérification',
+                    child: _OrderSupportRequests(
+                      orderId: _order.id,
+                      repository: _supportRequestRepository,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _DetailSection(
                     icon: Icons.account_balance_wallet_outlined,
                     title: 'Paiement',
                     trailing: _SmallStatusBadge(
@@ -584,6 +606,165 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _OrderSupportRequests extends StatelessWidget {
+  const _OrderSupportRequests({
+    required this.orderId,
+    required this.repository,
+  });
+
+  final String orderId;
+  final SupportRequestRepository repository;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<SupportRequest>>(
+      stream: repository.watchForOrder(orderId: orderId),
+      builder:
+          (BuildContext context, AsyncSnapshot<List<SupportRequest>> snapshot) {
+            if (snapshot.hasError) {
+              return const _SupportRequestInfo(
+                icon: Icons.error_outline_rounded,
+                message: 'Impossible de charger les demandes client.',
+                color: AppColors.error,
+              );
+            }
+
+            if (!snapshot.hasData) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            final List<SupportRequest> requests = snapshot.data!;
+            if (requests.isEmpty) {
+              return const _SupportRequestInfo(
+                icon: Icons.check_circle_outline_rounded,
+                message: 'Aucune demande de vérification pour cette commande.',
+                color: AppColors.success,
+              );
+            }
+
+            return Column(
+              children: [
+                for (int index = 0; index < requests.length; index++) ...[
+                  _SupportRequestTile(request: requests[index]),
+                  if (index != requests.length - 1)
+                    Divider(
+                      height: 18,
+                      color: AppColors.outlineVariant.withAlpha(70),
+                    ),
+                ],
+              ],
+            );
+          },
+    );
+  }
+}
+
+class _SupportRequestTile extends StatelessWidget {
+  const _SupportRequestTile({required this.request});
+
+  final SupportRequest request;
+
+  Color get _statusColor {
+    switch (request.status) {
+      case SupportRequestStatus.newRequest:
+        return AppColors.warning;
+      case SupportRequestStatus.inProgress:
+        return AppColors.primaryContainer;
+      case SupportRequestStatus.resolved:
+        return AppColors.success;
+      case SupportRequestStatus.closed:
+        return AppColors.onSurfaceVariant;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                request.type.label,
+                style: const TextStyle(
+                  color: AppColors.onBackground,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _SmallStatusBadge(label: request.status.label, color: _statusColor),
+          ],
+        ),
+        const SizedBox(height: 5),
+        Text(
+          formatOrderDateTime(request.createdAt),
+          style: const TextStyle(
+            color: AppColors.onSurfaceVariant,
+            fontSize: 10,
+          ),
+        ),
+        if (request.description.trim().isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              request.description,
+              style: const TextStyle(
+                color: AppColors.onBackground,
+                fontSize: 11,
+                height: 1.45,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _SupportRequestInfo extends StatelessWidget {
+  const _SupportRequestInfo({
+    required this.icon,
+    required this.message,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String message;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            message,
+            style: const TextStyle(
+              color: AppColors.onSurfaceVariant,
+              fontSize: 11,
+              height: 1.4,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

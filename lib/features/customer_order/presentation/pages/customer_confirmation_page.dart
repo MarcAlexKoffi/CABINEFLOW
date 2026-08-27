@@ -4,6 +4,9 @@ import 'package:cabine_flow/features/customer_order/domain/models/customer_order
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_order_labels.dart';
+import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_support_button.dart';
+import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
+import 'package:cabine_flow/features/support/presentation/widgets/customer_support_request_button.dart';
 import 'package:flutter/material.dart';
 
 class CustomerConfirmationPage extends StatelessWidget {
@@ -11,10 +14,12 @@ class CustomerConfirmationPage extends StatelessWidget {
     super.key,
     required this.viewModel,
     required this.onOpenHistory,
+    required this.supportRequestRepository,
   });
 
   final CustomerOrderViewModel viewModel;
   final VoidCallback onOpenHistory;
+  final SupportRequestRepository supportRequestRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +58,11 @@ class CustomerConfirmationPage extends StatelessWidget {
                           _TrackingCard(
                             receipt: receipt,
                             errorMessage: viewModel.trackingErrorMessage,
+                          ),
+                          const SizedBox(height: 24),
+                          _SupportCard(
+                            receipt: receipt,
+                            supportRequestRepository: supportRequestRepository,
                           ),
                         ],
                       ),
@@ -361,6 +371,68 @@ class _TransactionDetailsCard extends StatelessWidget {
             value: '${formatCfa(draft.amount!)} CFA',
             isAmount: true,
             isLast: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SupportCard extends StatelessWidget {
+  const _SupportCard({
+    required this.receipt,
+    required this.supportRequestRepository,
+  });
+
+  final CustomerOrderReceipt receipt;
+  final SupportRequestRepository supportRequestRepository;
+
+  @override
+  Widget build(BuildContext context) {
+    return _WhiteCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.support_agent_rounded,
+                color: CustomerAppColors.primary,
+                size: 24,
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Besoin d’aide ?',
+                  style: TextStyle(
+                    color: CustomerAppColors.onSurface,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Contactez le service client IzyTel. La référence de cette commande sera ajoutée automatiquement au message WhatsApp.',
+            style: TextStyle(
+              color: CustomerAppColors.onSurfaceVariant,
+              fontSize: 13,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 16),
+          CustomerSupportButton(
+            orderReference: receipt.reference,
+            style: CustomerSupportButtonStyle.outlined,
+            fullWidth: true,
+          ),
+          const SizedBox(height: 10),
+          CustomerSupportRequestButton(
+            orderId: receipt.id,
+            orderReference: receipt.reference,
+            repository: supportRequestRepository,
           ),
         ],
       ),

@@ -3,6 +3,7 @@ import 'package:cabine_flow/features/customer_order/domain/models/customer_order
 import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_bottom_actions.dart';
+import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_support_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -116,6 +117,8 @@ class _CustomerOrderRecoveryPageState extends State<CustomerOrderRecoveryPage> {
                             onChanged: _clearServerError,
                             validateWhatsapp: _validateWhatsapp,
                           ),
+                          const SizedBox(height: 22),
+                          const _RecoverySupportHelp(),
                         ],
                       ),
                     ),
@@ -137,6 +140,29 @@ class _CustomerOrderRecoveryPageState extends State<CustomerOrderRecoveryPage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _RecoverySupportHelp extends StatelessWidget {
+  const _RecoverySupportHelp();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: const [
+        Text(
+          'Vous n’arrivez pas à retrouver votre commande ?',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: CustomerAppColors.onSurfaceVariant,
+            fontSize: 12,
+            height: 1.4,
+          ),
+        ),
+        SizedBox(height: 2),
+        CustomerSupportButton(),
+      ],
     );
   }
 }

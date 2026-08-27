@@ -5,6 +5,7 @@ import 'package:cabine_flow/features/customer_order/domain/models/customer_order
 import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_flow_scaffold.dart';
+import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_support_button.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -373,6 +374,10 @@ class _IdentificationFooter extends StatelessWidget {
           onPressed: onOpenRecovery,
           icon: const Icon(Icons.manage_search_rounded),
           label: const Text('Retrouver une commande'),
+        ),
+        const SizedBox(height: 2),
+        const CustomerSupportButton(
+          label: 'Besoin d’aide ? Contacter le service client',
         ),
         const SizedBox(height: 10),
         const _NoAccountMessage(),

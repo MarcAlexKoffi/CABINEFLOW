@@ -22,6 +22,9 @@ import 'package:cabine_flow/features/customer_order/presentation/pages/customer_
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_service_page.dart';
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_summary_page.dart';
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
+import 'package:cabine_flow/features/support/data/repositories/fake_support_request_repository.dart';
+import 'package:cabine_flow/features/support/data/repositories/firestore_support_request_repository.dart';
+import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
@@ -43,6 +46,7 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
 
   late final CustomerOfferRepository _offerRepository;
   late final CustomerProfileRepository _profileRepository;
+  late final SupportRequestRepository _supportRequestRepository;
 
   final CustomerOrderRepository _orderRepository =
       FirestoreCustomerOrderRepository();
@@ -61,6 +65,9 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
     _profileRepository = Firebase.apps.isNotEmpty
         ? FirestoreCustomerProfileRepository()
         : FakeCustomerProfileRepository();
+    _supportRequestRepository = Firebase.apps.isNotEmpty
+        ? FirestoreSupportRequestRepository()
+        : FakeSupportRequestRepository();
     _viewModel = CustomerOrderViewModel(
       orderRepository: _orderRepository,
       sessionStore: _sessionStore,
@@ -187,6 +194,7 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
           key: const ValueKey<int>(8),
           viewModel: _viewModel,
           onOpenHistory: _openHistory,
+          supportRequestRepository: _supportRequestRepository,
         );
 
       default:

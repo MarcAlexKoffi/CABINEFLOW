@@ -2468,6 +2468,92 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // PHASE 10D - demande de verification client.
+    // Une demande ne modifie jamais orders et ne cree aucun orderEvent.
+    // Le proprietaire original OU un UID ayant recupere cette commande via
+    // la Phase 10B peut creer une demande, uniquement pour cette commande.
+    function customerCanRequestSupportForOrder(orderId) {
+      return isSignedIn()
+        && exists(
+          /databases/$(database)/documents/orders/$(orderId)
+        )
+        && (
+          get(
+            /databases/$(database)/documents/orders/$(orderId)
+          ).data.get('customerAuthUid', null) == request.auth.uid
+          || exists(
+            /databases/$(database)/documents/orderRecoveryAccess/$(orderId)/customers/$(request.auth.uid)
+          )
+        );
+    }
+
+    function isValidCustomerSupportRequestCreation(requestId) {
+      let orderId = request.resource.data.orderId;
+      let order = get(
+        /databases/$(database)/documents/orders/$(orderId)
+      ).data;
+      let type = request.resource.data.type;
+      let description = request.resource.data.description;
+
+      return customerCanRequestSupportForOrder(orderId)
+        && request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'orderId',
+          'orderReference',
+          'customerAuthUid',
+          'type',
+          'description',
+          'status',
+          'createdAt',
+          'updatedAt',
+          'assignedTo',
+          'resolvedAt'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && orderId is string
+        && orderId.size() >= 8
+        && request.resource.data.orderReference is string
+        && request.resource.data.orderReference.size() >= 12
+        && request.resource.data.orderReference.size() <= 40
+        && order.reference == request.resource.data.orderReference
+        && request.resource.data.customerAuthUid == request.auth.uid
+        && type in [
+          'paymentNotRecognized',
+          'completedButNotReceived',
+          'wrongAmount',
+          'wrongNumber',
+          'transactionFailed',
+          'other'
+        ]
+        && description is string
+        && description.size() <= 1000
+        && (
+          type != 'other'
+          || description.size() >= 3
+        )
+        && request.resource.data.status == 'new'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.assignedTo == null
+        && request.resource.data.resolvedAt == null;
+    }
+
+    match /supportRequests/{requestId} {
+      allow get: if isStaff()
+        || (
+          isSignedIn()
+          && resource.data.customerAuthUid == request.auth.uid
+        );
+      // Le client n'a pas besoin de parcourir la collection en Phase 10D.
+      // Les requetes de liste sont reservees au Staff pour la supervision.
+      allow list: if isStaff();
+      allow create: if isValidCustomerSupportRequestCreation(requestId);
+      // Le traitement du dossier (assignation, resolution, fermeture) sera
+      // introduit dans la Phase 11. Le client ne peut jamais modifier sa
+      // demande apres creation et aucun role ne peut la supprimer.
+      allow update, delete: if false;
+    }
+
     match /orders/{orderId} {
       allow create: if isValidCustomerOrderCreation(orderId)
         || isValidStaffOrderCreation(orderId);
