@@ -11,4 +11,23 @@ abstract class SupportRequestRepository {
   Stream<List<SupportRequest>> watchForOrder({required String orderId});
 
   Stream<List<SupportRequest>> watchNewRequests();
+
+  Stream<List<SupportRequest>> watchAllRequests();
+
+  Future<void> takeInCharge({
+    required String requestId,
+    required String staffId,
+    required String staffName,
+  });
+
+  Future<void> resolve({
+    required String requestId,
+    required String staffId,
+    required String staffName,
+    required String resolutionNote,
+  });
+
+  Future<void> markCustomerNotified({required String requestId});
+
+  Future<void> close({required String requestId});
 }

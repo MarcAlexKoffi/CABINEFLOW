@@ -2,6 +2,8 @@ import 'package:cabine_flow/core/theme/customer_app_colors.dart';
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_flow_scaffold.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_cards.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_operator_brand.dart';
 import 'package:flutter/material.dart';
 
 class CustomerNetworkPage extends StatelessWidget {
@@ -16,27 +18,54 @@ class CustomerNetworkPage extends StatelessWidget {
     return CustomerFlowScaffold(
       currentStep: 3,
       totalSteps: CustomerOrderViewModel.totalSteps,
-      title: 'Choisissez le réseau',
-      subtitle: null,
+      title: 'Quel est votre réseau ?',
+      subtitle: 'Sélectionnez l’opérateur du numéro bénéficiaire.',
+      titleTextAlign: TextAlign.center,
       onTopBack: viewModel.goBack,
       onBottomBack: viewModel.goBack,
       onContinue: viewModel.continueFromNetwork,
       isContinueEnabled: viewModel.canContinueFromNetwork,
       content: Column(
-        children: MobileNetwork.values.map((MobileNetwork network) {
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: network == MobileNetwork.values.last ? 0 : 16,
+        children: [
+          for (int index = 0; index < MobileNetwork.values.length; index++) ...[
+            if (index > 0) const SizedBox(height: 12),
+            _NetworkOptionCard(
+              network: MobileNetwork.values[index],
+              isSelected: selectedNetwork == MobileNetwork.values[index],
+              onTap: () => viewModel.selectNetwork(MobileNetwork.values[index]),
             ),
-            child: _NetworkOptionCard(
-              network: network,
-              isSelected: selectedNetwork == network,
-              onTap: () {
-                viewModel.selectNetwork(network);
-              },
+          ],
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(
+              color: CustomerAppColors.primarySoft,
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(color: CustomerAppColors.primaryContainer),
             ),
-          );
-        }).toList(),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 19,
+                  color: CustomerAppColors.primary,
+                ),
+                SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    'IzyTel vérifiera ensuite la cohérence entre le réseau choisi et le numéro bénéficiaire afin de limiter les erreurs.',
+                    style: TextStyle(
+                      color: CustomerAppColors.onSurfaceVariant,
+                      fontSize: 12,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -53,128 +82,84 @@ class _NetworkOptionCard extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
 
-  String get label {
-    switch (network) {
-      case MobileNetwork.orange:
-        return 'Orange';
-      case MobileNetwork.mtn:
-        return 'MTN';
-      case MobileNetwork.moov:
-        return 'Moov Africa';
-    }
-  }
-
-  Color get accentColor {
-    switch (network) {
-      case MobileNetwork.orange:
-        return const Color(0xFFFF7900);
-      case MobileNetwork.mtn:
-        return const Color(0xFFFFCC00);
-      case MobileNetwork.moov:
-        return const Color(0xFF0066CC);
-    }
-  }
-
-  Color get selectedIconColor {
-    if (network == MobileNetwork.mtn) {
-      return Colors.black;
-    }
-
-    return Colors.white;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
       selected: isSelected,
-      label: 'Réseau $label',
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        decoration: BoxDecoration(
-          color: isSelected
-              ? accentColor.withValues(alpha: 0.08)
-              : CustomerAppColors.surfaceContainerLowest,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? accentColor : Colors.transparent,
-            width: 2,
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0D000000),
-              blurRadius: 20,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-          child: InkWell(
+      label: 'Réseau ${network.brandLabel}',
+      child: Stack(
+        children: [
+          IzyTelCard(
+            isSelected: isSelected,
             onTap: onTap,
-            borderRadius: BorderRadius.circular(14),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? accentColor
-                          : CustomerAppColors.surfaceContainerLow,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.signal_cellular_alt_rounded,
-                      size: 24,
-                      color: isSelected
-                          ? selectedIconColor
-                          : CustomerAppColors.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(width: 18),
-                  Expanded(
-                    child: Text(
-                      label,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: CustomerAppColors.onSurface,
-                        fontWeight: FontWeight.w600,
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                IzyTelOperatorLogo(network: network, size: 52),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        network.brandLabel,
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isSelected ? accentColor : Colors.transparent,
-                      border: Border.all(
-                        color: isSelected
-                            ? accentColor
-                            : CustomerAppColors.outlineVariant,
-                        width: 1.5,
+                      const SizedBox(height: 3),
+                      Text(
+                        network.brandDescription,
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
-                    ),
-                    child: isSelected
-                        ? Icon(
-                            Icons.check_rounded,
-                            size: 16,
-                            color: selectedIconColor,
-                          )
-                        : null,
+                    ],
                   ),
-                ],
+                ),
+                const SizedBox(width: 10),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isSelected
+                        ? CustomerAppColors.primary
+                        : Colors.white,
+                    border: Border.all(
+                      color: isSelected
+                          ? CustomerAppColors.primary
+                          : CustomerAppColors.outlineVariant,
+                      width: 1.4,
+                    ),
+                  ),
+                  child: isSelected
+                      ? const Icon(
+                          Icons.check_rounded,
+                          size: 16,
+                          color: Colors.white,
+                        )
+                      : null,
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            child: IgnorePointer(
+              child: Container(
+                height: 3,
+                margin: const EdgeInsets.symmetric(horizontal: 1),
+                decoration: BoxDecoration(
+                  color: network.brandColor,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

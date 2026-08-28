@@ -56,6 +56,14 @@ class CustomerOrderViewModel extends ChangeNotifier {
   String? _customerProfileErrorMessage;
   bool _isRecoveringOrder = false;
   String? _recoveryErrorMessage;
+  bool _disposed = false;
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
 
   CustomerOrderDraft get draft => _draft;
   CustomerOrderReceipt? get receipt => _receipt;
@@ -549,11 +557,18 @@ class CustomerOrderViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void useSavedBeneficiaryForMe() {
+  void useSavedBeneficiaryForMe({bool isPortabilityConfirmed = false}) {
     final BeneficiaryPhoneNumber? beneficiary = defaultBeneficiaryNumber;
 
     if (beneficiary == null) {
       return;
+    }
+
+    if (!isPortabilityConfirmed &&
+        _draft.network != null &&
+        beneficiary.expectedNetwork != null &&
+        beneficiary.expectedNetwork != _draft.network) {
+      throw const FormatException('PORTABILITY_REQUIRED');
     }
 
     _beneficiaryTarget = CustomerBeneficiaryTarget.self;
@@ -565,6 +580,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
   void saveBeneficiaryForMe({
     required String phoneInput,
     required String confirmationInput,
+    bool isPortabilityConfirmed = false,
   }) {
     final BeneficiaryPhoneNumber beneficiary = _parseConfirmedBeneficiary(
       phoneInput: phoneInput,
@@ -576,6 +592,12 @@ class CustomerOrderViewModel extends ChangeNotifier {
       throw StateError(
         'Identifiez-vous avant de choisir votre numéro habituel.',
       );
+    }
+
+    if (!isPortabilityConfirmed &&
+        _draft.network != null &&
+        beneficiary.expectedNetwork != _draft.network) {
+      throw const FormatException('PORTABILITY_REQUIRED');
     }
 
     _beneficiaryTarget = CustomerBeneficiaryTarget.self;
@@ -596,11 +618,18 @@ class CustomerOrderViewModel extends ChangeNotifier {
   void saveBeneficiary({
     required String phoneInput,
     required String confirmationInput,
+    bool isPortabilityConfirmed = false,
   }) {
     final BeneficiaryPhoneNumber beneficiary = _parseConfirmedBeneficiary(
       phoneInput: phoneInput,
       confirmationInput: confirmationInput,
     );
+
+    if (!isPortabilityConfirmed &&
+        _draft.network != null &&
+        beneficiary.expectedNetwork != _draft.network) {
+      throw const FormatException('PORTABILITY_REQUIRED');
+    }
 
     _beneficiaryTarget = CustomerBeneficiaryTarget.other;
     _draft = _draft.copyWith(beneficiaryNumber: beneficiary);
@@ -920,6 +949,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _expirationTimer?.cancel();
     unawaited(_trackingSubscription?.cancel());
     unawaited(_historySubscription?.cancel());

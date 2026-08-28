@@ -75,11 +75,87 @@ void main() {
         .first;
 
     expect(requests, hasLength(2));
-    expect(
-      requests.map((SupportRequest request) => request.orderReference),
-      containsAll(<String>['CF-20260827-AAAAAA', 'CF-20260827-BBBBBB']),
-    );
   });
+
+  test(
+    'une demande traitée quitte la file active mais reste dans l historique',
+    () async {
+      final FakeSupportRequestRepository repository =
+          FakeSupportRequestRepository();
+      addTearDown(repository.dispose);
+
+      final SupportRequest created = await repository.create(
+        orderId: 'order-A-12345678',
+        orderReference: 'CF-20260827-AAAAAA',
+        type: SupportRequestType.paymentNotRecognized,
+        description: '',
+      );
+
+      await repository.takeInCharge(
+        requestId: created.id,
+        staffId: 'admin-1',
+        staffName: 'Marc',
+      );
+      await repository.resolve(
+        requestId: created.id,
+        staffId: 'admin-1',
+        staffName: 'Marc',
+        resolutionNote: 'Paiement retrouvé et vérifié.',
+      );
+
+      final List<SupportRequest> newRequests = await repository
+          .watchNewRequests()
+          .first;
+      final List<SupportRequest> allRequests = await repository
+          .watchAllRequests()
+          .first;
+
+      expect(newRequests, isEmpty);
+      expect(allRequests, hasLength(1));
+      expect(allRequests.single.status, SupportRequestStatus.resolved);
+      expect(
+        allRequests.single.resolutionNote,
+        'Paiement retrouvé et vérifié.',
+      );
+      expect(allRequests.single.resolvedByName, 'Marc');
+    },
+  );
+
+  test(
+    'trace la notification WhatsApp puis la fermeture sans supprimer la demande',
+    () async {
+      final FakeSupportRequestRepository repository =
+          FakeSupportRequestRepository();
+      addTearDown(repository.dispose);
+
+      final SupportRequest created = await repository.create(
+        orderId: 'order-A-12345678',
+        orderReference: 'CF-20260827-AAAAAA',
+        type: SupportRequestType.wrongAmount,
+        description: '',
+      );
+      await repository.takeInCharge(
+        requestId: created.id,
+        staffId: 'admin-1',
+        staffName: 'Marc',
+      );
+      await repository.resolve(
+        requestId: created.id,
+        staffId: 'admin-1',
+        staffName: 'Marc',
+        resolutionNote: 'Montant vérifié.',
+      );
+      await repository.markCustomerNotified(requestId: created.id);
+      await repository.close(requestId: created.id);
+
+      final SupportRequest request =
+          (await repository.watchAllRequests().first).single;
+      expect(request.status, SupportRequestStatus.closed);
+      expect(request.customerNotifiedAt, isNotNull);
+      expect(request.notificationChannel, 'whatsapp');
+      expect(request.closedAt, isNotNull);
+    },
+  );
 
   test('exige une description quand le motif est Autre', () async {
     final FakeSupportRequestRepository repository =

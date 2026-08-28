@@ -52,20 +52,16 @@ class FakeSupportRequestRepository implements SupportRequestRepository {
 
   @override
   Stream<List<SupportRequest>> watchNewRequests() async* {
-    List<SupportRequest> current() =>
-        _requests
-            .where(
-              (SupportRequest request) =>
-                  request.status == SupportRequestStatus.newRequest,
-            )
-            .toList(growable: false)
-          ..sort(
-            (SupportRequest a, SupportRequest b) =>
-                b.createdAt.compareTo(a.createdAt),
-          );
+    yield _filter(<SupportRequestStatus>{SupportRequestStatus.newRequest});
+    yield* _controller.stream.map(
+      (_) => _filter(<SupportRequestStatus>{SupportRequestStatus.newRequest}),
+    );
+  }
 
-    yield current();
-    yield* _controller.stream.map((_) => current());
+  @override
+  Stream<List<SupportRequest>> watchAllRequests() async* {
+    yield _sorted(_requests);
+    yield* _controller.stream.map((_) => _sorted(_requests));
   }
 
   @override
@@ -74,16 +70,107 @@ class FakeSupportRequestRepository implements SupportRequestRepository {
     yield* _controller.stream.map((_) => _forOrder(orderId));
   }
 
+  @override
+  Future<void> takeInCharge({
+    required String requestId,
+    required String staffId,
+    required String staffName,
+  }) async {
+    _replace(
+      requestId,
+      (SupportRequest value) => value.copyWith(
+        status: SupportRequestStatus.inProgress,
+        updatedAt: DateTime.now(),
+        assignedTo: staffId,
+        assignedToName: staffName,
+        inProgressAt: DateTime.now(),
+      ),
+    );
+  }
+
+  @override
+  Future<void> resolve({
+    required String requestId,
+    required String staffId,
+    required String staffName,
+    required String resolutionNote,
+  }) async {
+    final String note = resolutionNote.trim();
+    if (note.length < 3) {
+      throw ArgumentError('Ajoutez une note de résolution.');
+    }
+    _replace(
+      requestId,
+      (SupportRequest value) => value.copyWith(
+        status: SupportRequestStatus.resolved,
+        updatedAt: DateTime.now(),
+        resolutionNote: note,
+        resolvedAt: DateTime.now(),
+        resolvedBy: staffId,
+        resolvedByName: staffName,
+      ),
+    );
+  }
+
+  @override
+  Future<void> markCustomerNotified({required String requestId}) async {
+    _replace(
+      requestId,
+      (SupportRequest value) => value.copyWith(
+        updatedAt: DateTime.now(),
+        customerNotifiedAt: DateTime.now(),
+        notificationChannel: 'whatsapp',
+      ),
+    );
+  }
+
+  @override
+  Future<void> close({required String requestId}) async {
+    _replace(
+      requestId,
+      (SupportRequest value) => value.copyWith(
+        status: SupportRequestStatus.closed,
+        updatedAt: DateTime.now(),
+        closedAt: DateTime.now(),
+      ),
+    );
+  }
+
+  List<SupportRequest> _filter(Set<SupportRequestStatus> statuses) {
+    return _sorted(
+      _requests.where(
+        (SupportRequest request) => statuses.contains(request.status),
+      ),
+    );
+  }
+
   List<SupportRequest> _forOrder(String orderId) {
-    final List<SupportRequest> values =
-        _requests
-            .where((SupportRequest request) => request.orderId == orderId)
-            .toList(growable: false)
-          ..sort(
-            (SupportRequest a, SupportRequest b) =>
-                b.createdAt.compareTo(a.createdAt),
-          );
+    return _sorted(
+      _requests.where((SupportRequest request) => request.orderId == orderId),
+    );
+  }
+
+  List<SupportRequest> _sorted(Iterable<SupportRequest> source) {
+    final List<SupportRequest> values = source.toList(growable: false);
+    values.sort(
+      (SupportRequest a, SupportRequest b) =>
+          b.createdAt.compareTo(a.createdAt),
+    );
     return values;
+  }
+
+  void _replace(
+    String requestId,
+    SupportRequest Function(SupportRequest value) update,
+  ) {
+    final int index = _requests.indexWhere(
+      (SupportRequest request) => request.id == requestId,
+    );
+    if (index < 0) {
+      throw StateError('Demande introuvable.');
+    }
+    _requests[index] = update(_requests[index]);
+    _emit();
   }
 
   void _emit() {

@@ -171,50 +171,90 @@ class _DashboardPageState extends State<DashboardPage> {
                           ),
                           const SizedBox(height: 16),
 
-                          IntrinsicHeight(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Expanded(
-                                  child: OperatorBalanceCard(
-                                    operatorName: 'Orange',
-                                    balance: _getBalanceForOperator(
-                                      dashboardData,
-                                      ServiceChannel.orange,
+                          LayoutBuilder(
+                            builder:
+                                (
+                                  BuildContext context,
+                                  BoxConstraints constraints,
+                                ) {
+                                  final List<Widget> cards = <Widget>[
+                                    OperatorBalanceCard(
+                                      operatorName: 'Orange',
+                                      balance: _getBalanceForOperator(
+                                        dashboardData,
+                                        ServiceChannel.orange,
+                                      ),
+                                      logoAsset:
+                                          'assets/images/orange_logo.png',
+                                      accentColor: const Color(0xFFFF7900),
+                                      signalBars: 3,
                                     ),
-                                    logoAsset: 'assets/images/orange_logo.png',
-                                    accentColor: const Color(0xFFFF7900),
-                                    signalBars: 3,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: OperatorBalanceCard(
-                                    operatorName: 'MTN',
-                                    balance: _getBalanceForOperator(
-                                      dashboardData,
-                                      ServiceChannel.mtn,
+                                    OperatorBalanceCard(
+                                      operatorName: 'MTN',
+                                      balance: _getBalanceForOperator(
+                                        dashboardData,
+                                        ServiceChannel.mtn,
+                                      ),
+                                      logoAsset: 'assets/images/mtn_logo.png',
+                                      accentColor: const Color(0xFFFFCC00),
+                                      signalBars: 4,
                                     ),
-                                    logoAsset: 'assets/images/mtn_logo.png',
-                                    accentColor: const Color(0xFFFFCC00),
-                                    signalBars: 4,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: OperatorBalanceCard(
-                                    operatorName: 'Moov Africa',
-                                    balance: _getBalanceForOperator(
-                                      dashboardData,
-                                      ServiceChannel.moov,
+                                    OperatorBalanceCard(
+                                      operatorName: 'Moov Africa',
+                                      balance: _getBalanceForOperator(
+                                        dashboardData,
+                                        ServiceChannel.moov,
+                                      ),
+                                      logoAsset: 'assets/images/moov_logo.png',
+                                      accentColor: const Color(0xFF0055A5),
+                                      signalBars: 2,
                                     ),
-                                    logoAsset: 'assets/images/moov_logo.png',
-                                    accentColor: const Color(0xFF0055A5),
-                                    signalBars: 2,
-                                  ),
-                                ),
-                              ],
-                            ),
+                                  ];
+
+                                  if (constraints.maxWidth < 380) {
+                                    return SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: IntrinsicHeight(
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            for (
+                                              int index = 0;
+                                              index < cards.length;
+                                              index++
+                                            ) ...[
+                                              SizedBox(
+                                                width: 146,
+                                                child: cards[index],
+                                              ),
+                                              if (index != cards.length - 1)
+                                                const SizedBox(width: 8),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  return IntrinsicHeight(
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        for (
+                                          int index = 0;
+                                          index < cards.length;
+                                          index++
+                                        ) ...[
+                                          Expanded(child: cards[index]),
+                                          if (index != cards.length - 1)
+                                            const SizedBox(width: 8),
+                                        ],
+                                      ],
+                                    ),
+                                  );
+                                },
                           ),
                           if (dashboardData.balances.every(
                             (AccountBalance balance) => !balance.isAvailable,

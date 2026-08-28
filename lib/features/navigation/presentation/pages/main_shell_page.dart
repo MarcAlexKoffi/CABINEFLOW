@@ -246,6 +246,7 @@ class _MainShellPageState extends State<MainShellPage> {
         user: widget.user,
         adminOfferRepository: widget.adminOfferRepository,
         agentRepository: widget.agentRepository,
+        ordersRepository: widget.ordersRepository,
       ),
     ];
 

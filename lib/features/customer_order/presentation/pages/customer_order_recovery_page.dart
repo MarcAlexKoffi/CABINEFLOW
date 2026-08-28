@@ -4,6 +4,7 @@ import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_bottom_actions.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_support_button.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -45,7 +46,7 @@ class _CustomerOrderRecoveryPageState extends State<CustomerOrderRecoveryPage> {
   }
 
   String? _validateWhatsapp(String? input) {
-    return WhatsappPhoneNumber.validate('+225 ${input ?? ''}');
+    return WhatsappPhoneNumber.validate(input);
   }
 
   void _clearServerError() {
@@ -61,7 +62,7 @@ class _CustomerOrderRecoveryPageState extends State<CustomerOrderRecoveryPage> {
 
     final bool recovered = await widget.viewModel.recoverOrder(
       reference: _referenceController.text,
-      whatsappInput: '+225 ${_whatsappController.text}',
+      whatsappInput: _whatsappController.text,
     );
     if (!mounted || !recovered) {
       return;
@@ -72,73 +73,85 @@ class _CustomerOrderRecoveryPageState extends State<CustomerOrderRecoveryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: CustomerAppColors.background,
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 500),
-          child: DecoratedBox(
-            decoration: const BoxDecoration(
-              color: CustomerAppColors.surface,
-              border: Border.symmetric(
-                vertical: BorderSide(color: Color(0x33C2C6D8)),
-              ),
-            ),
-            child: SafeArea(
+    return IzyTelShell(
+      title: 'IzyTel',
+      onBack: widget.onBack,
+      maxContentWidth: 720,
+      child: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _RecoveryTopBar(onBack: widget.onBack),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            'Retrouver une\ncommande',
-                            style: Theme.of(context).textTheme.displaySmall,
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Saisissez les informations utilisées lors de votre commande pour retrouver son suivi.',
-                            style: TextStyle(
-                              color: CustomerAppColors.onSurfaceVariant,
-                              fontSize: 14,
-                              height: 1.45,
-                            ),
-                          ),
-                          const SizedBox(height: 28),
-                          _RecoveryFormCard(
-                            formKey: _formKey,
-                            referenceController: _referenceController,
-                            whatsappController: _whatsappController,
-                            recoveryErrorMessage:
-                                widget.viewModel.recoveryErrorMessage,
-                            onChanged: _clearServerError,
-                            validateWhatsapp: _validateWhatsapp,
-                          ),
-                          const SizedBox(height: 22),
-                          const _RecoverySupportHelp(),
-                        ],
-                      ),
+                  Text(
+                    'Retrouvez votre commande',
+                    style: Theme.of(context).textTheme.displaySmall,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Même sur un autre téléphone. Saisissez les informations utilisées lors de votre commande pour retrouver son suivi.',
+                    style: TextStyle(
+                      color: CustomerAppColors.onSurfaceVariant,
+                      fontSize: 14,
+                      height: 1.45,
                     ),
                   ),
-                  CustomerBottomActions(
-                    onBack: widget.viewModel.isRecoveringOrder
-                        ? null
-                        : widget.onBack,
-                    onContinue: () {
-                      _recover();
-                    },
-                    continueLabel: 'Retrouver ma commande',
-                    isContinueEnabled: !widget.viewModel.isRecoveringOrder,
-                    isLoading: widget.viewModel.isRecoveringOrder,
+                  const SizedBox(height: 28),
+                  _RecoveryFormCard(
+                    formKey: _formKey,
+                    referenceController: _referenceController,
+                    whatsappController: _whatsappController,
+                    recoveryErrorMessage: widget.viewModel.recoveryErrorMessage,
+                    onChanged: _clearServerError,
+                    validateWhatsapp: _validateWhatsapp,
                   ),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(13),
+                    decoration: BoxDecoration(
+                      color: CustomerAppColors.primarySoft,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.lock_outline_rounded,
+                          color: CustomerAppColors.primary,
+                          size: 18,
+                        ),
+                        SizedBox(width: 9),
+                        Expanded(
+                          child: Text(
+                            'Pour protéger vos informations, la référence et le numéro WhatsApp doivent correspondre.',
+                            style: TextStyle(
+                              color: CustomerAppColors.onSurfaceVariant,
+                              fontSize: 12,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  const _RecoverySupportHelp(),
                 ],
               ),
             ),
           ),
-        ),
+          CustomerBottomActions(
+            onBack: widget.viewModel.isRecoveringOrder ? null : widget.onBack,
+            onContinue: () {
+              _recover();
+            },
+            continueLabel: 'Retrouver ma commande',
+            isContinueEnabled: !widget.viewModel.isRecoveringOrder,
+            isLoading: widget.viewModel.isRecoveringOrder,
+          ),
+        ],
       ),
     );
   }
@@ -163,49 +176,6 @@ class _RecoverySupportHelp extends StatelessWidget {
         SizedBox(height: 2),
         CustomerSupportButton(),
       ],
-    );
-  }
-}
-
-class _RecoveryTopBar extends StatelessWidget {
-  const _RecoveryTopBar({required this.onBack});
-
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 64,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 48,
-              child: IconButton(
-                tooltip: 'Retour',
-                onPressed: onBack,
-                icon: const Icon(
-                  Icons.arrow_back_rounded,
-                  color: CustomerAppColors.primary,
-                ),
-              ),
-            ),
-            const Expanded(
-              child: Text(
-                'CabineFlow',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: CustomerAppColors.primary,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const SizedBox(width: 48),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -267,18 +237,17 @@ class _RecoveryFormCard extends StatelessWidget {
               },
             ),
             const SizedBox(height: 22),
-            const _FieldLabel(text: 'Numéro WhatsApp'),
+            const _FieldLabel(text: 'Numéro WhatsApp utilisé'),
             TextFormField(
               controller: whatsappController,
               keyboardType: TextInputType.phone,
               textInputAction: TextInputAction.done,
               inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9 ()-]')),
-                LengthLimitingTextInputFormatter(18),
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ()-]')),
+                LengthLimitingTextInputFormatter(24),
               ],
               decoration: const InputDecoration(
-                hintText: '07 12 34 56 78',
-                prefixText: '+225  ',
+                hintText: '+225 07 12 34 56 78',
                 prefixIcon: Icon(Icons.chat_outlined),
               ),
               validator: validateWhatsapp,

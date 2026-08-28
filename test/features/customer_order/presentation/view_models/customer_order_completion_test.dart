@@ -25,8 +25,8 @@ void main() {
       viewModel.setTransferAmount(2000);
       viewModel.continueFromOffer();
       viewModel.saveBeneficiary(
-        phoneInput: '05 12 34 56 78',
-        confirmationInput: '05 12 34 56 78',
+        phoneInput: '07 12 34 56 78',
+        confirmationInput: '07 12 34 56 78',
       );
 
       expect(viewModel.currentStep, 6);

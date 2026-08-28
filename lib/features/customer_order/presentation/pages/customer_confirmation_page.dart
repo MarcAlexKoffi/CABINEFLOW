@@ -7,18 +7,28 @@ import 'package:cabine_flow/features/customer_order/presentation/widgets/custome
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_support_button.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:cabine_flow/features/support/presentation/widgets/customer_support_request_button.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_cards.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_bottom_navigation.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_copy_button.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_operator_brand.dart';
 import 'package:flutter/material.dart';
 
 class CustomerConfirmationPage extends StatelessWidget {
   const CustomerConfirmationPage({
     super.key,
     required this.viewModel,
+    required this.onOpenHome,
+    required this.onOpenOffers,
     required this.onOpenHistory,
+    required this.onOpenHelp,
     required this.supportRequestRepository,
   });
 
   final CustomerOrderViewModel viewModel;
+  final VoidCallback onOpenHome;
+  final VoidCallback onOpenOffers;
   final VoidCallback onOpenHistory;
+  final VoidCallback onOpenHelp;
   final SupportRequestRepository supportRequestRepository;
 
   @override
@@ -29,7 +39,7 @@ class CustomerConfirmationPage extends StatelessWidget {
       backgroundColor: CustomerAppColors.background,
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 500),
+          constraints: const BoxConstraints(maxWidth: 720),
           child: DecoratedBox(
             decoration: const BoxDecoration(
               color: CustomerAppColors.surface,
@@ -47,8 +57,6 @@ class CustomerConfirmationPage extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const _CompletedProgress(),
-                          const SizedBox(height: 30),
                           _StatusHeader(receipt: receipt),
                           const SizedBox(height: 30),
                           _ReferenceCard(receipt: receipt),
@@ -68,9 +76,12 @@ class CustomerConfirmationPage extends StatelessWidget {
                       ),
                     ),
                   ),
-                  _NewOrderAction(
+                  _ConfirmationFooter(
                     onNewOrder: viewModel.restart,
+                    onOpenHome: onOpenHome,
+                    onOpenOffers: onOpenOffers,
                     onOpenHistory: onOpenHistory,
+                    onOpenHelp: onOpenHelp,
                   ),
                 ],
               ),
@@ -91,7 +102,7 @@ class _ConfirmationTopBar extends StatelessWidget {
       height: 64,
       child: Center(
         child: Text(
-          'CabineFlow',
+          'IzyTel',
           style: TextStyle(
             color: CustomerAppColors.primary,
             fontSize: 20,
@@ -99,38 +110,6 @@ class _ConfirmationTopBar extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _CompletedProgress extends StatelessWidget {
-  const _CompletedProgress();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Text(
-          'ÉTAPE 8 SUR 8',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: CustomerAppColors.onSurfaceVariant,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.7,
-          ),
-        ),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: const LinearProgressIndicator(
-            minHeight: 4,
-            value: 1,
-            color: CustomerAppColors.success,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -153,6 +132,7 @@ class _StatusHeader extends StatelessWidget {
       case QueueOrderStatus.paymentToVerify:
       case QueueOrderStatus.paidReady:
       case QueueOrderStatus.inProgress:
+        return CustomerAppColors.primary;
       case QueueOrderStatus.awaitingCustomerConfirmation:
       case QueueOrderStatus.completed:
       case QueueOrderStatus.refunded:
@@ -169,12 +149,16 @@ class _StatusHeader extends StatelessWidget {
       case QueueOrderStatus.onHold:
       case QueueOrderStatus.refundPending:
         return Icons.schedule_rounded;
+      case QueueOrderStatus.awaitingPayment:
+        return Icons.account_balance_wallet_outlined;
+      case QueueOrderStatus.paymentToVerify:
+        return Icons.shield_outlined;
+      case QueueOrderStatus.paidReady:
+        return Icons.verified_rounded;
       case QueueOrderStatus.inProgress:
         return Icons.sync_rounded;
-      case QueueOrderStatus.awaitingPayment:
-      case QueueOrderStatus.paymentToVerify:
-      case QueueOrderStatus.paidReady:
       case QueueOrderStatus.awaitingCustomerConfirmation:
+        return Icons.task_alt_rounded;
       case QueueOrderStatus.completed:
       case QueueOrderStatus.refunded:
         return Icons.check_circle_rounded;
@@ -314,13 +298,24 @@ class _ReferenceCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          SelectableText(
-            receipt.reference,
-            style: const TextStyle(
-              color: CustomerAppColors.primary,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: SelectableText(
+                  receipt.reference,
+                  style: const TextStyle(
+                    color: CustomerAppColors.primary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              IzyTelCopyButton(
+                value: receipt.reference,
+                tooltip: 'Copier la référence',
+                successMessage: 'Référence copiée',
+              ),
+            ],
           ),
           const SizedBox(height: 10),
           const Text(
@@ -351,13 +346,39 @@ class _TransactionDetailsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'Détails de la transaction',
-            style: TextStyle(
-              color: CustomerAppColors.onSurface,
-              fontSize: 19,
-              fontWeight: FontWeight.w700,
-            ),
+          Row(
+            children: [
+              IzyTelOperatorLogo(
+                network: draft.network!,
+                size: 42,
+                borderRadius: 11,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Détails de la transaction',
+                      style: TextStyle(
+                        color: CustomerAppColors.onSurface,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      draft.network!.brandLabel,
+                      style: TextStyle(
+                        color: draft.network!.brandColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           _DetailRow(label: 'Réseau', value: draft.network!.customerLabel),
@@ -620,7 +641,7 @@ class _TrackingCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
-            'Suivi de commande',
+            'Votre commande avance',
             style: TextStyle(
               color: CustomerAppColors.onSurface,
               fontSize: 19,
@@ -676,9 +697,22 @@ class _TrackingCard extends StatelessWidget {
       return null;
     }
 
-    final String hours = date.hour.toString().padLeft(2, '0');
-    final String minutes = date.minute.toString().padLeft(2, '0');
-    return 'Aujourd’hui, $hours:$minutes';
+    final DateTime localDate = date.toLocal();
+    final DateTime now = DateTime.now();
+    final String hours = localDate.hour.toString().padLeft(2, '0');
+    final String minutes = localDate.minute.toString().padLeft(2, '0');
+    final bool isToday =
+        localDate.year == now.year &&
+        localDate.month == now.month &&
+        localDate.day == now.day;
+
+    if (isToday) {
+      return 'Aujourd’hui, $hours:$minutes';
+    }
+
+    final String day = localDate.day.toString().padLeft(2, '0');
+    final String month = localDate.month.toString().padLeft(2, '0');
+    return '$day/$month/${localDate.year}, $hours:$minutes';
   }
 }
 
@@ -704,8 +738,10 @@ class _TrackingStep extends StatelessWidget {
     final bool hasError = state == _TrackingStepState.error;
     final Color color = hasError
         ? CustomerAppColors.error
-        : done || active
+        : done
         ? CustomerAppColors.success
+        : active
+        ? CustomerAppColors.primary
         : CustomerAppColors.surfaceContainerHighest;
 
     return IntrinsicHeight(
@@ -755,7 +791,9 @@ class _TrackingStep extends StatelessWidget {
                     child: Container(
                       width: 2,
                       margin: const EdgeInsets.symmetric(vertical: 4),
-                      color: CustomerAppColors.surfaceContainerHighest,
+                      color: done
+                          ? CustomerAppColors.success
+                          : CustomerAppColors.surfaceContainerHighest,
                     ),
                   ),
               ],
@@ -774,7 +812,7 @@ class _TrackingStep extends StatelessWidget {
                       color: hasError
                           ? CustomerAppColors.error
                           : active
-                          ? CustomerAppColors.success
+                          ? CustomerAppColors.primary
                           : state == _TrackingStepState.pending
                           ? CustomerAppColors.onSurfaceVariant
                           : CustomerAppColors.onSurface,
@@ -810,67 +848,58 @@ class _WhiteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: CustomerAppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0D000000),
-            blurRadius: 20,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: child,
-    );
+    return IzyTelCard(padding: const EdgeInsets.all(20), child: child);
   }
 }
 
-class _NewOrderAction extends StatelessWidget {
-  const _NewOrderAction({
+class _ConfirmationFooter extends StatelessWidget {
+  const _ConfirmationFooter({
     required this.onNewOrder,
+    required this.onOpenHome,
+    required this.onOpenOffers,
     required this.onOpenHistory,
+    required this.onOpenHelp,
   });
 
   final VoidCallback onNewOrder;
+  final VoidCallback onOpenHome;
+  final VoidCallback onOpenOffers;
   final VoidCallback onOpenHistory;
+  final VoidCallback onOpenHelp;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: CustomerAppColors.surfaceContainerLowest,
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x12000000),
-            blurRadius: 20,
-            offset: Offset(0, -4),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        DecoratedBox(
+          decoration: const BoxDecoration(
+            color: CustomerAppColors.surfaceContainerLowest,
+            border: Border(
+              top: BorderSide(color: CustomerAppColors.outlineSoft),
+            ),
           ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: onOpenHistory,
-                icon: const Icon(Icons.history_rounded),
-                label: const Text('Historique'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FilledButton(
+          child: SafeArea(
+            top: false,
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
+              child: FilledButton.icon(
                 onPressed: onNewOrder,
-                child: const Text('Nouvelle commande'),
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Commander à nouveau'),
               ),
             ),
-          ],
+          ),
         ),
-      ),
+        IzyTelBottomNavigation(
+          current: IzyTelCustomerDestination.history,
+          onHome: onOpenHome,
+          onOffers: onOpenOffers,
+          onHistory: onOpenHistory,
+          onHelp: onOpenHelp,
+        ),
+      ],
     );
   }
 }

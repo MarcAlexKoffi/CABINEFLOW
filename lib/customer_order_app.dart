@@ -8,7 +8,7 @@ class CustomerOrderApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'CabineFlow — Commander',
+      title: 'IzyTel — Forfaits, unités et suivi',
       debugShowCheckedModeBanner: false,
       theme: CustomerAppTheme.light,
       home: const CustomerOrderFlowPage(),

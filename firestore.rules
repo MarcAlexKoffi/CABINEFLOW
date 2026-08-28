@@ -2487,16 +2487,8 @@ service cloud.firestore {
         );
     }
 
-    function isValidCustomerSupportRequestCreation(requestId) {
-      let orderId = request.resource.data.orderId;
-      let order = get(
-        /databases/$(database)/documents/orders/$(orderId)
-      ).data;
-      let type = request.resource.data.type;
-      let description = request.resource.data.description;
-
-      return customerCanRequestSupportForOrder(orderId)
-        && request.resource.data.keys().hasOnly([
+    function hasValidSupportRequestValues() {
+      return request.resource.data.keys().hasOnly([
           'schemaVersion',
           'orderId',
           'orderReference',
@@ -2507,17 +2499,24 @@ service cloud.firestore {
           'createdAt',
           'updatedAt',
           'assignedTo',
-          'resolvedAt'
+          'assignedToName',
+          'inProgressAt',
+          'resolutionNote',
+          'resolvedAt',
+          'resolvedBy',
+          'resolvedByName',
+          'customerNotifiedAt',
+          'notificationChannel',
+          'closedAt'
         ])
         && request.resource.data.schemaVersion == 1
-        && orderId is string
-        && orderId.size() >= 8
+        && request.resource.data.orderId is string
+        && request.resource.data.orderId.size() >= 8
         && request.resource.data.orderReference is string
         && request.resource.data.orderReference.size() >= 12
         && request.resource.data.orderReference.size() <= 40
-        && order.reference == request.resource.data.orderReference
-        && request.resource.data.customerAuthUid == request.auth.uid
-        && type in [
+        && request.resource.data.customerAuthUid is string
+        && request.resource.data.type in [
           'paymentNotRecognized',
           'completedButNotReceived',
           'wrongAmount',
@@ -2525,17 +2524,197 @@ service cloud.firestore {
           'transactionFailed',
           'other'
         ]
-        && description is string
-        && description.size() <= 1000
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 1000
         && (
-          type != 'other'
-          || description.size() >= 3
+          request.resource.data.type != 'other'
+          || request.resource.data.description.size() >= 3
         )
+        && request.resource.data.status in [
+          'new',
+          'inProgress',
+          'resolved',
+          'closed'
+        ]
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && (
+          request.resource.data.get('assignedTo', null) == null
+          || request.resource.data.get('assignedTo', null) is string
+        )
+        && (
+          request.resource.data.get('assignedToName', null) == null
+          || request.resource.data.get('assignedToName', null) is string
+        )
+        && (
+          request.resource.data.get('inProgressAt', null) == null
+          || request.resource.data.get('inProgressAt', null) is timestamp
+        )
+        && (
+          request.resource.data.get('resolutionNote', null) == null
+          || (
+            request.resource.data.get('resolutionNote', null) is string
+            && request.resource.data.get('resolutionNote', '').size() <= 1000
+          )
+        )
+        && (
+          request.resource.data.get('resolvedAt', null) == null
+          || request.resource.data.get('resolvedAt', null) is timestamp
+        )
+        && (
+          request.resource.data.get('resolvedBy', null) == null
+          || request.resource.data.get('resolvedBy', null) is string
+        )
+        && (
+          request.resource.data.get('resolvedByName', null) == null
+          || request.resource.data.get('resolvedByName', null) is string
+        )
+        && (
+          request.resource.data.get('customerNotifiedAt', null) == null
+          || request.resource.data.get('customerNotifiedAt', null) is timestamp
+        )
+        && (
+          request.resource.data.get('notificationChannel', null) == null
+          || request.resource.data.get('notificationChannel', null) == 'whatsapp'
+        )
+        && (
+          request.resource.data.get('closedAt', null) == null
+          || request.resource.data.get('closedAt', null) is timestamp
+        );
+    }
+
+    function isValidCustomerSupportRequestCreation(requestId) {
+      let orderId = request.resource.data.orderId;
+      let order = get(
+        /databases/$(database)/documents/orders/$(orderId)
+      ).data;
+
+      return customerCanRequestSupportForOrder(orderId)
+        && hasValidSupportRequestValues()
+        && order.reference == request.resource.data.orderReference
+        && request.resource.data.customerAuthUid == request.auth.uid
         && request.resource.data.status == 'new'
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time
-        && request.resource.data.assignedTo == null
-        && request.resource.data.resolvedAt == null;
+        && request.resource.data.get('assignedTo', null) == null
+        && request.resource.data.get('assignedToName', null) == null
+        && request.resource.data.get('inProgressAt', null) == null
+        && request.resource.data.get('resolutionNote', null) == null
+        && request.resource.data.get('resolvedAt', null) == null
+        && request.resource.data.get('resolvedBy', null) == null
+        && request.resource.data.get('resolvedByName', null) == null
+        && request.resource.data.get('customerNotifiedAt', null) == null
+        && request.resource.data.get('notificationChannel', null) == null
+        && request.resource.data.get('closedAt', null) == null;
+    }
+
+    function supportRequestImmutableFieldsArePreserved() {
+      return request.resource.data.schemaVersion == resource.data.schemaVersion
+        && request.resource.data.orderId == resource.data.orderId
+        && request.resource.data.orderReference == resource.data.orderReference
+        && request.resource.data.customerAuthUid == resource.data.customerAuthUid
+        && request.resource.data.type == resource.data.type
+        && request.resource.data.description == resource.data.description
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    function isValidSupportRequestTakeInCharge() {
+      return resource.data.status == 'new'
+        && request.resource.data.status == 'inProgress'
+        && request.resource.data.get('assignedTo', null) == request.auth.uid
+        && request.resource.data.get('assignedToName', null) is string
+        && request.resource.data.get('assignedToName', '').size() >= 2
+        && request.resource.data.get('assignedToName', '').size() <= 80
+        && request.resource.data.get('inProgressAt', null) == request.time
+        && request.resource.data.get('resolutionNote', null) == null
+        && request.resource.data.get('resolvedAt', null) == null
+        && request.resource.data.get('resolvedBy', null) == null
+        && request.resource.data.get('resolvedByName', null) == null
+        && request.resource.data.get('customerNotifiedAt', null) == null
+        && request.resource.data.get('notificationChannel', null) == null
+        && request.resource.data.get('closedAt', null) == null;
+    }
+
+    function isValidSupportRequestResolution() {
+      return resource.data.status == 'inProgress'
+        && request.resource.data.status == 'resolved'
+        && request.resource.data.get('assignedTo', null)
+          == resource.data.get('assignedTo', null)
+        && request.resource.data.get('assignedToName', null)
+          == resource.data.get('assignedToName', null)
+        && request.resource.data.get('inProgressAt', null)
+          == resource.data.get('inProgressAt', null)
+        && request.resource.data.get('resolutionNote', null) is string
+        && request.resource.data.get('resolutionNote', '').size() >= 3
+        && request.resource.data.get('resolutionNote', '').size() <= 1000
+        && request.resource.data.get('resolvedAt', null) == request.time
+        && request.resource.data.get('resolvedBy', null) == request.auth.uid
+        && request.resource.data.get('resolvedByName', null) is string
+        && request.resource.data.get('resolvedByName', '').size() >= 2
+        && request.resource.data.get('resolvedByName', '').size() <= 80
+        && request.resource.data.get('customerNotifiedAt', null) == null
+        && request.resource.data.get('notificationChannel', null) == null
+        && request.resource.data.get('closedAt', null) == null;
+    }
+
+    function isValidSupportRequestCustomerNotification() {
+      return resource.data.status == 'resolved'
+        && request.resource.data.status == 'resolved'
+        && request.resource.data.get('assignedTo', null)
+          == resource.data.get('assignedTo', null)
+        && request.resource.data.get('assignedToName', null)
+          == resource.data.get('assignedToName', null)
+        && request.resource.data.get('inProgressAt', null)
+          == resource.data.get('inProgressAt', null)
+        && request.resource.data.get('resolutionNote', null)
+          == resource.data.get('resolutionNote', null)
+        && request.resource.data.get('resolvedAt', null)
+          == resource.data.get('resolvedAt', null)
+        && request.resource.data.get('resolvedBy', null)
+          == resource.data.get('resolvedBy', null)
+        && request.resource.data.get('resolvedByName', null)
+          == resource.data.get('resolvedByName', null)
+        && resource.data.get('customerNotifiedAt', null) == null
+        && request.resource.data.get('customerNotifiedAt', null) == request.time
+        && request.resource.data.get('notificationChannel', null) == 'whatsapp'
+        && request.resource.data.get('closedAt', null) == null;
+    }
+
+    function isValidSupportRequestClosure() {
+      return resource.data.status == 'resolved'
+        && request.resource.data.status == 'closed'
+        && request.resource.data.get('assignedTo', null)
+          == resource.data.get('assignedTo', null)
+        && request.resource.data.get('assignedToName', null)
+          == resource.data.get('assignedToName', null)
+        && request.resource.data.get('inProgressAt', null)
+          == resource.data.get('inProgressAt', null)
+        && request.resource.data.get('resolutionNote', null)
+          == resource.data.get('resolutionNote', null)
+        && request.resource.data.get('resolvedAt', null)
+          == resource.data.get('resolvedAt', null)
+        && request.resource.data.get('resolvedBy', null)
+          == resource.data.get('resolvedBy', null)
+        && request.resource.data.get('resolvedByName', null)
+          == resource.data.get('resolvedByName', null)
+        && request.resource.data.get('customerNotifiedAt', null)
+          == resource.data.get('customerNotifiedAt', null)
+        && request.resource.data.get('notificationChannel', null)
+          == resource.data.get('notificationChannel', null)
+        && request.resource.data.get('closedAt', null) == request.time;
+    }
+
+    function isValidAdminSupportRequestUpdate() {
+      return isAdmin()
+        && hasValidSupportRequestValues()
+        && supportRequestImmutableFieldsArePreserved()
+        && request.resource.data.updatedAt == request.time
+        && (
+          isValidSupportRequestTakeInCharge()
+          || isValidSupportRequestResolution()
+          || isValidSupportRequestCustomerNotification()
+          || isValidSupportRequestClosure()
+        );
     }
 
     match /supportRequests/{requestId} {
@@ -2544,14 +2723,10 @@ service cloud.firestore {
           isSignedIn()
           && resource.data.customerAuthUid == request.auth.uid
         );
-      // Le client n'a pas besoin de parcourir la collection en Phase 10D.
-      // Les requetes de liste sont reservees au Staff pour la supervision.
       allow list: if isStaff();
       allow create: if isValidCustomerSupportRequestCreation(requestId);
-      // Le traitement du dossier (assignation, resolution, fermeture) sera
-      // introduit dans la Phase 11. Le client ne peut jamais modifier sa
-      // demande apres creation et aucun role ne peut la supprimer.
-      allow update, delete: if false;
+      allow update: if isValidAdminSupportRequestUpdate();
+      allow delete: if false;
     }
 
     match /orders/{orderId} {

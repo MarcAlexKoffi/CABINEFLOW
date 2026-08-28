@@ -1,4 +1,5 @@
 import 'package:cabine_flow/features/customer_order/domain/models/beneficiary_phone_number.dart';
+import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -28,6 +29,21 @@ void main() {
       );
 
       expect(number.normalized, '+2250102030405');
+    });
+
+    test('déduit le réseau historique à partir du préfixe', () {
+      expect(
+        BeneficiaryPhoneNumber.parse('07 12 34 56 78').expectedNetwork,
+        MobileNetwork.orange,
+      );
+      expect(
+        BeneficiaryPhoneNumber.parse('05 12 34 56 78').expectedNetwork,
+        MobileNetwork.mtn,
+      );
+      expect(
+        BeneficiaryPhoneNumber.parse('01 12 34 56 78').expectedNetwork,
+        MobileNetwork.moov,
+      );
     });
 
     test('refuse un préfixe mobile non pris en charge', () {

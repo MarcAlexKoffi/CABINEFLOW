@@ -53,13 +53,17 @@ class DashboardHeader extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Text(
-                    'Bonjour $firstName',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.3,
+                  Flexible(
+                    child: Text(
+                      'Bonjour $firstName',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -1024,6 +1028,29 @@ class PriorityOrderItemCard extends StatelessWidget {
       }
     }
 
+    Widget actionButton({bool fullWidth = false}) {
+      final Widget button = FilledButton(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+          minimumSize: const Size(0, 40),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            actionLabel,
+            maxLines: 1,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+        ),
+      );
+      return fullWidth
+          ? SizedBox(width: double.infinity, child: button)
+          : button;
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -1036,16 +1063,22 @@ class PriorityOrderItemCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                operationLabel,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+              Expanded(
+                child: Text(
+                  operationLabel,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    height: 1.25,
+                  ),
                 ),
               ),
+              const SizedBox(width: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -1073,26 +1106,30 @@ class PriorityOrderItemCard extends StatelessWidget {
                 size: 16,
               ),
               const SizedBox(width: 6),
-              Text(
-                phoneNumber,
-                style: const TextStyle(
-                  color: Color(0xFFD1D5DB),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+              Expanded(
+                child: Text(
+                  phoneNumber,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFFD1D5DB),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Column(
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final Widget orderInfo = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Réf: $reference',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Color(0xFF6B7280),
                       fontSize: 11,
@@ -1108,29 +1145,28 @@ class PriorityOrderItemCard extends StatelessWidget {
                     ),
                   ),
                 ],
-              ),
-              FilledButton(
-                onPressed: onPressed,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 0,
-                  ),
-                  minimumSize: const Size(0, 36),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: Text(
-                  actionLabel,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
+              );
+
+              if (constraints.maxWidth < 320) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    orderInfo,
+                    const SizedBox(height: 12),
+                    actionButton(fullWidth: true),
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(child: orderInfo),
+                  const SizedBox(width: 12),
+                  Flexible(child: actionButton()),
+                ],
+              );
+            },
           ),
         ],
       ),

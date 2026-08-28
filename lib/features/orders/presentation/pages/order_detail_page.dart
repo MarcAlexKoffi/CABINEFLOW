@@ -131,7 +131,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     }
 
     final String message =
-        'Bonjour ${_order.clientName}, je vous contacte au sujet de votre commande CabineFlow ${_order.reference}.';
+        'Bonjour ${_order.clientName}, je vous contacte au sujet de votre commande IzyTel ${_order.reference}.';
     final Uri uri = Uri.https('wa.me', '/$phone', <String, String>{
       'text': message,
     });

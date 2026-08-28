@@ -11,27 +11,65 @@ class CustomerProgressIndicator extends StatelessWidget {
   final int currentStep;
   final int totalSteps;
 
+  static const List<String> _labels = <String>[
+    'Identité',
+    'Service',
+    'Réseau',
+    'Offre',
+    'Bénéficiaire',
+    'Vérification',
+    'Paiement',
+  ];
+
   @override
   Widget build(BuildContext context) {
-    final double progress = currentStep / totalSteps;
+    final int visibleStep = currentStep.clamp(1, _labels.length);
+    final String label = _labels[visibleStep - 1];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'ÉTAPE $currentStep SUR $totalSteps',
-          style: const TextStyle(
-            color: CustomerAppColors.onSurfaceVariant,
-            fontSize: 12,
-            height: 1.5,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.7,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: CustomerAppColors.primary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            Text(
+              '$visibleStep/${_labels.length}',
+              style: const TextStyle(
+                color: CustomerAppColors.muted,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: LinearProgressIndicator(minHeight: 4, value: progress),
+        const SizedBox(height: 9),
+        Row(
+          children: [
+            for (int index = 0; index < _labels.length; index++) ...[
+              Expanded(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  height: index < visibleStep ? 4 : 3,
+                  decoration: BoxDecoration(
+                    color: index < visibleStep
+                        ? CustomerAppColors.primary
+                        : CustomerAppColors.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              if (index != _labels.length - 1) const SizedBox(width: 5),
+            ],
+          ],
         ),
       ],
     );

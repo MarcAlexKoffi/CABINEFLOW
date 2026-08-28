@@ -5,6 +5,9 @@ import 'package:cabine_flow/features/customer_order/domain/models/customer_servi
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_order_labels.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_bottom_navigation.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_operator_brand.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_shell.dart';
 import 'package:flutter/material.dart';
 
 class CustomerOrderHistoryPage extends StatefulWidget {
@@ -13,11 +16,17 @@ class CustomerOrderHistoryPage extends StatefulWidget {
     required this.viewModel,
     required this.onBack,
     required this.onOpenOrder,
+    required this.onOpenHome,
+    required this.onOpenOffers,
+    required this.onOpenHelp,
   });
 
   final CustomerOrderViewModel viewModel;
   final VoidCallback onBack;
   final ValueChanged<CustomerOrderReceipt> onOpenOrder;
+  final VoidCallback onOpenHome;
+  final VoidCallback onOpenOffers;
+  final VoidCallback onOpenHelp;
 
   @override
   State<CustomerOrderHistoryPage> createState() {
@@ -98,186 +107,120 @@ class _CustomerOrderHistoryPageState extends State<CustomerOrderHistoryPage> {
   Widget build(BuildContext context) {
     final List<CustomerOrderReceipt> orders = _visibleOrders;
 
-    return Scaffold(
-      backgroundColor: CustomerAppColors.background,
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 500),
-          child: DecoratedBox(
-            decoration: const BoxDecoration(
-              color: CustomerAppColors.surface,
-              border: Border.symmetric(
-                vertical: BorderSide(color: Color(0x33C2C6D8)),
+    return IzyTelShell(
+      title: 'IzyTel',
+      onBack: widget.onBack,
+      bottomNavigationBar: IzyTelBottomNavigation(
+        current: IzyTelCustomerDestination.history,
+        onHome: widget.onOpenHome,
+        onOffers: widget.onOpenOffers,
+        onHistory: () {},
+        onHelp: widget.onOpenHelp,
+      ),
+      child: RefreshIndicator(
+        onRefresh: widget.viewModel.reloadHistory,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(18, 24, 18, 36),
+          children: [
+            Text(
+              'Historique des commandes',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Retrouvez vos transactions passées et en cours.',
+              style: TextStyle(
+                color: CustomerAppColors.onSurfaceVariant,
+                fontSize: 15,
+                height: 1.45,
               ),
             ),
-            child: SafeArea(
-              child: Column(
-                children: [
-                  _HistoryTopBar(onBack: widget.onBack),
-                  Expanded(
-                    child: RefreshIndicator(
-                      onRefresh: widget.viewModel.reloadHistory,
-                      child: ListView(
-                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 34),
-                        children: [
-                          Text(
-                            'Historique des commandes',
-                            style: Theme.of(context).textTheme.headlineMedium,
-                          ),
-                          const SizedBox(height: 7),
-                          const Text(
-                            'Retrouvez vos commandes passées et reprenez le suivi d’une opération.',
-                            style: TextStyle(
-                              color: CustomerAppColors.onSurfaceVariant,
-                              fontSize: 15,
-                              height: 1.45,
-                            ),
-                          ),
-                          const SizedBox(height: 26),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _searchController,
-                                  onChanged: (_) => setState(() {}),
-                                  decoration: const InputDecoration(
-                                    hintText:
-                                        'Référence ou numéro bénéficiaire',
-                                    prefixIcon: Icon(Icons.search_rounded),
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 14,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              SizedBox(
-                                width: 52,
-                                height: 52,
-                                child: Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    Positioned.fill(
-                                      child: OutlinedButton(
-                                        onPressed: _openFilters,
-                                        style: OutlinedButton.styleFrom(
-                                          padding: EdgeInsets.zero,
-                                          minimumSize: const Size(52, 52),
-                                        ),
-                                        child: const Icon(
-                                          Icons.tune_rounded,
-                                          color: CustomerAppColors.onSurface,
-                                        ),
-                                      ),
-                                    ),
-                                    if (_hasActiveFilter)
-                                      const Positioned(
-                                        right: -2,
-                                        top: -2,
-                                        child: DecoratedBox(
-                                          decoration: BoxDecoration(
-                                            color: CustomerAppColors.primary,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: SizedBox(
-                                            width: 11,
-                                            height: 11,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (_hasActiveFilter) ...[
-                            const SizedBox(height: 14),
-                            _ActiveFilters(
-                              network: _networkFilter,
-                              status: _statusFilter,
-                              onClear: () {
-                                setState(() {
-                                  _networkFilter = null;
-                                  _statusFilter = _HistoryStatusFilter.all;
-                                });
-                              },
-                            ),
-                          ],
-                          const SizedBox(height: 22),
-                          if (widget.viewModel.isLoadingHistory)
-                            const _HistoryLoading()
-                          else if (widget.viewModel.historyErrorMessage != null)
-                            _HistoryError(
-                              message: widget.viewModel.historyErrorMessage!,
-                              onRetry: widget.viewModel.reloadHistory,
-                            )
-                          else if (orders.isEmpty)
-                            _HistoryEmpty(
-                              hasSearchOrFilter:
-                                  _hasActiveFilter ||
-                                  _searchController.text.trim().isNotEmpty,
-                            )
-                          else
-                            ...orders.map((CustomerOrderReceipt order) {
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 14),
-                                child: _OrderHistoryCard(
-                                  order: order,
-                                  onTap: () => widget.onOpenOrder(order),
-                                ),
-                              );
-                            }),
-                        ],
-                      ),
+            const SizedBox(height: 26),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      hintText: 'Référence ou numéro',
+                      prefixIcon: Icon(Icons.search_rounded),
                     ),
                   ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HistoryTopBar extends StatelessWidget {
-  const _HistoryTopBar({required this.onBack});
-
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 64,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 48,
-              child: IconButton(
-                tooltip: 'Retour',
-                onPressed: onBack,
-                icon: const Icon(
-                  Icons.arrow_back_rounded,
-                  color: CustomerAppColors.primary,
                 ),
-              ),
-            ),
-            const Expanded(
-              child: Text(
-                'CabineFlow',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: CustomerAppColors.primary,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned.fill(
+                        child: OutlinedButton(
+                          onPressed: _openFilters,
+                          style: OutlinedButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                          ),
+                          child: const Icon(
+                            Icons.tune_rounded,
+                            color: CustomerAppColors.onSurface,
+                          ),
+                        ),
+                      ),
+                      if (_hasActiveFilter)
+                        const Positioned(
+                          right: -2,
+                          top: -2,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: CustomerAppColors.primary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: SizedBox(width: 12, height: 12),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
-            const SizedBox(width: 48),
+            if (_hasActiveFilter) ...[
+              const SizedBox(height: 14),
+              _ActiveFilters(
+                network: _networkFilter,
+                status: _statusFilter,
+                onClear: () {
+                  setState(() {
+                    _networkFilter = null;
+                    _statusFilter = _HistoryStatusFilter.all;
+                  });
+                },
+              ),
+            ],
+            const SizedBox(height: 22),
+            if (widget.viewModel.isLoadingHistory)
+              const _HistoryLoading()
+            else if (widget.viewModel.historyErrorMessage != null)
+              _HistoryError(
+                message: widget.viewModel.historyErrorMessage!,
+                onRetry: widget.viewModel.reloadHistory,
+              )
+            else if (orders.isEmpty)
+              _HistoryEmpty(
+                hasSearchOrFilter:
+                    _hasActiveFilter ||
+                    _searchController.text.trim().isNotEmpty,
+              )
+            else
+              ...orders.map((CustomerOrderReceipt order) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: _OrderHistoryCard(
+                    order: order,
+                    onTap: () => widget.onOpenOrder(order),
+                  ),
+                );
+              }),
           ],
         ),
       ),
@@ -328,7 +271,8 @@ class _OrderHistoryCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          order.draft.service!.label,
+                          order.draft.selectedOfferLabel ??
+                              order.draft.service!.label,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -356,7 +300,7 @@ class _OrderHistoryCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        '${formatCfa(order.draft.amount!)} CFA',
+                        '${formatCfa(order.draft.amount!)} F CFA',
                         style: const TextStyle(
                           color: CustomerAppColors.onSurface,
                           fontSize: 14,
@@ -442,42 +386,7 @@ class _NetworkBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (
-      String label,
-      Color background,
-      Color foreground,
-    ) = switch (network) {
-      MobileNetwork.orange => (
-        'OR',
-        const Color(0xFFFFEDD5),
-        const Color(0xFFC2410C),
-      ),
-      MobileNetwork.mtn => (
-        'MTN',
-        const Color(0xFFFEF3C7),
-        const Color(0xFFA16207),
-      ),
-      MobileNetwork.moov => (
-        'MV',
-        const Color(0xFFDBEAFE),
-        const Color(0xFF1D4ED8),
-      ),
-    };
-
-    return Container(
-      width: 42,
-      height: 42,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(color: background, shape: BoxShape.circle),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: foreground,
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
+    return IzyTelOperatorLogo(network: network, size: 42, borderRadius: 11);
   }
 }
 

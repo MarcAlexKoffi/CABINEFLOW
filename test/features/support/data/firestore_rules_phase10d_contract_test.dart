@@ -3,12 +3,17 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('les règles 10D ajoutent supportRequests sans casser 9E/10B', () {
+  test('les règles support ajoutent le traitement Admin sans casser 9E/10B', () {
     final String rules = File('firestore.rules').readAsStringSync();
 
     expect(rules, contains('match /supportRequests/{requestId}'));
     expect(rules, contains('isValidCustomerSupportRequestCreation'));
     expect(rules, contains('customerCanRequestSupportForOrder'));
+    expect(rules, contains('isValidAdminSupportRequestUpdate'));
+    expect(rules, contains('isValidSupportRequestTakeInCharge'));
+    expect(rules, contains('isValidSupportRequestResolution'));
+    expect(rules, contains('isValidSupportRequestCustomerNotification'));
+    expect(rules, contains('isValidSupportRequestClosure'));
     expect(
       rules,
       contains(r'orderRecoveryAccess/$(orderId)/customers/$(request.auth.uid)'),
@@ -19,8 +24,21 @@ void main() {
     expect(rules, contains("'wrongNumber'"));
     expect(rules, contains("'transactionFailed'"));
     expect(rules, contains("request.resource.data.status == 'new'"));
+    expect(rules, contains("request.resource.data.status == 'inProgress'"));
+    expect(rules, contains("request.resource.data.status == 'resolved'"));
+    expect(rules, contains("request.resource.data.status == 'closed'"));
+    expect(
+      rules,
+      contains(
+        "request.resource.data.get('notificationChannel', null) == 'whatsapp'",
+      ),
+    );
     expect(rules, contains('allow list: if isStaff();'));
-    expect(rules, contains('allow update, delete: if false;'));
+    expect(
+      rules,
+      contains('allow update: if isValidAdminSupportRequestUpdate();'),
+    );
+    expect(rules, contains('allow delete: if false;'));
 
     // Baseline 9E V2 : aucune nouvelle dépendance getAfter n'est introduite.
     expect(RegExp(r'getAfter\(').allMatches(rules), hasLength(21));

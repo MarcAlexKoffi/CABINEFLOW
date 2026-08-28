@@ -6,6 +6,9 @@ import 'package:cabine_flow/features/customer_order/domain/repositories/customer
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_flow_scaffold.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_cards.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_inputs.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_operator_brand.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -81,9 +84,9 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
       case CustomerService.unitTransfer:
         return 'Saisissez le montant';
       case CustomerService.internetSubscription:
-        return 'Choisissez une offre Internet';
+        return 'Choisissez votre forfait';
       case CustomerService.calls:
-        return 'Choisissez une offre d’appels';
+        return 'Choisissez votre forfait';
     }
   }
 
@@ -263,19 +266,8 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
     return Form(
       key: _transferFormKey,
       autovalidateMode: AutovalidateMode.onUserInteraction,
-      child: Container(
+      child: IzyTelCard(
         padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          color: CustomerAppColors.surfaceContainerLowest,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0D000000),
-              blurRadius: 20,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -284,16 +276,14 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
               style: Theme.of(context).textTheme.labelLarge,
             ),
             const SizedBox(height: 8),
-            TextFormField(
+            IzyTelTextInput(
               controller: _transferAmountController,
               keyboardType: TextInputType.number,
               textInputAction: TextInputAction.done,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(
-                hintText: 'Ex. 1500',
-                prefixIcon: Icon(Icons.payments_outlined),
-                suffixText: 'FCFA',
-              ),
+              hintText: 'Ex. 1500',
+              prefixIcon: Icons.payments_outlined,
+              suffixText: 'FCFA',
               validator: _validateTransferAmount,
               onChanged: _updateTransferAmount,
               onFieldSubmitted: (_) {
@@ -319,22 +309,36 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildCustomOfferCard(),
-        const SizedBox(height: 28),
         Text(
           _recommendedOffersTitle,
           style: Theme.of(context).textTheme.headlineSmall,
         ),
         const SizedBox(height: 5),
-        const Text(
-          'Sélectionnez une offre dans la liste ci-dessous.',
-          style: TextStyle(
+        Text(
+          'Des offres ${_network.brandLabel} disponibles actuellement.',
+          style: const TextStyle(
             color: CustomerAppColors.onSurfaceVariant,
             fontSize: 13,
           ),
         ),
         const SizedBox(height: 16),
         _buildOfferList(),
+        const SizedBox(height: 30),
+        Text(
+          'Vous ne trouvez pas votre forfait ?',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Renseignez manuellement une offre uniquement si elle n’apparaît pas dans le catalogue.',
+          style: TextStyle(
+            color: CustomerAppColors.onSurfaceVariant,
+            fontSize: 13,
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 14),
+        _buildCustomOfferCard(),
       ],
     );
   }
@@ -342,28 +346,9 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
   Widget _buildCustomOfferCard() {
     final bool isSelected = _isUsingCustomOffer;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOut,
-      decoration: BoxDecoration(
-        color: isSelected
-            ? CustomerAppColors.primary.withValues(alpha: 0.07)
-            : CustomerAppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isSelected
-              ? CustomerAppColors.primary
-              : CustomerAppColors.outlineVariant,
-          width: isSelected ? 2 : 1,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0D000000),
-            blurRadius: 20,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
+    return IzyTelCard(
+      isSelected: isSelected,
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -464,17 +449,12 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
                       style: Theme.of(context).textTheme.labelLarge,
                     ),
                     const SizedBox(height: 8),
-                    TextFormField(
+                    IzyTelTextInput(
                       controller: _customOfferLabelController,
                       textCapitalization: TextCapitalization.sentences,
                       textInputAction: TextInputAction.next,
-                      minLines: 1,
-                      maxLines: 2,
-                      maxLength: 120,
-                      decoration: InputDecoration(
-                        hintText: _customOfferHint,
-                        prefixIcon: const Icon(Icons.description_outlined),
-                      ),
+                      hintText: _customOfferHint,
+                      prefixIcon: Icons.description_outlined,
                       validator: _validateCustomOfferLabel,
                       onChanged: (_) {
                         _updateCustomOffer();
@@ -486,16 +466,14 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
                       style: Theme.of(context).textTheme.labelLarge,
                     ),
                     const SizedBox(height: 8),
-                    TextFormField(
+                    IzyTelTextInput(
                       controller: _customOfferAmountController,
                       keyboardType: TextInputType.number,
                       textInputAction: TextInputAction.done,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: const InputDecoration(
-                        hintText: 'Ex. 1500',
-                        prefixIcon: Icon(Icons.payments_outlined),
-                        suffixText: 'FCFA',
-                      ),
+                      hintText: 'Ex. 1500',
+                      prefixIcon: Icons.payments_outlined,
+                      suffixText: 'FCFA',
                       validator: _validateCustomOfferAmount,
                       onChanged: (_) {
                         _updateCustomOffer();
@@ -625,11 +603,7 @@ class _SelectionContextCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.tune_rounded,
-            color: CustomerAppColors.primary,
-            size: 20,
-          ),
+          IzyTelOperatorLogo(network: network, size: 34, borderRadius: 9),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -664,137 +638,127 @@ class _OfferOptionCard extends StatelessWidget {
       button: true,
       selected: isSelected,
       label: '${offer.catalogLabel}, ${formatCfa(offer.amount)} CFA',
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        decoration: BoxDecoration(
-          color: isSelected
-              ? CustomerAppColors.primary.withValues(alpha: 0.07)
-              : CustomerAppColors.surfaceContainerLowest,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? CustomerAppColors.primary : Colors.transparent,
-            width: 2,
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0D000000),
-              blurRadius: 20,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(14),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
+      child: IzyTelCard(
+        isSelected: isSelected,
+        onTap: onTap,
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (offer.badgeLabel != null) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 9,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: CustomerAppColors.primary.withValues(
-                                alpha: 0.10,
-                              ),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              offer.badgeLabel!,
-                              style: const TextStyle(
-                                color: CustomerAppColors.primary,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 9),
-                        ],
-                        Text(
-                          offer.title,
-                          style: Theme.of(context).textTheme.headlineSmall,
+                  Row(
+                    children: [
+                      IzyTelOperatorLogo(
+                        network: offer.network,
+                        size: 30,
+                        borderRadius: 8,
+                      ),
+                      const SizedBox(width: 9),
+                      Text(
+                        offer.network.brandLabel,
+                        style: TextStyle(
+                          color: offer.network.brandColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
                         ),
-                        const SizedBox(height: 9),
-                        ...offer.details.map((String detail) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Padding(
-                                  padding: EdgeInsets.only(top: 7),
-                                  child: Icon(
-                                    Icons.circle,
-                                    size: 5,
-                                    color: CustomerAppColors.onSurfaceVariant,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    detail,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                        const SizedBox(height: 9),
-                        Text(
-                          '${formatCfa(offer.amount)} CFA',
-                          style: const TextStyle(
-                            color: CustomerAppColors.primary,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 14),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isSelected
-                          ? CustomerAppColors.primary
-                          : Colors.transparent,
-                      border: Border.all(
-                        color: isSelected
-                            ? CustomerAppColors.primary
-                            : CustomerAppColors.outlineVariant,
-                        width: 1.5,
+                  const SizedBox(height: 10),
+                  if (offer.badgeLabel != null) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: CustomerAppColors.primary.withValues(
+                          alpha: 0.10,
+                        ),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        offer.badgeLabel!,
+                        style: const TextStyle(
+                          color: CustomerAppColors.primary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                    child: isSelected
-                        ? const Icon(
-                            Icons.check_rounded,
-                            size: 16,
-                            color: CustomerAppColors.onPrimary,
-                          )
-                        : null,
+                    const SizedBox(height: 9),
+                  ],
+                  Text(
+                    offer.title,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 9),
+                  ...offer.details.map((String detail) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.only(top: 7),
+                            child: Icon(
+                              Icons.circle,
+                              size: 5,
+                              color: CustomerAppColors.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              detail,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 9),
+                  Text(
+                    '${formatCfa(offer.amount)} CFA',
+                    style: const TextStyle(
+                      color: CustomerAppColors.primary,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
             ),
-          ),
+            const SizedBox(width: 14),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isSelected
+                    ? CustomerAppColors.primary
+                    : Colors.transparent,
+                border: Border.all(
+                  color: isSelected
+                      ? CustomerAppColors.primary
+                      : CustomerAppColors.outlineVariant,
+                  width: 1.5,
+                ),
+              ),
+              child: isSelected
+                  ? const Icon(
+                      Icons.check_rounded,
+                      size: 16,
+                      color: CustomerAppColors.onPrimary,
+                    )
+                  : null,
+            ),
+          ],
         ),
       ),
     );

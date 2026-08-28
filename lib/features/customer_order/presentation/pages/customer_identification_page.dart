@@ -7,6 +7,8 @@ import 'package:cabine_flow/features/customer_order/presentation/view_models/cus
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_flow_scaffold.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_support_button.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_cards.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_inputs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -17,12 +19,14 @@ class CustomerIdentificationPage extends StatefulWidget {
     required this.onOpenHistory,
     required this.onOpenRecovery,
     required this.onResumeOrder,
+    required this.onBackToHome,
   });
 
   final CustomerOrderViewModel viewModel;
   final VoidCallback onOpenHistory;
   final VoidCallback onOpenRecovery;
   final ValueChanged<CustomerOrderReceipt> onResumeOrder;
+  final VoidCallback onBackToHome;
 
   @override
   State<CustomerIdentificationPage> createState() {
@@ -97,12 +101,11 @@ class _CustomerIdentificationPageState
     return CustomerFlowScaffold(
       currentStep: 1,
       totalSteps: CustomerOrderViewModel.totalSteps,
-      title: 'Passez votre commande',
-      subtitle: 'Indiquez simplement votre nom et votre numéro WhatsApp.',
-      onTopBack: () {
-        Navigator.of(context).maybePop();
-      },
-      onBottomBack: null,
+      title: 'Vos informations',
+      subtitle:
+          'Un nom et votre numéro WhatsApp suffisent. Aucun compte classique à créer.',
+      onTopBack: widget.onBackToHome,
+      onBottomBack: widget.onBackToHome,
       onContinue: _continue,
       footer: _IdentificationFooter(
         onOpenHistory: widget.onOpenHistory,
@@ -126,40 +129,23 @@ class _CustomerIdentificationPageState
           Form(
             key: _formKey,
             autovalidateMode: AutovalidateMode.onUserInteraction,
-            child: Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: CustomerAppColors.surfaceContainerLowest,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: CustomerAppColors.surfaceContainerHighest,
-                ),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x0D000000),
-                    blurRadius: 20,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
+            child: IzyTelCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const _FieldLabel(text: 'Nom ou surnom'),
-                  TextFormField(
+                  IzyTelTextInput(
                     controller: _nameController,
                     textInputAction: TextInputAction.next,
                     textCapitalization: TextCapitalization.words,
                     autofillHints: const [AutofillHints.name],
-                    decoration: const InputDecoration(
-                      hintText: 'Ex. Jean Dupont',
-                      prefixIcon: Icon(Icons.person_outline_rounded),
-                    ),
+                    hintText: 'Ex. Jean Dupont',
+                    prefixIcon: Icons.person_outline_rounded,
                     validator: _validateName,
                   ),
                   const SizedBox(height: 22),
                   const _FieldLabel(text: 'Numéro WhatsApp'),
-                  TextFormField(
+                  IzyTelTextInput(
                     controller: _whatsappController,
                     keyboardType: TextInputType.phone,
                     textInputAction: TextInputAction.done,
@@ -168,10 +154,8 @@ class _CustomerIdentificationPageState
                       FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ()-]')),
                       LengthLimitingTextInputFormatter(24),
                     ],
-                    decoration: const InputDecoration(
-                      hintText: '+225 07 00 00 00 00',
-                      prefixIcon: Icon(Icons.phone_outlined),
-                    ),
+                    hintText: '+225 07 00 00 00 00',
+                    prefixIcon: Icons.phone_outlined,
                     validator: WhatsappPhoneNumber.validate,
                     onFieldSubmitted: (_) {
                       _continue();

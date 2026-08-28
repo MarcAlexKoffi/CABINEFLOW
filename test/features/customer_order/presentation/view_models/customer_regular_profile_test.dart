@@ -83,6 +83,52 @@ void main() {
     );
 
     test(
+      'le numéro habituel est revalidé pour le réseau sélectionné',
+      () async {
+        final FakeCustomerProfileRepository profileRepository =
+            FakeCustomerProfileRepository(
+              initialProfile: CustomerProfile(
+                name: 'Mariam',
+                whatsappPhone: WhatsappPhoneNumber.parse('05 00 00 00 00'),
+                defaultBeneficiaryPhone: BeneficiaryPhoneNumber.parse(
+                  '05 10 20 30 40',
+                ),
+              ),
+            );
+        final CustomerOrderViewModel viewModel = CustomerOrderViewModel(
+          orderRepository: FakeCustomerOrderRepository(),
+          profileRepository: profileRepository,
+        );
+
+        await viewModel.initialize();
+        await Future<void>.delayed(Duration.zero);
+        _moveToBeneficiaryStep(
+          viewModel,
+          name: 'Mariam',
+          whatsapp: '05 00 00 00 00',
+        );
+
+        expect(
+          () => viewModel.useSavedBeneficiaryForMe(),
+          throwsA(
+            isA<FormatException>().having(
+              (FormatException error) => error.message,
+              'message',
+              'PORTABILITY_REQUIRED',
+            ),
+          ),
+        );
+        expect(viewModel.currentStep, 5);
+
+        viewModel.useSavedBeneficiaryForMe(isPortabilityConfirmed: true);
+        expect(viewModel.currentStep, 6);
+
+        viewModel.dispose();
+        await profileRepository.close();
+      },
+    );
+
+    test(
       'premier Pour moi mémorise le numéro puis continue immédiatement',
       () async {
         final FakeCustomerProfileRepository profileRepository =
@@ -101,19 +147,19 @@ void main() {
         );
 
         viewModel.saveBeneficiaryForMe(
-          phoneInput: '05 55 44 33 22',
-          confirmationInput: '+225 05 55 44 33 22',
+          phoneInput: '07 55 44 33 22',
+          confirmationInput: '+225 07 55 44 33 22',
         );
 
         expect(viewModel.currentStep, 6);
-        expect(viewModel.draft.beneficiaryNumber?.normalized, '+2250555443322');
+        expect(viewModel.draft.beneficiaryNumber?.normalized, '+2250755443322');
 
         await Future<void>.delayed(Duration.zero);
 
         expect(profileRepository.profile, isNotNull);
         expect(
           profileRepository.profile?.defaultBeneficiaryPhone.normalized,
-          '+2250555443322',
+          '+2250755443322',
         );
         expect(
           profileRepository.profile?.whatsappPhone.normalized,
@@ -155,6 +201,7 @@ void main() {
         viewModel.saveBeneficiary(
           phoneInput: '01 99 88 77 66',
           confirmationInput: '01 99 88 77 66',
+          isPortabilityConfirmed: true,
         );
 
         expect(viewModel.currentStep, 6);

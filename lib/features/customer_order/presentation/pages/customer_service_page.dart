@@ -2,6 +2,7 @@ import 'package:cabine_flow/core/theme/customer_app_colors.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_flow_scaffold.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_cards.dart';
 import 'package:flutter/material.dart';
 
 class CustomerServicePage extends StatelessWidget {
@@ -16,9 +17,10 @@ class CustomerServicePage extends StatelessWidget {
     return CustomerFlowScaffold(
       currentStep: 2,
       totalSteps: CustomerOrderViewModel.totalSteps,
-      title: 'Que voulez-vous faire ?',
-      subtitle: null,
-      titleTextAlign: TextAlign.center,
+      title: 'Choisissez votre service',
+      subtitle:
+          'Sélectionnez le type de recharge que vous souhaitez effectuer.',
+      titleTextAlign: TextAlign.start,
       onTopBack: viewModel.goBack,
       onBottomBack: viewModel.goBack,
       onContinue: viewModel.continueFromService,
@@ -71,101 +73,81 @@ class _ServiceOptionCard extends StatelessWidget {
       button: true,
       selected: isSelected,
       label: '${service.label}. ${service.description}',
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        decoration: BoxDecoration(
-          color: isSelected
-              ? CustomerAppColors.primary.withValues(alpha: 0.07)
-              : CustomerAppColors.surfaceContainerLowest,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? CustomerAppColors.primary : Colors.transparent,
-            width: 2,
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0D000000),
-              blurRadius: 20,
-              offset: Offset(0, 4),
+      child: IzyTelCard(
+        isSelected: isSelected,
+        onTap: onTap,
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? CustomerAppColors.primary
+                    : CustomerAppColors.primary.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                size: 24,
+                color: isSelected
+                    ? CustomerAppColors.onPrimary
+                    : CustomerAppColors.primary,
+              ),
             ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(14),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? CustomerAppColors.primary
-                          : CustomerAppColors.primary.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      icon,
-                      size: 24,
-                      color: isSelected
-                          ? CustomerAppColors.onPrimary
-                          : CustomerAppColors.primary,
+                  Text(
+                    service.label,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: CustomerAppColors.onSurface,
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          service.label,
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          service.description,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ],
+                  const SizedBox(height: 4),
+                  Text(
+                    service.description,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: CustomerAppColors.onSurfaceVariant,
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isSelected
-                          ? CustomerAppColors.primary
-                          : Colors.transparent,
-                      border: Border.all(
-                        color: isSelected
-                            ? CustomerAppColors.primary
-                            : CustomerAppColors.outlineVariant,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: isSelected
-                        ? const Icon(
-                            Icons.check_rounded,
-                            size: 15,
-                            color: CustomerAppColors.onPrimary,
-                          )
-                        : null,
                   ),
                 ],
               ),
             ),
-          ),
+            const SizedBox(width: 10),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isSelected
+                    ? CustomerAppColors.primary
+                    : Colors.transparent,
+                border: Border.all(
+                  color: isSelected
+                      ? CustomerAppColors.primary
+                      : CustomerAppColors.outlineVariant,
+                  width: 1.5,
+                ),
+              ),
+              child: isSelected
+                  ? const Icon(
+                      Icons.check_rounded,
+                      size: 15,
+                      color: CustomerAppColors.onPrimary,
+                    )
+                  : null,
+            ),
+          ],
         ),
       ),
     );

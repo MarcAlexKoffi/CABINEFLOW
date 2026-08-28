@@ -299,13 +299,13 @@ void main() {
       expect(viewModel.canContinueFromBeneficiary, isFalse);
 
       viewModel.saveBeneficiary(
-        phoneInput: '05 12 34 56 78',
-        confirmationInput: '+225 05 12 34 56 78',
+        phoneInput: '07 12 34 56 78',
+        confirmationInput: '+225 07 12 34 56 78',
       );
 
       expect(viewModel.currentStep, 6);
       expect(viewModel.canContinueFromBeneficiary, isTrue);
-      expect(viewModel.draft.beneficiaryNumber?.normalized, '+2250512345678');
+      expect(viewModel.draft.beneficiaryNumber?.normalized, '+2250712345678');
     });
 
     test('refuse deux numéros bénéficiaires différents', () {
@@ -332,6 +332,50 @@ void main() {
       expect(viewModel.currentStep, 5);
       expect(viewModel.draft.beneficiaryNumber, isNull);
     });
+
+    test(
+      'demande une confirmation si le préfixe ne correspond pas au réseau',
+      () {
+        final CustomerOrderViewModel viewModel = CustomerOrderViewModel(
+          orderRepository: FakeCustomerOrderRepository(),
+        );
+
+        viewModel.saveIdentity(name: 'Client', whatsappInput: '07 00 00 00 00');
+        viewModel.selectService(CustomerService.unitTransfer);
+        viewModel.continueFromService();
+        viewModel.selectNetwork(MobileNetwork.orange);
+        viewModel.continueFromNetwork();
+        viewModel.setTransferAmount(1000);
+        viewModel.continueFromOffer();
+
+        expect(
+          () => viewModel.saveBeneficiary(
+            phoneInput: '05 12 34 56 78',
+            confirmationInput: '05 12 34 56 78',
+          ),
+          throwsA(
+            isA<FormatException>().having(
+              (FormatException error) => error.message,
+              'message',
+              'PORTABILITY_REQUIRED',
+            ),
+          ),
+        );
+        expect(viewModel.currentStep, 5);
+
+        viewModel.saveBeneficiary(
+          phoneInput: '05 12 34 56 78',
+          confirmationInput: '05 12 34 56 78',
+          isPortabilityConfirmed: true,
+        );
+
+        expect(viewModel.currentStep, 6);
+        expect(
+          viewModel.draft.beneficiaryNumber?.expectedNetwork,
+          MobileNetwork.mtn,
+        );
+      },
+    );
 
     test('changer de réseau efface le numéro bénéficiaire confirmé', () {
       final CustomerOrderViewModel viewModel = CustomerOrderViewModel(
@@ -371,7 +415,7 @@ void completeCustomerDraft(CustomerOrderViewModel viewModel) {
   viewModel.setTransferAmount(2000);
   viewModel.continueFromOffer();
   viewModel.saveBeneficiary(
-    phoneInput: '05 12 34 56 78',
-    confirmationInput: '05 12 34 56 78',
+    phoneInput: '07 12 34 56 78',
+    confirmationInput: '07 12 34 56 78',
   );
 }

@@ -48,8 +48,8 @@ void main() {
     firstViewModel.setTransferAmount(3000);
     firstViewModel.continueFromOffer();
     firstViewModel.saveBeneficiary(
-      phoneInput: '05 12 34 56 78',
-      confirmationInput: '05 12 34 56 78',
+      phoneInput: '07 12 34 56 78',
+      confirmationInput: '07 12 34 56 78',
     );
 
     final bool created = await firstViewModel.createOrderAndContinueToPayment();

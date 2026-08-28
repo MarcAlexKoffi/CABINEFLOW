@@ -3,6 +3,10 @@ import 'package:cabine_flow/features/customer_order/domain/models/beneficiary_ph
 import 'package:cabine_flow/features/customer_order/domain/models/customer_beneficiary_target.dart';
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_flow_scaffold.dart';
+import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_cards.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_operator_brand.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_inputs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -25,6 +29,9 @@ class _CustomerBeneficiaryPageState extends State<CustomerBeneficiaryPage> {
 
   bool _isEditingSavedSelfNumber = false;
   bool _hasEditedPhoneFields = false;
+
+  bool _requiresPortabilityConfirmation = false;
+  bool _isPortabilityConfirmed = false;
 
   @override
   void initState() {
@@ -137,7 +144,10 @@ class _CustomerBeneficiaryPageState extends State<CustomerBeneficiaryPage> {
       _isEditingSavedSelfNumber = true;
     }
 
-    setState(() {});
+    setState(() {
+      _requiresPortabilityConfirmation = false;
+      _isPortabilityConfirmed = false;
+    });
   }
 
   void _selectTarget(CustomerBeneficiaryTarget target) {
@@ -152,6 +162,8 @@ class _CustomerBeneficiaryPageState extends State<CustomerBeneficiaryPage> {
     setState(() {
       _isEditingSavedSelfNumber = false;
       _hasEditedPhoneFields = false;
+      _requiresPortabilityConfirmation = false;
+      _isPortabilityConfirmed = false;
     });
 
     widget.viewModel.selectBeneficiaryTarget(target);
@@ -188,7 +200,20 @@ class _CustomerBeneficiaryPageState extends State<CustomerBeneficiaryPage> {
     FocusManager.instance.primaryFocus?.unfocus();
 
     if (_usesSavedSelfNumber) {
-      widget.viewModel.useSavedBeneficiaryForMe();
+      try {
+        widget.viewModel.useSavedBeneficiaryForMe(
+          isPortabilityConfirmed: _isPortabilityConfirmed,
+        );
+      } on FormatException catch (error) {
+        if (error.message == 'PORTABILITY_REQUIRED') {
+          setState(() {
+            _requiresPortabilityConfirmation = true;
+            _isPortabilityConfirmed = false;
+          });
+          return;
+        }
+        _showError(error.message.toString());
+      }
       return;
     }
 
@@ -203,14 +228,23 @@ class _CustomerBeneficiaryPageState extends State<CustomerBeneficiaryPage> {
         widget.viewModel.saveBeneficiaryForMe(
           phoneInput: _beneficiaryController.text,
           confirmationInput: _confirmationController.text,
+          isPortabilityConfirmed: _isPortabilityConfirmed,
         );
       } else {
         widget.viewModel.saveBeneficiary(
           phoneInput: _beneficiaryController.text,
           confirmationInput: _confirmationController.text,
+          isPortabilityConfirmed: _isPortabilityConfirmed,
         );
       }
     } on FormatException catch (error) {
+      if (error.message == 'PORTABILITY_REQUIRED') {
+        setState(() {
+          _requiresPortabilityConfirmation = true;
+          _isPortabilityConfirmed = false;
+        });
+        return;
+      }
       _showError(error.message.toString());
     } on StateError catch (error) {
       _showError(error.message.toString());
@@ -236,26 +270,14 @@ class _CustomerBeneficiaryPageState extends State<CustomerBeneficiaryPage> {
       onTopBack: widget.viewModel.goBack,
       onBottomBack: widget.viewModel.goBack,
       onContinue: _continue,
-      isContinueEnabled: _canContinue,
+      isContinueEnabled:
+          _canContinue &&
+          (!_requiresPortabilityConfirmation || _isPortabilityConfirmed),
       content: Form(
         key: _formKey,
         autovalidateMode: AutovalidateMode.onUserInteraction,
-        child: Container(
+        child: IzyTelCard(
           padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            color: CustomerAppColors.surfaceContainerLowest,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: CustomerAppColors.surfaceContainerHighest,
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x0D000000),
-                blurRadius: 20,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -332,6 +354,30 @@ class _CustomerBeneficiaryPageState extends State<CustomerBeneficiaryPage> {
                     ),
                   ),
               ],
+              if (_requiresPortabilityConfirmation) ...[
+                const SizedBox(height: 22),
+                _PortabilityWarning(
+                  value: _isPortabilityConfirmed,
+                  selectedNetwork: widget.viewModel.draft.network!,
+                  detectedNetwork:
+                      (_usesSavedSelfNumber
+                              ? _savedSelfNumber
+                              : BeneficiaryPhoneNumber.validate(
+                                      _beneficiaryController.text,
+                                    ) ==
+                                    null
+                              ? BeneficiaryPhoneNumber.parse(
+                                  _beneficiaryController.text,
+                                )
+                              : null)
+                          ?.expectedNetwork,
+                  onChanged: (bool? val) {
+                    setState(() {
+                      _isPortabilityConfirmed = val ?? false;
+                    });
+                  },
+                ),
+              ],
               const SizedBox(height: 22),
               const _BeneficiaryWarning(),
             ],
@@ -364,73 +410,52 @@ class _BeneficiaryTargetCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(
-            color: selected
-                ? CustomerAppColors.primary.withValues(alpha: 0.07)
-                : CustomerAppColors.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
+    return IzyTelCard(
+      isSelected: selected,
+      onTap: onTap,
+      padding: const EdgeInsets.all(15),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: selected
+                  ? CustomerAppColors.primary.withValues(alpha: 0.1)
+                  : CustomerAppColors.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
               color: selected
                   ? CustomerAppColors.primary
-                  : CustomerAppColors.outlineVariant,
-              width: selected ? 1.6 : 1,
+                  : CustomerAppColors.onSurfaceVariant,
+              size: 21,
             ),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: selected
-                      ? CustomerAppColors.primary.withValues(alpha: 0.1)
-                      : CustomerAppColors.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  icon,
-                  color: selected
-                      ? CustomerAppColors.primary
-                      : CustomerAppColors.onSurfaceVariant,
-                  size: 21,
-                ),
-              ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: Theme.of(context).textTheme.labelLarge),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Icon(
-                selected
-                    ? Icons.radio_button_checked_rounded
-                    : Icons.radio_button_unchecked_rounded,
-                color: selected
-                    ? CustomerAppColors.primary
-                    : CustomerAppColors.outline,
-                size: 22,
-              ),
-            ],
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: Theme.of(context).textTheme.labelLarge),
+                const SizedBox(height: 3),
+                Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+              ],
+            ),
           ),
-        ),
+          const SizedBox(width: 10),
+          Icon(
+            selected
+                ? Icons.radio_button_checked_rounded
+                : Icons.radio_button_unchecked_rounded,
+            color: selected
+                ? CustomerAppColors.primary
+                : CustomerAppColors.outline,
+            size: 22,
+          ),
+        ],
       ),
     );
   }
@@ -517,19 +542,17 @@ class _PhoneFields extends StatelessWidget {
         _FieldLabel(
           text: isForMe ? 'Votre numéro habituel' : 'Numéro bénéficiaire',
         ),
-        TextFormField(
+        IzyTelTextInput(
           controller: beneficiaryController,
           keyboardType: TextInputType.phone,
           textInputAction: TextInputAction.next,
           autofillHints: const [AutofillHints.telephoneNumber],
           inputFormatters: inputFormatters,
-          decoration: InputDecoration(
-            hintText: 'Ex. 07 00 00 00 00',
-            prefixIcon: const Icon(Icons.phone_android_rounded),
-            helperText: isForMe
-                ? 'Ce numéro sera proposé automatiquement lors de vos prochaines commandes.'
-                : null,
-          ),
+          hintText: 'Ex. 07 00 00 00 00',
+          prefixIcon: Icons.phone_android_rounded,
+          helperText: isForMe
+              ? 'Ce numéro sera proposé automatiquement lors de vos prochaines commandes.'
+              : null,
           validator: validateBeneficiary,
           onChanged: onChanged,
         ),
@@ -539,15 +562,13 @@ class _PhoneFields extends StatelessWidget {
               ? 'Confirmez votre numéro habituel'
               : 'Confirmez le numéro',
         ),
-        TextFormField(
+        IzyTelTextInput(
           controller: confirmationController,
           keyboardType: TextInputType.phone,
           textInputAction: TextInputAction.done,
           inputFormatters: inputFormatters,
-          decoration: const InputDecoration(
-            hintText: 'Saisissez à nouveau le numéro',
-            prefixIcon: Icon(Icons.dialpad_rounded),
-          ),
+          hintText: 'Saisissez à nouveau le numéro',
+          prefixIcon: Icons.dialpad_rounded,
           validator: validateConfirmation,
           onChanged: onChanged,
           onFieldSubmitted: (_) => onSubmitted?.call(),
@@ -635,7 +656,7 @@ class _BeneficiaryWarning extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: CustomerAppColors.errorContainer,
+        color: CustomerAppColors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(10),
       ),
       child: const Row(
@@ -643,20 +664,103 @@ class _BeneficiaryWarning extends StatelessWidget {
         children: [
           Icon(
             Icons.warning_amber_rounded,
-            color: CustomerAppColors.error,
+            color: CustomerAppColors.onSurfaceVariant,
             size: 21,
           ),
           SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Une opération envoyée sur un mauvais numéro peut être difficile à récupérer.',
+              'Vérifiez bien le numéro : certaines opérations ne peuvent pas être annulées après traitement.',
               style: TextStyle(
-                color: CustomerAppColors.onErrorContainer,
+                color: CustomerAppColors.onSurfaceVariant,
                 fontSize: 12,
                 height: 1.45,
                 fontWeight: FontWeight.w500,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PortabilityWarning extends StatelessWidget {
+  const _PortabilityWarning({
+    required this.value,
+    required this.selectedNetwork,
+    required this.detectedNetwork,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final MobileNetwork selectedNetwork;
+  final MobileNetwork? detectedNetwork;
+  final ValueChanged<bool?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF3CD),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFFFECB5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.info_outline_rounded,
+                color: Color(0xFF856404),
+                size: 21,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  detectedNetwork == null
+                      ? 'Ce numéro ne semble pas correspondre au réseau ${selectedNetwork.brandLabel}.'
+                      : 'Ce numéro semble être ${detectedNetwork!.brandLabel}, alors que vous avez choisi ${selectedNetwork.brandLabel}.',
+                  style: const TextStyle(
+                    color: Color(0xFF856404),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: Checkbox(
+                  value: value,
+                  onChanged: onChanged,
+                  fillColor: WidgetStateProperty.resolveWith((states) {
+                    if (states.contains(WidgetState.selected)) {
+                      return const Color(0xFF856404);
+                    }
+                    return null;
+                  }),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Je confirme que ce numéro a été porté vers ${selectedNetwork.brandLabel}.',
+                  style: const TextStyle(
+                    color: Color(0xFF856404),
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

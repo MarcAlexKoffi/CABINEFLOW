@@ -1,3 +1,5 @@
+import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+
 class BeneficiaryPhoneNumber {
   const BeneficiaryPhoneNumber._({
     required this.normalized,
@@ -73,6 +75,16 @@ class BeneficiaryPhoneNumber {
     ];
 
     return '+225 ${groups.join(' ')}';
+  }
+
+  MobileNetwork? get expectedNetwork {
+    final String prefix = localDigits.substring(0, 2);
+    return switch (prefix) {
+      '01' => MobileNetwork.moov,
+      '05' => MobileNetwork.mtn,
+      '07' => MobileNetwork.orange,
+      _ => null,
+    };
   }
 
   static String _digitsOnly(String input) {

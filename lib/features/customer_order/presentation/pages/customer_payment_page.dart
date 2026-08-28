@@ -6,6 +6,8 @@ import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_order_labels.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_progress_indicator.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_cards.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_inputs.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -134,21 +136,16 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
       backgroundColor: CustomerAppColors.background,
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 500),
-          child: DecoratedBox(
-            decoration: const BoxDecoration(
-              color: CustomerAppColors.surface,
-              border: Border.symmetric(
-                vertical: BorderSide(color: Color(0x33C2C6D8)),
-              ),
-            ),
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: ColoredBox(
+            color: CustomerAppColors.surface,
             child: SafeArea(
               child: Column(
                 children: [
                   _PaymentTopBar(onBack: widget.viewModel.goBack),
                   Expanded(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 34),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -156,31 +153,55 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
                             currentStep: 7,
                             totalSteps: CustomerOrderViewModel.totalSteps,
                           ),
-                          const SizedBox(height: 34),
+                          const SizedBox(height: 30),
                           Text(
-                            'Paiement de la commande',
+                            'Choisissez votre moyen de paiement',
                             style: Theme.of(context).textTheme.displaySmall,
                           ),
                           const SizedBox(height: 8),
                           const Text(
-                            'Vérifiez les détails avant de procéder au paiement.',
+                            'Sélectionnez le service avec lequel vous souhaitez régler votre commande.',
                             style: TextStyle(
                               color: CustomerAppColors.onSurfaceVariant,
-                              fontSize: 15,
+                              fontSize: 14,
                               height: 1.5,
                             ),
                           ),
-                          const SizedBox(height: 26),
-                          _PaymentSummaryCard(draft: draft),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 22),
                           if (isExpiredWithoutDeclaration)
                             const _ExpiredPaymentWarning()
-                          else
-                            _WavePaymentButton(
-                              isLoading: _isOpeningWave,
-                              onPressed: _openWave,
+                          else ...[
+                            const _PaymentMethodGrid(),
+                            const SizedBox(height: 18),
+                            _PaymentSummaryCard(draft: draft),
+                            const SizedBox(height: 16),
+                            const _PaymentSecurityCard(),
+                            const SizedBox(height: 20),
+                            FilledButton.icon(
+                              onPressed: _isOpeningWave ? null : _openWave,
+                              icon: _isOpeningWave
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(Icons.arrow_forward_rounded),
+                              label: Text(
+                                'Payer ${formatCfa(draft.amount!)} F CFA',
+                              ),
                             ),
-                          if (!isExpiredWithoutDeclaration) ...[
+                            const SizedBox(height: 10),
+                            const Text(
+                              'Vous serez redirigé vers Wave pour finaliser le paiement.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: CustomerAppColors.onSurfaceVariant,
+                                fontSize: 12,
+                              ),
+                            ),
                             const SizedBox(height: 16),
                             Container(
                               padding: const EdgeInsets.all(14),
@@ -199,9 +220,7 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
                                   SizedBox(width: 10),
                                   Expanded(
                                     child: Text(
-                                      'Finalisez le paiement dans les 6 heures. '
-                                      'Après ce délai, la commande expirera '
-                                      'automatiquement si le paiement n’est pas confirmé.',
+                                      'Finalisez le paiement dans les 6 heures. Après ce délai, une commande non confirmée peut expirer.',
                                       style: TextStyle(
                                         color:
                                             CustomerAppColors.onSurfaceVariant,
@@ -213,19 +232,25 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
                                 ],
                               ),
                             ),
-                          ],
-                          if (widget.viewModel.paymentLinkWasOpened) ...[
-                            const SizedBox(height: 18),
-                            const Text(
-                              'Revenez sur cette page après le paiement '
-                              'et confirmez ci-dessous.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: CustomerAppColors.success,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                            if (widget.viewModel.paymentLinkWasOpened) ...[
+                              const SizedBox(height: 18),
+                              Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: CustomerAppColors.successContainer,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Text(
+                                  'Paiement ouvert. Après avoir payé dans Wave, revenez ici et déclarez votre paiement.',
+                                  style: TextStyle(
+                                    color: CustomerAppColors.success,
+                                    fontSize: 12,
+                                    height: 1.45,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ],
                         ],
                       ),
@@ -276,7 +301,7 @@ class _PaymentTopBar extends StatelessWidget {
             ),
             const Expanded(
               child: Text(
-                'CabineFlow',
+                'IzyTel',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: CustomerAppColors.primary,
@@ -293,6 +318,223 @@ class _PaymentTopBar extends StatelessWidget {
   }
 }
 
+class _PaymentMethodGrid extends StatelessWidget {
+  const _PaymentMethodGrid();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool compact = constraints.maxWidth < 480;
+        final List<Widget> cards = [
+          const _PaymentMethodCard(
+            name: 'Wave',
+            logoPath: 'assets/images/wave_logo.png',
+            isSelected: true,
+          ),
+          const _PaymentMethodCard(
+            name: 'Orange Money',
+            logoPath: 'assets/brands/operators/orange_ci.png',
+            isDisabled: true,
+          ),
+          const _PaymentMethodCard(
+            name: 'MTN MoMo',
+            logoPath: 'assets/brands/operators/mtn_ci.png',
+            isDisabled: true,
+          ),
+          const _PaymentMethodCard(
+            name: 'Moov Money',
+            logoPath: 'assets/brands/operators/moov_africa_ci.png',
+            isDisabled: true,
+          ),
+        ];
+
+        if (compact) {
+          return GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 1.12,
+            children: cards,
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (int i = 0; i < cards.length; i++) ...[
+              if (i > 0) const SizedBox(width: 10),
+              Expanded(child: cards[i]),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PaymentMethodCard extends StatelessWidget {
+  const _PaymentMethodCard({
+    required this.name,
+    required this.logoPath,
+    this.isSelected = false,
+    this.isDisabled = false,
+  });
+
+  final String name;
+  final String logoPath;
+  final bool isSelected;
+  final bool isDisabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: isDisabled ? 0.52 : 1,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? CustomerAppColors.primarySoft
+              : CustomerAppColors.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected
+                ? CustomerAppColors.primary
+                : CustomerAppColors.outlineSoft,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Stack(
+          children: [
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Center(
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    padding: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Image.asset(logoPath, fit: BoxFit.contain),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  name,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: isDisabled
+                        ? CustomerAppColors.onSurfaceVariant
+                        : CustomerAppColors.onSurface,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            if (isSelected)
+              const Positioned(
+                top: 0,
+                right: 0,
+                child: Icon(
+                  Icons.check_circle_rounded,
+                  color: CustomerAppColors.primary,
+                  size: 20,
+                ),
+              ),
+            if (isDisabled)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: CustomerAppColors.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    'BIENTÔT',
+                    style: TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w800,
+                      color: CustomerAppColors.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentSecurityCard extends StatelessWidget {
+  const _PaymentSecurityCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return IzyTelCard(
+      showShadow: false,
+      child: const Column(
+        children: [
+          _SecurityLine(
+            icon: Icons.lock_outline_rounded,
+            label: 'Paiement sécurisé',
+          ),
+          Divider(height: 22),
+          _SecurityLine(
+            icon: Icons.verified_user_outlined,
+            label: 'Montant vérifié',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SecurityLine extends StatelessWidget {
+  const _SecurityLine({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: const BoxDecoration(
+            color: CustomerAppColors.successContainer,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: CustomerAppColors.success, size: 18),
+        ),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: CustomerAppColors.onSurface,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _PaymentSummaryCard extends StatelessWidget {
   const _PaymentSummaryCard({required this.draft});
 
@@ -300,19 +542,8 @@ class _PaymentSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return IzyTelCard(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: CustomerAppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0D000000),
-            blurRadius: 20,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
       child: Column(
         children: [
           _PaymentRow(
@@ -427,61 +658,6 @@ class _ExpiredPaymentWarning extends StatelessWidget {
   }
 }
 
-class _WavePaymentButton extends StatelessWidget {
-  const _WavePaymentButton({required this.isLoading, required this.onPressed});
-
-  final bool isLoading;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: const Color(0xFF1B439C),
-      borderRadius: BorderRadius.circular(16),
-      elevation: 5,
-      child: InkWell(
-        onTap: isLoading ? null : onPressed,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          child: Column(
-            children: [
-              if (isLoading)
-                const SizedBox(
-                  width: 30,
-                  height: 30,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    color: Colors.white,
-                  ),
-                )
-              else
-                const Text(
-                  'WAVE',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 4,
-                  ),
-                ),
-              const SizedBox(height: 8),
-              const Text(
-                'Payer avec Wave Mobile Money',
-                style: TextStyle(
-                  color: Color(0xD9FFFFFF),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _PaymentBottomActions extends StatelessWidget {
   const _PaymentBottomActions({
     required this.isSubmitting,
@@ -517,10 +693,7 @@ class _PaymentBottomActions extends StatelessWidget {
             Expanded(
               child: OutlinedButton(
                 onPressed: isSubmitting ? null : onBack,
-                child: const Text(
-                  'Retour au récapitulatif',
-                  textAlign: TextAlign.center,
-                ),
+                child: const Text('Retour', textAlign: TextAlign.center),
               ),
             ),
             const SizedBox(width: 12),
@@ -540,8 +713,8 @@ class _PaymentBottomActions extends StatelessWidget {
                       )
                     : Text(
                         isExpired
-                            ? 'J’ai déjà effectué le paiement'
-                            : 'J’ai effectué le paiement',
+                            ? 'Paiement déjà effectué'
+                            : 'Paiement effectué',
                         textAlign: TextAlign.center,
                       ),
               ),
@@ -706,16 +879,13 @@ class _PaymentDeclarationSheetState extends State<_PaymentDeclarationSheet> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  TextFormField(
+                  IzyTelTextInput(
                     controller: _nameController,
                     textCapitalization: TextCapitalization.words,
                     textInputAction: TextInputAction.next,
                     autofillHints: const <String>[AutofillHints.name],
-                    decoration: const InputDecoration(
-                      labelText: 'Nom affiché sur le compte Wave',
-                      hintText: 'Ex. KOFFI MARC',
-                      prefixIcon: Icon(Icons.person_outline_rounded),
-                    ),
+                    hintText: 'Ex. KOFFI MARC',
+                    prefixIcon: Icons.person_outline_rounded,
                     validator: (String? value) {
                       final String cleaned = value?.trim() ?? '';
 
@@ -731,18 +901,15 @@ class _PaymentDeclarationSheetState extends State<_PaymentDeclarationSheet> {
                     },
                   ),
                   const SizedBox(height: 14),
-                  TextFormField(
+                  IzyTelTextInput(
                     controller: _phoneController,
                     keyboardType: TextInputType.phone,
                     textInputAction: TextInputAction.next,
                     autofillHints: const <String>[
                       AutofillHints.telephoneNumber,
                     ],
-                    decoration: const InputDecoration(
-                      labelText: 'Numéro Wave utilisé',
-                      hintText: 'Ex. 07 00 00 00 00',
-                      prefixIcon: Icon(Icons.phone_android_rounded),
-                    ),
+                    hintText: 'Ex. 07 00 00 00 00',
+                    prefixIcon: Icons.phone_android_rounded,
                     validator: (String? value) {
                       final String? error = WhatsappPhoneNumber.validate(value);
                       return error?.replaceAll(
@@ -756,10 +923,29 @@ class _PaymentDeclarationSheetState extends State<_PaymentDeclarationSheet> {
                     onTap: _selectTime,
                     borderRadius: BorderRadius.circular(12),
                     child: InputDecorator(
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Heure approximative du paiement',
-                        prefixIcon: Icon(Icons.schedule_rounded),
-                        suffixIcon: Icon(Icons.edit_outlined),
+                        prefixIcon: const Icon(Icons.schedule_rounded),
+                        suffixIcon: const Icon(Icons.edit_outlined),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: CustomerAppColors.outlineVariant,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: CustomerAppColors.outlineVariant,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: CustomerAppColors.primary,
+                            width: 2,
+                          ),
+                        ),
                       ),
                       child: Text(
                         _formattedTime,
@@ -772,16 +958,13 @@ class _PaymentDeclarationSheetState extends State<_PaymentDeclarationSheet> {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  TextFormField(
+                  IzyTelTextInput(
                     controller: _referenceController,
                     textCapitalization: TextCapitalization.characters,
                     textInputAction: TextInputAction.done,
                     onFieldSubmitted: (_) => _submit(),
-                    decoration: const InputDecoration(
-                      labelText: 'Référence Wave éventuelle',
-                      hintText: 'Facultatif',
-                      prefixIcon: Icon(Icons.tag_rounded),
-                    ),
+                    hintText: 'Facultatif',
+                    prefixIcon: Icons.tag_rounded,
                     validator: (String? value) {
                       if ((value?.trim().length ?? 0) > 80) {
                         return 'Maximum 80 caractères.';

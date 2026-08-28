@@ -69,13 +69,13 @@ extension SupportRequestStatusX on SupportRequestStatus {
   String get label {
     switch (this) {
       case SupportRequestStatus.newRequest:
-        return 'Nouveau';
+        return 'À traiter';
       case SupportRequestStatus.inProgress:
         return 'En cours';
       case SupportRequestStatus.resolved:
-        return 'Résolu';
+        return 'Résolue';
       case SupportRequestStatus.closed:
-        return 'Fermé';
+        return 'Fermée';
     }
   }
 
@@ -113,7 +113,15 @@ class SupportRequest {
     required this.createdAt,
     required this.updatedAt,
     this.assignedTo,
+    this.assignedToName,
+    this.inProgressAt,
+    this.resolutionNote,
     this.resolvedAt,
+    this.resolvedBy,
+    this.resolvedByName,
+    this.customerNotifiedAt,
+    this.notificationChannel,
+    this.closedAt,
   });
 
   final String id;
@@ -125,6 +133,64 @@ class SupportRequest {
   final SupportRequestStatus status;
   final DateTime createdAt;
   final DateTime updatedAt;
+
   final String? assignedTo;
+  final String? assignedToName;
+  final DateTime? inProgressAt;
+
+  final String? resolutionNote;
   final DateTime? resolvedAt;
+  final String? resolvedBy;
+  final String? resolvedByName;
+
+  final DateTime? customerNotifiedAt;
+  final String? notificationChannel;
+  final DateTime? closedAt;
+
+  bool get isActive =>
+      status == SupportRequestStatus.newRequest ||
+      status == SupportRequestStatus.inProgress;
+
+  bool get isResolved =>
+      status == SupportRequestStatus.resolved ||
+      status == SupportRequestStatus.closed;
+
+  bool get customerWasNotified => customerNotifiedAt != null;
+
+  SupportRequest copyWith({
+    SupportRequestStatus? status,
+    DateTime? updatedAt,
+    String? assignedTo,
+    String? assignedToName,
+    DateTime? inProgressAt,
+    String? resolutionNote,
+    DateTime? resolvedAt,
+    String? resolvedBy,
+    String? resolvedByName,
+    DateTime? customerNotifiedAt,
+    String? notificationChannel,
+    DateTime? closedAt,
+  }) {
+    return SupportRequest(
+      id: id,
+      orderId: orderId,
+      orderReference: orderReference,
+      customerAuthUid: customerAuthUid,
+      type: type,
+      description: description,
+      status: status ?? this.status,
+      createdAt: createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      assignedTo: assignedTo ?? this.assignedTo,
+      assignedToName: assignedToName ?? this.assignedToName,
+      inProgressAt: inProgressAt ?? this.inProgressAt,
+      resolutionNote: resolutionNote ?? this.resolutionNote,
+      resolvedAt: resolvedAt ?? this.resolvedAt,
+      resolvedBy: resolvedBy ?? this.resolvedBy,
+      resolvedByName: resolvedByName ?? this.resolvedByName,
+      customerNotifiedAt: customerNotifiedAt ?? this.customerNotifiedAt,
+      notificationChannel: notificationChannel ?? this.notificationChannel,
+      closedAt: closedAt ?? this.closedAt,
+    );
+  }
 }

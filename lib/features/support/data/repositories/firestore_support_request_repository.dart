@@ -57,7 +57,15 @@ class FirestoreSupportRequestRepository implements SupportRequestRepository {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
       'assignedTo': null,
+      'assignedToName': null,
+      'inProgressAt': null,
+      'resolutionNote': null,
       'resolvedAt': null,
+      'resolvedBy': null,
+      'resolvedByName': null,
+      'customerNotifiedAt': null,
+      'notificationChannel': null,
+      'closedAt': null,
     });
 
     return SupportRequest(
@@ -81,34 +89,103 @@ class FirestoreSupportRequestRepository implements SupportRequestRepository {
           isEqualTo: SupportRequestStatus.newRequest.storageValue,
         )
         .snapshots()
-        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
-          final List<SupportRequest> requests = snapshot.docs
-              .map(_fromDocument)
-              .whereType<SupportRequest>()
-              .toList(growable: false);
-          requests.sort(
-            (SupportRequest a, SupportRequest b) =>
-                b.createdAt.compareTo(a.createdAt),
-          );
-          return requests;
-        });
+        .map(_mapSnapshot);
+  }
+
+  @override
+  Stream<List<SupportRequest>> watchAllRequests() {
+    return _collection.snapshots().map(_mapSnapshot);
   }
 
   @override
   Stream<List<SupportRequest>> watchForOrder({required String orderId}) {
-    return _collection.where('orderId', isEqualTo: orderId).snapshots().map((
-      QuerySnapshot<Map<String, dynamic>> snapshot,
-    ) {
-      final List<SupportRequest> requests = snapshot.docs
-          .map(_fromDocument)
-          .whereType<SupportRequest>()
-          .toList(growable: false);
-      requests.sort(
-        (SupportRequest a, SupportRequest b) =>
-            b.createdAt.compareTo(a.createdAt),
+    return _collection
+        .where('orderId', isEqualTo: orderId)
+        .snapshots()
+        .map(_mapSnapshot);
+  }
+
+  @override
+  Future<void> takeInCharge({
+    required String requestId,
+    required String staffId,
+    required String staffName,
+  }) async {
+    final String cleanedId = requestId.trim();
+    final String cleanedStaffId = staffId.trim();
+    final String cleanedStaffName = staffName.trim();
+    if (cleanedId.isEmpty ||
+        cleanedStaffId.isEmpty ||
+        cleanedStaffName.isEmpty) {
+      throw ArgumentError(
+        'Les informations de prise en charge sont invalides.',
       );
-      return requests;
+    }
+
+    await _collection.doc(cleanedId).update(<String, dynamic>{
+      'status': SupportRequestStatus.inProgress.storageValue,
+      'assignedTo': cleanedStaffId,
+      'assignedToName': cleanedStaffName,
+      'inProgressAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  @override
+  Future<void> resolve({
+    required String requestId,
+    required String staffId,
+    required String staffName,
+    required String resolutionNote,
+  }) async {
+    final String cleanedNote = resolutionNote.trim();
+    if (cleanedNote.length < 3) {
+      throw ArgumentError('Ajoutez une note de résolution.');
+    }
+    if (cleanedNote.length > 1000) {
+      throw ArgumentError('La note de résolution est trop longue.');
+    }
+
+    await _collection.doc(requestId.trim()).update(<String, dynamic>{
+      'status': SupportRequestStatus.resolved.storageValue,
+      'resolutionNote': cleanedNote,
+      'resolvedAt': FieldValue.serverTimestamp(),
+      'resolvedBy': staffId.trim(),
+      'resolvedByName': staffName.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  @override
+  Future<void> markCustomerNotified({required String requestId}) async {
+    await _collection.doc(requestId.trim()).update(<String, dynamic>{
+      'customerNotifiedAt': FieldValue.serverTimestamp(),
+      'notificationChannel': 'whatsapp',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  @override
+  Future<void> close({required String requestId}) async {
+    await _collection.doc(requestId.trim()).update(<String, dynamic>{
+      'status': SupportRequestStatus.closed.storageValue,
+      'closedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  List<SupportRequest> _mapSnapshot(
+    QuerySnapshot<Map<String, dynamic>> snapshot,
+  ) {
+    final List<SupportRequest> requests = snapshot.docs
+        .map(_fromDocument)
+        .whereType<SupportRequest>()
+        .toList(growable: false);
+    requests.sort(
+      (SupportRequest a, SupportRequest b) =>
+          b.createdAt.compareTo(a.createdAt),
+    );
+    return requests;
   }
 
   SupportRequest? _fromDocument(
@@ -144,7 +221,15 @@ class FirestoreSupportRequestRepository implements SupportRequestRepository {
       createdAt: createdAt,
       updatedAt: updatedAt,
       assignedTo: data['assignedTo'] as String?,
+      assignedToName: data['assignedToName'] as String?,
+      inProgressAt: _readDate(data['inProgressAt']),
+      resolutionNote: data['resolutionNote'] as String?,
       resolvedAt: _readDate(data['resolvedAt']),
+      resolvedBy: data['resolvedBy'] as String?,
+      resolvedByName: data['resolvedByName'] as String?,
+      customerNotifiedAt: _readDate(data['customerNotifiedAt']),
+      notificationChannel: data['notificationChannel'] as String?,
+      closedAt: _readDate(data['closedAt']),
     );
   }
 

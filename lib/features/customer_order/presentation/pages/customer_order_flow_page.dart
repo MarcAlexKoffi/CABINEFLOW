@@ -6,13 +6,18 @@ import 'package:cabine_flow/features/customer_order/data/repositories/firestore_
 import 'package:cabine_flow/features/customer_order/data/repositories/fake_customer_profile_repository.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/firestore_customer_profile_repository.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/firestore_customer_order_repository.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/customer_offer.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_offer_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_profile_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_session_store.dart';
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_beneficiary_page.dart';
+import 'package:cabine_flow/features/customer_order/presentation/pages/customer_catalog_page.dart';
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_confirmation_page.dart';
+import 'package:cabine_flow/features/customer_order/presentation/pages/customer_home_page.dart';
+import 'package:cabine_flow/features/support/presentation/pages/customer_help_page.dart';
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_identification_page.dart';
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_network_page.dart';
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_offer_page.dart';
@@ -41,6 +46,9 @@ class CustomerOrderFlowPage extends StatefulWidget {
 
 class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
   late final CustomerOrderViewModel _viewModel;
+  bool _isShowingHome = true;
+  bool _isShowingHelp = false;
+  bool _isShowingCatalog = false;
   bool _isShowingHistory = false;
   bool _isShowingRecovery = false;
 
@@ -82,15 +90,87 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
     super.dispose();
   }
 
+  void _openHome() {
+    setState(() {
+      _isShowingHome = true;
+      _isShowingHistory = false;
+      _isShowingRecovery = false;
+      _isShowingHelp = false;
+      _isShowingCatalog = false;
+    });
+  }
+
+  void _startOrder() {
+    _viewModel.restart();
+    setState(() {
+      _isShowingHome = false;
+      _isShowingHistory = false;
+      _isShowingRecovery = false;
+      _isShowingHelp = false;
+      _isShowingCatalog = false;
+    });
+  }
+
+  void _startServiceOrder(CustomerService service) {
+    _viewModel.restart();
+    _viewModel.selectService(service);
+    setState(() {
+      _isShowingHome = false;
+      _isShowingHistory = false;
+      _isShowingRecovery = false;
+      _isShowingHelp = false;
+      _isShowingCatalog = false;
+    });
+  }
+
+  void _startOfferOrder(CustomerOffer offer) {
+    _viewModel.restart();
+    final CustomerService service = offer.type == CustomerOfferType.internet
+        ? CustomerService.internetSubscription
+        : CustomerService.calls;
+    _viewModel.selectService(service);
+    _viewModel.selectNetwork(offer.network);
+    _viewModel.selectOffer(offer);
+    setState(() {
+      _isShowingHome = false;
+      _isShowingHistory = false;
+      _isShowingRecovery = false;
+      _isShowingHelp = false;
+      _isShowingCatalog = false;
+    });
+  }
+
   void _openHistory() {
     setState(() {
       _isShowingHistory = true;
+      _isShowingHome = false;
+      _isShowingRecovery = false;
+      _isShowingHelp = false;
+      _isShowingCatalog = false;
     });
   }
 
   void _closeHistory() {
     setState(() {
       _isShowingHistory = false;
+      _isShowingHome = true;
+    });
+  }
+
+  void _openHelp() {
+    setState(() {
+      _isShowingHelp = true;
+      _isShowingHome = false;
+      _isShowingHistory = false;
+      _isShowingRecovery = false;
+      _isShowingCatalog = false;
+    });
+  }
+
+  void _closeHelp() {
+    setState(() {
+      _isShowingHelp = false;
+      _isShowingHome = true;
     });
   }
 
@@ -98,18 +178,54 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
     _viewModel.clearRecoveryError();
     setState(() {
       _isShowingRecovery = true;
+      _isShowingHome = false;
+      _isShowingHistory = false;
+      _isShowingHelp = false;
+      _isShowingCatalog = false;
     });
   }
 
   void _closeRecovery() {
     setState(() {
       _isShowingRecovery = false;
+      _isShowingHome = true;
+    });
+  }
+
+  void _showRecoveredOrder() {
+    setState(() {
+      _isShowingRecovery = false;
+      _isShowingHome = false;
+      _isShowingHistory = false;
+      _isShowingHelp = false;
+      _isShowingCatalog = false;
+    });
+  }
+
+  void _openCatalog() {
+    setState(() {
+      _isShowingCatalog = true;
+      _isShowingHome = false;
+      _isShowingHistory = false;
+      _isShowingRecovery = false;
+      _isShowingHelp = false;
+    });
+  }
+
+  void _closeCatalog() {
+    setState(() {
+      _isShowingCatalog = false;
+      _isShowingHome = true;
     });
   }
 
   void _openOrder(CustomerOrderReceipt order) {
     _viewModel.resumeOrder(order);
-    _closeHistory();
+    setState(() {
+      _isShowingHistory = false;
+      _isShowingHome = false;
+      _isShowingCatalog = false;
+    });
   }
 
   @override
@@ -126,7 +242,16 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
                   key: const ValueKey<String>('customer-recovery'),
                   viewModel: _viewModel,
                   onBack: _closeRecovery,
-                  onRecovered: _closeRecovery,
+                  onRecovered: _showRecoveredOrder,
+                )
+              : _isShowingHelp
+              ? CustomerHelpPage(
+                  key: const ValueKey<String>('customer-help'),
+                  onBack: _closeHelp,
+                  onOpenRecovery: _openRecovery,
+                  onOpenHome: _openHome,
+                  onOpenOffers: _openCatalog,
+                  onOpenHistory: _openHistory,
                 )
               : _isShowingHistory
               ? CustomerOrderHistoryPage(
@@ -134,6 +259,32 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
                   viewModel: _viewModel,
                   onBack: _closeHistory,
                   onOpenOrder: _openOrder,
+                  onOpenHome: _openHome,
+                  onOpenOffers: _openCatalog,
+                  onOpenHelp: _openHelp,
+                )
+              : _isShowingCatalog
+              ? CustomerCatalogPage(
+                  key: const ValueKey<String>('customer-catalog'),
+                  offerRepository: _offerRepository,
+                  onBack: _closeCatalog,
+                  onChooseOffer: _startOfferOrder,
+                  onStartOrder: _startOrder,
+                  onOpenHome: _openHome,
+                  onOpenHistory: _openHistory,
+                  onOpenHelp: _openHelp,
+                )
+              : _isShowingHome
+              ? CustomerHomePage(
+                  key: const ValueKey<String>('customer-home'),
+                  offerRepository: _offerRepository,
+                  onStartOrder: _startOrder,
+                  onStartService: _startServiceOrder,
+                  onChooseOffer: _startOfferOrder,
+                  onOpenOffers: _openCatalog,
+                  onOpenHistory: _openHistory,
+                  onOpenHelp: _openHelp,
+                  onOpenRecovery: _openRecovery,
                 )
               : _buildCurrentStep(),
         );
@@ -150,6 +301,7 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
           onOpenHistory: _openHistory,
           onOpenRecovery: _openRecovery,
           onResumeOrder: _openOrder,
+          onBackToHome: _openHome,
         );
 
       case 2:
@@ -193,7 +345,10 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
         return CustomerConfirmationPage(
           key: const ValueKey<int>(8),
           viewModel: _viewModel,
+          onOpenHome: _openHome,
+          onOpenOffers: _openCatalog,
           onOpenHistory: _openHistory,
+          onOpenHelp: _openHelp,
           supportRequestRepository: _supportRequestRepository,
         );
 
@@ -204,6 +359,7 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
           onOpenHistory: _openHistory,
           onOpenRecovery: _openRecovery,
           onResumeOrder: _openOrder,
+          onBackToHome: _openHome,
         );
     }
   }
