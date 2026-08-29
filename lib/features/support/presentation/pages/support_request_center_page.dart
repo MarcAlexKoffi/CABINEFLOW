@@ -2,6 +2,10 @@ import 'package:cabine_flow/core/theme/app_colors.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
+import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
+import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
+import 'package:cabine_flow/features/refunds/presentation/pages/refund_management_page.dart';
+import 'package:cabine_flow/features/refunds/presentation/widgets/refund_creation_sheet.dart';
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:cabine_flow/features/support/presentation/widgets/support_resolution_note_dialog.dart';
@@ -15,11 +19,13 @@ class SupportRequestCenterPage extends StatefulWidget {
     super.key,
     required this.user,
     required this.repository,
+    required this.refundRepository,
     required this.orderHistoryRepository,
   });
 
   final AppUser user;
   final SupportRequestRepository repository;
+  final RefundRepository refundRepository;
   final OrderHistoryRepository orderHistoryRepository;
 
   @override
@@ -47,72 +53,73 @@ class _SupportRequestCenterPageState extends State<SupportRequestCenterPage> {
         top: false,
         child: StreamBuilder<List<SupportRequest>>(
           stream: widget.repository.watchAllRequests(),
-          builder: (
-            BuildContext context,
-            AsyncSnapshot<List<SupportRequest>> snapshot,
-          ) {
-            if (snapshot.hasError) {
-              return _ErrorState(
-                message: 'Impossible de charger les demandes clients.',
-                onRetry: () => setState(() {}),
-              );
-            }
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
+          builder:
+              (
+                BuildContext context,
+                AsyncSnapshot<List<SupportRequest>> snapshot,
+              ) {
+                if (snapshot.hasError) {
+                  return _ErrorState(
+                    message: 'Impossible de charger les demandes clients.',
+                    onRetry: () => setState(() {}),
+                  );
+                }
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-            final List<SupportRequest> all = snapshot.data!;
-            final int newCount = all
-                .where(
-                  (SupportRequest request) =>
-                      request.status == SupportRequestStatus.newRequest,
-                )
-                .length;
-            final int inProgressCount = all
-                .where(
-                  (SupportRequest request) =>
-                      request.status == SupportRequestStatus.inProgress,
-                )
-                .length;
-            final int historyCount = all
-                .where((SupportRequest request) => request.isResolved)
-                .length;
-            final List<SupportRequest> visible = _filter(all);
+                final List<SupportRequest> all = snapshot.data!;
+                final int newCount = all
+                    .where(
+                      (SupportRequest request) =>
+                          request.status == SupportRequestStatus.newRequest,
+                    )
+                    .length;
+                final int inProgressCount = all
+                    .where(
+                      (SupportRequest request) =>
+                          request.status == SupportRequestStatus.inProgress,
+                    )
+                    .length;
+                final int historyCount = all
+                    .where((SupportRequest request) => request.isResolved)
+                    .length;
+                final List<SupportRequest> visible = _filter(all);
 
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                  child: _RequestTabs(
-                    selected: _selectedTab,
-                    newCount: newCount,
-                    inProgressCount: inProgressCount,
-                    historyCount: historyCount,
-                    onChanged: (_SupportInboxTab value) {
-                      setState(() => _selectedTab = value);
-                    },
-                  ),
-                ),
-                Expanded(
-                  child: visible.isEmpty
-                      ? _EmptyState(tab: _selectedTab)
-                      : ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
-                          itemCount: visible.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (BuildContext context, int index) {
-                            final SupportRequest request = visible[index];
-                            return _SupportRequestCard(
-                              request: request,
-                              onTap: () => _openRequest(request),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            );
-          },
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                      child: _RequestTabs(
+                        selected: _selectedTab,
+                        newCount: newCount,
+                        inProgressCount: inProgressCount,
+                        historyCount: historyCount,
+                        onChanged: (_SupportInboxTab value) {
+                          setState(() => _selectedTab = value);
+                        },
+                      ),
+                    ),
+                    Expanded(
+                      child: visible.isEmpty
+                          ? _EmptyState(tab: _selectedTab)
+                          : ListView.separated(
+                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+                              itemCount: visible.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 10),
+                              itemBuilder: (BuildContext context, int index) {
+                                final SupportRequest request = visible[index];
+                                return _SupportRequestCard(
+                                  request: request,
+                                  onTap: () => _openRequest(request),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                );
+              },
         ),
       ),
     );
@@ -149,6 +156,7 @@ class _SupportRequestCenterPageState extends State<SupportRequestCenterPage> {
             user: widget.user,
             initialRequest: request,
             repository: widget.repository,
+            refundRepository: widget.refundRepository,
             orderHistoryRepository: widget.orderHistoryRepository,
           );
         },
@@ -163,12 +171,14 @@ class SupportRequestDetailPage extends StatefulWidget {
     required this.user,
     required this.initialRequest,
     required this.repository,
+    required this.refundRepository,
     required this.orderHistoryRepository,
   });
 
   final AppUser user;
   final SupportRequest initialRequest;
   final SupportRequestRepository repository;
+  final RefundRepository refundRepository;
   final OrderHistoryRepository orderHistoryRepository;
 
   @override
@@ -205,92 +215,140 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
         top: false,
         child: StreamBuilder<List<SupportRequest>>(
           stream: widget.repository.watchAllRequests(),
-          builder: (
-            BuildContext context,
-            AsyncSnapshot<List<SupportRequest>> snapshot,
-          ) {
-            final SupportRequest request = _currentRequest(snapshot.data);
-            return FutureBuilder<QueueOrder>(
-              future: _orderFuture,
-              builder: (
+          builder:
+              (
                 BuildContext context,
-                AsyncSnapshot<QueueOrder> orderSnapshot,
+                AsyncSnapshot<List<SupportRequest>> snapshot,
               ) {
-                final QueueOrder? order = orderSnapshot.data;
-                return ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                  children: [
-                    _RequestStatusHeader(request: request),
-                    const SizedBox(height: 14),
-                    _SectionCard(
-                      title: 'Demande client',
-                      icon: Icons.support_agent_rounded,
-                      child: Column(
-                        children: [
-                          _InfoRow(
-                            label: 'Référence',
-                            value: request.orderReference,
-                          ),
-                          _InfoRow(label: 'Motif', value: request.type.label),
-                          _InfoRow(
-                            label: 'Créée le',
-                            value: _formatDateTime(request.createdAt),
-                          ),
-                          if (request.description.trim().isNotEmpty)
-                            _InfoRow(
-                              label: 'Description',
-                              value: request.description,
-                              multiline: true,
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _SectionCard(
-                      title: 'Commande associée',
-                      icon: Icons.receipt_long_rounded,
-                      child: orderSnapshot.connectionState ==
-                              ConnectionState.waiting
-                          ? const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: Center(child: CircularProgressIndicator()),
-                            )
-                          : order == null
-                          ? const Text(
-                              'Impossible de charger les informations de la commande.',
-                              style: TextStyle(color: AppColors.error),
-                            )
-                          : Column(
-                              children: [
-                                _InfoRow(label: 'Client', value: order.clientName),
-                                _InfoRow(
-                                  label: 'WhatsApp',
-                                  value: order.clientWhatsappPhone,
-                                ),
-                                _InfoRow(
-                                  label: 'Bénéficiaire',
-                                  value: order.beneficiaryPhone,
-                                ),
-                                _InfoRow(
-                                  label: 'Offre',
-                                  value: order.offerLabel,
-                                ),
-                                _InfoRow(
-                                  label: 'Montant',
-                                  value: '${_formatAmount(order.amount)} F',
-                                ),
-                              ],
-                            ),
-                    ),
-                    const SizedBox(height: 12),
-                    _TraceabilityCard(request: request),
-                    const SizedBox(height: 18),
-                    ..._buildActions(request: request, order: order),
-                  ],
+                final SupportRequest request = _currentRequest(snapshot.data);
+                return StreamBuilder<RefundCase?>(
+                  stream: widget.refundRepository.watchForOrder(
+                    orderId: request.orderId,
+                  ),
+                  builder:
+                      (
+                        BuildContext context,
+                        AsyncSnapshot<RefundCase?> refundSnapshot,
+                      ) {
+                        final RefundCase? refund = refundSnapshot.data;
+                        return FutureBuilder<QueueOrder>(
+                          future: _orderFuture,
+                          builder:
+                              (
+                                BuildContext context,
+                                AsyncSnapshot<QueueOrder> orderSnapshot,
+                              ) {
+                                final QueueOrder? order = orderSnapshot.data;
+                                return ListView(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    8,
+                                    16,
+                                    32,
+                                  ),
+                                  children: [
+                                    _RequestStatusHeader(request: request),
+                                    const SizedBox(height: 14),
+                                    _SectionCard(
+                                      title: 'Demande client',
+                                      icon: Icons.support_agent_rounded,
+                                      child: Column(
+                                        children: [
+                                          _InfoRow(
+                                            label: 'Référence',
+                                            value: request.orderReference,
+                                          ),
+                                          _InfoRow(
+                                            label: 'Motif',
+                                            value: request.type.label,
+                                          ),
+                                          _InfoRow(
+                                            label: 'Créée le',
+                                            value: _formatDateTime(
+                                              request.createdAt,
+                                            ),
+                                          ),
+                                          if (request.description
+                                              .trim()
+                                              .isNotEmpty)
+                                            _InfoRow(
+                                              label: 'Description',
+                                              value: request.description,
+                                              multiline: true,
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _SectionCard(
+                                      title: 'Commande associée',
+                                      icon: Icons.receipt_long_rounded,
+                                      child:
+                                          orderSnapshot.connectionState ==
+                                              ConnectionState.waiting
+                                          ? const Padding(
+                                              padding: EdgeInsets.all(12),
+                                              child: Center(
+                                                child:
+                                                    CircularProgressIndicator(),
+                                              ),
+                                            )
+                                          : order == null
+                                          ? const Text(
+                                              'Impossible de charger les informations de la commande.',
+                                              style: TextStyle(
+                                                color: AppColors.error,
+                                              ),
+                                            )
+                                          : Column(
+                                              children: [
+                                                _InfoRow(
+                                                  label: 'Client',
+                                                  value: order.clientName,
+                                                ),
+                                                _InfoRow(
+                                                  label: 'WhatsApp',
+                                                  value:
+                                                      order.clientWhatsappPhone,
+                                                ),
+                                                _InfoRow(
+                                                  label: 'Bénéficiaire',
+                                                  value: order.beneficiaryPhone,
+                                                ),
+                                                _InfoRow(
+                                                  label: 'Offre',
+                                                  value: order.offerLabel,
+                                                ),
+                                                _InfoRow(
+                                                  label: 'Montant',
+                                                  value:
+                                                      '${_formatAmount(order.amount)} F',
+                                                ),
+                                              ],
+                                            ),
+                                    ),
+                                    if (refund != null) ...[
+                                      const SizedBox(height: 12),
+                                      _SupportRefundCard(
+                                        refund: refund,
+                                        onTap: () => _openRefund(refund),
+                                      ),
+                                    ],
+                                    const SizedBox(height: 12),
+                                    _TraceabilityCard(request: request),
+                                    const SizedBox(height: 18),
+                                    ..._buildActions(
+                                      request: request,
+                                      order: order,
+                                      refund: refund,
+                                    ),
+                                  ],
+                                );
+                              },
+                        );
+                      },
                 );
               },
-            );
-          },
         ),
       ),
     );
@@ -311,11 +369,10 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
   List<Widget> _buildActions({
     required SupportRequest request,
     required QueueOrder? order,
+    required RefundCase? refund,
   }) {
     if (_isSubmitting) {
-      return const <Widget>[
-        Center(child: CircularProgressIndicator()),
-      ];
+      return const <Widget>[Center(child: CircularProgressIndicator())];
     }
 
     switch (request.status) {
@@ -331,6 +388,20 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
           ),
         ];
       case SupportRequestStatus.inProgress:
+        if (refund != null && refund.isActive) {
+          return <Widget>[
+            _RefundPendingInfo(refund: refund),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => _openRefund(refund),
+              icon: const Icon(Icons.currency_exchange_rounded),
+              label: const Text('Voir le remboursement'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+              ),
+            ),
+          ];
+        }
         return <Widget>[
           FilledButton.icon(
             onPressed: () => _resolve(request),
@@ -340,6 +411,29 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
               minimumSize: const Size.fromHeight(50),
             ),
           ),
+          if (refund != null) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => _openRefund(refund),
+              icon: const Icon(Icons.currency_exchange_rounded),
+              label: const Text('Voir le remboursement'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+              ),
+            ),
+          ] else if (order != null &&
+              order.paymentStatus == OrderPaymentStatus.confirmed) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => _createRefund(request, order),
+              icon: const Icon(Icons.currency_exchange_rounded),
+              label: const Text('Créer un remboursement'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                foregroundColor: AppColors.warning,
+              ),
+            ),
+          ],
         ];
       case SupportRequestStatus.resolved:
         return <Widget>[
@@ -365,9 +459,7 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
           ),
         ];
       case SupportRequestStatus.closed:
-        return const <Widget>[
-          _ClosedInfo(),
-        ];
+        return const <Widget>[_ClosedInfo()];
     }
   }
 
@@ -396,6 +488,100 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
     }, successMessage: 'La demande a été marquée comme résolue.');
   }
 
+  Future<void> _createRefund(SupportRequest request, QueueOrder order) async {
+    if (order.paymentStatus != OrderPaymentStatus.confirmed) {
+      _showMessage(
+        'Le paiement doit être confirmé avant de créer un remboursement.',
+      );
+      return;
+    }
+
+    final RefundCreationDraft? draft =
+        await showModalBottomSheet<RefundCreationDraft>(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          backgroundColor: Colors.transparent,
+          barrierColor: Colors.black.withAlpha(170),
+          builder: (BuildContext sheetContext) {
+            return RefundCreationSheet(order: order, supportRequest: request);
+          },
+        );
+    if (draft == null || _isSubmitting) {
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    try {
+      final RefundCase refund = await widget.refundRepository.create(
+        request: RefundCreationRequest(
+          orderId: order.id,
+          orderReference: order.reference,
+          supportRequestId: request.id,
+          supportRequestType: request.type.storageValue,
+          supportRequestDescription: request.description,
+          customerAuthUid: request.customerAuthUid,
+          clientName: order.clientName,
+          clientWhatsappPhone: order.clientWhatsappPhone,
+          originalAmount: order.amount,
+          amount: draft.amount,
+          reason: draft.reason,
+          reasonNote: draft.reasonNote,
+          paymentChannel: 'wave',
+          originalPaymentReference: _initialPaymentReference(order),
+        ),
+        staffId: widget.user.id,
+        staffName: widget.user.name,
+      );
+      if (!mounted) {
+        return;
+      }
+      _showMessage(
+        'Le remboursement a été créé et attend maintenant une validation.',
+      );
+      await _openRefund(refund);
+    } on Object catch (error, stackTrace) {
+      debugPrint('[Refund][create-from-support] ERROR $error');
+      debugPrint('[Refund][create-from-support] STACK\n$stackTrace');
+      if (!mounted) {
+        return;
+      }
+      final String message = error.toString().contains('existe déjà')
+          ? 'Un remboursement existe déjà pour cette commande.'
+          : 'Impossible de créer le remboursement pour le moment.';
+      _showMessage(message);
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  Future<void> _openRefund(RefundCase refund) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (BuildContext routeContext) {
+          return RefundDetailPage(
+            user: widget.user,
+            initialRefund: refund,
+            repository: widget.refundRepository,
+            orderHistoryRepository: widget.orderHistoryRepository,
+          );
+        },
+      ),
+    );
+  }
+
+  String? _initialPaymentReference(QueueOrder order) {
+    final String paymentReference = order.paymentReference?.trim() ?? '';
+    if (paymentReference.isNotEmpty) {
+      return paymentReference;
+    }
+    final String declaredReference =
+        order.paymentDeclaredReference?.trim() ?? '';
+    return declaredReference.isEmpty ? null : declaredReference;
+  }
+
   Future<void> _close(SupportRequest request) async {
     final bool? confirmed = await showDialog<bool>(
       context: context,
@@ -422,15 +608,16 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
       return;
     }
     await _runAction(
-      () => widget.repository.close(requestId: request.id),
+      () => widget.repository.close(
+        requestId: request.id,
+        staffId: widget.user.id,
+        staffName: widget.user.name,
+      ),
       successMessage: 'Le dossier est fermé et conservé dans l’historique.',
     );
   }
 
-  Future<void> _notifyCustomer(
-    SupportRequest request,
-    QueueOrder order,
-  ) async {
+  Future<void> _notifyCustomer(SupportRequest request, QueueOrder order) async {
     final String phone = _normalizeWhatsappPhone(order.clientWhatsappPhone);
     if (phone.isEmpty) {
       _showMessage('Aucun numéro WhatsApp client n’est disponible.');
@@ -483,7 +670,11 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
     }
 
     await _runAction(
-      () => widget.repository.markCustomerNotified(requestId: request.id),
+      () => widget.repository.markCustomerNotified(
+        requestId: request.id,
+        staffId: widget.user.id,
+        staffName: widget.user.name,
+      ),
       successMessage: 'La notification WhatsApp est tracée dans le dossier.',
     );
   }
@@ -543,6 +734,131 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
       return '225$digits';
     }
     return digits;
+  }
+}
+
+class _SupportRefundCard extends StatelessWidget {
+  const _SupportRefundCard({required this.refund, required this.onTap});
+
+  final RefundCase refund;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color = _refundStatusColor(refund.status);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceContainer,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withAlpha(90)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: color.withAlpha(28),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.currency_exchange_rounded, color: color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Remboursement lié',
+                      style: TextStyle(
+                        color: AppColors.onBackground,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${refund.status.label} · ${_formatAmount(refund.amount)} F',
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.primaryContainer,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RefundPendingInfo extends StatelessWidget {
+  const _RefundPendingInfo({required this.refund});
+
+  final RefundCase refund;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withAlpha(22),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: AppColors.warning.withAlpha(75)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.currency_exchange_rounded,
+            color: AppColors.warning,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              refund.status == RefundStatus.pendingApproval
+                  ? 'Un remboursement attend une validation. Finalisez ce dossier avant de résoudre la demande client.'
+                  : 'Le remboursement est approuvé et doit encore être effectué dans Wave avant de résoudre la demande client.',
+              style: const TextStyle(
+                color: AppColors.onSurfaceVariant,
+                fontSize: 11,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Color _refundStatusColor(RefundStatus status) {
+  switch (status) {
+    case RefundStatus.pendingApproval:
+      return AppColors.warning;
+    case RefundStatus.approved:
+      return AppColors.primaryContainer;
+    case RefundStatus.refunded:
+      return AppColors.success;
+    case RefundStatus.reconciled:
+      return const Color(0xFF5DD6C0);
+    case RefundStatus.rejected:
+      return AppColors.error;
   }
 }
 
@@ -904,13 +1220,14 @@ class _TraceabilityCard extends StatelessWidget {
               icon: Icons.chat_rounded,
               label: 'Client notifié',
               detail:
-                  'WhatsApp · ${_formatDateTime(request.customerNotifiedAt!)}',
+                  '${request.customerNotifiedByName ?? 'Auteur non enregistré'} · WhatsApp · ${_formatDateTime(request.customerNotifiedAt!)}',
             ),
           if (request.closedAt != null)
             _TraceLine(
               icon: Icons.archive_outlined,
               label: 'Dossier fermé',
-              detail: _formatDateTime(request.closedAt!),
+              detail:
+                  '${request.closedByName ?? 'Auteur non enregistré'} · ${_formatDateTime(request.closedAt!)}',
               isLast: true,
             ),
         ],
@@ -1146,10 +1463,7 @@ class _ClosedInfo extends StatelessWidget {
           Expanded(
             child: Text(
               'Ce dossier est fermé. Il reste conservé dans l’historique.',
-              style: TextStyle(
-                color: AppColors.onSurfaceVariant,
-                fontSize: 12,
-              ),
+              style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 12),
             ),
           ),
         ],

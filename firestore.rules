@@ -2487,6 +2487,9 @@ service cloud.firestore {
         );
     }
 
+    // PHASE 11C - les futures notifications/fermetures conservent aussi
+    // l'identite de l'administrateur. Les anciens documents sans ces champs
+    // restent lisibles et peuvent continuer leur cycle normalement.
     function hasValidSupportRequestValues() {
       return request.resource.data.keys().hasOnly([
           'schemaVersion',
@@ -2506,8 +2509,12 @@ service cloud.firestore {
           'resolvedBy',
           'resolvedByName',
           'customerNotifiedAt',
+          'customerNotifiedBy',
+          'customerNotifiedByName',
           'notificationChannel',
-          'closedAt'
+          'closedAt',
+          'closedBy',
+          'closedByName'
         ])
         && request.resource.data.schemaVersion == 1
         && request.resource.data.orderId is string
@@ -2574,12 +2581,28 @@ service cloud.firestore {
           || request.resource.data.get('customerNotifiedAt', null) is timestamp
         )
         && (
+          request.resource.data.get('customerNotifiedBy', null) == null
+          || request.resource.data.get('customerNotifiedBy', null) is string
+        )
+        && (
+          request.resource.data.get('customerNotifiedByName', null) == null
+          || request.resource.data.get('customerNotifiedByName', null) is string
+        )
+        && (
           request.resource.data.get('notificationChannel', null) == null
           || request.resource.data.get('notificationChannel', null) == 'whatsapp'
         )
         && (
           request.resource.data.get('closedAt', null) == null
           || request.resource.data.get('closedAt', null) is timestamp
+        )
+        && (
+          request.resource.data.get('closedBy', null) == null
+          || request.resource.data.get('closedBy', null) is string
+        )
+        && (
+          request.resource.data.get('closedByName', null) == null
+          || request.resource.data.get('closedByName', null) is string
         );
     }
 
@@ -2604,8 +2627,12 @@ service cloud.firestore {
         && request.resource.data.get('resolvedBy', null) == null
         && request.resource.data.get('resolvedByName', null) == null
         && request.resource.data.get('customerNotifiedAt', null) == null
+        && request.resource.data.get('customerNotifiedBy', null) == null
+        && request.resource.data.get('customerNotifiedByName', null) == null
         && request.resource.data.get('notificationChannel', null) == null
-        && request.resource.data.get('closedAt', null) == null;
+        && request.resource.data.get('closedAt', null) == null
+        && request.resource.data.get('closedBy', null) == null
+        && request.resource.data.get('closedByName', null) == null;
     }
 
     function supportRequestImmutableFieldsArePreserved() {
@@ -2631,8 +2658,12 @@ service cloud.firestore {
         && request.resource.data.get('resolvedBy', null) == null
         && request.resource.data.get('resolvedByName', null) == null
         && request.resource.data.get('customerNotifiedAt', null) == null
+        && request.resource.data.get('customerNotifiedBy', null) == null
+        && request.resource.data.get('customerNotifiedByName', null) == null
         && request.resource.data.get('notificationChannel', null) == null
-        && request.resource.data.get('closedAt', null) == null;
+        && request.resource.data.get('closedAt', null) == null
+        && request.resource.data.get('closedBy', null) == null
+        && request.resource.data.get('closedByName', null) == null;
     }
 
     function isValidSupportRequestResolution() {
@@ -2653,8 +2684,12 @@ service cloud.firestore {
         && request.resource.data.get('resolvedByName', '').size() >= 2
         && request.resource.data.get('resolvedByName', '').size() <= 80
         && request.resource.data.get('customerNotifiedAt', null) == null
+        && request.resource.data.get('customerNotifiedBy', null) == null
+        && request.resource.data.get('customerNotifiedByName', null) == null
         && request.resource.data.get('notificationChannel', null) == null
-        && request.resource.data.get('closedAt', null) == null;
+        && request.resource.data.get('closedAt', null) == null
+        && request.resource.data.get('closedBy', null) == null
+        && request.resource.data.get('closedByName', null) == null;
     }
 
     function isValidSupportRequestCustomerNotification() {
@@ -2676,8 +2711,14 @@ service cloud.firestore {
           == resource.data.get('resolvedByName', null)
         && resource.data.get('customerNotifiedAt', null) == null
         && request.resource.data.get('customerNotifiedAt', null) == request.time
+        && request.resource.data.get('customerNotifiedBy', null) == request.auth.uid
+        && request.resource.data.get('customerNotifiedByName', null) is string
+        && request.resource.data.get('customerNotifiedByName', '').size() >= 2
+        && request.resource.data.get('customerNotifiedByName', '').size() <= 80
         && request.resource.data.get('notificationChannel', null) == 'whatsapp'
-        && request.resource.data.get('closedAt', null) == null;
+        && request.resource.data.get('closedAt', null) == null
+        && request.resource.data.get('closedBy', null) == null
+        && request.resource.data.get('closedByName', null) == null;
     }
 
     function isValidSupportRequestClosure() {
@@ -2699,9 +2740,17 @@ service cloud.firestore {
           == resource.data.get('resolvedByName', null)
         && request.resource.data.get('customerNotifiedAt', null)
           == resource.data.get('customerNotifiedAt', null)
+        && request.resource.data.get('customerNotifiedBy', null)
+          == resource.data.get('customerNotifiedBy', null)
+        && request.resource.data.get('customerNotifiedByName', null)
+          == resource.data.get('customerNotifiedByName', null)
         && request.resource.data.get('notificationChannel', null)
           == resource.data.get('notificationChannel', null)
-        && request.resource.data.get('closedAt', null) == request.time;
+        && request.resource.data.get('closedAt', null) == request.time
+        && request.resource.data.get('closedBy', null) == request.auth.uid
+        && request.resource.data.get('closedByName', null) is string
+        && request.resource.data.get('closedByName', '').size() >= 2
+        && request.resource.data.get('closedByName', '').size() <= 80;
     }
 
     function isValidAdminSupportRequestUpdate() {
@@ -2715,6 +2764,388 @@ service cloud.firestore {
           || isValidSupportRequestCustomerNotification()
           || isValidSupportRequestClosure()
         );
+    }
+
+    function hasValidRefundValues() {
+      return request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'orderId',
+          'orderReference',
+          'supportRequestId',
+          'supportRequestType',
+          'supportRequestDescription',
+          'customerAuthUid',
+          'clientName',
+          'clientWhatsappPhone',
+          'originalAmount',
+          'amount',
+          'reason',
+          'reasonNote',
+          'paymentChannel',
+          'originalPaymentReference',
+          'status',
+          'requestedAt',
+          'requestedBy',
+          'requestedByName',
+          'approvedAt',
+          'approvedBy',
+          'approvedByName',
+          'rejectedAt',
+          'rejectedBy',
+          'rejectedByName',
+          'rejectionReason',
+          'refundReference',
+          'refundedAt',
+          'refundedBy',
+          'refundedByName',
+          'customerNotifiedAt',
+          'customerNotifiedBy',
+          'customerNotifiedByName',
+          'notificationChannel',
+          'reconciledAt',
+          'reconciledBy',
+          'reconciledByName',
+          'updatedAt'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.orderId is string
+        && request.resource.data.orderId.size() >= 8
+        && request.resource.data.orderReference is string
+        && request.resource.data.orderReference.size() >= 12
+        && request.resource.data.orderReference.size() <= 40
+        && request.resource.data.supportRequestId is string
+        && request.resource.data.supportRequestId.size() >= 8
+        && request.resource.data.supportRequestType in [
+          'paymentNotRecognized',
+          'completedButNotReceived',
+          'wrongAmount',
+          'wrongNumber',
+          'transactionFailed',
+          'other'
+        ]
+        && request.resource.data.supportRequestDescription is string
+        && request.resource.data.supportRequestDescription.size() <= 1000
+        && request.resource.data.customerAuthUid is string
+        && request.resource.data.clientName is string
+        && request.resource.data.clientName.size() >= 2
+        && request.resource.data.clientName.size() <= 80
+        && request.resource.data.clientWhatsappPhone is string
+        && request.resource.data.originalAmount is int
+        && request.resource.data.originalAmount > 0
+        && request.resource.data.originalAmount <= 1000000
+        && request.resource.data.amount is int
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= request.resource.data.originalAmount
+        && request.resource.data.reason in [
+          'serviceNotReceived',
+          'transactionFailed',
+          'wrongAmount',
+          'wrongNumber',
+          'duplicatePayment',
+          'cancellation',
+          'paymentIssue',
+          'other'
+        ]
+        && request.resource.data.reasonNote is string
+        && request.resource.data.reasonNote.size() <= 500
+        && (
+          request.resource.data.reason != 'other'
+          || request.resource.data.reasonNote.size() >= 3
+        )
+        && request.resource.data.paymentChannel == 'wave'
+        && (
+          request.resource.data.get('originalPaymentReference', null) == null
+          || (
+            request.resource.data.get('originalPaymentReference', null) is string
+            && request.resource.data.get('originalPaymentReference', '').size() <= 120
+          )
+        )
+        && request.resource.data.status in [
+          'pendingApproval',
+          'approved',
+          'refunded',
+          'reconciled',
+          'rejected'
+        ]
+        && request.resource.data.requestedAt is timestamp
+        && request.resource.data.requestedBy is string
+        && request.resource.data.requestedByName is string
+        && request.resource.data.requestedByName.size() >= 2
+        && request.resource.data.requestedByName.size() <= 80
+        && (
+          request.resource.data.get('approvedAt', null) == null
+          || request.resource.data.get('approvedAt', null) is timestamp
+        )
+        && (
+          request.resource.data.get('approvedBy', null) == null
+          || request.resource.data.get('approvedBy', null) is string
+        )
+        && (
+          request.resource.data.get('approvedByName', null) == null
+          || request.resource.data.get('approvedByName', null) is string
+        )
+        && (
+          request.resource.data.get('rejectedAt', null) == null
+          || request.resource.data.get('rejectedAt', null) is timestamp
+        )
+        && (
+          request.resource.data.get('rejectedBy', null) == null
+          || request.resource.data.get('rejectedBy', null) is string
+        )
+        && (
+          request.resource.data.get('rejectedByName', null) == null
+          || request.resource.data.get('rejectedByName', null) is string
+        )
+        && (
+          request.resource.data.get('rejectionReason', null) == null
+          || (
+            request.resource.data.get('rejectionReason', null) is string
+            && request.resource.data.get('rejectionReason', '').size() >= 3
+            && request.resource.data.get('rejectionReason', '').size() <= 500
+          )
+        )
+        && (
+          request.resource.data.get('refundReference', null) == null
+          || (
+            request.resource.data.get('refundReference', null) is string
+            && request.resource.data.get('refundReference', '').size() >= 3
+            && request.resource.data.get('refundReference', '').size() <= 120
+          )
+        )
+        && (
+          request.resource.data.get('refundedAt', null) == null
+          || request.resource.data.get('refundedAt', null) is timestamp
+        )
+        && (
+          request.resource.data.get('refundedBy', null) == null
+          || request.resource.data.get('refundedBy', null) is string
+        )
+        && (
+          request.resource.data.get('refundedByName', null) == null
+          || request.resource.data.get('refundedByName', null) is string
+        )
+        && (
+          request.resource.data.get('customerNotifiedAt', null) == null
+          || request.resource.data.get('customerNotifiedAt', null) is timestamp
+        )
+        && (
+          request.resource.data.get('customerNotifiedBy', null) == null
+          || request.resource.data.get('customerNotifiedBy', null) is string
+        )
+        && (
+          request.resource.data.get('customerNotifiedByName', null) == null
+          || request.resource.data.get('customerNotifiedByName', null) is string
+        )
+        && (
+          request.resource.data.get('notificationChannel', null) == null
+          || request.resource.data.get('notificationChannel', null) == 'whatsapp'
+        )
+        && (
+          request.resource.data.get('reconciledAt', null) == null
+          || request.resource.data.get('reconciledAt', null) is timestamp
+        )
+        && (
+          request.resource.data.get('reconciledBy', null) == null
+          || request.resource.data.get('reconciledBy', null) is string
+        )
+        && (
+          request.resource.data.get('reconciledByName', null) == null
+          || request.resource.data.get('reconciledByName', null) is string
+        )
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    // PHASE 11B FIX V2 - création de remboursement.
+    // Les champs dupliqués servant uniquement à l'affichage (nom client,
+    // WhatsApp, description de la demande, référence de paiement) ne doivent
+    // pas rendre la création impossible à cause d'une normalisation locale
+    // (trim, casse, ancienne donnée). La sécurité repose sur les documents
+    // canoniques orders + supportRequests, le montant, l'UID client et le rôle
+    // Admin. Un seul remboursement reste garanti par refunds/{orderId}.
+    function isValidAdminRefundCreation(refundId) {
+      let orderId = request.resource.data.orderId;
+      let supportId = request.resource.data.supportRequestId;
+      let orderPath = /databases/$(database)/documents/orders/$(orderId);
+      let supportPath = /databases/$(database)/documents/supportRequests/$(supportId);
+
+      return isAdmin()
+        && refundId == orderId
+        && exists(orderPath)
+        && exists(supportPath)
+        && hasValidRefundValues()
+        && get(orderPath).data.paymentStatus == 'confirmed'
+        && get(orderPath).data.reference == request.resource.data.orderReference
+        && get(orderPath).data.amount == request.resource.data.originalAmount
+        && get(supportPath).data.orderId == orderId
+        && get(supportPath).data.orderReference == get(orderPath).data.reference
+        && get(supportPath).data.customerAuthUid
+          == request.resource.data.customerAuthUid
+        && get(supportPath).data.status in ['inProgress', 'resolved']
+        && request.resource.data.status == 'pendingApproval'
+        && request.resource.data.requestedAt == request.time
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.get('approvedAt', null) == null
+        && request.resource.data.get('approvedBy', null) == null
+        && request.resource.data.get('approvedByName', null) == null
+        && request.resource.data.get('rejectedAt', null) == null
+        && request.resource.data.get('rejectedBy', null) == null
+        && request.resource.data.get('rejectedByName', null) == null
+        && request.resource.data.get('rejectionReason', null) == null
+        && request.resource.data.get('refundReference', null) == null
+        && request.resource.data.get('refundedAt', null) == null
+        && request.resource.data.get('refundedBy', null) == null
+        && request.resource.data.get('refundedByName', null) == null
+        && request.resource.data.get('customerNotifiedAt', null) == null
+        && request.resource.data.get('customerNotifiedBy', null) == null
+        && request.resource.data.get('customerNotifiedByName', null) == null
+        && request.resource.data.get('notificationChannel', null) == null
+        && request.resource.data.get('reconciledAt', null) == null
+        && request.resource.data.get('reconciledBy', null) == null
+        && request.resource.data.get('reconciledByName', null) == null;
+    }
+
+    function refundImmutableFieldsArePreserved() {
+      return request.resource.data.schemaVersion == resource.data.schemaVersion
+        && request.resource.data.orderId == resource.data.orderId
+        && request.resource.data.orderReference == resource.data.orderReference
+        && request.resource.data.supportRequestId == resource.data.supportRequestId
+        && request.resource.data.supportRequestType == resource.data.supportRequestType
+        && request.resource.data.supportRequestDescription == resource.data.supportRequestDescription
+        && request.resource.data.customerAuthUid == resource.data.customerAuthUid
+        && request.resource.data.clientName == resource.data.clientName
+        && request.resource.data.clientWhatsappPhone == resource.data.clientWhatsappPhone
+        && request.resource.data.originalAmount == resource.data.originalAmount
+        && request.resource.data.amount == resource.data.amount
+        && request.resource.data.reason == resource.data.reason
+        && request.resource.data.reasonNote == resource.data.reasonNote
+        && request.resource.data.paymentChannel == resource.data.paymentChannel
+        && request.resource.data.get('originalPaymentReference', null)
+          == resource.data.get('originalPaymentReference', null)
+        && request.resource.data.requestedAt == resource.data.requestedAt
+        && request.resource.data.requestedBy == resource.data.requestedBy
+        && request.resource.data.requestedByName == resource.data.requestedByName;
+    }
+
+    function isValidRefundApproval() {
+      return resource.data.status == 'pendingApproval'
+        && request.resource.data.status == 'approved'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'approvedAt',
+          'approvedBy',
+          'approvedByName',
+          'updatedAt'
+        ])
+        && request.resource.data.approvedAt == request.time
+        && request.resource.data.approvedBy == request.auth.uid
+        && request.resource.data.approvedByName is string
+        && request.resource.data.approvedByName.size() >= 2
+        && request.resource.data.approvedByName.size() <= 80;
+    }
+
+    function isValidRefundRejection() {
+      return resource.data.status == 'pendingApproval'
+        && request.resource.data.status == 'rejected'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'rejectedAt',
+          'rejectedBy',
+          'rejectedByName',
+          'rejectionReason',
+          'updatedAt'
+        ])
+        && request.resource.data.rejectedAt == request.time
+        && request.resource.data.rejectedBy == request.auth.uid
+        && request.resource.data.rejectedByName is string
+        && request.resource.data.rejectionReason is string
+        && request.resource.data.rejectionReason.size() >= 3
+        && request.resource.data.rejectionReason.size() <= 500;
+    }
+
+    function isValidRefundCompletion() {
+      return resource.data.status == 'approved'
+        && request.resource.data.status == 'refunded'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'refundReference',
+          'refundedAt',
+          'refundedBy',
+          'refundedByName',
+          'updatedAt'
+        ])
+        && request.resource.data.refundReference is string
+        && request.resource.data.refundReference.size() >= 3
+        && request.resource.data.refundReference.size() <= 120
+        && request.resource.data.refundedAt == request.time
+        && request.resource.data.refundedBy == request.auth.uid
+        && request.resource.data.refundedByName is string
+        && request.resource.data.refundedByName.size() >= 2
+        && request.resource.data.refundedByName.size() <= 80;
+    }
+
+    function isValidRefundCustomerNotification() {
+      return resource.data.status in ['refunded', 'reconciled']
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'customerNotifiedAt',
+          'customerNotifiedBy',
+          'customerNotifiedByName',
+          'notificationChannel',
+          'updatedAt'
+        ])
+        && resource.data.get('customerNotifiedAt', null) == null
+        && request.resource.data.customerNotifiedAt == request.time
+        && request.resource.data.customerNotifiedBy == request.auth.uid
+        && request.resource.data.customerNotifiedByName is string
+        && request.resource.data.customerNotifiedByName.size() >= 2
+        && request.resource.data.customerNotifiedByName.size() <= 80
+        && request.resource.data.notificationChannel == 'whatsapp';
+    }
+
+    function isValidRefundReconciliation() {
+      return resource.data.status == 'refunded'
+        && request.resource.data.status == 'reconciled'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'reconciledAt',
+          'reconciledBy',
+          'reconciledByName',
+          'updatedAt'
+        ])
+        && request.resource.data.reconciledAt == request.time
+        && request.resource.data.reconciledBy == request.auth.uid
+        && request.resource.data.reconciledByName is string
+        && request.resource.data.reconciledByName.size() >= 2
+        && request.resource.data.reconciledByName.size() <= 80;
+    }
+
+    // PHASE 11B FIX V3 - transitions de remboursement.
+    // Chaque transition valide deja strictement la liste des champs modifies
+    // avec diff(...).affectedKeys().hasOnly(...). Il est donc inutile et
+    // fragile de revalider tout le document historique via
+    // hasValidRefundValues() a chaque update. Les champs hors transition sont
+    // automatiquement immuables puisqu'ils ne peuvent pas apparaitre dans le
+    // diff autorise. Cette validation locale evite les permission-denied dus
+    // a une ancienne valeur optionnelle tout en gardant les transitions
+    // strictement bornees.
+    function isValidAdminRefundUpdate() {
+      return isAdmin()
+        && request.resource.data.updatedAt == request.time
+        && (
+          isValidRefundApproval()
+          || isValidRefundRejection()
+          || isValidRefundCompletion()
+          || isValidRefundCustomerNotification()
+          || isValidRefundReconciliation()
+        );
+    }
+
+    match /refunds/{refundId} {
+      allow get, list: if isAdmin();
+      allow create: if isValidAdminRefundCreation(refundId);
+      allow update: if isValidAdminRefundUpdate();
+      allow delete: if false;
     }
 
     match /supportRequests/{requestId} {

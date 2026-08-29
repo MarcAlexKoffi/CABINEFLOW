@@ -120,8 +120,12 @@ class SupportRequest {
     this.resolvedBy,
     this.resolvedByName,
     this.customerNotifiedAt,
+    this.customerNotifiedBy,
+    this.customerNotifiedByName,
     this.notificationChannel,
     this.closedAt,
+    this.closedBy,
+    this.closedByName,
   });
 
   final String id;
@@ -144,8 +148,12 @@ class SupportRequest {
   final String? resolvedByName;
 
   final DateTime? customerNotifiedAt;
+  final String? customerNotifiedBy;
+  final String? customerNotifiedByName;
   final String? notificationChannel;
   final DateTime? closedAt;
+  final String? closedBy;
+  final String? closedByName;
 
   bool get isActive =>
       status == SupportRequestStatus.newRequest ||
@@ -168,8 +176,12 @@ class SupportRequest {
     String? resolvedBy,
     String? resolvedByName,
     DateTime? customerNotifiedAt,
+    String? customerNotifiedBy,
+    String? customerNotifiedByName,
     String? notificationChannel,
     DateTime? closedAt,
+    String? closedBy,
+    String? closedByName,
   }) {
     return SupportRequest(
       id: id,
@@ -189,8 +201,13 @@ class SupportRequest {
       resolvedBy: resolvedBy ?? this.resolvedBy,
       resolvedByName: resolvedByName ?? this.resolvedByName,
       customerNotifiedAt: customerNotifiedAt ?? this.customerNotifiedAt,
+      customerNotifiedBy: customerNotifiedBy ?? this.customerNotifiedBy,
+      customerNotifiedByName:
+          customerNotifiedByName ?? this.customerNotifiedByName,
       notificationChannel: notificationChannel ?? this.notificationChannel,
       closedAt: closedAt ?? this.closedAt,
+      closedBy: closedBy ?? this.closedBy,
+      closedByName: closedByName ?? this.closedByName,
     );
   }
 }

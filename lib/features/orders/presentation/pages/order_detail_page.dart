@@ -1,5 +1,9 @@
 import 'package:cabine_flow/core/theme/app_colors.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
+import 'package:cabine_flow/features/audit/data/repositories/fake_order_audit_repository.dart';
+import 'package:cabine_flow/features/audit/data/repositories/firestore_order_audit_repository.dart';
+import 'package:cabine_flow/features/audit/domain/models/order_audit_entry.dart';
+import 'package:cabine_flow/features/audit/domain/repositories/order_audit_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
@@ -22,6 +26,7 @@ class OrderDetailPage extends StatefulWidget {
     required this.onBack,
     required this.onOpenCustomerHistory,
     this.supportRequestRepository,
+    this.auditRepository,
   });
 
   final AppUser user;
@@ -30,6 +35,7 @@ class OrderDetailPage extends StatefulWidget {
   final VoidCallback onBack;
   final ValueChanged<String> onOpenCustomerHistory;
   final SupportRequestRepository? supportRequestRepository;
+  final OrderAuditRepository? auditRepository;
 
   @override
   State<OrderDetailPage> createState() => _OrderDetailPageState();
@@ -40,6 +46,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   bool _isRefreshing = false;
   String? _errorMessage;
   late final SupportRequestRepository _supportRequestRepository;
+  late final OrderAuditRepository _auditRepository;
 
   @override
   void initState() {
@@ -50,6 +57,13 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
         (Firebase.apps.isNotEmpty
             ? FirestoreSupportRequestRepository()
             : FakeSupportRequestRepository());
+    _auditRepository =
+        widget.auditRepository ??
+        (Firebase.apps.isNotEmpty
+            ? FirestoreOrderAuditRepository(
+                includeRefundEvents: widget.user.role == UserRole.administrator,
+              )
+            : FakeOrderAuditRepository());
     _refreshOrder(showLoader: false);
   }
 
@@ -189,64 +203,6 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     return '${seconds}s';
   }
 
-  List<_TimelineEntry> _timelineEntries() {
-    final List<_TimelineEntry> entries = <_TimelineEntry>[
-      _TimelineEntry(
-        label: 'Commande créée',
-        date: _order.createdAt,
-        note: orderSourceLabel(_order.source),
-      ),
-    ];
-
-    void add(String label, DateTime? date, String note) {
-      if (date != null) {
-        entries.add(_TimelineEntry(label: label, date: date, note: note));
-      }
-    }
-
-    add(
-      'Lien de paiement préparé',
-      _order.paymentRequestSentAt,
-      'Paiement Wave demandé',
-    );
-    add(
-      'Paiement déclaré',
-      _order.paymentDeclaredAt,
-      _order.paymentPayerName ?? 'Déclaration client',
-    );
-    add(
-      'Paiement confirmé',
-      _order.paymentConfirmedAt ?? _order.paidAt,
-      _order.paymentReference ?? 'Confirmation manuelle',
-    );
-    add(
-      'Commande affectée',
-      _order.assignedAt,
-      _order.assignedAgentName ?? 'Agent affecté',
-    );
-    add(
-      'Commande prise en charge',
-      _order.takenAt,
-      _operatorLabel(_order.takenByUserId),
-    );
-    add(
-      orderStatusLabel(_order.status),
-      _order.completedAt,
-      _order.observation ?? 'Traitement enregistré',
-    );
-    add(
-      'Retour client clôturé',
-      _order.customerConfirmationCompletedAt,
-      confirmationStatusLabel(_order.customerConfirmationStatus),
-    );
-    add('Commande expirée', _order.expiredAt, 'Délai de paiement dépassé');
-
-    entries.sort((_TimelineEntry first, _TimelineEntry second) {
-      return first.date.compareTo(second.date);
-    });
-    return entries;
-  }
-
   @override
   Widget build(BuildContext context) {
     final Color statusColor = orderStatusColor(_order.status);
@@ -307,7 +263,11 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  Row(
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 10,
+                    runSpacing: 8,
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -339,7 +299,6 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                           ],
                         ),
                       ),
-                      const Spacer(),
                       Text(
                         formatOrderDateTime(_order.createdAt),
                         style: const TextStyle(
@@ -566,9 +525,18 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                   ),
                   const SizedBox(height: 16),
                   _DetailSection(
-                    icon: Icons.timeline_rounded,
-                    title: 'Chronologie',
-                    child: _Timeline(entries: _timelineEntries()),
+                    icon: Icons.history_toggle_off_rounded,
+                    title: 'Journal d’activité',
+                    trailing: const _SmallStatusBadge(
+                      label: 'Temps réel',
+                      color: AppColors.primaryContainer,
+                    ),
+                    child: _OrderAuditTimeline(
+                      orderId: _order.id,
+                      repository: _auditRepository,
+                      includesRefunds:
+                          widget.user.role == UserRole.administrator,
+                    ),
                   ),
                   if (_order.internalNotes?.trim().isNotEmpty == true ||
                       _order.originalWhatsappMessage?.trim().isNotEmpty ==
@@ -801,7 +769,7 @@ class _DetailTopBar extends StatelessWidget {
           const SizedBox(width: 8),
           const Expanded(
             child: Text(
-              'CabineFlow',
+              'IzyTel',
               style: TextStyle(
                 color: AppColors.onBackground,
                 fontSize: 18,
@@ -1229,94 +1197,334 @@ class _SmallStatusBadge extends StatelessWidget {
   }
 }
 
-class _Timeline extends StatelessWidget {
-  const _Timeline({required this.entries});
+class _OrderAuditTimeline extends StatelessWidget {
+  const _OrderAuditTimeline({
+    required this.orderId,
+    required this.repository,
+    required this.includesRefunds,
+  });
 
-  final List<_TimelineEntry> entries;
+  final String orderId;
+  final OrderAuditRepository repository;
+  final bool includesRefunds;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: List<Widget>.generate(entries.length, (int index) {
-        final _TimelineEntry entry = entries[index];
-        final bool isLast = index == entries.length - 1;
+    return StreamBuilder<List<OrderAuditEntry>>(
+      stream: repository.watchForOrder(orderId: orderId),
+      builder: (BuildContext context, AsyncSnapshot<List<OrderAuditEntry>> snapshot) {
+        if (snapshot.hasError) {
+          return const _SupportRequestInfo(
+            icon: Icons.error_outline_rounded,
+            message: 'Impossible de charger le journal d’activité.',
+            color: AppColors.error,
+          );
+        }
 
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 24,
-              child: Column(
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: const BoxDecoration(
-                      color: AppColors.primaryContainer,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  if (!isLast)
-                    Container(
-                      width: 2,
-                      height: 52,
-                      color: AppColors.outlineVariant.withAlpha(120),
-                    ),
-                ],
-              ),
+        if (!snapshot.hasData) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 14),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final List<OrderAuditEntry> entries = snapshot.data!;
+        if (entries.isEmpty) {
+          return const _SupportRequestInfo(
+            icon: Icons.history_toggle_off_rounded,
+            message:
+                'Aucun événement audité n’est disponible pour cette commande.',
+            color: AppColors.onSurfaceVariant,
+          );
+        }
+
+        final List<Widget> children = <Widget>[];
+        DateTime? previousDay;
+        for (int index = 0; index < entries.length; index++) {
+          final OrderAuditEntry entry = entries[index];
+          final DateTime day = DateTime(
+            entry.occurredAt.year,
+            entry.occurredAt.month,
+            entry.occurredAt.day,
+          );
+          if (previousDay == null || day != previousDay) {
+            if (children.isNotEmpty) {
+              children.add(const SizedBox(height: 12));
+            }
+            children.add(_AuditDayHeader(label: _auditDayLabel(day)));
+            children.add(const SizedBox(height: 10));
+            previousDay = day;
+          }
+
+          children.add(
+            _AuditEntryTile(entry: entry, isLast: index == entries.length - 1),
+          );
+        }
+
+        if (!includesRefunds) {
+          children.add(const SizedBox(height: 10));
+          children.add(
+            const _SupportRequestInfo(
+              icon: Icons.lock_outline_rounded,
+              message:
+                  'Les événements financiers de remboursement sont réservés aux administrateurs.',
+              color: AppColors.onSurfaceVariant,
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      entry.label,
-                      style: const TextStyle(
-                        color: AppColors.onBackground,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      formatOrderDateTime(entry.date),
-                      style: const TextStyle(
-                        color: AppColors.onSurfaceVariant,
-                        fontSize: 9,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      entry.note,
-                      style: const TextStyle(
-                        color: AppColors.onSurfaceVariant,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: children,
         );
-      }),
+      },
     );
   }
 }
 
-class _TimelineEntry {
-  const _TimelineEntry({
-    required this.label,
-    required this.date,
-    required this.note,
-  });
+class _AuditDayHeader extends StatelessWidget {
+  const _AuditDayHeader({required this.label});
 
   final String label;
-  final DateTime date;
-  final String note;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label.toUpperCase(),
+      style: const TextStyle(
+        color: AppColors.primaryContainer,
+        fontSize: 9,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.7,
+      ),
+    );
+  }
+}
+
+class _AuditEntryTile extends StatelessWidget {
+  const _AuditEntryTile({required this.entry, required this.isLast});
+
+  final OrderAuditEntry entry;
+  final bool isLast;
+
+  Color get _sourceColor {
+    switch (entry.source) {
+      case OrderAuditSource.orderEvent:
+        return AppColors.primaryContainer;
+      case OrderAuditSource.supportRequest:
+        return AppColors.warning;
+      case OrderAuditSource.refund:
+        return AppColors.success;
+    }
+  }
+
+  IconData get _sourceIcon {
+    switch (entry.source) {
+      case OrderAuditSource.orderEvent:
+        return Icons.receipt_long_outlined;
+      case OrderAuditSource.supportRequest:
+        return Icons.support_agent_rounded;
+      case OrderAuditSource.refund:
+        return Icons.currency_exchange_rounded;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color = _sourceColor;
+    final String? actorId = entry.actorId?.trim().isEmpty == false
+        ? entry.actorId!.trim()
+        : null;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 30,
+          child: Column(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: color.withAlpha(28),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: color.withAlpha(130)),
+                ),
+                child: Icon(_sourceIcon, size: 13, color: color),
+              ),
+              if (!isLast)
+                Container(
+                  width: 2,
+                  height: (74 + (entry.details.length * 17)).toDouble(),
+                  constraints: const BoxConstraints(maxHeight: 150),
+                  color: AppColors.outlineVariant.withAlpha(90),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(bottom: isLast ? 0 : 15),
+            child: Container(
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceContainerLowest,
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(
+                  color: AppColors.outlineVariant.withAlpha(65),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          entry.title,
+                          style: const TextStyle(
+                            color: AppColors.onBackground,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: color.withAlpha(22),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: color.withAlpha(90)),
+                        ),
+                        child: Text(
+                          entry.source.label,
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    formatOrderDateTime(entry.occurredAt),
+                    style: const TextStyle(
+                      color: AppColors.onSurfaceVariant,
+                      fontSize: 9,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 5,
+                    runSpacing: 3,
+                    children: [
+                      const Icon(
+                        Icons.person_outline_rounded,
+                        size: 13,
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                      Text(
+                        entry.actorDisplayName,
+                        style: const TextStyle(
+                          color: AppColors.onBackground,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (entry.actorDisplayName != entry.actorRoleLabel)
+                        Text(
+                          '· ${entry.actorRoleLabel}',
+                          style: const TextStyle(
+                            color: AppColors.onSurfaceVariant,
+                            fontSize: 9,
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (actorId != null) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      'ID acteur : $actorId',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.onSurfaceVariant,
+                        fontSize: 8,
+                      ),
+                    ),
+                  ],
+                  if (entry.details.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    for (final String detail in entry.details) ...[
+                      Text(
+                        '• $detail',
+                        style: const TextStyle(
+                          color: AppColors.onSurfaceVariant,
+                          fontSize: 9,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                    ],
+                  ],
+                  if (entry.technicalType?.trim().isNotEmpty == true) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      'Type audit : ${entry.technicalType}',
+                      style: const TextStyle(
+                        color: AppColors.onSurfaceVariant,
+                        fontSize: 8,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+String _auditDayLabel(DateTime day) {
+  final DateTime now = DateTime.now();
+  final DateTime today = DateTime(now.year, now.month, now.day);
+  final DateTime yesterday = today.subtract(const Duration(days: 1));
+
+  if (day == today) {
+    return 'Aujourd’hui';
+  }
+  if (day == yesterday) {
+    return 'Hier';
+  }
+
+  const List<String> months = <String>[
+    'janvier',
+    'février',
+    'mars',
+    'avril',
+    'mai',
+    'juin',
+    'juillet',
+    'août',
+    'septembre',
+    'octobre',
+    'novembre',
+    'décembre',
+  ];
+  return '${day.day} ${months[day.month - 1]} ${day.year}';
 }
 
 class _TextBlock extends StatelessWidget {

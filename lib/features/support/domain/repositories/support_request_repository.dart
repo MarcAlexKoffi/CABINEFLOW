@@ -27,7 +27,15 @@ abstract class SupportRequestRepository {
     required String resolutionNote,
   });
 
-  Future<void> markCustomerNotified({required String requestId});
+  Future<void> markCustomerNotified({
+    required String requestId,
+    required String staffId,
+    required String staffName,
+  });
 
-  Future<void> close({required String requestId});
+  Future<void> close({
+    required String requestId,
+    required String staffId,
+    required String staffName,
+  });
 }

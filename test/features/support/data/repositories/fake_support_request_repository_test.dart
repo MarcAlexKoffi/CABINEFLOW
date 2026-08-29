@@ -145,15 +145,27 @@ void main() {
         staffName: 'Marc',
         resolutionNote: 'Montant vérifié.',
       );
-      await repository.markCustomerNotified(requestId: created.id);
-      await repository.close(requestId: created.id);
+      await repository.markCustomerNotified(
+        requestId: created.id,
+        staffId: 'admin-1',
+        staffName: 'Marc',
+      );
+      await repository.close(
+        requestId: created.id,
+        staffId: 'admin-1',
+        staffName: 'Marc',
+      );
 
       final SupportRequest request =
           (await repository.watchAllRequests().first).single;
       expect(request.status, SupportRequestStatus.closed);
       expect(request.customerNotifiedAt, isNotNull);
       expect(request.notificationChannel, 'whatsapp');
+      expect(request.customerNotifiedBy, 'admin-1');
+      expect(request.customerNotifiedByName, 'Marc');
       expect(request.closedAt, isNotNull);
+      expect(request.closedBy, 'admin-1');
+      expect(request.closedByName, 'Marc');
     },
   );
 

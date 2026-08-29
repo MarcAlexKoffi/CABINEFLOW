@@ -113,25 +113,37 @@ class FakeSupportRequestRepository implements SupportRequestRepository {
   }
 
   @override
-  Future<void> markCustomerNotified({required String requestId}) async {
+  Future<void> markCustomerNotified({
+    required String requestId,
+    required String staffId,
+    required String staffName,
+  }) async {
     _replace(
       requestId,
       (SupportRequest value) => value.copyWith(
         updatedAt: DateTime.now(),
         customerNotifiedAt: DateTime.now(),
+        customerNotifiedBy: staffId,
+        customerNotifiedByName: staffName,
         notificationChannel: 'whatsapp',
       ),
     );
   }
 
   @override
-  Future<void> close({required String requestId}) async {
+  Future<void> close({
+    required String requestId,
+    required String staffId,
+    required String staffName,
+  }) async {
     _replace(
       requestId,
       (SupportRequest value) => value.copyWith(
         status: SupportRequestStatus.closed,
         updatedAt: DateTime.now(),
         closedAt: DateTime.now(),
+        closedBy: staffId,
+        closedByName: staffName,
       ),
     );
   }

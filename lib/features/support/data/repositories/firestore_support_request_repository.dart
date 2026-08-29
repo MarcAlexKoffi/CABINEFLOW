@@ -64,8 +64,12 @@ class FirestoreSupportRequestRepository implements SupportRequestRepository {
       'resolvedBy': null,
       'resolvedByName': null,
       'customerNotifiedAt': null,
+      'customerNotifiedBy': null,
+      'customerNotifiedByName': null,
       'notificationChannel': null,
       'closedAt': null,
+      'closedBy': null,
+      'closedByName': null,
     });
 
     return SupportRequest(
@@ -157,19 +161,31 @@ class FirestoreSupportRequestRepository implements SupportRequestRepository {
   }
 
   @override
-  Future<void> markCustomerNotified({required String requestId}) async {
+  Future<void> markCustomerNotified({
+    required String requestId,
+    required String staffId,
+    required String staffName,
+  }) async {
     await _collection.doc(requestId.trim()).update(<String, dynamic>{
       'customerNotifiedAt': FieldValue.serverTimestamp(),
+      'customerNotifiedBy': staffId.trim(),
+      'customerNotifiedByName': staffName.trim(),
       'notificationChannel': 'whatsapp',
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
   @override
-  Future<void> close({required String requestId}) async {
+  Future<void> close({
+    required String requestId,
+    required String staffId,
+    required String staffName,
+  }) async {
     await _collection.doc(requestId.trim()).update(<String, dynamic>{
       'status': SupportRequestStatus.closed.storageValue,
       'closedAt': FieldValue.serverTimestamp(),
+      'closedBy': staffId.trim(),
+      'closedByName': staffName.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -228,8 +244,12 @@ class FirestoreSupportRequestRepository implements SupportRequestRepository {
       resolvedBy: data['resolvedBy'] as String?,
       resolvedByName: data['resolvedByName'] as String?,
       customerNotifiedAt: _readDate(data['customerNotifiedAt']),
+      customerNotifiedBy: data['customerNotifiedBy'] as String?,
+      customerNotifiedByName: data['customerNotifiedByName'] as String?,
       notificationChannel: data['notificationChannel'] as String?,
       closedAt: _readDate(data['closedAt']),
+      closedBy: data['closedBy'] as String?,
+      closedByName: data['closedByName'] as String?,
     );
   }
 

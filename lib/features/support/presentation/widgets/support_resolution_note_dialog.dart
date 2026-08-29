@@ -139,7 +139,8 @@ class _SupportResolutionNoteDialogState
                   ),
                   cursorColor: AppColors.primary,
                   decoration: InputDecoration(
-                    hintText: 'Ex. : Paiement retrouvé et commande régularisée.',
+                    hintText:
+                        'Ex. : Paiement retrouvé et commande régularisée.',
                     hintStyle: const TextStyle(
                       color: AppColors.inputHint,
                       fontSize: 14,

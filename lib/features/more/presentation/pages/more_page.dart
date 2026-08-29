@@ -6,6 +6,11 @@ import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repo
 import 'package:cabine_flow/features/offers/presentation/pages/offer_management_page.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/features/refunds/data/repositories/fake_refund_repository.dart';
+import 'package:cabine_flow/features/refunds/data/repositories/firestore_refund_repository.dart';
+import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
+import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
+import 'package:cabine_flow/features/refunds/presentation/pages/refund_management_page.dart';
 import 'package:cabine_flow/features/support/data/repositories/fake_support_request_repository.dart';
 import 'package:cabine_flow/features/support/data/repositories/firestore_support_request_repository.dart';
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
@@ -44,6 +49,9 @@ class MorePage extends StatelessWidget {
     final SupportRequestRepository supportRepository = Firebase.apps.isNotEmpty
         ? FirestoreSupportRequestRepository()
         : FakeSupportRequestRepository();
+    final RefundRepository refundRepository = Firebase.apps.isNotEmpty
+        ? FirestoreRefundRepository()
+        : FakeRefundRepository();
     final OrderHistoryRepository? historyRepository =
         ordersRepository is OrderHistoryRepository
         ? ordersRepository as OrderHistoryRepository
@@ -122,6 +130,45 @@ class MorePage extends StatelessWidget {
                                   return SupportRequestCenterPage(
                                     user: user,
                                     repository: supportRepository,
+                                    refundRepository: refundRepository,
+                                    orderHistoryRepository: historyRepository,
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                  );
+                },
+          ),
+          const SizedBox(height: 12),
+          StreamBuilder<List<RefundCase>>(
+            stream: refundRepository.watchAll(),
+            builder:
+                (
+                  BuildContext context,
+                  AsyncSnapshot<List<RefundCase>> snapshot,
+                ) {
+                  final List<RefundCase> refunds =
+                      snapshot.data ?? const <RefundCase>[];
+                  final int activeCount = refunds
+                      .where((RefundCase refund) => refund.isActive)
+                      .length;
+                  return _AdminFeatureCard(
+                    icon: Icons.currency_exchange_rounded,
+                    title: 'Remboursements',
+                    description:
+                        'Valider, effectuer, tracer et rapprocher les remboursements clients.',
+                    enabled: historyRepository != null,
+                    badgeCount: activeCount,
+                    onTap: historyRepository == null
+                        ? null
+                        : () {
+                            Navigator.of(context).push<void>(
+                              MaterialPageRoute<void>(
+                                builder: (BuildContext context) {
+                                  return RefundManagementPage(
+                                    user: user,
+                                    repository: refundRepository,
                                     orderHistoryRepository: historyRepository,
                                   );
                                 },
@@ -176,7 +223,7 @@ class MorePage extends StatelessWidget {
             icon: Icons.rule_folder_outlined,
             title: 'Supervision et incidents',
             description:
-                'Remboursements, rapprochements et alertes opérationnelles.',
+                'Rapprochements, anomalies et alertes opérationnelles.',
           ),
         ],
       ),
