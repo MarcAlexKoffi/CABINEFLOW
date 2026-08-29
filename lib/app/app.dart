@@ -159,6 +159,7 @@ class CabineFlowApp extends StatelessWidget {
               builder: (BuildContext context) {
                 return MainShellPage(
                   user: arguments,
+                  authRepository: effectiveAuthRepository,
                   dashboardRepository: effectiveDashboardRepository,
                   ordersRepository: effectiveOrdersRepository,
                   offerCatalogRepository: effectiveOfferCatalogRepository,

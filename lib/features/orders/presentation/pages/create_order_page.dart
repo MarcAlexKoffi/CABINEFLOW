@@ -197,7 +197,26 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
     return InputDecoration(
       hintText: hintText,
       prefixIcon: prefixIcon == null ? null : Icon(prefixIcon),
-      suffixText: suffixText,
+      suffixIcon: suffixText == null
+          ? null
+          : Padding(
+              padding: const EdgeInsets.only(left: 8, right: 13),
+              child: Center(
+                widthFactor: 1,
+                child: Text(
+                  suffixText,
+                  maxLines: 1,
+                  style: const TextStyle(
+                    color: AppColors.onSurfaceVariant,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+      suffixIconConstraints: suffixText == null
+          ? null
+          : const BoxConstraints(minWidth: 72, minHeight: 46),
       filled: true,
       fillColor: AppColors.surfaceContainer,
       contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 13),
@@ -424,7 +443,7 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
                               textAlign: TextAlign.right,
                               decoration: _inputDecoration(
                                 hintText: '0',
-                                suffixText: 'FCFA',
+                                suffixText: 'F CFA',
                               ),
                               validator: _validateAmount,
                             ),

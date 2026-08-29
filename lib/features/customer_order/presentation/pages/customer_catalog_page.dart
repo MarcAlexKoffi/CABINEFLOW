@@ -427,7 +427,7 @@ class _CatalogOfferCard extends StatelessWidget {
               ),
           const SizedBox(height: 14),
           Text(
-            '${formatCfa(offer.amount)} F CFA',
+            '${formatCfa(offer.amount)} CFA',
             style: const TextStyle(
               color: CustomerAppColors.primaryDeep,
               fontSize: 20,

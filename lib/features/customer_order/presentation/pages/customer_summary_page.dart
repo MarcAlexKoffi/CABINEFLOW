@@ -185,7 +185,7 @@ class _OrderSummaryCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${formatCfa(draft.amount!)} F CFA',
+                  '${formatCfa(draft.amount!)} CFA',
                   style: const TextStyle(
                     color: CustomerAppColors.primary,
                     fontSize: 23,

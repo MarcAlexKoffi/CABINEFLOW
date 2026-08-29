@@ -300,7 +300,7 @@ class _OrderHistoryCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        '${formatCfa(order.draft.amount!)} F CFA',
+                        '${formatCfa(order.draft.amount!)} CFA',
                         style: const TextStyle(
                           color: CustomerAppColors.onSurface,
                           fontSize: 14,

@@ -132,19 +132,34 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
     );
   }
 
-  Future<void> _pickProof() async {
+  Future<void> _chooseProofSource() async {
     if (_isBusy || widget.order.status != QueueOrderStatus.inProgress) return;
 
-    final XFile? picked = await _picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 2200,
-      maxHeight: 2200,
-      imageQuality: 88,
-      requestFullMetadata: false,
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _ProofSourceSheet(),
     );
-    if (picked == null || !mounted) return;
+    if (source == null || !mounted) return;
+
+    await _pickProof(source);
+  }
+
+  Future<void> _pickProof(ImageSource source) async {
+    if (_isBusy || widget.order.status != QueueOrderStatus.inProgress) return;
 
     try {
+      final XFile? picked = await _picker.pickImage(
+        source: source,
+        preferredCameraDevice: CameraDevice.rear,
+        maxWidth: 2200,
+        maxHeight: 2200,
+        imageQuality: 88,
+        requestFullMetadata: false,
+      );
+      if (picked == null || !mounted) return;
+
       final Uint8List sourceBytes = await picked.readAsBytes();
       final Uint8List compressed = await compute(
         _compressProofForFirestore,
@@ -175,21 +190,27 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
       setState(() {
         _proof = proof;
       });
-      _showMessage('Preuve enregistrée.');
+      _showMessage(
+        source == ImageSource.camera
+            ? 'Photo prise et preuve enregistrée.'
+            : 'Preuve enregistrée.',
+      );
     } on FormatException catch (error) {
       if (!mounted) return;
       _showMessage(error.message.toString());
     } catch (_) {
       if (!mounted) return;
       _showMessage(
-        'Impossible de préparer cette image. Essaie une autre capture.',
+        source == ImageSource.camera
+            ? 'Impossible d’utiliser cette photo. Réessaie ou choisis la galerie.'
+            : 'Impossible de préparer cette image. Essaie une autre capture.',
       );
     }
   }
 
   Future<void> _confirmSuccess() async {
     if (_proof == null) {
-      _showMessage('Ajoute d’abord une capture comme preuve du transfert.');
+      _showMessage('Ajoute d’abord une preuve du transfert.');
       return;
     }
 
@@ -354,7 +375,7 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
                   proof: _proof,
                   isLoadingProof: _isLoadingProof,
                   isBusy: _isBusy,
-                  onPickProof: _pickProof,
+                  onPickProof: _chooseProofSource,
                   onSuccess: _confirmSuccess,
                   onFailure: _markFailed,
                   onHold: _putOnHold,
@@ -715,6 +736,143 @@ class _ProcessingActionsCard extends StatelessWidget {
   }
 }
 
+class _ProofSourceSheet extends StatelessWidget {
+  const _ProofSourceSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.outlineVariant),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.outlineVariant,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Ajouter une preuve',
+              style: TextStyle(
+                color: AppColors.onBackground,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Choisis une photo existante ou prends-en une maintenant.',
+              style: TextStyle(
+                color: AppColors.onSurfaceVariant,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _ProofSourceTile(
+              icon: Icons.photo_camera_outlined,
+              title: 'Appareil photo',
+              subtitle: 'Prendre une photo en temps réel',
+              onTap: () => Navigator.of(context).pop(ImageSource.camera),
+            ),
+            const SizedBox(height: 10),
+            _ProofSourceTile(
+              icon: Icons.photo_library_outlined,
+              title: 'Galerie',
+              subtitle: 'Choisir une capture déjà enregistrée',
+              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProofSourceTile extends StatelessWidget {
+  const _ProofSourceTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withAlpha(28),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: AppColors.primaryContainer),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppColors.onBackground,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: AppColors.onSurfaceVariant,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ProofPicker extends StatelessWidget {
   const _ProofPicker({
     required this.proof,
@@ -758,7 +916,7 @@ class _ProofPicker extends StatelessWidget {
                     ),
                     SizedBox(height: 9),
                     Text(
-                      'Ajouter une capture',
+                      'Ajouter une preuve',
                       style: TextStyle(
                         color: AppColors.onBackground,
                         fontWeight: FontWeight.w800,
@@ -766,7 +924,7 @@ class _ProofPicker extends StatelessWidget {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'L’image sera compressée automatiquement',
+                      'Appareil photo ou galerie · compression automatique',
                       style: TextStyle(
                         color: AppColors.onSurfaceVariant,
                         fontSize: 11,

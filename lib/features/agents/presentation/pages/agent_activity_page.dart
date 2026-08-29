@@ -10,10 +10,14 @@ class AgentActivityPage extends StatefulWidget {
     super.key,
     required this.user,
     required this.repository,
+    required this.isLoggingOut,
+    required this.onLogout,
   });
 
   final AppUser user;
   final AgentRepository repository;
+  final bool isLoggingOut;
+  final Future<void> Function() onLogout;
 
   @override
   State<AgentActivityPage> createState() => _AgentActivityPageState();
@@ -109,6 +113,8 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
               return _MissingProfile(
                 user: widget.user,
                 message: _viewModel.errorMessage,
+                isLoggingOut: widget.isLoggingOut,
+                onLogout: widget.onLogout,
               );
             }
 
@@ -345,6 +351,11 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
                       ),
                     ),
                   ],
+                  const SizedBox(height: 20),
+                  _LogoutCard(
+                    isLoggingOut: widget.isLoggingOut,
+                    onLogout: widget.onLogout,
+                  ),
                 ],
               ),
             );
@@ -1020,10 +1031,81 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
+class _LogoutCard extends StatelessWidget {
+  const _LogoutCard({required this.isLoggingOut, required this.onLogout});
+
+  final bool isLoggingOut;
+  final Future<void> Function() onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainer,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: AppColors.error.withAlpha(90)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.logout_rounded, color: AppColors.error, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Session',
+                style: TextStyle(
+                  color: AppColors.onBackground,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Ferme ta session sur cet appareil lorsque tu as terminé.',
+            style: TextStyle(
+              color: AppColors.onSurfaceVariant,
+              fontSize: 12,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 13),
+          OutlinedButton.icon(
+            onPressed: isLoggingOut ? null : () => onLogout(),
+            icon: isLoggingOut
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.logout_rounded),
+            label: Text(isLoggingOut ? 'Déconnexion...' : 'Se déconnecter'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.error,
+              side: const BorderSide(color: AppColors.error),
+              minimumSize: const Size.fromHeight(48),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MissingProfile extends StatelessWidget {
-  const _MissingProfile({required this.user, this.message});
+  const _MissingProfile({
+    required this.user,
+    required this.isLoggingOut,
+    required this.onLogout,
+    this.message,
+  });
 
   final AppUser user;
+  final bool isLoggingOut;
+  final Future<void> Function() onLogout;
   final String? message;
 
   @override
@@ -1061,6 +1143,27 @@ class _MissingProfile extends StatelessWidget {
                     'Ton compte possède le rôle Agent, mais ton profil opérationnel n’est pas encore configuré. Contacte l’administrateur.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: AppColors.onSurfaceVariant),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: isLoggingOut ? null : () => onLogout(),
+                  icon: isLoggingOut
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.logout_rounded),
+                  label: Text(
+                    isLoggingOut ? 'Déconnexion...' : 'Se déconnecter',
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.error,
+                    side: const BorderSide(color: AppColors.error),
+                  ),
+                ),
               ),
             ],
           ),

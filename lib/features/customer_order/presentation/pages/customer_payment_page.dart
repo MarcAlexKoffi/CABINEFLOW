@@ -190,7 +190,7 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
                                     )
                                   : const Icon(Icons.arrow_forward_rounded),
                               label: Text(
-                                'Payer ${formatCfa(draft.amount!)} F CFA',
+                                'Payer ${formatCfa(draft.amount!)} CFA',
                               ),
                             ),
                             const SizedBox(height: 10),

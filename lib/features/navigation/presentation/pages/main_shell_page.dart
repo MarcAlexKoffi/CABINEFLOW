@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:cabine_flow/app/app_routes.dart';
 import 'package:cabine_flow/core/theme/app_colors.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_activity_page.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_repository.dart';
 import 'package:cabine_flow/features/dashboard/presentation/pages/dashboard_page.dart';
 import 'package:cabine_flow/features/dashboard/presentation/widgets/dashboard_widgets.dart';
@@ -26,6 +28,7 @@ class MainShellPage extends StatefulWidget {
   const MainShellPage({
     super.key,
     required this.user,
+    required this.authRepository,
     required this.dashboardRepository,
     required this.ordersRepository,
     required this.offerCatalogRepository,
@@ -35,6 +38,7 @@ class MainShellPage extends StatefulWidget {
   });
 
   final AppUser user;
+  final AuthRepository authRepository;
   final DashboardRepository dashboardRepository;
   final OrdersRepository ordersRepository;
   final OfferCatalogRepository offerCatalogRepository;
@@ -219,6 +223,7 @@ class _MainShellPageState extends State<MainShellPage> {
     if (widget.user.role == UserRole.agent) {
       return _AgentShell(
         user: widget.user,
+        authRepository: widget.authRepository,
         ordersRepository: widget.ordersRepository,
         agentRepository: widget.agentRepository,
       );
@@ -275,11 +280,13 @@ class _MainShellPageState extends State<MainShellPage> {
 class _AgentShell extends StatefulWidget {
   const _AgentShell({
     required this.user,
+    required this.authRepository,
     required this.ordersRepository,
     required this.agentRepository,
   });
 
   final AppUser user;
+  final AuthRepository authRepository;
   final OrdersRepository ordersRepository;
   final AgentRepository agentRepository;
 
@@ -289,6 +296,62 @@ class _AgentShell extends StatefulWidget {
 
 class _AgentShellState extends State<_AgentShell> {
   int _selectedIndex = 0;
+  bool _isLoggingOut = false;
+
+  Future<void> _logout() async {
+    if (_isLoggingOut) return;
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.surfaceContainerHighest,
+          title: const Text('Se déconnecter ?'),
+          content: const Text(
+            'Tu devras te reconnecter pour accéder de nouveau à ton espace Agent.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.logout_rounded),
+              label: const Text('Se déconnecter'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      _isLoggingOut = true;
+    });
+
+    try {
+      await widget.authRepository.logout();
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        AppRoutes.login,
+        (Route<dynamic> route) => false,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoggingOut = false;
+      });
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Impossible de se déconnecter pour le moment.'),
+          ),
+        );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -305,6 +368,8 @@ class _AgentShellState extends State<_AgentShell> {
           AgentActivityPage(
             user: widget.user,
             repository: widget.agentRepository,
+            isLoggingOut: _isLoggingOut,
+            onLogout: _logout,
           ),
         ],
       ),

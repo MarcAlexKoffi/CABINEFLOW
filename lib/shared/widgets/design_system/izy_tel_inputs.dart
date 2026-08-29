@@ -70,7 +70,26 @@ class IzyTelTextInput extends StatelessWidget {
             hintText: hintText,
             helperText: helperText,
             prefixIcon: prefixIcon != null ? Icon(prefixIcon) : null,
-            suffixText: suffixText,
+            suffixIcon: suffixText == null
+                ? null
+                : Padding(
+                    padding: const EdgeInsets.only(left: 8, right: 14),
+                    child: Center(
+                      widthFactor: 1,
+                      child: Text(
+                        suffixText!,
+                        maxLines: 1,
+                        style: const TextStyle(
+                          color: CustomerAppColors.onSurfaceVariant,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+            suffixIconConstraints: suffixText == null
+                ? null
+                : const BoxConstraints(minWidth: 72, minHeight: 48),
             counterText: '',
           ),
         ),

@@ -730,7 +730,7 @@ class _FeaturedOfferCard extends StatelessWidget {
             ),
           const SizedBox(height: 16),
           Text(
-            '${formatCfa(offer.amount)} F CFA',
+            '${formatCfa(offer.amount)} CFA',
             style: const TextStyle(
               color: CustomerAppColors.primaryDeep,
               fontSize: 20,

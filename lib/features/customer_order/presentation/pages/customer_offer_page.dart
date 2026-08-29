@@ -283,7 +283,7 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               hintText: 'Ex. 1500',
               prefixIcon: Icons.payments_outlined,
-              suffixText: 'FCFA',
+              suffixText: 'F CFA',
               validator: _validateTransferAmount,
               onChanged: _updateTransferAmount,
               onFieldSubmitted: (_) {
@@ -473,7 +473,7 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       hintText: 'Ex. 1500',
                       prefixIcon: Icons.payments_outlined,
-                      suffixText: 'FCFA',
+                      suffixText: 'F CFA',
                       validator: _validateCustomOfferAmount,
                       onChanged: (_) {
                         _updateCustomOffer();
