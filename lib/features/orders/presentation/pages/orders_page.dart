@@ -1,4 +1,5 @@
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_history_filters.dart';
@@ -12,6 +13,7 @@ import 'package:cabine_flow/features/support/data/repositories/firestore_support
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/agent_assignment_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/order_detail_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/order_history_page.dart';
@@ -464,7 +466,7 @@ class _OrdersPageState extends State<OrdersPage> {
             children: [
               Container(
                 color: IzyTelColors.background,
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
                 child: OrdersTopBar(
                   user: widget.user,
                   subtitle:
@@ -494,60 +496,73 @@ class _OrdersPageState extends State<OrdersPage> {
                   onRefresh: _viewModel.loadQueue,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(18, 13, 18, 26),
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
                     children: [
-                      OrdersTabs(
-                        todoCount: _viewModel.allReadyOrders.length,
-                        inProgressCount: _viewModel.inProgressCount,
-                        completedCount: _viewModel.completedCount,
-                        activeTabIndex: _activeTabIndex,
-                        onTabChanged: _handleOrdersTabChanged,
-                      ),
-                      const SizedBox(height: 12),
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            ...QueueFilter.values.map((QueueFilter filter) {
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 7),
-                                child: QueueFilterButton(
-                                  label: _filterLabel(filter),
-                                  count: _viewModel.countForFilter(filter),
-                                  isSelected:
-                                      _viewModel.selectedFilter == filter,
-                                  onPressed: () {
-                                    _viewModel.selectFilter(filter);
-                                  },
-                                ),
-                              );
-                            }),
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                _openHistory(openFiltersOnStart: true);
-                              },
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(0, 32),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 7,
-                                ),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                shape: const StadiumBorder(),
-                                side: const BorderSide(
-                                  color: IzyTelColors.outline,
-                                ),
-                              ),
-                              icon: const Icon(Icons.tune_rounded, size: 14),
-                              label: const Text(
-                                'Filtres',
-                                style: TextStyle(fontSize: 9.5),
-                              ),
-                            ),
-                          ],
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: OrdersTabs(
+                          todoCount: _viewModel.allReadyOrders.length,
+                          inProgressCount: _viewModel.inProgressCount,
+                          completedCount: _viewModel.completedCount,
+                          activeTabIndex: _activeTabIndex,
+                          onTabChanged: _handleOrdersTabChanged,
                         ),
                       ),
-                      const SizedBox(height: 13),
+                      const SizedBox(height: 10),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 2),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              ...QueueFilter.values.map((QueueFilter filter) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: QueueFilterButton(
+                                    label: _filterLabel(filter),
+                                    count: _viewModel.countForFilter(filter),
+                                    isSelected:
+                                        _viewModel.selectedFilter == filter,
+                                    onPressed: () {
+                                      _viewModel.selectFilter(filter);
+                                    },
+                                  ),
+                                );
+                              }),
+                              OutlinedButton.icon(
+                                onPressed: () {
+                                  _openHistory(openFiltersOnStart: true);
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size(0, 32),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  shape: const StadiumBorder(),
+                                  side: const BorderSide(
+                                    color: IzyTelColors.outline,
+                                  ),
+                                ),
+                                icon: const Icon(
+                                  Symbols.tune_rounded,
+                                  size: IzyTelIconSize.info,
+                                ),
+                                label: const Text(
+                                  'Filtres',
+                                  style: TextStyle(
+                                    fontSize: IzyTelTypeScale.label,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       if (_viewModel.errorMessage != null &&
                           _viewModel.hasOrders) ...[
                         Container(
@@ -562,10 +577,10 @@ class _OrdersPageState extends State<OrdersPage> {
                           child: Row(
                             children: [
                               const Icon(
-                                Icons.error_outline_rounded,
+                                Symbols.error_rounded,
                                 color: IzyTelColors.error,
                               ),
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
                                   _viewModel.errorMessage!,
@@ -577,7 +592,7 @@ class _OrdersPageState extends State<OrdersPage> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 16),
                       ],
                       if (_viewModel.isLoading && !_viewModel.hasOrders)
                         const SizedBox(
@@ -602,7 +617,7 @@ class _OrdersPageState extends State<OrdersPage> {
                       else
                         ...orders.map((QueueOrder order) {
                           return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.only(bottom: 8),
                             child: QueueOrderCard(
                               order: order,
                               position: _viewModel.positionOf(order.id),

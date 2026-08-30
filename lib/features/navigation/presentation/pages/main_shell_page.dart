@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cabine_flow/app/app_routes.dart';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_activity_page.dart';
@@ -22,6 +23,7 @@ import 'package:cabine_flow/features/payments/presentation/pages/payments_page.d
 import 'package:cabine_flow/features/payments/domain/repositories/payment_link_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/offer_catalog_repository.dart';
 
@@ -65,6 +67,12 @@ class _MainShellPageState extends State<MainShellPage> {
   bool _automaticAssignmentSyncPending = false;
   bool _isLoggingOut = false;
 
+  final List<GlobalKey<NavigatorState>> _tabNavigatorKeys =
+      List<GlobalKey<NavigatorState>>.generate(
+        5,
+        (int index) =>
+            GlobalKey<NavigatorState>(debugLabel: 'admin-tab-$index'),
+      );
 
   @override
   void initState() {
@@ -112,6 +120,7 @@ class _MainShellPageState extends State<MainShellPage> {
 
   Future<void> _synchronizeAutomaticAssignmentBacklog() async {
     if (_automaticAssignmentSyncRunning) {
+      _automaticAssignmentSyncPending = true;
       return;
     }
 
@@ -123,6 +132,10 @@ class _MainShellPageState extends State<MainShellPage> {
       debugPrint('[AutoAssignment][backlog] stack:\n$stackTrace');
     } finally {
       _automaticAssignmentSyncRunning = false;
+      if (_automaticAssignmentSyncPending) {
+        _automaticAssignmentSyncPending = false;
+        _scheduleAutomaticAssignmentSync();
+      }
     }
   }
 
@@ -164,7 +177,7 @@ class _MainShellPageState extends State<MainShellPage> {
             ),
             FilledButton.icon(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              icon: const Icon(Icons.logout_rounded),
+              icon: const Icon(Symbols.logout_rounded),
               label: const Text('Se déconnecter'),
             ),
           ],
@@ -201,6 +214,13 @@ class _MainShellPageState extends State<MainShellPage> {
   }
 
   Future<void> _handleSystemBack() async {
+    final NavigatorState? currentNavigator =
+        _tabNavigatorKeys[_selectedIndex].currentState;
+
+    if (currentNavigator != null && await currentNavigator.maybePop()) {
+      return;
+    }
+
     if (_selectedIndex != 0) {
       _selectDestination(0);
       return;
@@ -210,13 +230,20 @@ class _MainShellPageState extends State<MainShellPage> {
   }
 
   void _selectDestination(int index) {
-    if (index == _selectedIndex) {
-      return;
-    }
+    if (index == _selectedIndex) return;
+    setState(() => _selectedIndex = index);
+  }
 
-    setState(() {
-      _selectedIndex = index;
-    });
+  Widget _buildTabNavigator(int index, Widget rootPage) {
+    return Navigator(
+      key: _tabNavigatorKeys[index],
+      onGenerateRoute: (RouteSettings settings) {
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => rootPage,
+        );
+      },
+    );
   }
 
   @override
@@ -268,7 +295,13 @@ class _MainShellPageState extends State<MainShellPage> {
       },
       child: Scaffold(
         backgroundColor: IzyTelColors.background,
-        body: pages[_selectedIndex],
+        body: IndexedStack(
+          index: _selectedIndex,
+          children: List<Widget>.generate(
+            pages.length,
+            (int index) => _buildTabNavigator(index, pages[index]),
+          ),
+        ),
         bottomNavigationBar: CabineBottomNavigationBar(
           selectedIndex: _selectedIndex,
           onDestinationSelected: _selectDestination,
@@ -300,6 +333,12 @@ class _AgentShell extends StatefulWidget {
 class _AgentShellState extends State<_AgentShell> {
   int _selectedIndex = 0;
   bool _isLoggingOut = false;
+  final List<GlobalKey<NavigatorState>> _tabNavigatorKeys =
+      List<GlobalKey<NavigatorState>>.generate(
+        3,
+        (int index) =>
+            GlobalKey<NavigatorState>(debugLabel: 'agent-tab-$index'),
+      );
 
   Future<void> _logout() async {
     if (_isLoggingOut) return;
@@ -319,7 +358,7 @@ class _AgentShellState extends State<_AgentShell> {
             ),
             FilledButton.icon(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              icon: const Icon(Icons.logout_rounded),
+              icon: const Icon(Symbols.logout_rounded),
               label: const Text('Se déconnecter'),
             ),
           ],
@@ -356,11 +395,30 @@ class _AgentShellState extends State<_AgentShell> {
   }
 
   Future<void> _handleSystemBack() async {
+    final NavigatorState? currentNavigator =
+        _tabNavigatorKeys[_selectedIndex].currentState;
+
+    if (currentNavigator != null && await currentNavigator.maybePop()) {
+      return;
+    }
+
     if (_selectedIndex != 0) {
       setState(() => _selectedIndex = 0);
       return;
     }
     await SystemNavigator.pop();
+  }
+
+  Widget _buildTabNavigator(int index, Widget rootPage) {
+    return Navigator(
+      key: _tabNavigatorKeys[index],
+      onGenerateRoute: (RouteSettings settings) {
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => rootPage,
+        );
+      },
+    );
   }
 
   @override
@@ -394,7 +452,13 @@ class _AgentShellState extends State<_AgentShell> {
       },
       child: Scaffold(
         backgroundColor: IzyTelColors.background,
-        body: pages[_selectedIndex],
+        body: IndexedStack(
+          index: _selectedIndex,
+          children: List<Widget>.generate(
+            pages.length,
+            (int index) => _buildTabNavigator(index, pages[index]),
+          ),
+        ),
         bottomNavigationBar: _AgentBottomNavigationBar(
           selectedIndex: _selectedIndex,
           onDestinationSelected: (int index) {
@@ -420,18 +484,18 @@ class _AgentBottomNavigationBar extends StatelessWidget {
     const List<_AgentNavigationItem> items = <_AgentNavigationItem>[
       _AgentNavigationItem(
         label: 'Commandes',
-        icon: Icons.receipt_long_outlined,
-        selectedIcon: Icons.receipt_long_rounded,
+        icon: Symbols.receipt_long_rounded,
+        selectedIcon: Symbols.receipt_long_rounded,
       ),
       _AgentNavigationItem(
         label: 'Historique',
-        icon: Icons.history_rounded,
-        selectedIcon: Icons.history_rounded,
+        icon: Symbols.history_rounded,
+        selectedIcon: Symbols.history_rounded,
       ),
       _AgentNavigationItem(
         label: 'Profil',
-        icon: Icons.person_outline_rounded,
-        selectedIcon: Icons.person_rounded,
+        icon: Symbols.person_rounded,
+        selectedIcon: Symbols.person_rounded,
       ),
     ];
 
@@ -450,7 +514,7 @@ class _AgentBottomNavigationBar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 58,
+          height: 64,
           child: Row(
             children: List<Widget>.generate(items.length, (int index) {
               final _AgentNavigationItem item = items[index];
@@ -460,13 +524,16 @@ class _AgentBottomNavigationBar extends StatelessWidget {
                   : IzyTelColors.textSecondary;
               return Expanded(
                 child: InkWell(
+                  key: ValueKey<String>(
+                    'agent-nav-${item.label.toLowerCase()}',
+                  ),
                   onTap: () => onDestinationSelected(index),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
-                        width: 30,
-                        height: 24,
+                        width: 34,
+                        height: 28,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: selected
@@ -476,7 +543,9 @@ class _AgentBottomNavigationBar extends StatelessWidget {
                         ),
                         child: Icon(
                           selected ? item.selectedIcon : item.icon,
-                          size: 18,
+                          size: IzyTelIconSize.navigation,
+                          fill: selected ? 1 : 0,
+                          weight: selected ? 600 : 450,
                           color: color,
                         ),
                       ),
@@ -486,10 +555,10 @@ class _AgentBottomNavigationBar extends StatelessWidget {
                         style: Theme.of(context).textTheme.labelMedium
                             ?.copyWith(
                               color: color,
-                              fontSize: 8.8,
+                              fontSize: IzyTelTypeScale.micro,
                               fontWeight: selected
-                                  ? FontWeight.w800
-                                  : FontWeight.w600,
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
                             ),
                       ),
                     ],

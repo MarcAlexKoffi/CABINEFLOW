@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('ne charge que les commandes affectées à l’agent', () async {
-    final FakeOrdersRepository repository = FakeOrdersRepository();
+    final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
     final List<QueueOrder> queue = await repository.fetchPaidQueue();
     await repository.assignToAgent(
       orderId: queue[0].id,
@@ -31,7 +31,7 @@ void main() {
   });
 
   test('accepter déplace la commande vers En cours', () async {
-    final FakeOrdersRepository repository = FakeOrdersRepository();
+    final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
     final QueueOrder order = (await repository.fetchPaidQueue()).first;
     await repository.assignToAgent(
       orderId: order.id,
@@ -54,7 +54,7 @@ void main() {
   });
 
   test('refuser retire la commande de Mes commandes', () async {
-    final FakeOrdersRepository repository = FakeOrdersRepository();
+    final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
     final QueueOrder order = (await repository.fetchPaidQueue()).first;
     await repository.assignToAgent(
       orderId: order.id,

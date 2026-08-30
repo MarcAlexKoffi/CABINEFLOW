@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('affecte manuellement une commande payée à un agent', () async {
-    final FakeOrdersRepository repository = FakeOrdersRepository();
+    final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
     final List<QueueOrder> queue = await repository.fetchPaidQueue();
     final QueueOrder order = queue.first;
 
@@ -26,7 +26,7 @@ void main() {
   });
 
   test('agent accepte uniquement une commande qui lui est affectée', () async {
-    final FakeOrdersRepository repository = FakeOrdersRepository();
+    final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
     final QueueOrder order = (await repository.fetchPaidQueue()).first;
     await repository.assignToAgent(
       orderId: order.id,
@@ -48,7 +48,7 @@ void main() {
   });
 
   test('refus remet la commande dans le circuit de réaffectation', () async {
-    final FakeOrdersRepository repository = FakeOrdersRepository();
+    final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
     final QueueOrder order = (await repository.fetchPaidQueue()).first;
     await repository.assignToAgent(
       orderId: order.id,

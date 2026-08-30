@@ -1,4 +1,5 @@
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
@@ -10,6 +11,7 @@ import 'package:cabine_flow/features/orders/presentation/view_models/agent_order
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 class AgentOrdersPage extends StatefulWidget {
   const AgentOrdersPage({
@@ -129,25 +131,83 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
       actions: <IzyTelAccountAction>[
         if (widget.onOpenProfile != null)
           IzyTelAccountAction(
-            icon: Icons.person_outline_rounded,
+            icon: Symbols.person_rounded,
             label: 'Mon profil',
             onTap: widget.onOpenProfile!,
           ),
         if (widget.onOpenProfile != null)
           IzyTelAccountAction(
-            icon: Icons.insights_outlined,
+            icon: Symbols.insights_rounded,
             label: 'Mes performances et commissions',
             onTap: widget.onOpenProfile!,
           ),
         if (widget.onLogout != null)
           IzyTelAccountAction(
-            icon: Icons.logout_rounded,
+            icon: Symbols.logout_rounded,
             label: 'Se déconnecter',
             destructive: true,
             onTap: widget.onLogout!,
           ),
       ],
     );
+  }
+
+  Future<void> _openQueueModeMenu() async {
+    final AgentOrdersTab? selected = await showModalBottomSheet<AgentOrdersTab>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext sheetContext) {
+        return Container(
+          margin: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: IzyTelColors.surface,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: IzyTelColors.outline),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(Symbols.inbox_rounded),
+                title: const Text('À accepter'),
+                trailing: Text('${_viewModel.toAcceptCount}'),
+                onTap: () =>
+                    Navigator.of(sheetContext).pop(AgentOrdersTab.toAccept),
+              ),
+              ListTile(
+                leading: const Icon(Symbols.autorenew_rounded),
+                title: const Text('En cours'),
+                trailing: Text('${_viewModel.inProgressCount}'),
+                onTap: () =>
+                    Navigator.of(sheetContext).pop(AgentOrdersTab.inProgress),
+              ),
+              ListTile(
+                leading: const Icon(Symbols.check_circle_rounded),
+                title: const Text('Terminées'),
+                trailing: Text('${_viewModel.completedCount}'),
+                onTap: () =>
+                    Navigator.of(sheetContext).pop(AgentOrdersTab.completed),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+    if (selected != null) _viewModel.selectTab(selected);
+  }
+
+  String _queueHeading(int count) {
+    switch (_viewModel.selectedTab) {
+      case AgentOrdersTab.toAccept:
+        return '$count commande${count > 1 ? 's' : ''} à traiter';
+      case AgentOrdersTab.inProgress:
+        return '$count commande${count > 1 ? 's' : ''} en cours';
+      case AgentOrdersTab.completed:
+        return '$count commande${count > 1 ? 's' : ''} terminée${count > 1 ? 's' : ''}';
+    }
   }
 
   @override
@@ -181,77 +241,65 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
                 }
               }
 
-              final List<QueueOrder> queue = _viewModel.toAcceptOrders;
-              final List<QueueOrder> inProgress = _viewModel.inProgressOrders;
+              final List<QueueOrder> queue = _viewModel.visibleOrders;
+              final AgentOrdersTab selectedTab = _viewModel.selectedTab;
 
               return RefreshIndicator(
                 onRefresh: _viewModel.start,
                 color: IzyTelColors.primary,
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 26),
+                  padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
                   children: [
                     _AgentHeader(
                       user: widget.user,
                       profile: _viewModel.agentProfile,
                       onAvatarTap: _openAccountMenu,
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Mes commandes',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    _AgentTabs(
-                      selectedTab: _viewModel.selectedTab,
-                      toAcceptCount: queue.length,
-                      inProgressCount: inProgress.length,
-                      completedCount: _viewModel.completedOrders.length,
-                      onChanged: _viewModel.selectTab,
-                    ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 32),
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Expanded(
                           child: Text(
-                            '${queue.length} commande${queue.length > 1 ? 's' : ''} à traiter',
+                            _queueHeading(queue.length),
                             style: Theme.of(context).textTheme.titleLarge
                                 ?.copyWith(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
+                                  fontSize: IzyTelTypeScale.title2,
+                                  height: 1.18,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -.25,
                                 ),
                           ),
                         ),
                         IconButton(
-                          tooltip: 'Actualiser',
-                          onPressed: _viewModel.start,
+                          tooltip: 'Afficher une autre file',
+                          onPressed: _openQueueModeMenu,
                           visualDensity: VisualDensity.compact,
-                          icon: const Icon(Icons.tune_rounded, size: 19),
+                          icon: const Icon(
+                            Symbols.tune_rounded,
+                            size: IzyTelIconSize.action,
+                          ),
                         ),
                       ],
                     ),
+                    const SizedBox(height: 12),
                     if (_viewModel.errorMessage != null) ...[
-                      const SizedBox(height: 10),
                       _AgentMessageCard(
-                        icon: Icons.error_outline_rounded,
-                        title: 'Une action n’a pas abouti',
+                        icon: Symbols.error_rounded,
+                        title: 'Impossible de charger la file',
                         message: _viewModel.errorMessage!,
                         color: IzyTelColors.error,
                       ),
+                      const SizedBox(height: 12),
                     ],
-                    const SizedBox(height: 12),
                     if (_viewModel.isLoading && queue.isEmpty)
                       const SizedBox(
                         height: 280,
                         child: Center(child: CircularProgressIndicator()),
                       )
                     else if (queue.isEmpty)
-                      const _AgentEmptyState(tab: AgentOrdersTab.toAccept)
-                    else
+                      _AgentEmptyState(tab: selectedTab)
+                    else if (selectedTab == AgentOrdersTab.toAccept)
                       ...List<Widget>.generate(queue.length, (int index) {
                         final QueueOrder order = queue[index];
                         return Padding(
@@ -266,36 +314,17 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
                             onOpen: () => _openOrder(order),
                           ),
                         );
-                      }),
-                    if (inProgress.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Commandes en cours',
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w800),
-                            ),
-                          ),
-                          Text(
-                            '${inProgress.length}',
-                            style: Theme.of(context).textTheme.labelMedium
-                                ?.copyWith(color: IzyTelColors.textMuted),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      ...inProgress.map(
+                      })
+                    else
+                      ...queue.map(
                         (QueueOrder order) => Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.only(bottom: 12),
                           child: _AgentInProgressTile(
                             order: order,
                             onTap: () => _openOrder(order),
                           ),
                         ),
                       ),
-                    ],
                   ],
                 ),
               );
@@ -328,11 +357,11 @@ class _AgentHeader extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             const SizedBox(
-              width: 31,
-              height: 31,
+              width: 34,
+              height: 34,
               child: Icon(
-                Icons.notifications_none_rounded,
-                size: 21,
+                Symbols.notifications_rounded,
+                size: IzyTelIconSize.action,
                 color: IzyTelColors.textPrimary,
               ),
             ),
@@ -350,7 +379,7 @@ class _AgentHeader extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 11),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -360,8 +389,8 @@ class _AgentHeader extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
+                  fontSize: IzyTelTypeScale.title3,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 4),
@@ -384,8 +413,8 @@ class _AgentHeader extends StatelessWidget {
                       color: available
                           ? IzyTelColors.textPrimary
                           : IzyTelColors.textSecondary,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
+                      fontSize: IzyTelTypeScale.micro,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
@@ -397,124 +426,15 @@ class _AgentHeader extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IzyTelAvatar(name: user.name, onTap: onAvatarTap, size: 36),
+            IzyTelAvatar(name: user.name, onTap: onAvatarTap, size: 38),
             const Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 16,
+              Symbols.keyboard_arrow_down_rounded,
+              size: IzyTelIconSize.info,
               color: IzyTelColors.textSecondary,
             ),
           ],
         ),
       ],
-    );
-  }
-}
-
-class _AgentTabs extends StatelessWidget {
-  const _AgentTabs({
-    required this.selectedTab,
-    required this.toAcceptCount,
-    required this.inProgressCount,
-    required this.completedCount,
-    required this.onChanged,
-  });
-
-  final AgentOrdersTab selectedTab;
-  final int toAcceptCount;
-  final int inProgressCount;
-  final int completedCount;
-  final ValueChanged<AgentOrdersTab> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          _AgentTabChip(
-            label: 'À accepter',
-            count: toAcceptCount,
-            selected: selectedTab == AgentOrdersTab.toAccept,
-            onTap: () => onChanged(AgentOrdersTab.toAccept),
-          ),
-          const SizedBox(width: 8),
-          _AgentTabChip(
-            label: 'En cours',
-            count: inProgressCount,
-            selected: selectedTab == AgentOrdersTab.inProgress,
-            onTap: () => onChanged(AgentOrdersTab.inProgress),
-          ),
-          const SizedBox(width: 8),
-          _AgentTabChip(
-            label: 'Terminées',
-            count: completedCount,
-            selected: selectedTab == AgentOrdersTab.completed,
-            onTap: () => onChanged(AgentOrdersTab.completed),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AgentTabChip extends StatelessWidget {
-  const _AgentTabChip({
-    required this.label,
-    required this.count,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final int count;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: selected ? IzyTelColors.primary : IzyTelColors.surface,
-      shape: StadiumBorder(
-        side: BorderSide(
-          color: selected ? IzyTelColors.primary : IzyTelColors.outline,
-        ),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const StadiumBorder(),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: selected ? Colors.white : IzyTelColors.textSecondary,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(width: 7),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: selected
-                      ? Colors.white.withAlpha(38)
-                      : IzyTelColors.surfaceMuted,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  '$count',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: selected ? Colors.white : IzyTelColors.textSecondary,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -563,182 +483,199 @@ class _PremiumAgentOrderCard extends StatelessWidget {
     final Color priorityColor = first
         ? IzyTelColors.error
         : IzyTelColors.warning;
+    final double scale = (MediaQuery.sizeOf(context).width / 300).clamp(
+      1.0,
+      1.35,
+    );
 
-    return Material(
-      color: IzyTelColors.surface,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onOpen,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(13, 12, 13, 13),
-          decoration: BoxDecoration(
-            color: IzyTelColors.surface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: first
-                  ? IzyTelColors.error.withAlpha(115)
-                  : IzyTelColors.outline,
+    return SizedBox(
+      height: 185 * scale,
+      child: Material(
+        color: IzyTelColors.surface,
+        borderRadius: BorderRadius.circular(13 * scale),
+        child: InkWell(
+          onTap: onOpen,
+          borderRadius: BorderRadius.circular(13 * scale),
+          child: Container(
+            padding: EdgeInsets.fromLTRB(
+              12 * scale,
+              11 * scale,
+              12 * scale,
+              10 * scale,
             ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x0F0F172A),
-                blurRadius: 16,
-                offset: Offset(0, 6),
+            decoration: BoxDecoration(
+              color: IzyTelColors.surface,
+              borderRadius: BorderRadius.circular(13 * scale),
+              border: Border.all(
+                color: first
+                    ? IzyTelColors.error.withAlpha(115)
+                    : IzyTelColors.outline,
               ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  if (queuePosition != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: priorityColor.withAlpha(18),
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                      child: Text(
-                        'PRIORITÉ $queuePosition',
-                        style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(
-                              color: priorityColor,
-                              fontSize: 8.5,
-                              fontWeight: FontWeight.w900,
-                            ),
-                      ),
-                    ),
-                  const Spacer(),
-                  Text(
-                    _waitingLabel,
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: first
-                          ? IzyTelColors.error
-                          : IzyTelColors.textMuted,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 30,
-                    height: 30,
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      color: network.withAlpha(16),
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                    child: Image.asset(
-                      networkAsset(order.network),
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          networkLabel(order.network),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0F0F172A),
+                  blurRadius: 16,
+                  offset: Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    if (queuePosition != null)
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 8 * scale,
+                          vertical: 4 * scale,
+                        ),
+                        decoration: BoxDecoration(
+                          color: priorityColor.withAlpha(18),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          'PRIORITÉ $queuePosition',
                           style: Theme.of(context).textTheme.labelMedium
                               ?.copyWith(
-                                color: IzyTelColors.textPrimary,
-                                fontSize: 10.5,
+                                color: priorityColor,
+                                fontSize: IzyTelTypeScale.micro,
                                 fontWeight: FontWeight.w700,
                               ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          order.offerLabel,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w800,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 9),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      order.beneficiaryPhone,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      ),
+                    const Spacer(),
+                    Text(
+                      _waitingLabel,
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: IzyTelColors.textPrimary,
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w600,
+                        color: first
+                            ? IzyTelColors.error
+                            : IzyTelColors.textMuted,
+                        fontSize: IzyTelTypeScale.micro,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    formatCfa(order.amount),
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: IzyTelColors.primaryStrong,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 9),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: IzyTelStatusPill(
-                  label: order.paymentStatus == OrderPaymentStatus.confirmed
-                      ? 'Paiement confirmé'
-                      : orderStatusLabel(order.status),
-                  color: order.paymentStatus == OrderPaymentStatus.confirmed
-                      ? IzyTelColors.success
-                      : orderStatusColor(order.status),
+                  ],
                 ),
-              ),
-              if (showDecisionActions) ...[
-                const SizedBox(height: 11),
-                SizedBox(
-                  height: 38,
-                  child: FilledButton.icon(
-                    onPressed: isBusy ? null : onAccept,
-                    style: FilledButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(7),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 25 * scale,
+                      height: 25 * scale,
+                      padding: EdgeInsets.all(2.2 * scale),
+                      decoration: BoxDecoration(
+                        color: network.withAlpha(16),
+                        borderRadius: BorderRadius.circular(6 * scale),
+                      ),
+                      child: Image.asset(
+                        networkAsset(order.network),
+                        fit: BoxFit.contain,
                       ),
                     ),
-                    icon: isBusy
-                        ? const SizedBox.square(
-                            dimension: 15,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 1.8,
-                              color: Colors.white,
+                    SizedBox(width: 8 * scale),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            networkLabel(order.network),
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: IzyTelColors.textPrimary,
+                                  fontSize: IzyTelTypeScale.label,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                          SizedBox(height: 4 * scale),
+                          Text(
+                            order.offerLabel,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  fontSize: IzyTelTypeScale.title3,
+                                  height: 1.2,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        order.beneficiaryPhone,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: IzyTelColors.textPrimary,
+                              fontSize: IzyTelTypeScale.transactionNumber,
+                              fontWeight: FontWeight.w700,
                             ),
-                          )
-                        : const Icon(Icons.check_rounded, size: 16),
-                    label: Text(
-                      isBusy ? 'Traitement...' : 'Accepter',
-                      style: const TextStyle(fontSize: 10.5),
+                      ),
                     ),
+                    SizedBox(width: 8 * scale),
+                    Text(
+                      formatCfa(order.amount),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: IzyTelColors.primaryStrong,
+                        fontSize: IzyTelTypeScale.money,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IzyTelStatusPill(
+                    label: order.paymentStatus == OrderPaymentStatus.confirmed
+                        ? 'Paiement confirmé'
+                        : orderStatusLabel(order.status),
+                    color: order.paymentStatus == OrderPaymentStatus.confirmed
+                        ? IzyTelColors.success
+                        : orderStatusColor(order.status),
                   ),
                 ),
+                if (showDecisionActions)
+                  SizedBox(
+                    height: 28 * scale,
+                    child: FilledButton.icon(
+                      onPressed: isBusy ? null : onAccept,
+                      style: FilledButton.styleFrom(
+                        padding: EdgeInsets.symmetric(horizontal: 12 * scale),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6 * scale),
+                        ),
+                      ),
+                      icon: isBusy
+                          ? const SizedBox.square(
+                              dimension: 15,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.8,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(
+                              Symbols.check_rounded,
+                              size: IzyTelIconSize.info,
+                            ),
+                      label: Text(
+                        isBusy ? 'Traitement...' : 'Accepter',
+                        style: const TextStyle(
+                          fontSize: IzyTelTypeScale.label,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -782,22 +719,25 @@ class _AgentInProgressTile extends StatelessWidget {
                   order.offerLabel,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelLarge?.copyWith(fontSize: 11),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontSize: IzyTelTypeScale.cardTitle,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   order.beneficiaryPhone,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelMedium?.copyWith(fontSize: 9.5),
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontSize: IzyTelTypeScale.text,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
           ),
           const Icon(
-            Icons.chevron_right_rounded,
+            Symbols.chevron_right_rounded,
+            size: IzyTelIconSize.action,
             color: IzyTelColors.textMuted,
           ),
         ],
@@ -830,7 +770,7 @@ class _AgentEmptyState extends StatelessWidget {
         break;
     }
     return _AgentMessageCard(
-      icon: Icons.inbox_outlined,
+      icon: Symbols.inbox_rounded,
       title: title,
       message: message,
       color: IzyTelColors.primary,
@@ -938,14 +878,14 @@ class _RefusalReasonSheetState extends State<_RefusalReasonSheet> {
                   'Refuser la commande',
                   style: TextStyle(
                     color: IzyTelColors.textPrimary,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
+                    fontSize: IzyTelTypeScale.title2,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
               IconButton(
                 onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close_rounded),
+                icon: const Icon(Symbols.close_rounded),
                 color: IzyTelColors.textSecondary,
               ),
             ],
@@ -955,7 +895,8 @@ class _RefusalReasonSheetState extends State<_RefusalReasonSheet> {
             '${widget.reference} sera renvoyée dans le circuit de réaffectation.',
             style: const TextStyle(
               color: IzyTelColors.textSecondary,
-              fontSize: 13,
+              fontSize: IzyTelTypeScale.label,
+              fontWeight: FontWeight.w500,
             ),
           ),
           const SizedBox(height: 18),

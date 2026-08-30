@@ -73,7 +73,7 @@ class MorePage extends StatelessWidget {
     try {
       await authRepository.logout();
       if (!context.mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil(
+      Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
         AppRoutes.login,
         (Route<dynamic> route) => false,
       );

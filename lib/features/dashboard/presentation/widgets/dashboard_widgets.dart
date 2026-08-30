@@ -1,8 +1,10 @@
 import 'package:cabine_flow/core/theme/app_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 class DashboardHeader extends StatelessWidget {
   const DashboardHeader({
@@ -861,28 +863,28 @@ class CabineBottomNavigationBar extends StatelessWidget {
   static const List<_CabineNavigationItem> _items = [
     _CabineNavigationItem(
       label: 'Accueil',
-      icon: Icons.home_outlined,
-      selectedIcon: Icons.home_rounded,
+      icon: Symbols.home_rounded,
+      selectedIcon: Symbols.home_rounded,
     ),
     _CabineNavigationItem(
       label: 'Commandes',
-      icon: Icons.receipt_long_outlined,
-      selectedIcon: Icons.receipt_long_rounded,
+      icon: Symbols.receipt_long_rounded,
+      selectedIcon: Symbols.receipt_long_rounded,
     ),
     _CabineNavigationItem(
       label: 'Paiements',
-      icon: Icons.account_balance_wallet_outlined,
-      selectedIcon: Icons.account_balance_wallet_rounded,
+      icon: Symbols.wallet_rounded,
+      selectedIcon: Symbols.wallet_rounded,
     ),
     _CabineNavigationItem(
       label: 'Finances',
-      icon: Icons.account_balance_outlined,
-      selectedIcon: Icons.account_balance_rounded,
+      icon: Symbols.account_balance_rounded,
+      selectedIcon: Symbols.account_balance_rounded,
     ),
     _CabineNavigationItem(
       label: 'Plus',
-      icon: Icons.menu_rounded,
-      selectedIcon: Icons.menu_rounded,
+      icon: Symbols.menu_rounded,
+      selectedIcon: Symbols.menu_rounded,
     ),
   ];
 
@@ -903,7 +905,7 @@ class CabineBottomNavigationBar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 58,
+          height: 62,
           child: Row(
             children: List<Widget>.generate(_items.length, (int index) {
               final _CabineNavigationItem item = _items[index];
@@ -914,6 +916,9 @@ class CabineBottomNavigationBar extends StatelessWidget {
 
               return Expanded(
                 child: InkWell(
+                  key: ValueKey<String>(
+                    'admin-nav-${item.label.toLowerCase()}',
+                  ),
                   onTap: () => onDestinationSelected(index),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
@@ -924,8 +929,8 @@ class CabineBottomNavigationBar extends StatelessWidget {
                       children: [
                         AnimatedContainer(
                           duration: const Duration(milliseconds: 180),
-                          width: selected ? 30 : 26,
-                          height: 24,
+                          width: selected ? 34 : 30,
+                          height: 28,
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             color: selected
@@ -935,23 +940,29 @@ class CabineBottomNavigationBar extends StatelessWidget {
                           ),
                           child: Icon(
                             selected ? item.selectedIcon : item.icon,
-                            size: 18,
+                            size: IzyTelIconSize.navigation,
+                            fill: selected ? 1 : 0,
+                            weight: selected ? 600 : 450,
                             color: color,
                           ),
                         ),
                         const SizedBox(height: 2),
-                        Text(
-                          item.label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(
-                                color: color,
-                                fontSize: 8.6,
-                                fontWeight: selected
-                                    ? FontWeight.w800
-                                    : FontWeight.w600,
-                              ),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            item.label,
+                            maxLines: 1,
+                            softWrap: false,
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: color,
+                                  fontSize: 11,
+                                  letterSpacing: -.15,
+                                  fontWeight: selected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                ),
+                          ),
                         ),
                       ],
                     ),

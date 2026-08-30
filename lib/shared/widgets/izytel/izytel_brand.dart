@@ -1,6 +1,12 @@
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:flutter/material.dart';
 
+/// Marque IzyTel utilisée par les écrans professionnels.
+///
+/// La maquette validée utilise le véritable logo fourni dans `assets/images`
+/// plutôt qu'une approximation dessinée en code. Le painter reste uniquement
+/// un fallback de sécurité si l'asset n'est pas disponible.
 class IzyTelBrandMark extends StatelessWidget {
   const IzyTelBrandMark({super.key, this.size = 72});
 
@@ -10,7 +16,12 @@ class IzyTelBrandMark extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox.square(
       dimension: size,
-      child: CustomPaint(painter: _IzyTelMarkPainter()),
+      child: Image.asset(
+        'assets/images/izyTel_logo.png',
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        errorBuilder: (_, _, _) => CustomPaint(painter: _IzyTelMarkPainter()),
+      ),
     );
   }
 }
@@ -33,8 +44,9 @@ class IzyTelWordmark extends StatelessWidget {
         .copyWith(
           color: IzyTelColors.textPrimary,
           fontSize: fontSize,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -1,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -1.15,
+          height: 1.05,
         );
 
     return Column(
@@ -45,17 +57,46 @@ class IzyTelWordmark extends StatelessWidget {
       children: [
         Text('IzyTel', style: titleStyle),
         if (showTagline) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Text(
             'Simple. Rapide. Fiable.',
             textAlign: centered ? TextAlign.center : TextAlign.start,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: IzyTelColors.textSecondary,
-              fontWeight: FontWeight.w600,
+              fontSize: IzyTelTypeScale.text,
+              fontWeight: FontWeight.w500,
+              height: 1.15,
             ),
           ),
         ],
       ],
+    );
+  }
+}
+
+class IzyTelGoogleMark extends StatelessWidget {
+  const IzyTelGoogleMark({super.key, this.size = 18});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: size,
+      child: Image.asset(
+        'assets/images/google_logo.png',
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        errorBuilder: (_, _, _) => const Center(
+          child: Text(
+            'G',
+            style: TextStyle(
+              color: IzyTelColors.primary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

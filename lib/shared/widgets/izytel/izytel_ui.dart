@@ -1,15 +1,17 @@
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 class IzyTelSurface extends StatelessWidget {
   const IzyTelSurface({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(16),
+    this.padding = const EdgeInsets.all(IzyTelSpacing.md),
     this.onTap,
     this.borderColor,
     this.backgroundColor,
-    this.radius = 20,
+    this.radius = IzyTelRadii.largeCard,
   });
 
   final Widget child;
@@ -66,7 +68,7 @@ class IzyTelStatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withAlpha(24),
         borderRadius: BorderRadius.circular(999),
@@ -75,15 +77,15 @@ class IzyTelStatusPill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 11, color: color),
+            Icon(icon, size: IzyTelIconSize.info, color: color),
             const SizedBox(width: 3),
           ],
           Text(
             label,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: color,
-              fontSize: 8.8,
-              fontWeight: FontWeight.w800,
+              fontSize: IzyTelTypeScale.micro,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -111,9 +113,9 @@ class IzyTelSectionHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontSize: IzyTelTypeScale.title3,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
@@ -138,13 +140,19 @@ class IzyTelAvatar extends StatelessWidget {
     required this.name,
     this.onTap,
     this.size = 42,
+    this.initialsOverride,
   });
 
   final String name;
   final VoidCallback? onTap;
   final double size;
+  final String? initialsOverride;
 
   String get _initials {
+    final String? override = initialsOverride?.trim();
+    if (override != null && override.isNotEmpty) {
+      return override.toUpperCase();
+    }
     final List<String> parts = name
         .trim()
         .split(RegExp(r'\s+'))
@@ -169,7 +177,7 @@ class IzyTelAvatar extends StatelessWidget {
         _initials,
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
           color: Colors.white,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -195,7 +203,9 @@ Future<void> showIzyTelAccountSheet({
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 22),
         decoration: const BoxDecoration(
           color: IzyTelColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(IzyTelRadii.sheet),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -220,7 +230,7 @@ Future<void> showIzyTelAccountSheet({
                       Text(
                         name,
                         style: Theme.of(sheetContext).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w800),
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -249,13 +259,13 @@ Future<void> showIzyTelAccountSheet({
                     color: action.destructive
                         ? IzyTelColors.error
                         : IzyTelColors.textPrimary,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 trailing: action.destructive
                     ? null
                     : const Icon(
-                        Icons.chevron_right_rounded,
+                        Symbols.chevron_right_rounded,
                         color: IzyTelColors.textMuted,
                       ),
                 onTap: () {

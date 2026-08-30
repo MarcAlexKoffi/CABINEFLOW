@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/dashboard/domain/models/dashboard_data.dart';
@@ -13,6 +14,7 @@ import 'package:cabine_flow/features/support/domain/repositories/support_request
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({
@@ -105,19 +107,19 @@ class _DashboardPageState extends State<DashboardPage> {
     final List<IzyTelAccountAction> actions = <IzyTelAccountAction>[
       if (widget.onOpenMore != null)
         IzyTelAccountAction(
-          icon: Icons.person_outline_rounded,
+          icon: Symbols.person_rounded,
           label: 'Mon espace administrateur',
           onTap: widget.onOpenMore!,
         ),
       if (widget.onOpenMore != null)
         IzyTelAccountAction(
-          icon: Icons.settings_outlined,
+          icon: Symbols.settings_rounded,
           label: 'Paramètres et administration',
           onTap: widget.onOpenMore!,
         ),
       if (widget.onLogout != null)
         IzyTelAccountAction(
-          icon: Icons.logout_rounded,
+          icon: Symbols.logout_rounded,
           label: 'Se déconnecter',
           destructive: true,
           onTap: widget.onLogout!,
@@ -148,7 +150,7 @@ class _DashboardPageState extends State<DashboardPage> {
               color: IzyTelColors.primary,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(18, 16, 18, 26),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                 children: [
                   _Header(
                     user: widget.user,
@@ -168,7 +170,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       amount: data.todayRevenue,
                       percentage: data.revenueChangePercentage,
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 20),
                     IzyTelSectionHeader(
                       title: 'À faire maintenant',
                       actionLabel: 'Voir tout',
@@ -181,7 +183,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       child: Column(
                         children: [
                           _ActionRow(
-                            icon: Icons.receipt_long_outlined,
+                            icon: Symbols.receipt_long_rounded,
                             iconColor: IzyTelColors.warning,
                             title:
                                 '${data.statistics.paymentsToVerify} paiements à vérifier',
@@ -189,7 +191,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           ),
                           const Divider(),
                           _ActionRow(
-                            icon: Icons.inventory_2_outlined,
+                            icon: Symbols.inventory_2_rounded,
                             iconColor: IzyTelColors.primary,
                             title:
                                 '${data.statistics.newRequests} commandes à affecter',
@@ -197,7 +199,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           ),
                           const Divider(),
                           _ActionRow(
-                            icon: Icons.person_outline_rounded,
+                            icon: Symbols.person_rounded,
                             iconColor: IzyTelColors.orange,
                             title: '$_customerRequestsCount demandes client',
                             onTap: widget.onOpenMore,
@@ -205,7 +207,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 20),
                     const IzyTelSectionHeader(title: 'Activité du jour'),
                     const SizedBox(height: 8),
                     Row(
@@ -235,7 +237,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 20),
                     IzyTelSectionHeader(
                       title: 'Disponibilité réseau',
                       actionLabel: 'Voir tout',
@@ -272,7 +274,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 20),
                     const IzyTelSectionHeader(title: 'Activité récente'),
                     const SizedBox(height: 8),
                     if (data.priorityOrders.isEmpty)
@@ -334,8 +336,8 @@ class _Header extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w800,
+                  fontSize: IzyTelTypeScale.title2,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 2),
@@ -343,7 +345,8 @@ class _Header extends StatelessWidget {
                 dateLabel,
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
                   color: IzyTelColors.textSecondary,
-                  fontSize: 10.5,
+                  fontSize: IzyTelTypeScale.label,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
@@ -353,11 +356,18 @@ class _Header extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IzyTelAvatar(name: user.name, onTap: onAvatarTap, size: 38),
+            IzyTelAvatar(
+              name: user.name,
+              initialsOverride: user.name.trim().isEmpty
+                  ? '?'
+                  : user.name.trim().substring(0, 1),
+              onTap: onAvatarTap,
+              size: 38,
+            ),
             const SizedBox(width: 2),
             const Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 16,
+              Symbols.keyboard_arrow_down_rounded,
+              size: IzyTelIconSize.info,
               color: IzyTelColors.textSecondary,
             ),
           ],
@@ -403,7 +413,8 @@ class _RevenueHero extends StatelessWidget {
                   'Encaissements aujourd’hui',
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: Colors.white,
-                    fontSize: 10.5,
+                    fontSize: IzyTelTypeScale.label,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -411,8 +422,8 @@ class _RevenueHero extends StatelessWidget {
                   formatCfaFull(amount),
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     color: Colors.white,
-                    fontSize: 23,
-                    fontWeight: FontWeight.w800,
+                    fontSize: IzyTelTypeScale.title1,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 if (change != null) ...[
@@ -432,8 +443,8 @@ class _RevenueHero extends StatelessWidget {
                       '${positive ? '+' : ''}${change.toStringAsFixed(1)}%  vs hier',
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: Colors.white,
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w800,
+                        fontSize: IzyTelTypeScale.micro,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -449,9 +460,9 @@ class _RevenueHero extends StatelessWidget {
               borderRadius: BorderRadius.circular(13),
             ),
             child: const Icon(
-              Icons.account_balance_wallet_outlined,
+              Symbols.wallet_rounded,
               color: Colors.white,
-              size: 24,
+              size: IzyTelIconSize.navigation,
             ),
           ),
         ],
@@ -489,7 +500,7 @@ class _ActionRow extends StatelessWidget {
                 color: iconColor.withAlpha(18),
                 borderRadius: BorderRadius.circular(9),
               ),
-              child: Icon(icon, color: iconColor, size: 17),
+              child: Icon(icon, color: iconColor, size: IzyTelIconSize.action),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -497,15 +508,15 @@ class _ActionRow extends StatelessWidget {
                 title,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: IzyTelColors.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+                  fontSize: IzyTelTypeScale.text,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
             const Icon(
-              Icons.chevron_right_rounded,
+              Symbols.chevron_right_rounded,
               color: IzyTelColors.textMuted,
-              size: 20,
+              size: IzyTelIconSize.action,
             ),
           ],
         ),
@@ -535,16 +546,17 @@ class _MetricCard extends StatelessWidget {
         children: [
           Text(
             label,
-            style: Theme.of(
-              context,
-            ).textTheme.labelMedium?.copyWith(fontSize: 10.5),
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              fontSize: IzyTelTypeScale.label,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
             value,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontSize: 19,
-              fontWeight: FontWeight.w800,
+              fontSize: IzyTelTypeScale.title2,
+              fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 8),
@@ -610,9 +622,10 @@ class _NetworkCard extends StatelessWidget {
             name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(
-              context,
-            ).textTheme.labelLarge?.copyWith(fontSize: 11),
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              fontSize: IzyTelTypeScale.label,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 3),
           Text(
@@ -621,8 +634,8 @@ class _NetworkCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: _statusColor,
-              fontSize: 9.5,
-              fontWeight: FontWeight.w700,
+              fontSize: IzyTelTypeScale.micro,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -653,8 +666,8 @@ class _RecentActivityRow extends StatelessWidget {
             ),
             child: Icon(
               confirmed
-                  ? Icons.account_balance_wallet_outlined
-                  : Icons.assignment_turned_in_outlined,
+                  ? Symbols.wallet_rounded
+                  : Symbols.assignment_turned_in_rounded,
               size: 16,
               color: color,
             ),
@@ -671,7 +684,7 @@ class _RecentActivityRow extends StatelessWidget {
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: IzyTelColors.textPrimary,
                     fontWeight: FontWeight.w700,
-                    fontSize: 10.5,
+                    fontSize: IzyTelTypeScale.label,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -681,7 +694,7 @@ class _RecentActivityRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: IzyTelColors.textMuted,
-                    fontSize: 9,
+                    fontSize: IzyTelTypeScale.micro,
                   ),
                 ),
               ],
@@ -693,7 +706,7 @@ class _RecentActivityRow extends StatelessWidget {
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: confirmed ? IzyTelColors.success : IzyTelColors.textMuted,
               fontWeight: FontWeight.w700,
-              fontSize: 9.5,
+              fontSize: IzyTelTypeScale.micro,
             ),
           ),
         ],
@@ -711,7 +724,7 @@ class _EmptyRecentState extends StatelessWidget {
       radius: 15,
       child: Row(
         children: [
-          const Icon(Icons.task_alt_rounded, color: IzyTelColors.success),
+          const Icon(Symbols.check_circle_rounded, color: IzyTelColors.success),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -748,7 +761,7 @@ class _ErrorState extends StatelessWidget {
       child: Column(
         children: [
           const Icon(
-            Icons.cloud_off_rounded,
+            Symbols.cloud_off_rounded,
             color: IzyTelColors.error,
             size: 38,
           ),
@@ -757,7 +770,7 @@ class _ErrorState extends StatelessWidget {
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: onRetry,
-            icon: const Icon(Icons.refresh_rounded),
+            icon: const Icon(Symbols.refresh_rounded),
             label: const Text('Réessayer'),
           ),
         ],

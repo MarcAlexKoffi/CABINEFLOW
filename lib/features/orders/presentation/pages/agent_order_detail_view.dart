@@ -1,4 +1,5 @@
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_proof.dart';
@@ -9,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 class AgentOrderDetailView extends StatefulWidget {
   const AgentOrderDetailView({
@@ -355,7 +357,7 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
                 title,
                 style: Theme.of(
                   sheetContext,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 16),
               child,
@@ -382,7 +384,7 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
       return _SingleBottomAction(
         isBusy: _isBusy,
         label: 'Accepter',
-        icon: Icons.check_rounded,
+        icon: Symbols.check_rounded,
         onPressed: _accept,
       );
     }
@@ -392,7 +394,7 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
       return _SingleBottomAction(
         isBusy: _isBusy,
         label: 'Démarrer le traitement',
-        icon: Icons.play_arrow_rounded,
+        icon: Symbols.play_arrow_rounded,
         onPressed: _startProcessing,
       );
     }
@@ -401,7 +403,7 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
       return _SingleBottomAction(
         isBusy: _isBusy,
         label: 'Reprendre le traitement',
-        icon: Icons.play_arrow_rounded,
+        icon: Symbols.play_arrow_rounded,
         onPressed: _resumeProcessing,
       );
     }
@@ -421,6 +423,8 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
   Widget build(BuildContext context) {
     final QueueOrder order = widget.order;
     final Widget? bottomActions = _buildBottomActions(order);
+    final double referenceScale = (MediaQuery.sizeOf(context).width / 290)
+        .clamp(.95, 1.35);
 
     return Column(
       children: [
@@ -438,20 +442,20 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
         Expanded(
           child: ListView(
             padding: EdgeInsets.fromLTRB(
-              16,
-              14,
-              16,
-              bottomActions == null ? 24 : 100,
+              12 * referenceScale,
+              13 * referenceScale,
+              12 * referenceScale,
+              bottomActions == null ? 24 : 106,
             ),
             children: [
               _ReferenceOrderSummary(order: order),
-              const SizedBox(height: 15),
+              SizedBox(height: 18 * referenceScale),
               _ReferenceProgress(order: order),
-              const SizedBox(height: 15),
+              SizedBox(height: 18 * referenceScale),
               _DetailMenuCard(
                 rows: [
                   _DetailMenuRowData(
-                    icon: Icons.person_outline_rounded,
+                    icon: Symbols.person_rounded,
                     label: 'Client',
                     onTap: () => _showInfoSheet(
                       title: 'Client',
@@ -465,7 +469,7 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
                     ),
                   ),
                   _DetailMenuRowData(
-                    icon: Icons.account_balance_wallet_outlined,
+                    icon: Symbols.wallet_rounded,
                     label: 'Paiement',
                     trailing:
                         order.paymentStatus == OrderPaymentStatus.confirmed
@@ -498,7 +502,7 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
                     ),
                   ),
                   _DetailMenuRowData(
-                    icon: Icons.format_list_bulleted_rounded,
+                    icon: Symbols.format_list_bulleted_rounded,
                     label: 'Détails de l’offre',
                     onTap: () => _showInfoSheet(
                       title: 'Détails de l’offre',
@@ -513,7 +517,7 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
                     ),
                   ),
                   _DetailMenuRowData(
-                    icon: Icons.image_outlined,
+                    icon: Symbols.image_rounded,
                     label: 'Preuve',
                     trailing: _ProofThumbnail(
                       proof: _proof,
@@ -539,7 +543,7 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
                           },
                   ),
                   _DetailMenuRowData(
-                    icon: Icons.schedule_rounded,
+                    icon: Symbols.history_rounded,
                     label: 'Journal d’activité',
                     trailing: _CountBadge(value: _activityCount(order)),
                     onTap: () => _showInfoSheet(
@@ -548,7 +552,7 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
                     ),
                   ),
                   _DetailMenuRowData(
-                    icon: Icons.chat_bubble_outline_rounded,
+                    icon: Symbols.chat_bubble_rounded,
                     label: 'Demande client',
                     onTap: () => _showInfoSheet(
                       title: 'Demande client',
@@ -559,7 +563,7 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
                     ),
                   ),
                   _DetailMenuRowData(
-                    icon: Icons.payments_outlined,
+                    icon: Symbols.payments_rounded,
                     label: 'Remboursement',
                     onTap: () => _showInfoSheet(
                       title: 'Remboursement',
@@ -623,22 +627,30 @@ class _ReferenceDetailTopBar extends StatelessWidget {
             tooltip: 'Retour',
             onPressed: onBack,
             visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.arrow_back_rounded, size: 21),
+            icon: const Icon(
+              Symbols.arrow_back_rounded,
+              size: IzyTelIconSize.action,
+            ),
           ),
           Expanded(
             child: Text(
               'Détail commande',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
+                fontSize: IzyTelTypeScale.cardTitle,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
           if (actions.isNotEmpty)
             PopupMenuButton<String>(
+              key: const ValueKey<String>('agent-order-detail-actions'),
+              tooltip: 'Actions de la commande',
               onSelected: onMenuSelected,
               itemBuilder: (_) => actions,
-              icon: const Icon(Icons.more_vert_rounded, size: 20),
+              icon: const Icon(
+                Symbols.more_vert_rounded,
+                size: IzyTelIconSize.action,
+              ),
             )
           else
             const SizedBox(width: 44),
@@ -657,95 +669,111 @@ class _ReferenceOrderSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color accent = networkColor(order.network);
     final Color statusColor = _agentStatusColor(order);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(13, 12, 13, 11),
-      decoration: BoxDecoration(
-        color: IzyTelColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: IzyTelColors.outline),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 30,
-                height: 30,
-                padding: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  color: accent.withAlpha(15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Image.asset(
-                  networkAsset(order.network),
-                  fit: BoxFit.contain,
-                ),
-              ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Text(
-                  networkLabel(order.network),
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: IzyTelColors.textPrimary,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w800,
+    final double scale = (MediaQuery.sizeOf(context).width / 290).clamp(
+      .95,
+      1.35,
+    );
+
+    return SizedBox(
+      height: 132 * scale,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(
+          12 * scale,
+          14 * scale,
+          12 * scale,
+          12 * scale,
+        ),
+        decoration: BoxDecoration(
+          color: IzyTelColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: IzyTelColors.outline),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 27 * scale,
+                  height: 27 * scale,
+                  padding: EdgeInsets.all(2.5 * scale),
+                  decoration: BoxDecoration(
+                    color: accent.withAlpha(15),
+                    borderRadius: BorderRadius.circular(7 * scale),
+                  ),
+                  child: Image.asset(
+                    networkAsset(order.network),
+                    fit: BoxFit.contain,
                   ),
                 ),
-              ),
-              _TinyStateBadge(
-                label: _agentStatusLabel(order),
-                color: statusColor,
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            order.offerLabel,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 9),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  order.beneficiaryPhone,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: IzyTelColors.textPrimary,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
+                SizedBox(width: 8 * scale),
+                Expanded(
+                  child: Text(
+                    networkLabel(order.network),
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: IzyTelColors.textPrimary,
+                      fontSize: IzyTelTypeScale.label,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-              Text(
-                formatCfa(order.amount),
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: IzyTelColors.primaryStrong,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
+                _TinyStateBadge(
+                  label: _agentStatusLabel(order),
+                  color: statusColor,
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              order.reference,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: IzyTelColors.textMuted,
-                fontSize: 8,
+              ],
+            ),
+            Text(
+              order.offerLabel,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontSize: IzyTelTypeScale.title3,
+                height: 1.22,
+                fontWeight: FontWeight.w700,
               ),
             ),
-          ),
-        ],
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    order.beneficiaryPhone,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: IzyTelColors.textPrimary,
+                      fontSize: IzyTelTypeScale.transactionNumber,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                SizedBox(width: 8 * scale),
+                Text(
+                  formatCfa(order.amount),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: IzyTelColors.primaryStrong,
+                    fontSize: IzyTelTypeScale.money,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                order.reference,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: IzyTelColors.textMuted,
+                  fontSize: IzyTelTypeScale.micro,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -815,22 +843,29 @@ class _ReferenceProgress extends StatelessWidget {
       'En traitement',
       'Terminée',
     ];
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: List<Widget>.generate(labels.length, (int index) {
-          final _ReferenceStepState state = _state(index);
-          return Expanded(
-            child: _ReferenceProgressStep(
-              label: labels[index],
-              date: _dateLabel(index),
-              state: state,
-              showLeftLine: index > 0,
-              showRightLine: index < labels.length - 1,
-            ),
-          );
-        }),
+    final double scale = (MediaQuery.sizeOf(context).width / 290).clamp(
+      .95,
+      1.35,
+    );
+    return SizedBox(
+      height: 54 * scale,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 2 * scale),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: List<Widget>.generate(labels.length, (int index) {
+            final _ReferenceStepState state = _state(index);
+            return Expanded(
+              child: _ReferenceProgressStep(
+                label: labels[index],
+                date: _dateLabel(index),
+                state: state,
+                showLeftLine: index > 0,
+                showRightLine: index < labels.length - 1,
+              ),
+            );
+          }),
+        ),
       ),
     );
   }
@@ -861,14 +896,14 @@ class _ReferenceProgressStep extends StatelessWidget {
     return Column(
       children: [
         SizedBox(
-          height: 27,
+          height: 31,
           child: Stack(
             alignment: Alignment.center,
             children: [
               if (showLeftLine)
                 Positioned(
                   left: 0,
-                  right: 13,
+                  right: 15,
                   child: Container(
                     height: 1.5,
                     color: state == _ReferenceStepState.pending
@@ -878,7 +913,7 @@ class _ReferenceProgressStep extends StatelessWidget {
                 ),
               if (showRightLine)
                 Positioned(
-                  left: 13,
+                  left: 15,
                   right: 0,
                   child: Container(
                     height: 1.5,
@@ -888,8 +923,8 @@ class _ReferenceProgressStep extends StatelessWidget {
                   ),
                 ),
               Container(
-                width: 21,
-                height: 21,
+                width: 24,
+                height: 24,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: state == _ReferenceStepState.pending
@@ -902,11 +937,11 @@ class _ReferenceProgressStep extends StatelessWidget {
                 ),
                 child: Icon(
                   state == _ReferenceStepState.done
-                      ? Icons.check_rounded
+                      ? Symbols.check_rounded
                       : state == _ReferenceStepState.active
-                      ? Icons.hourglass_top_rounded
-                      : Icons.person_outline_rounded,
-                  size: 12,
+                      ? Symbols.hourglass_top_rounded
+                      : Symbols.person_rounded,
+                  size: IzyTelIconSize.info,
                   color: state == _ReferenceStepState.pending
                       ? IzyTelColors.textMuted
                       : Colors.white,
@@ -925,10 +960,10 @@ class _ReferenceProgressStep extends StatelessWidget {
             color: state == _ReferenceStepState.pending
                 ? IzyTelColors.textSecondary
                 : IzyTelColors.textPrimary,
-            fontSize: 8,
+            fontSize: IzyTelTypeScale.micro,
             fontWeight: state == _ReferenceStepState.active
-                ? FontWeight.w800
-                : FontWeight.w600,
+                ? FontWeight.w600
+                : FontWeight.w500,
           ),
         ),
         const SizedBox(height: 2),
@@ -939,7 +974,8 @@ class _ReferenceProgressStep extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
             color: IzyTelColors.textMuted,
-            fontSize: 6.8,
+            fontSize: IzyTelTypeScale.micro,
+            fontWeight: FontWeight.w400,
           ),
         ),
       ],
@@ -968,6 +1004,12 @@ class _DetailMenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double scale = (MediaQuery.sizeOf(context).width / 290).clamp(
+      .95,
+      1.35,
+    );
+    final double rowHeight = 41 * scale;
+
     return Container(
       decoration: BoxDecoration(
         color: IzyTelColors.surface,
@@ -979,44 +1021,48 @@ class _DetailMenuCard extends StatelessWidget {
           final _DetailMenuRowData row = rows[index];
           return Column(
             children: [
-              InkWell(
-                onTap: row.onTap,
-                borderRadius: BorderRadius.circular(14),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(row.icon, size: 17, color: IzyTelColors.textPrimary),
-                      const SizedBox(width: 11),
-                      Expanded(
-                        child: Text(
-                          row.label,
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(
-                                color: IzyTelColors.textPrimary,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                              ),
+              SizedBox(
+                height: rowHeight,
+                child: InkWell(
+                  onTap: row.onTap,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12 * scale),
+                    child: Row(
+                      children: [
+                        Icon(
+                          row.icon,
+                          size: IzyTelIconSize.action,
+                          color: IzyTelColors.textPrimary,
                         ),
-                      ),
-                      if (row.trailing != null) ...[
-                        row.trailing!,
-                        const SizedBox(width: 6),
+                        SizedBox(width: 10 * scale),
+                        Expanded(
+                          child: Text(
+                            row.label,
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: IzyTelColors.textPrimary,
+                                  fontSize: IzyTelTypeScale.text,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                          ),
+                        ),
+                        if (row.trailing != null) ...[
+                          row.trailing!,
+                          SizedBox(width: 5 * scale),
+                        ],
+                        Icon(
+                          Symbols.chevron_right_rounded,
+                          size: IzyTelIconSize.info,
+                          color: IzyTelColors.textMuted,
+                        ),
                       ],
-                      const Icon(
-                        Icons.chevron_right_rounded,
-                        size: 18,
-                        color: IzyTelColors.textMuted,
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
               if (index < rows.length - 1)
-                const Divider(indent: 12, endIndent: 12),
+                Divider(indent: 12 * scale, endIndent: 12 * scale),
             ],
           );
         }),
@@ -1043,8 +1089,8 @@ class _TinyStateBadge extends StatelessWidget {
         label,
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
           color: color,
-          fontSize: 7.5,
-          fontWeight: FontWeight.w800,
+          fontSize: IzyTelTypeScale.micro,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -1058,8 +1104,8 @@ class _CountBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 19,
-      height: 19,
+      width: 21,
+      height: 21,
       alignment: Alignment.center,
       decoration: const BoxDecoration(
         color: IzyTelColors.primarySoft,
@@ -1069,8 +1115,8 @@ class _CountBadge extends StatelessWidget {
         '$value',
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
           color: IzyTelColors.primary,
-          fontSize: 8,
-          fontWeight: FontWeight.w800,
+          fontSize: IzyTelTypeScale.micro,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -1132,9 +1178,10 @@ class _InfoSheetRows extends StatelessWidget {
                     child: Text(
                       row.value,
                       textAlign: TextAlign.right,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.labelLarge?.copyWith(fontSize: 11),
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontSize: IzyTelTypeScale.text,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -1172,7 +1219,7 @@ class _ActivitySheet extends StatelessWidget {
               child: Row(
                 children: [
                   const Icon(
-                    Icons.check_circle_outline_rounded,
+                    Symbols.check_circle_rounded,
                     size: 17,
                     color: IzyTelColors.success,
                   ),
@@ -1180,16 +1227,17 @@ class _ActivitySheet extends StatelessWidget {
                   Expanded(
                     child: Text(
                       entry.key,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.labelLarge?.copyWith(fontSize: 10.5),
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        fontSize: IzyTelTypeScale.label,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   Text(
                     _formatDateTime(entry.value!),
-                    style: Theme.of(
-                      context,
-                    ).textTheme.labelMedium?.copyWith(fontSize: 8.5),
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      fontSize: IzyTelTypeScale.micro,
+                    ),
                   ),
                 ],
               ),
@@ -1225,13 +1273,19 @@ class _ProcessingBottomActions extends StatelessWidget {
           children: [
             Expanded(
               child: SizedBox(
-                height: 45,
+                height: 50,
                 child: OutlinedButton.icon(
                   onPressed: isBusy ? null : onHold,
-                  icon: const Icon(Icons.pause_rounded, size: 16),
+                  icon: const Icon(
+                    Symbols.pause_rounded,
+                    size: IzyTelIconSize.info,
+                  ),
                   label: const Text(
                     'Mettre en attente',
-                    style: TextStyle(fontSize: 9.5),
+                    style: TextStyle(
+                      fontSize: IzyTelTypeScale.label,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
@@ -1240,7 +1294,7 @@ class _ProcessingBottomActions extends StatelessWidget {
             Expanded(
               flex: 2,
               child: SizedBox(
-                height: 45,
+                height: 50,
                 child: FilledButton.icon(
                   onPressed: isBusy ? null : onSuccess,
                   icon: isBusy
@@ -1252,12 +1306,15 @@ class _ProcessingBottomActions extends StatelessWidget {
                           ),
                         )
                       : const Icon(
-                          Icons.check_circle_outline_rounded,
-                          size: 16,
+                          Symbols.check_circle_rounded,
+                          size: IzyTelIconSize.info,
                         ),
                   label: const Text(
                     'Marquer comme réussie',
-                    style: TextStyle(fontSize: 9.5),
+                    style: TextStyle(
+                      fontSize: IzyTelTypeScale.label,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
@@ -1293,7 +1350,7 @@ class _SingleBottomAction extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 45,
+          height: 50,
           width: double.infinity,
           child: FilledButton.icon(
             onPressed: isBusy ? null : onPressed,
@@ -1348,8 +1405,8 @@ class _ProofSourceSheet extends StatelessWidget {
               'Ajouter une preuve',
               style: TextStyle(
                 color: IzyTelColors.textPrimary,
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
+                fontSize: IzyTelTypeScale.title2,
+                fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 4),
@@ -1357,20 +1414,20 @@ class _ProofSourceSheet extends StatelessWidget {
               'Choisis une photo existante ou prends-en une maintenant.',
               style: TextStyle(
                 color: IzyTelColors.textSecondary,
-                fontSize: 12,
+                fontSize: IzyTelTypeScale.micro,
                 height: 1.4,
               ),
             ),
             const SizedBox(height: 16),
             _ProofSourceTile(
-              icon: Icons.photo_camera_outlined,
+              icon: Symbols.photo_camera_rounded,
               title: 'Appareil photo',
               subtitle: 'Prendre une photo en temps réel',
               onTap: () => Navigator.of(context).pop(ImageSource.camera),
             ),
             const SizedBox(height: 10),
             _ProofSourceTile(
-              icon: Icons.photo_library_outlined,
+              icon: Symbols.photo_library_rounded,
               title: 'Galerie',
               subtitle: 'Choisir une capture déjà enregistrée',
               onTap: () => Navigator.of(context).pop(ImageSource.gallery),
@@ -1425,7 +1482,7 @@ class _ProofSourceTile extends StatelessWidget {
                       title,
                       style: const TextStyle(
                         color: IzyTelColors.textPrimary,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -1433,14 +1490,14 @@ class _ProofSourceTile extends StatelessWidget {
                       subtitle,
                       style: const TextStyle(
                         color: IzyTelColors.textSecondary,
-                        fontSize: 11,
+                        fontSize: IzyTelTypeScale.label,
                       ),
                     ),
                   ],
                 ),
               ),
               const Icon(
-                Icons.chevron_right_rounded,
+                Symbols.chevron_right_rounded,
                 color: IzyTelColors.textSecondary,
               ),
             ],
@@ -1727,14 +1784,14 @@ class _SheetHeader extends StatelessWidget {
             title,
             style: const TextStyle(
               color: IzyTelColors.textPrimary,
-              fontSize: 21,
-              fontWeight: FontWeight.w900,
+              fontSize: IzyTelTypeScale.title2,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
         IconButton(
           onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.close_rounded),
+          icon: const Icon(Symbols.close_rounded),
           color: IzyTelColors.textSecondary,
         ),
       ],
@@ -1863,22 +1920,22 @@ String _formatDateTime(DateTime date) {
 
 String _agentStatusLabel(QueueOrder order) {
   if (order.assignmentStatus == OrderAssignmentStatus.assigned) {
-    return 'À ACCEPTER';
+    return 'À accepter';
   }
   switch (order.status) {
     case QueueOrderStatus.paidReady:
-      return 'ACCEPTÉE';
+      return 'Acceptée';
     case QueueOrderStatus.inProgress:
-      return 'EN COURS';
+      return 'En traitement';
     case QueueOrderStatus.onHold:
-      return 'EN ATTENTE';
+      return 'En attente';
     case QueueOrderStatus.awaitingCustomerConfirmation:
     case QueueOrderStatus.completed:
-      return 'RÉUSSIE';
+      return 'Réussie';
     case QueueOrderStatus.failed:
-      return 'ÉCHEC';
+      return 'Échec';
     default:
-      return orderStatusLabel(order.status).toUpperCase();
+      return orderStatusLabel(order.status);
   }
 }
 

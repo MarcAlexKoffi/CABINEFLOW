@@ -1,10 +1,12 @@
 import 'package:cabine_flow/app/app_routes.dart';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:cabine_flow/features/auth/presentation/view_models/login_view_model.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_brand.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, required this.authRepository});
@@ -110,288 +112,347 @@ class _LoginPageState extends State<LoginPage> {
       listenable: _viewModel,
       builder: (BuildContext context, Widget? child) {
         return Scaffold(
-          backgroundColor: const Color(0xFFF4F8FF),
+          // La maquette est un écran fixe. Le clavier ne doit donc ni réduire
+          // les champs ni recalculer toute la composition pendant la saisie.
+          resizeToAvoidBottomInset: false,
+          backgroundColor: const Color(0xFFF1F7FF),
           body: SafeArea(
             bottom: false,
             child: LayoutBuilder(
               builder: (BuildContext context, BoxConstraints constraints) {
-                final bool compact = constraints.maxHeight < 760;
-                final double heroHeight = compact ? 238 : 270;
+                final double availableHeight = constraints.maxHeight;
+                final double availableWidth = constraints.maxWidth;
+                final bool compactHeight = availableHeight < 760;
 
-                return SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: constraints.maxHeight,
-                    ),
-                    child: Column(
-                      children: [
-                        SizedBox(
-                          height: heroHeight,
-                          width: double.infinity,
-                          child: ClipPath(
-                            clipper: const _LoginHeroClipper(),
-                            child: Container(
-                              color: Colors.white,
-                              padding: EdgeInsets.only(top: compact ? 34 : 48),
-                              child: const Column(
-                                children: [
-                                  IzyTelBrandMark(size: 88),
-                                  SizedBox(height: 12),
-                                  IzyTelWordmark(
-                                    fontSize: 38,
-                                    showTagline: true,
-                                    centered: true,
-                                  ),
-                                ],
+                // La référence comporte une zone de marque importante, mais
+                // elle ne doit jamais pousser le formulaire hors écran.
+                final double heroHeight = (availableHeight * .325).clamp(
+                  compactHeight ? 224.0 : 238.0,
+                  272.0,
+                );
+                final double contentHorizontal = availableWidth < 390
+                    ? 28.0
+                    : 32.0;
+                final double brandSize = availableWidth < 390 ? 86.0 : 92.0;
+                final double contentTop = compactHeight ? 14.0 : 18.0;
+                final double fieldGap = compactHeight ? 10.0 : 12.0;
+
+                return Column(
+                  children: [
+                    SizedBox(
+                      height: heroHeight,
+                      width: double.infinity,
+                      child: ClipPath(
+                        clipper: const _LoginHeroClipper(),
+                        child: Container(
+                          color: Colors.white,
+                          padding: EdgeInsets.only(
+                            top: compactHeight ? 22 : 28,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IzyTelBrandMark(size: brandSize),
+                              const SizedBox(height: 6),
+                              const IzyTelWordmark(
+                                fontSize: 36,
+                                showTagline: true,
+                                centered: true,
                               ),
-                            ),
+                            ],
                           ),
                         ),
-                        Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            24,
-                            compact ? 8 : 14,
-                            24,
-                            22,
-                          ),
-                          child: Center(
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 420),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Text(
-                                    'Connexion à votre espace',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .headlineMedium
-                                        ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          contentHorizontal,
+                          contentTop,
+                          contentHorizontal,
+                          10,
+                        ),
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 420),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  'Bienvenue',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineMedium
+                                      ?.copyWith(
+                                        fontSize: IzyTelTypeScale.title2,
+                                        height: 1.12,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: -.35,
+                                      ),
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  'Connectez-vous à votre espace\npour continuer',
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(
+                                        color: IzyTelColors.textPrimary,
+                                        fontSize: IzyTelTypeScale.text,
+                                        height: 1.32,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                ),
+                                SizedBox(height: compactHeight ? 10 : 14),
+                                if (_viewModel.errorMessage != null) ...[
+                                  _ErrorBanner(
+                                    message: _viewModel.errorMessage!,
                                   ),
-                                  const SizedBox(height: 5),
-                                  Text(
-                                    'Connectez-vous à votre espace\npour continuer',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color: IzyTelColors.textSecondary,
-                                          height: 1.35,
+                                  const SizedBox(height: 8),
+                                ],
+                                Form(
+                                  key: _formKey,
+                                  autovalidateMode: AutovalidateMode.onUnfocus,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      const _FieldLabel('Email'),
+                                      const SizedBox(height: 6),
+                                      TextFormField(
+                                        controller: _identifierController,
+                                        keyboardType:
+                                            TextInputType.emailAddress,
+                                        textInputAction: TextInputAction.next,
+                                        autofillHints: const [
+                                          AutofillHints.email,
+                                        ],
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyLarge
+                                            ?.copyWith(
+                                              color: IzyTelColors.textPrimary,
+                                              fontSize: IzyTelTypeScale.text,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                        decoration: const InputDecoration(
+                                          hintText: 'exemple@email.com',
+                                          contentPadding: EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                            vertical: 13,
+                                          ),
+                                          prefixIcon: Icon(
+                                            Symbols.mail_rounded,
+                                            size: IzyTelIconSize.info,
+                                          ),
                                         ),
+                                        validator: _validateIdentifier,
+                                        onChanged: (_) =>
+                                            _viewModel.clearError(),
+                                      ),
+                                      SizedBox(height: fieldGap),
+                                      const _FieldLabel('Mot de passe'),
+                                      const SizedBox(height: 6),
+                                      TextFormField(
+                                        controller: _passwordController,
+                                        obscureText: _obscurePassword,
+                                        enableSuggestions: false,
+                                        autocorrect: false,
+                                        textInputAction: TextInputAction.done,
+                                        autofillHints: const [
+                                          AutofillHints.password,
+                                        ],
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyLarge
+                                            ?.copyWith(
+                                              color: IzyTelColors.textPrimary,
+                                              fontSize: IzyTelTypeScale.text,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                        decoration: InputDecoration(
+                                          hintText: '••••••••',
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 14,
+                                                vertical: 13,
+                                              ),
+                                          prefixIcon: const Icon(
+                                            Symbols.lock_rounded,
+                                            size: IzyTelIconSize.info,
+                                          ),
+                                          suffixIcon: IconButton(
+                                            tooltip: _obscurePassword
+                                                ? 'Afficher le mot de passe'
+                                                : 'Masquer le mot de passe',
+                                            onPressed: () => setState(
+                                              () => _obscurePassword =
+                                                  !_obscurePassword,
+                                            ),
+                                            icon: Icon(
+                                              _obscurePassword
+                                                  ? Symbols
+                                                        .visibility_off_rounded
+                                                  : Symbols.visibility_rounded,
+                                              size: IzyTelIconSize.info,
+                                            ),
+                                          ),
+                                        ),
+                                        validator: _validatePassword,
+                                        onChanged: (_) =>
+                                            _viewModel.clearError(),
+                                        onFieldSubmitted: (_) => _submitForm(),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Row(
+                                        children: [
+                                          SizedBox(
+                                            width: 23,
+                                            height: 23,
+                                            child: Checkbox(
+                                              value: _rememberMe,
+                                              onChanged: (bool? value) =>
+                                                  setState(
+                                                    () => _rememberMe =
+                                                        value ?? false,
+                                                  ),
+                                              materialTapTargetSize:
+                                                  MaterialTapTargetSize
+                                                      .shrinkWrap,
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Se souvenir de moi',
+                                            maxLines: 1,
+                                            softWrap: false,
+                                            overflow: TextOverflow.visible,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelMedium
+                                                ?.copyWith(
+                                                  color:
+                                                      IzyTelColors.textPrimary,
+                                                  fontSize:
+                                                      IzyTelTypeScale.label,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                          ),
+                                          const Spacer(),
+                                          TextButton(
+                                            onPressed:
+                                                _showForgotPasswordMessage,
+                                            style: TextButton.styleFrom(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 0,
+                                                    vertical: 2,
+                                                  ),
+                                              minimumSize: Size.zero,
+                                              tapTargetSize:
+                                                  MaterialTapTargetSize
+                                                      .shrinkWrap,
+                                            ),
+                                            child: const Text(
+                                              'Mot de passe oublié ?',
+                                              maxLines: 1,
+                                              softWrap: false,
+                                              style: TextStyle(
+                                                fontSize: IzyTelTypeScale.label,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      SizedBox(height: compactHeight ? 8 : 10),
+                                      SizedBox(
+                                        height: 48,
+                                        child: FilledButton(
+                                          onPressed: _viewModel.isLoading
+                                              ? null
+                                              : _submitForm,
+                                          style: FilledButton.styleFrom(
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                          child: _viewModel.isLoading
+                                              ? const SizedBox.square(
+                                                  dimension: 20,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: Colors.white,
+                                                      ),
+                                                )
+                                              : const Text(
+                                                  'Se connecter',
+                                                  style: TextStyle(
+                                                    fontSize:
+                                                        IzyTelTypeScale.label,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 18),
-                                  if (_viewModel.errorMessage != null) ...[
-                                    _ErrorBanner(
-                                      message: _viewModel.errorMessage!,
+                                ),
+                                SizedBox(height: compactHeight ? 8 : 11),
+                                const _OrDivider(),
+                                SizedBox(height: compactHeight ? 8 : 10),
+                                SizedBox(
+                                  height: 46,
+                                  child: OutlinedButton(
+                                    onPressed: _showGoogleMessage,
+                                    style: OutlinedButton.styleFrom(
+                                      backgroundColor: Colors.white,
+                                      foregroundColor: IzyTelColors.textPrimary,
+                                      side: const BorderSide(
+                                        color: IzyTelColors.outlineStrong,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
                                     ),
-                                    const SizedBox(height: 14),
-                                  ],
-                                  Form(
-                                    key: _formKey,
-                                    autovalidateMode:
-                                        AutovalidateMode.onUserInteraction,
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
+                                    child: const Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
-                                        const _FieldLabel('Email'),
-                                        const SizedBox(height: 7),
-                                        TextFormField(
-                                          controller: _identifierController,
-                                          keyboardType:
-                                              TextInputType.emailAddress,
-                                          textInputAction: TextInputAction.next,
-                                          autofillHints: const [
-                                            AutofillHints.email,
-                                          ],
-                                          decoration: const InputDecoration(
-                                            hintText: 'exemple@email.com',
-                                            prefixIcon: Icon(
-                                              Icons.mail_outline_rounded,
-                                              size: 19,
-                                            ),
-                                            contentPadding:
-                                                EdgeInsets.symmetric(
-                                                  horizontal: 13,
-                                                  vertical: 12,
-                                                ),
-                                          ),
-                                          validator: _validateIdentifier,
-                                          onChanged: (_) =>
-                                              _viewModel.clearError(),
-                                        ),
-                                        const SizedBox(height: 13),
-                                        const _FieldLabel('Mot de passe'),
-                                        const SizedBox(height: 7),
-                                        TextFormField(
-                                          controller: _passwordController,
-                                          obscureText: _obscurePassword,
-                                          enableSuggestions: false,
-                                          autocorrect: false,
-                                          textInputAction: TextInputAction.done,
-                                          autofillHints: const [
-                                            AutofillHints.password,
-                                          ],
-                                          decoration: InputDecoration(
-                                            hintText: '••••••••',
-                                            prefixIcon: const Icon(
-                                              Icons.lock_outline_rounded,
-                                              size: 19,
-                                            ),
-                                            suffixIcon: IconButton(
-                                              tooltip: _obscurePassword
-                                                  ? 'Afficher le mot de passe'
-                                                  : 'Masquer le mot de passe',
-                                              onPressed: () => setState(
-                                                () => _obscurePassword =
-                                                    !_obscurePassword,
-                                              ),
-                                              icon: Icon(
-                                                _obscurePassword
-                                                    ? Icons
-                                                          .visibility_off_outlined
-                                                    : Icons.visibility_outlined,
-                                                size: 19,
-                                              ),
-                                            ),
-                                            contentPadding:
-                                                const EdgeInsets.symmetric(
-                                                  horizontal: 13,
-                                                  vertical: 12,
-                                                ),
-                                          ),
-                                          validator: _validatePassword,
-                                          onChanged: (_) =>
-                                              _viewModel.clearError(),
-                                          onFieldSubmitted: (_) =>
-                                              _submitForm(),
-                                        ),
-                                        const SizedBox(height: 7),
-                                        Row(
-                                          children: [
-                                            SizedBox(
-                                              width: 30,
-                                              height: 30,
-                                              child: Checkbox(
-                                                value: _rememberMe,
-                                                onChanged: (bool? value) =>
-                                                    setState(
-                                                      () => _rememberMe =
-                                                          value ?? false,
-                                                    ),
-                                                materialTapTargetSize:
-                                                    MaterialTapTargetSize
-                                                        .shrinkWrap,
-                                                visualDensity:
-                                                    VisualDensity.compact,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 3),
-                                            Expanded(
-                                              child: Text(
-                                                'Se souvenir de moi',
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .labelMedium
-                                                    ?.copyWith(
-                                                      color: IzyTelColors
-                                                          .textSecondary,
-                                                    ),
-                                              ),
-                                            ),
-                                            TextButton(
-                                              onPressed:
-                                                  _showForgotPasswordMessage,
-                                              style: TextButton.styleFrom(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 4,
-                                                    ),
-                                                minimumSize: Size.zero,
-                                                tapTargetSize:
-                                                    MaterialTapTargetSize
-                                                        .shrinkWrap,
-                                              ),
-                                              child: const Text(
-                                                'Mot de passe oublié ?',
-                                                style: TextStyle(fontSize: 11),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 10),
-                                        SizedBox(
-                                          height: 48,
-                                          child: FilledButton(
-                                            onPressed: _viewModel.isLoading
-                                                ? null
-                                                : _submitForm,
-                                            child: _viewModel.isLoading
-                                                ? const SizedBox.square(
-                                                    dimension: 20,
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                          strokeWidth: 2,
-                                                          color: Colors.white,
-                                                        ),
-                                                  )
-                                                : const Text('Se connecter'),
+                                        IzyTelGoogleMark(size: 18),
+                                        SizedBox(width: 9),
+                                        Text(
+                                          'Continuer avec Google',
+                                          style: TextStyle(
+                                            fontSize: IzyTelTypeScale.label,
+                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                  const SizedBox(height: 16),
-                                  const _OrDivider(),
-                                  const SizedBox(height: 13),
-                                  SizedBox(
-                                    height: 46,
-                                    child: OutlinedButton(
-                                      onPressed: _showGoogleMessage,
-                                      style: OutlinedButton.styleFrom(
-                                        backgroundColor: Colors.white,
-                                        side: const BorderSide(
-                                          color: IzyTelColors.outline,
-                                        ),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  '© 2025 IzyTel. Tous droits réservés.',
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  style: Theme.of(context).textTheme.labelMedium
+                                      ?.copyWith(
+                                        color: IzyTelColors.textMuted,
+                                        fontSize: IzyTelTypeScale.micro,
+                                        fontWeight: FontWeight.w400,
                                       ),
-                                      child: const Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Text(
-                                            'G',
-                                            style: TextStyle(
-                                              color: Color(0xFF4285F4),
-                                              fontWeight: FontWeight.w900,
-                                              fontSize: 17,
-                                            ),
-                                          ),
-                                          SizedBox(width: 10),
-                                          Text('Continuer avec Google'),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(height: compact ? 22 : 34),
-                                  Text(
-                                    '© 2025 IzyTel. Tous droits réservés.',
-                                    textAlign: TextAlign.center,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelMedium
-                                        ?.copyWith(
-                                          color: IzyTelColors.textMuted,
-                                          fontSize: 10,
-                                        ),
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 );
               },
             ),
@@ -412,8 +473,8 @@ class _FieldLabel extends StatelessWidget {
       text,
       style: Theme.of(context).textTheme.labelMedium?.copyWith(
         color: IzyTelColors.textPrimary,
-        fontWeight: FontWeight.w700,
-        fontSize: 11,
+        fontWeight: FontWeight.w600,
+        fontSize: IzyTelTypeScale.label,
       ),
     );
   }
@@ -433,7 +494,8 @@ class _OrDivider extends StatelessWidget {
             'ou continuer avec',
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: IzyTelColors.textMuted,
-              fontSize: 10,
+              fontSize: IzyTelTypeScale.micro,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ),
@@ -458,9 +520,9 @@ class _ErrorBanner extends StatelessWidget {
       child: Row(
         children: [
           const Icon(
-            Icons.error_outline_rounded,
+            Symbols.error_rounded,
             color: IzyTelColors.error,
-            size: 18,
+            size: IzyTelIconSize.info,
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -484,12 +546,12 @@ class _LoginHeroClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     final Path path = Path()
-      ..lineTo(0, size.height - 46)
+      ..lineTo(0, size.height - 54)
       ..quadraticBezierTo(
         size.width * .50,
         size.height + 4,
         size.width,
-        size.height - 46,
+        size.height - 54,
       )
       ..lineTo(size.width, 0)
       ..close();

@@ -1,5 +1,6 @@
 import 'package:cabine_flow/core/theme/app_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -28,70 +29,85 @@ class AppTheme {
       scaffoldBackgroundColor: IzyTelColors.background,
     );
 
+    // Hiérarchie exacte retenue pour la maquette IzyTel :
+    // 28/700 · 22/700 · 18/600 · 15/500 · 13/500 · 12/400.
     final TextTheme typography = GoogleFonts.manropeTextTheme(base.textTheme)
         .copyWith(
           displaySmall: GoogleFonts.manrope(
-            fontSize: 30,
-            height: 1.15,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.9,
+            fontSize: IzyTelTypeScale.title1,
+            height: 1.16,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.55,
             color: IzyTelColors.textPrimary,
           ),
           headlineLarge: GoogleFonts.manrope(
-            fontSize: 26,
-            height: 1.2,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.65,
+            fontSize: IzyTelTypeScale.title1,
+            height: 1.16,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.55,
             color: IzyTelColors.textPrimary,
           ),
           headlineMedium: GoogleFonts.manrope(
-            fontSize: 22,
-            height: 1.25,
+            fontSize: IzyTelTypeScale.title2,
+            height: 1.22,
             fontWeight: FontWeight.w700,
-            letterSpacing: -0.45,
+            letterSpacing: -0.35,
             color: IzyTelColors.textPrimary,
           ),
           titleLarge: GoogleFonts.manrope(
-            fontSize: 18,
-            height: 1.3,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.25,
+            fontSize: IzyTelTypeScale.title3,
+            height: 1.28,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.18,
             color: IzyTelColors.textPrimary,
           ),
           titleMedium: GoogleFonts.manrope(
-            fontSize: 16,
-            height: 1.35,
-            fontWeight: FontWeight.w700,
+            fontSize: IzyTelTypeScale.cardTitle,
+            height: 1.3,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.12,
             color: IzyTelColors.textPrimary,
           ),
           bodyLarge: GoogleFonts.manrope(
-            fontSize: 15,
-            height: 1.5,
+            fontSize: IzyTelTypeScale.text,
+            height: 1.42,
             fontWeight: FontWeight.w500,
             color: IzyTelColors.textPrimary,
           ),
           bodyMedium: GoogleFonts.manrope(
-            fontSize: 14,
-            height: 1.45,
+            fontSize: IzyTelTypeScale.text,
+            height: 1.42,
             fontWeight: FontWeight.w500,
             color: IzyTelColors.textSecondary,
           ),
+          bodySmall: GoogleFonts.manrope(
+            fontSize: IzyTelTypeScale.micro,
+            height: 1.35,
+            fontWeight: FontWeight.w400,
+            color: IzyTelColors.textSecondary,
+          ),
           labelLarge: GoogleFonts.manrope(
-            fontSize: 13,
-            height: 1.2,
-            fontWeight: FontWeight.w700,
+            fontSize: IzyTelTypeScale.label,
+            height: 1.25,
+            fontWeight: FontWeight.w600,
             color: IzyTelColors.textPrimary,
           ),
           labelMedium: GoogleFonts.manrope(
-            fontSize: 12,
-            height: 1.2,
-            fontWeight: FontWeight.w600,
+            fontSize: IzyTelTypeScale.label,
+            height: 1.25,
+            fontWeight: FontWeight.w500,
             color: IzyTelColors.textSecondary,
+          ),
+          labelSmall: GoogleFonts.manrope(
+            fontSize: IzyTelTypeScale.micro,
+            height: 1.25,
+            fontWeight: FontWeight.w400,
+            color: IzyTelColors.textMuted,
           ),
         );
 
     const OutlineInputBorder inputBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.all(Radius.circular(10)),
+      borderRadius: BorderRadius.all(Radius.circular(IzyTelRadii.input)),
       borderSide: BorderSide(color: IzyTelColors.outlineStrong),
     );
 
@@ -113,7 +129,7 @@ class AppTheme {
         margin: EdgeInsets.zero,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(20)),
+          borderRadius: BorderRadius.all(Radius.circular(IzyTelRadii.card)),
           side: BorderSide(color: IzyTelColors.outline),
         ),
       ),
@@ -125,6 +141,7 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: IzyTelColors.surface,
+        isDense: false,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 15,
@@ -132,7 +149,7 @@ class AppTheme {
         hintStyle: typography.bodyMedium?.copyWith(
           color: IzyTelColors.textMuted,
         ),
-        labelStyle: typography.bodyMedium?.copyWith(
+        labelStyle: typography.labelMedium?.copyWith(
           color: IzyTelColors.textSecondary,
         ),
         prefixIconColor: IzyTelColors.textSecondary,
@@ -140,33 +157,33 @@ class AppTheme {
         border: inputBorder,
         enabledBorder: inputBorder,
         focusedBorder: const OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(10)),
+          borderRadius: BorderRadius.all(Radius.circular(IzyTelRadii.input)),
           borderSide: BorderSide(color: IzyTelColors.primary, width: 1.6),
         ),
         errorBorder: const OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(10)),
+          borderRadius: BorderRadius.all(Radius.circular(IzyTelRadii.input)),
           borderSide: BorderSide(color: IzyTelColors.error),
         ),
         focusedErrorBorder: const OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(10)),
+          borderRadius: BorderRadius.all(Radius.circular(IzyTelRadii.input)),
           borderSide: BorderSide(color: IzyTelColors.error, width: 1.5),
         ),
-        errorStyle: typography.labelMedium?.copyWith(color: IzyTelColors.error),
+        errorStyle: typography.bodySmall?.copyWith(color: IzyTelColors.error),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(64, 52),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          minimumSize: const Size(64, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
           backgroundColor: IzyTelColors.primary,
           foregroundColor: Colors.white,
           disabledBackgroundColor: IzyTelColors.primary.withAlpha(85),
           disabledForegroundColor: Colors.white.withAlpha(190),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(IzyTelRadii.button),
           ),
           textStyle: typography.labelLarge?.copyWith(
             color: Colors.white,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
@@ -174,10 +191,10 @@ class AppTheme {
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(64, 48),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-          foregroundColor: IzyTelColors.primaryStrong,
+          foregroundColor: IzyTelColors.primary,
           side: const BorderSide(color: IzyTelColors.outlineStrong),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(IzyTelRadii.button),
           ),
           textStyle: typography.labelLarge,
         ),
@@ -205,7 +222,9 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         showDragHandle: false,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(IzyTelRadii.sheet),
+          ),
         ),
       ),
       dialogTheme: DialogThemeData(

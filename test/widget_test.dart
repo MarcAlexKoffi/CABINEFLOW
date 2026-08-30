@@ -1,4 +1,7 @@
 import 'package:cabine_flow/app/app.dart';
+import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
+import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -11,16 +14,16 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
   }
 
-  Future<void> openLoginPage(WidgetTester tester) async {
+  Future<void> openLoginPage(
+    WidgetTester tester, {
+    OrdersRepository? ordersRepository,
+  }) async {
     await configureMobileScreen(tester);
+    await tester.pumpWidget(CabineFlowApp(ordersRepository: ordersRepository));
+    await tester.pump();
 
-    await tester.pumpWidget(const CabineFlowApp());
-
-    // Le splash dure 2,5 secondes.
-    await tester.pump(const Duration(milliseconds: 2600));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Connexion à votre espace'), findsOneWidget);
+    expect(find.text('Bienvenue'), findsOneWidget);
+    expect(find.text('Simple. Rapide. Fiable.'), findsOneWidget);
     expect(find.text('Se connecter'), findsOneWidget);
   }
 
@@ -31,35 +34,28 @@ void main() {
     );
 
     expect(loginButton, findsOneWidget);
-
     await tester.ensureVisible(loginButton);
     await tester.pumpAndSettle();
-
     await tester.tap(loginButton);
     await tester.pump();
   }
 
-  testWidgets('affiche le splash screen puis la connexion', (
+  testWidgets('ouvre directement la maquette Splash & Connexion', (
     WidgetTester tester,
   ) async {
-    await configureMobileScreen(tester);
+    await openLoginPage(tester);
 
-    await tester.pumpWidget(const CabineFlowApp());
-
-    // Éléments réellement présents sur le splash IzyTel.
-    expect(find.text('Votre espace professionnel'), findsOneWidget);
-    expect(find.text('Simple. Rapide. Fiable.'), findsOneWidget);
-
-    await tester.pump(const Duration(milliseconds: 2600));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Connexion à votre espace'), findsOneWidget);
-    expect(find.text('Se connecter'), findsOneWidget);
+    expect(find.text('Bienvenue'), findsOneWidget);
+    expect(
+      find.text('Connectez-vous à votre espace\npour continuer'),
+      findsOneWidget,
+    );
+    expect(find.text('Continuer avec Google'), findsOneWidget);
+    expect(find.text('Votre espace professionnel'), findsNothing);
   });
 
   testWidgets('refuse un formulaire vide', (WidgetTester tester) async {
     await openLoginPage(tester);
-
     await tapLoginButton(tester);
 
     expect(find.text('Saisis ton adresse e-mail.'), findsOneWidget);
@@ -72,25 +68,19 @@ void main() {
     await openLoginPage(tester);
 
     final Finder fields = find.byType(TextFormField);
-
     expect(fields, findsNWidgets(2));
 
     await tester.enterText(fields.at(0), 'marc@cabineflow.app');
-
     await tester.enterText(fields.at(1), '1234');
-
     await tapLoginButton(tester);
 
-    // Le nouveau design utilise un indicateur, pas le texte "Connexion...".
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-    // FakeAuthRepository attend environ 1 seconde.
     await tester.pump(const Duration(milliseconds: 1100));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Bonjour Marc'), findsOneWidget);
 
-    // FakeDashboardRepository attend environ 800 ms.
     await tester.pump(const Duration(milliseconds: 900));
     await tester.pumpAndSettle();
 
@@ -104,38 +94,44 @@ void main() {
     await openLoginPage(tester);
 
     final Finder fields = find.byType(TextFormField);
-
     await tester.enterText(fields.at(0), 'marc@cabineflow.app');
-
     await tester.enterText(fields.at(1), '1234');
-
     await tapLoginButton(tester);
 
     await tester.pump(const Duration(milliseconds: 1100));
     await tester.pumpAndSettle();
-
     await tester.pump(const Duration(milliseconds: 900));
     await tester.pumpAndSettle();
 
     expect(find.text('Activité du jour'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.receipt_long_outlined).last);
-    await tester.pump(const Duration(milliseconds: 600));
-    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey<String>('admin-nav-commandes')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('À traiter'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.home_outlined).last);
-    await tester.pump(const Duration(milliseconds: 600));
-    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey<String>('admin-nav-accueil')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('Activité du jour'), findsOneWidget);
   });
 
-  testWidgets('ouvre l’espace agent Phase 9B et conserve le profil', (
+  testWidgets('ouvre la file Agent de la maquette et conserve le profil', (
     WidgetTester tester,
   ) async {
-    await openLoginPage(tester);
+    final FakeOrdersRepository ordersRepository = FakeOrdersRepository(
+      isTest: true,
+    );
+    final QueueOrder order = (await ordersRepository.fetchPaidQueue()).first;
+    await ordersRepository.assignToAgent(
+      orderId: order.id,
+      agentId: 'AGENT-001',
+      assignedByUserId: 'ADMIN-001',
+    );
+
+    await openLoginPage(tester, ordersRepository: ordersRepository);
 
     final Finder fields = find.byType(TextFormField);
     await tester.enterText(fields.at(0), 'agent@cabineflow.app');
@@ -145,12 +141,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1100));
     await tester.pumpAndSettle();
 
-    expect(find.text('Mes commandes'), findsOneWidget);
-    expect(find.text('À accepter'), findsOneWidget);
-    expect(find.text('En cours'), findsOneWidget);
-    expect(find.text('Terminées'), findsOneWidget);
+    expect(find.textContaining('Bonjour'), findsOneWidget);
+    expect(find.textContaining('commande'), findsWidgets);
+    expect(find.text('Accepter'), findsWidgets);
+    expect(find.text('Mes commandes'), findsNothing);
 
-    await tester.tap(find.text('Profil'));
+    await tester.tap(find.byKey(const ValueKey<String>('agent-nav-profil')));
     await tester.pump(const Duration(milliseconds: 900));
     await tester.pumpAndSettle();
 

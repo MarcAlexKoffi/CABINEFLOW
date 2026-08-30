@@ -13,8 +13,8 @@ class IzyTelColors {
   static const Color surfaceMuted = Color(0xFFF1F5F9);
   static const Color surfaceStrong = Color(0xFFEAF1FF);
 
-  static const Color primary = Color(0xFF2563EB);
-  static const Color primaryStrong = Color(0xFF1748C7);
+  static const Color primary = Color(0xFF2E63EB);
+  static const Color primaryStrong = Color(0xFF1D4ED8);
   static const Color primarySoft = Color(0xFFE8F0FF);
   static const Color secondary = Color(0xFF38BDF8);
 

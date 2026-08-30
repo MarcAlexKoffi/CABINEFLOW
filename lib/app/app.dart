@@ -29,7 +29,6 @@ import 'package:cabine_flow/features/orders/domain/repositories/offer_catalog_re
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/payments/data/repositories/wave_payment_link_repository.dart';
 import 'package:cabine_flow/features/payments/domain/repositories/payment_link_repository.dart';
-import 'package:cabine_flow/features/splash/presentation/pages/splash_page.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
@@ -128,7 +127,7 @@ class CabineFlowApp extends StatelessWidget {
             return MaterialPageRoute<void>(
               settings: settings,
               builder: (BuildContext context) {
-                return const SplashPage();
+                return LoginPage(authRepository: effectiveAuthRepository);
               },
             );
 

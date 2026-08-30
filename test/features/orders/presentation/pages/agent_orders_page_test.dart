@@ -1,3 +1,4 @@
+import 'package:cabine_flow/core/theme/app_theme.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
@@ -13,104 +14,106 @@ void main() {
     role: UserRole.agent,
   );
 
-  testWidgets('affiche les trois onglets et accepte une commande', (
-    WidgetTester tester,
-  ) async {
-    tester.view.physicalSize = const Size(430, 932);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
+  Future<QueueOrder> prepareAssignedOrder(FakeOrdersRepository repository) async {
     final QueueOrder order = (await repository.fetchPaidQueue()).first;
     await repository.assignToAgent(
       orderId: order.id,
       agentId: agent.id,
       assignedByUserId: 'ADMIN-001',
     );
+    return order;
+  }
+
+  Future<void> pumpAgentPage(
+    WidgetTester tester,
+    FakeOrdersRepository repository,
+  ) async {
+    tester.view.physicalSize = const Size(430, 932);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData.dark(),
+        theme: AppTheme.light,
         home: AgentOrdersPage(user: agent, ordersRepository: repository),
       ),
     );
     await tester.pumpAndSettle();
+  }
 
-    // Régression 9B : la carte doit pouvoir être peinte sans exception.
-    // Un Border non uniforme combiné à un borderRadius pouvait transformer
-    // la carte en grand bloc vide/sombre sur l'appareil.
+  testWidgets('affiche la file priorisée de la maquette et accepte', (
+    WidgetTester tester,
+  ) async {
+    final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
+    final QueueOrder order = await prepareAssignedOrder(repository);
+    await pumpAgentPage(tester, repository);
+
     expect(tester.takeException(), isNull);
-    expect(find.text(order.reference), findsOneWidget);
-
-    expect(find.text('Mes commandes'), findsOneWidget);
-    expect(find.text('À accepter'), findsOneWidget);
-    expect(find.text('En cours'), findsOneWidget);
-    expect(find.text('Terminées'), findsOneWidget);
+    expect(find.text('Bonjour Koffi 👋'), findsOneWidget);
+    expect(find.text('1 commande à traiter'), findsOneWidget);
+    expect(find.text('PRIORITÉ 1'), findsOneWidget);
     expect(find.text('Accepter'), findsOneWidget);
-    expect(find.text('Refuser'), findsOneWidget);
+    expect(find.text('Mes commandes'), findsNothing);
 
     await tester.tap(find.text('Accepter'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Détail de la commande'), findsOneWidget);
-
-    await tester.scrollUntilVisible(
-      find.text('Traitement'),
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-
-    expect(find.text('Traitement'), findsOneWidget);
-    expect(find.text('Preuve de transfert'), findsOneWidget);
-    expect(find.text('Marquer comme réussi'), findsOneWidget);
+    expect(find.text('Détail commande'), findsOneWidget);
+    expect(find.text(order.reference), findsOneWidget);
+    expect(find.text('Client'), findsOneWidget);
+    expect(find.text('Paiement'), findsOneWidget);
+    expect(find.text('Détails de l’offre'), findsOneWidget);
+    expect(find.text('Preuve'), findsOneWidget);
+    expect(find.text('Marquer comme réussie'), findsOneWidget);
   });
 
-  testWidgets('demande un motif avant de refuser une commande', (
+  testWidgets('demande toujours un motif avant de refuser', (
     WidgetTester tester,
   ) async {
-    tester.view.physicalSize = const Size(430, 932);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
     final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
-    final QueueOrder order = (await repository.fetchPaidQueue()).first;
-    await repository.assignToAgent(
-      orderId: order.id,
-      agentId: agent.id,
-      assignedByUserId: 'ADMIN-001',
-    );
+    final QueueOrder order = await prepareAssignedOrder(repository);
+    await pumpAgentPage(tester, repository);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: ThemeData.dark(),
-        home: AgentOrdersPage(user: agent, ordersRepository: repository),
-      ),
-    );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text(order.offerLabel));
+    await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Refuser'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Détail commande'), findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey<String>('agent-order-detail-actions')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Refuser la commande'));
+    await tester.pumpAndSettle();
 
     expect(find.text('Refuser la commande'), findsOneWidget);
     expect(find.text('Motif du refus'), findsOneWidget);
 
     await tester.tap(find.text('Confirmer le refus'));
-    await tester.pump();
-    expect(find.text('Précise la raison du refus.'), findsOneWidget);
+    await tester.pumpAndSettle();
+
+    // Le refus sans motif doit être bloqué et le bottom sheet doit rester ouvert.
+    expect(find.text('Refuser la commande'), findsOneWidget);
+    final TextField refusalField = tester.widget<TextField>(
+      find.byType(TextField),
+    );
+    // On teste la présence de la validation, pas une formulation exacte :
+    // le libellé UX peut évoluer sans casser le comportement métier.
+    expect(refusalField.decoration?.errorText, isNotNull);
+    expect(refusalField.decoration!.errorText!, isNotEmpty);
+
+    final List<QueueOrder> stillAssigned = await repository
+        .watchAssignedOrders(agentId: agent.id)
+        .first;
+    expect(stillAssigned, hasLength(1));
 
     await tester.enterText(
       find.byType(TextField),
       'Réseau momentanément indisponible',
     );
     await tester.tap(find.text('Confirmer le refus'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
 
-    expect(find.text('Aucune commande à accepter'), findsOneWidget);
     final List<QueueOrder> remaining = await repository
         .watchAssignedOrders(agentId: agent.id)
         .first;
