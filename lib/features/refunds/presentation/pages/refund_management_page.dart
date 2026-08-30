@@ -33,7 +33,14 @@ class RefundManagementPage extends StatefulWidget {
 
 class _RefundManagementPageState extends State<RefundManagementPage> {
   final TextEditingController _searchController = TextEditingController();
+  late final Stream<List<RefundCase>> _refundsStream;
   _RefundFilter _filter = _RefundFilter.all;
+
+  @override
+  void initState() {
+    super.initState();
+    _refundsStream = widget.repository.watchAll();
+  }
 
   @override
   void dispose() {
@@ -61,7 +68,7 @@ class _RefundManagementPageState extends State<RefundManagementPage> {
       body: SafeArea(
         top: false,
         child: StreamBuilder<List<RefundCase>>(
-          stream: widget.repository.watchAll(),
+          stream: _refundsStream,
           builder: (BuildContext context, AsyncSnapshot<List<RefundCase>> snapshot) {
             if (snapshot.hasError) {
               return const SingleChildScrollView(
@@ -107,7 +114,7 @@ class _RefundManagementPageState extends State<RefundManagementPage> {
                           Expanded(
                             child: FinancialMetricCard(
                               label: 'À valider',
-                              value: _formatAmount(pendingAmount) + ' F',
+                              value: '${_formatAmount(pendingAmount)} F',
                               caption: '${pending.length} dossier${pending.length > 1 ? 's' : ''}',
                               icon: Symbols.fact_check_rounded,
                               accent: IzyTelColors.warning,
@@ -117,7 +124,7 @@ class _RefundManagementPageState extends State<RefundManagementPage> {
                           Expanded(
                             child: FinancialMetricCard(
                               label: 'À effectuer',
-                              value: _formatAmount(approvedAmount) + ' F',
+                              value: '${_formatAmount(approvedAmount)} F',
                               caption: '${approved.length} dossier${approved.length > 1 ? 's' : ''}',
                               icon: Symbols.currency_exchange_rounded,
                               accent: IzyTelColors.primary,

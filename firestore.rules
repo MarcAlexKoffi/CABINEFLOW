@@ -3313,6 +3313,102 @@ service cloud.firestore {
         ]);
     }
 
+    function hasValidNetworkTransactionValues() {
+      return request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'network',
+          'direction',
+          'type',
+          'amount',
+          'capacityBefore',
+          'capacityAfter',
+          'agentId',
+          'agentName',
+          'orderId',
+          'orderReference',
+          'createdBy',
+          'createdByRole',
+          'createdAt'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.network in ['orange', 'mtn', 'moov']
+        && request.resource.data.direction in ['incoming', 'outgoing']
+        && request.resource.data.type in [
+          'orderSuccess',
+          'supplierRecharge',
+          'manualAdjustment'
+        ]
+        && request.resource.data.amount is int
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 100000000
+        && request.resource.data.capacityBefore is int
+        && request.resource.data.capacityBefore >= 0
+        && request.resource.data.capacityBefore <= 100000000
+        && request.resource.data.capacityAfter is int
+        && request.resource.data.capacityAfter >= 0
+        && request.resource.data.capacityAfter <= 100000000
+        && (
+          request.resource.data.get('agentId', null) == null
+          || request.resource.data.get('agentId', null) is string
+        )
+        && (
+          request.resource.data.get('agentName', null) == null
+          || (
+            request.resource.data.get('agentName', null) is string
+            && request.resource.data.get('agentName', '').size() >= 2
+            && request.resource.data.get('agentName', '').size() <= 80
+          )
+        )
+        && (
+          request.resource.data.get('orderId', null) == null
+          || request.resource.data.get('orderId', null) is string
+        )
+        && (
+          request.resource.data.get('orderReference', null) == null
+          || request.resource.data.get('orderReference', null) is string
+        )
+        && request.resource.data.createdBy is string
+        && request.resource.data.createdBy.size() >= 1
+        && request.resource.data.createdByRole in [
+          'agent',
+          'operator',
+          'supervisor',
+          'admin'
+        ]
+        && request.resource.data.createdAt is timestamp;
+    }
+
+    function isValidAgentOrderNetworkTransactionCreation(transactionId) {
+      let orderId = request.resource.data.orderId;
+      let order = getAfter(
+        /databases/$(database)/documents/orders/$(orderId)
+      ).data;
+
+      return isAgent()
+        && hasValidNetworkTransactionValues()
+        && request.resource.data.type == 'orderSuccess'
+        && request.resource.data.direction == 'outgoing'
+        && transactionId == 'order_' + orderId
+        && request.resource.data.agentId == request.auth.uid
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdByRole == 'agent'
+        && request.resource.data.capacityBefore >= request.resource.data.amount
+        && request.resource.data.capacityAfter
+          == request.resource.data.capacityBefore - request.resource.data.amount
+        && request.resource.data.createdAt == request.time
+        && order.reference == request.resource.data.orderReference
+        && order.get('assignedAgentId', null) == request.auth.uid
+        && order.get('assignedAgentName', null) == request.resource.data.agentName
+        && order.get('assignmentStatus', 'unassigned') == 'accepted'
+        && order.paymentStatus == 'confirmed'
+        && order.status == 'awaitingCustomerConfirmation'
+        && order.amount == request.resource.data.amount
+        && order.network == request.resource.data.network
+        && order.get('completedAt', null) == request.time
+        && order.get('lastEventType', null) == 'PROCESSING_SUCCEEDED'
+        && order.get('lastEventAt', null) == request.time;
+    }
+
     function hasValidCommissionPayoutValues(payoutId) {
       let agentId = request.resource.data.agentId;
       let account = get(
@@ -3439,6 +3535,12 @@ service cloud.firestore {
           && resource.data.agentId == request.auth.uid
         );
       allow create: if hasValidCommissionPayoutValues(payoutId);
+      allow update, delete: if false;
+    }
+
+    match /networkTransactions/{transactionId} {
+      allow get, list: if isAdmin();
+      allow create: if isValidAgentOrderNetworkTransactionCreation(transactionId);
       allow update, delete: if false;
     }
 

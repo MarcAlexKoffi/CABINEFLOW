@@ -20,6 +20,8 @@ class AgentOrdersPage extends StatefulWidget {
     required this.ordersRepository,
     this.agentRepository,
     this.onOpenProfile,
+    this.onOpenPerformance,
+    this.onOpenCommissions,
     this.onLogout,
   });
 
@@ -27,6 +29,8 @@ class AgentOrdersPage extends StatefulWidget {
   final OrdersRepository ordersRepository;
   final AgentRepository? agentRepository;
   final VoidCallback? onOpenProfile;
+  final VoidCallback? onOpenPerformance;
+  final VoidCallback? onOpenCommissions;
   final VoidCallback? onLogout;
 
   @override
@@ -135,11 +139,17 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
             label: 'Mon profil',
             onTap: widget.onOpenProfile!,
           ),
-        if (widget.onOpenProfile != null)
+        if (widget.onOpenPerformance != null)
           IzyTelAccountAction(
             icon: Symbols.insights_rounded,
-            label: 'Mes performances et commissions',
-            onTap: widget.onOpenProfile!,
+            label: 'Mes performances',
+            onTap: widget.onOpenPerformance!,
+          ),
+        if (widget.onOpenCommissions != null)
+          IzyTelAccountAction(
+            icon: Symbols.account_balance_wallet_rounded,
+            label: 'Mes commissions',
+            onTap: widget.onOpenCommissions!,
           ),
         if (widget.onLogout != null)
           IzyTelAccountAction(
@@ -173,25 +183,22 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
                 leading: const Icon(Symbols.inbox_rounded),
                 title: const Text('À accepter'),
                 trailing: Text('${_viewModel.toAcceptCount}'),
-                onTap: () => Navigator.of(sheetContext).pop(
-                  AgentOrdersTab.toAccept,
-                ),
+                onTap: () =>
+                    Navigator.of(sheetContext).pop(AgentOrdersTab.toAccept),
               ),
               ListTile(
                 leading: const Icon(Symbols.autorenew_rounded),
                 title: const Text('En cours'),
                 trailing: Text('${_viewModel.inProgressCount}'),
-                onTap: () => Navigator.of(sheetContext).pop(
-                  AgentOrdersTab.inProgress,
-                ),
+                onTap: () =>
+                    Navigator.of(sheetContext).pop(AgentOrdersTab.inProgress),
               ),
               ListTile(
                 leading: const Icon(Symbols.check_circle_rounded),
                 title: const Text('Terminées'),
                 trailing: Text('${_viewModel.completedCount}'),
-                onTap: () => Navigator.of(sheetContext).pop(
-                  AgentOrdersTab.completed,
-                ),
+                onTap: () =>
+                    Navigator.of(sheetContext).pop(AgentOrdersTab.completed),
               ),
               const SizedBox(height: 8),
             ],
@@ -278,7 +285,10 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
                           tooltip: 'Afficher une autre file',
                           onPressed: _openQueueModeMenu,
                           visualDensity: VisualDensity.compact,
-                          icon: const Icon(Symbols.tune_rounded, size: IzyTelIconSize.action),
+                          icon: const Icon(
+                            Symbols.tune_rounded,
+                            size: IzyTelIconSize.action,
+                          ),
                         ),
                       ],
                     ),
@@ -536,11 +546,12 @@ class _PremiumAgentOrderCard extends StatelessWidget {
                       child: Text(
                         'PRIORITÉ $queuePosition',
                         maxLines: 1,
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: priorityColor,
-                          fontSize: IzyTelTypeScale.micro,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: priorityColor,
+                              fontSize: IzyTelTypeScale.micro,
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
                     ),
                   const SizedBox(width: 8),
@@ -551,15 +562,16 @@ class _PremiumAgentOrderCard extends StatelessWidget {
                         _waitingLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: isCritical
-                              ? IzyTelColors.error
-                              : IzyTelColors.textMuted,
-                          fontSize: IzyTelTypeScale.micro,
-                          fontWeight: isCritical
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                        ),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: isCritical
+                                  ? IzyTelColors.error
+                                  : IzyTelColors.textMuted,
+                              fontSize: IzyTelTypeScale.micro,
+                              fontWeight: isCritical
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
                       ),
                     ),
                   ),
@@ -592,23 +604,25 @@ class _PremiumAgentOrderCard extends StatelessWidget {
                           networkLabel(order.network),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            color: IzyTelColors.textPrimary,
-                            fontSize: IzyTelTypeScale.label,
-                            fontWeight: FontWeight.w700,
-                          ),
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
+                                color: IzyTelColors.textPrimary,
+                                fontSize: IzyTelTypeScale.label,
+                                fontWeight: FontWeight.w700,
+                              ),
                         ),
                         const SizedBox(height: 3),
                         Text(
                           order.offerLabel,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: IzyTelColors.textPrimary,
-                            fontSize: IzyTelTypeScale.cardTitle,
-                            height: 1.20,
-                            fontWeight: FontWeight.w700,
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: IzyTelColors.textPrimary,
+                                fontSize: IzyTelTypeScale.cardTitle,
+                                height: 1.20,
+                                fontWeight: FontWeight.w700,
+                              ),
                         ),
                       ],
                     ),
@@ -661,7 +675,8 @@ class _PremiumAgentOrderCard extends StatelessWidget {
                           QueueOrderStatus.failed ||
                           QueueOrderStatus.cancelled => IzyTelColors.error,
                           QueueOrderStatus.onHold ||
-                          QueueOrderStatus.refundPending => IzyTelColors.warning,
+                          QueueOrderStatus.refundPending =>
+                            IzyTelColors.warning,
                           _ => IzyTelColors.primary,
                         },
                 ),
@@ -721,9 +736,9 @@ class _AgentInProgressTile extends StatelessWidget {
       QueueOrderStatus.refunded => ('Remboursée', IzyTelColors.success),
       QueueOrderStatus.onHold => ('En attente', IzyTelColors.warning),
       QueueOrderStatus.awaitingCustomerConfirmation => (
-          'À confirmer',
-          IzyTelColors.primary,
-        ),
+        'À confirmer',
+        IzyTelColors.primary,
+      ),
       _ => ('En traitement', IzyTelColors.primary),
     };
 

@@ -80,12 +80,18 @@ class IzyTelStatusPill extends StatelessWidget {
             Icon(icon, size: IzyTelIconSize.info, color: color),
             const SizedBox(width: 3),
           ],
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: color,
-              fontSize: IzyTelTypeScale.micro,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            fit: FlexFit.loose,
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: color,
+                fontSize: IzyTelTypeScale.micro,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -221,7 +227,8 @@ Future<void> showIzyTelAccountSheet({
               children: [
                 IzyTelAvatar(name: name, size: 48),
                 const SizedBox(width: 12),
-                Expanded(
+                Flexible(
+                  fit: FlexFit.tight,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -352,7 +359,7 @@ class IzyTelPageHeader extends StatelessWidget {
   }
 }
 
-class IzyTelSearchField extends StatelessWidget {
+class IzyTelSearchField extends StatefulWidget {
   const IzyTelSearchField({
     super.key,
     required this.controller,
@@ -367,26 +374,64 @@ class IzyTelSearchField extends StatelessWidget {
   final VoidCallback? onClear;
 
   @override
+  State<IzyTelSearchField> createState() => _IzyTelSearchFieldState();
+}
+
+class _IzyTelSearchFieldState extends State<IzyTelSearchField> {
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode(debugLabel: 'IzyTelSearchField');
+    widget.controller.addListener(_handleControllerChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant IzyTelSearchField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_handleControllerChanged);
+      widget.controller.addListener(_handleControllerChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleControllerChanged);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _handleControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
     return TextField(
-      controller: controller,
-      onChanged: onChanged,
-      textInputAction: TextInputAction.search,
+      controller: widget.controller,
+      focusNode: _focusNode,
+      onChanged: widget.onChanged,
+      textInputAction: TextInputAction.done,
+      keyboardType: TextInputType.text,
+      enableInteractiveSelection: true,
       style: Theme.of(context).textTheme.bodyLarge,
       decoration: InputDecoration(
-        hintText: hintText,
+        hintText: widget.hintText,
         prefixIcon: const Icon(
           Symbols.search_rounded,
           size: IzyTelIconSize.action,
         ),
-        suffixIcon: controller.text.trim().isEmpty
+        suffixIcon: widget.controller.text.trim().isEmpty
             ? null
             : IconButton(
                 tooltip: 'Effacer',
                 onPressed: () {
-                  controller.clear();
-                  onChanged('');
-                  onClear?.call();
+                  widget.controller.clear();
+                  widget.onChanged('');
+                  widget.onClear?.call();
+                  _focusNode.requestFocus();
                 },
                 icon: const Icon(
                   Symbols.close_rounded,
@@ -603,7 +648,8 @@ class IzyTelMenuRow extends StatelessWidget {
                 child: Icon(icon, color: effectiveColor, size: 21),
               ),
               const SizedBox(width: 12),
-              Expanded(
+              Flexible(
+                fit: FlexFit.tight,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,

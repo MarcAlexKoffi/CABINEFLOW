@@ -29,8 +29,8 @@ void main() {
       ),
     );
 
-    // 11C n'ajoute aucune dépendance getAfter et ne touche pas au moteur 9E.
-    expect(RegExp(r'getAfter\(').allMatches(rules), hasLength(24));
+    // Phase 13A ajoute un getAfter unidirectionnel sans toucher au moteur 9E.
+    expect(RegExp(r'getAfter\(').allMatches(rules), hasLength(25));
     expect(rules, contains('hasMatchingAutomaticAssignmentArtifacts'));
     expect(rules, contains('autoAssignmentRefusedAgentIds'));
     expect(rules, contains('manualAssignmentRequired'));

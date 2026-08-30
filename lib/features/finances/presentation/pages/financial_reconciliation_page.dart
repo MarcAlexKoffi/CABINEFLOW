@@ -6,7 +6,8 @@ import 'package:cabine_flow/features/finances/presentation/widgets/financial_ui.
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
-import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart' hide formatIvorianPhone;
+import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart'
+    hide formatIvorianPhone;
 import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
 import 'package:cabine_flow/features/refunds/presentation/pages/refund_management_page.dart';
@@ -91,200 +92,230 @@ class _FinancialReconciliationPageState
         top: false,
         child: StreamBuilder<List<QueueOrder>>(
           stream: _ordersStream,
-          builder: (
-            BuildContext context,
-            AsyncSnapshot<List<QueueOrder>> orderSnapshot,
-          ) {
-            return StreamBuilder<List<RefundCase>>(
-              stream: widget.refundRepository.watchAll(),
-              builder: (
+          builder:
+              (
                 BuildContext context,
-                AsyncSnapshot<List<RefundCase>> refundSnapshot,
+                AsyncSnapshot<List<QueueOrder>> orderSnapshot,
               ) {
-                if (!orderSnapshot.hasData &&
-                    orderSnapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+                return StreamBuilder<List<RefundCase>>(
+                  stream: widget.refundRepository.watchAll(),
+                  builder:
+                      (
+                        BuildContext context,
+                        AsyncSnapshot<List<RefundCase>> refundSnapshot,
+                      ) {
+                        if (!orderSnapshot.hasData &&
+                            orderSnapshot.connectionState ==
+                                ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
 
-                final List<QueueOrder> orders =
-                    orderSnapshot.data ?? const <QueueOrder>[];
-                final List<RefundCase> refunds =
-                    refundSnapshot.data ?? const <RefundCase>[];
-                final Map<String, RefundCase> refundByOrder =
-                    <String, RefundCase>{
-                      for (final RefundCase refund in refunds)
-                        refund.orderId: refund,
-                    };
+                        final List<QueueOrder> orders =
+                            orderSnapshot.data ?? const <QueueOrder>[];
+                        final List<RefundCase> refunds =
+                            refundSnapshot.data ?? const <RefundCase>[];
+                        final Map<String, RefundCase> refundByOrder =
+                            <String, RefundCase>{
+                              for (final RefundCase refund in refunds)
+                                refund.orderId: refund,
+                            };
 
-                final List<_ReconciliationItem> all = orders
-                    .where(
-                      (QueueOrder order) =>
-                          order.paymentStatus == OrderPaymentStatus.confirmed ||
-                          order.paymentStatus == OrderPaymentStatus.declared ||
-                          order.status == QueueOrderStatus.refundPending ||
-                          order.status == QueueOrderStatus.refunded,
-                    )
-                    .map(
-                      (QueueOrder order) => _buildItem(
-                        order,
-                        refundByOrder[order.id],
-                      ),
-                    )
-                    .toList(growable: false)
-                  ..sort(
-                    (_ReconciliationItem a, _ReconciliationItem b) =>
-                        b.date.compareTo(a.date),
-                  );
+                        final List<_ReconciliationItem> all =
+                            orders
+                                .where(
+                                  (QueueOrder order) =>
+                                      order.paymentStatus ==
+                                          OrderPaymentStatus.confirmed ||
+                                      order.paymentStatus ==
+                                          OrderPaymentStatus.declared ||
+                                      order.status ==
+                                          QueueOrderStatus.refundPending ||
+                                      order.status == QueueOrderStatus.refunded,
+                                )
+                                .map(
+                                  (QueueOrder order) => _buildItem(
+                                    order,
+                                    refundByOrder[order.id],
+                                  ),
+                                )
+                                .toList(growable: false)
+                              ..sort(
+                                (
+                                  _ReconciliationItem a,
+                                  _ReconciliationItem b,
+                                ) => b.date.compareTo(a.date),
+                              );
 
-                final int attention = all
-                    .where(
-                      (_ReconciliationItem item) =>
-                          item.state == _ReconciliationState.attention,
-                    )
-                    .length;
-                final int coherent = all
-                    .where(
-                      (_ReconciliationItem item) =>
-                          item.state == _ReconciliationState.coherent,
-                    )
-                    .length;
-                final int refunded = all
-                    .where(
-                      (_ReconciliationItem item) =>
-                          item.state == _ReconciliationState.refunded,
-                    )
-                    .length;
-                final List<_ReconciliationItem> visible = all
-                    .where(_matchesFilter)
-                    .toList(growable: false);
-
-                return Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: IzyTelColors.primarySoft,
-                              borderRadius: BorderRadius.circular(13),
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Icon(
-                                  Symbols.info_rounded,
-                                  color: IzyTelColors.primary,
-                                  size: IzyTelIconSize.info,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'Contrôle interne commandes, paiements et remboursements. Le rapprochement bancaire Wave sera branché lorsque les données API seront disponibles.',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
-                                        ?.copyWith(
-                                          color: IzyTelColors.textSecondary,
-                                          fontSize: IzyTelTypeScale.micro,
-                                          height: 1.35,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            height: 34,
-                            child: ListView(
-                              scrollDirection: Axis.horizontal,
-                              children: [
-                                FinanceFilterPill(
-                                  label: 'Tous',
-                                  count: all.length,
-                                  selected:
-                                      _filter == _ReconciliationFilter.all,
-                                  onTap: () => setState(
-                                    () => _filter = _ReconciliationFilter.all,
-                                  ),
-                                ),
-                                const SizedBox(width: 7),
-                                FinanceFilterPill(
-                                  label: 'À vérifier',
-                                  count: attention,
-                                  accent: IzyTelColors.warning,
-                                  selected: _filter ==
-                                      _ReconciliationFilter.attention,
-                                  onTap: () => setState(
-                                    () => _filter =
-                                        _ReconciliationFilter.attention,
-                                  ),
-                                ),
-                                const SizedBox(width: 7),
-                                FinanceFilterPill(
-                                  label: 'Cohérents',
-                                  count: coherent,
-                                  accent: IzyTelColors.success,
-                                  selected: _filter ==
-                                      _ReconciliationFilter.coherent,
-                                  onTap: () => setState(
-                                    () => _filter =
-                                        _ReconciliationFilter.coherent,
-                                  ),
-                                ),
-                                const SizedBox(width: 7),
-                                FinanceFilterPill(
-                                  label: 'Remboursés',
-                                  count: refunded,
-                                  selected: _filter ==
-                                      _ReconciliationFilter.refunded,
-                                  onTap: () => setState(
-                                    () => _filter =
-                                        _ReconciliationFilter.refunded,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: visible.isEmpty
-                          ? const SingleChildScrollView(
-                              child: FinanceEmptyState(
-                                icon: Symbols.rule_rounded,
-                                title: 'Aucun élément dans ce filtre',
-                                message:
-                                    'Les contrôles de cohérence apparaîtront ici au fur et à mesure des transactions.',
-                              ),
+                        final int attention = all
+                            .where(
+                              (_ReconciliationItem item) =>
+                                  item.state == _ReconciliationState.attention,
                             )
-                          : ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(20, 2, 20, 28),
-                              itemCount: visible.length,
-                              separatorBuilder: (_, _) =>
-                                  const SizedBox(height: 10),
-                              itemBuilder: (BuildContext context, int index) {
-                                final _ReconciliationItem item = visible[index];
-                                return _ReconciliationCard(
-                                  item: item,
-                                  onTap: item.refund != null && _historyRepository != null
-                                      ? () => _openRefund(item.refund!)
-                                      : null,
-                                );
-                              },
+                            .length;
+                        final int coherent = all
+                            .where(
+                              (_ReconciliationItem item) =>
+                                  item.state == _ReconciliationState.coherent,
+                            )
+                            .length;
+                        final int refunded = all
+                            .where(
+                              (_ReconciliationItem item) =>
+                                  item.state == _ReconciliationState.refunded,
+                            )
+                            .length;
+                        final List<_ReconciliationItem> visible = all
+                            .where(_matchesFilter)
+                            .toList(growable: false);
+
+                        return Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: IzyTelColors.primarySoft,
+                                      borderRadius: BorderRadius.circular(13),
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Icon(
+                                          Symbols.info_rounded,
+                                          color: IzyTelColors.primary,
+                                          size: IzyTelIconSize.info,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'Contrôle interne commandes, paiements et remboursements. Le rapprochement bancaire Wave sera branché lorsque les données API seront disponibles.',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: IzyTelColors
+                                                      .textSecondary,
+                                                  fontSize:
+                                                      IzyTelTypeScale.micro,
+                                                  height: 1.35,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  SizedBox(
+                                    height: 34,
+                                    child: ListView(
+                                      scrollDirection: Axis.horizontal,
+                                      children: [
+                                        FinanceFilterPill(
+                                          label: 'Tous',
+                                          count: all.length,
+                                          selected:
+                                              _filter ==
+                                              _ReconciliationFilter.all,
+                                          onTap: () => setState(
+                                            () => _filter =
+                                                _ReconciliationFilter.all,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 7),
+                                        FinanceFilterPill(
+                                          label: 'À vérifier',
+                                          count: attention,
+                                          accent: IzyTelColors.warning,
+                                          selected:
+                                              _filter ==
+                                              _ReconciliationFilter.attention,
+                                          onTap: () => setState(
+                                            () => _filter =
+                                                _ReconciliationFilter.attention,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 7),
+                                        FinanceFilterPill(
+                                          label: 'Cohérents',
+                                          count: coherent,
+                                          accent: IzyTelColors.success,
+                                          selected:
+                                              _filter ==
+                                              _ReconciliationFilter.coherent,
+                                          onTap: () => setState(
+                                            () => _filter =
+                                                _ReconciliationFilter.coherent,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 7),
+                                        FinanceFilterPill(
+                                          label: 'Remboursés',
+                                          count: refunded,
+                                          selected:
+                                              _filter ==
+                                              _ReconciliationFilter.refunded,
+                                          onTap: () => setState(
+                                            () => _filter =
+                                                _ReconciliationFilter.refunded,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                    ),
-                  ],
+                            Expanded(
+                              child: visible.isEmpty
+                                  ? const SingleChildScrollView(
+                                      child: FinanceEmptyState(
+                                        icon: Symbols.rule_rounded,
+                                        title: 'Aucun élément dans ce filtre',
+                                        message:
+                                            'Les contrôles de cohérence apparaîtront ici au fur et à mesure des transactions.',
+                                      ),
+                                    )
+                                  : ListView.separated(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        20,
+                                        2,
+                                        20,
+                                        28,
+                                      ),
+                                      itemCount: visible.length,
+                                      separatorBuilder: (_, _) =>
+                                          const SizedBox(height: 10),
+                                      itemBuilder:
+                                          (BuildContext context, int index) {
+                                            final _ReconciliationItem item =
+                                                visible[index];
+                                            return _ReconciliationCard(
+                                              item: item,
+                                              onTap:
+                                                  item.refund != null &&
+                                                      _historyRepository != null
+                                                  ? () => _openRefund(
+                                                      item.refund!,
+                                                    )
+                                                  : null,
+                                            );
+                                          },
+                                    ),
+                            ),
+                          ],
+                        );
+                      },
                 );
               },
-            );
-          },
         ),
       ),
     );
@@ -319,7 +350,8 @@ class _FinancialReconciliationPageState
         refund: refund,
         state: _ReconciliationState.attention,
         label: 'Paiement à vérifier',
-        description: 'Le client a déclaré le paiement mais il n’est pas encore confirmé.',
+        description:
+            'Le client a déclaré le paiement mais il n’est pas encore confirmé.',
         date: date,
       );
     }
@@ -336,7 +368,8 @@ class _FinancialReconciliationPageState
           refund: null,
           state: _ReconciliationState.attention,
           label: 'Remboursement à contrôler',
-          description: 'La commande nécessite un contrôle mais aucun dossier rapproché n’est disponible.',
+          description:
+              'La commande nécessite un contrôle mais aucun dossier rapproché n’est disponible.',
           date: date,
         );
       }
@@ -346,7 +379,8 @@ class _FinancialReconciliationPageState
           refund: refund,
           state: _ReconciliationState.refunded,
           label: 'Remboursement rapproché',
-          description: 'Paiement, remboursement et dossier interne sont cohérents.',
+          description:
+              'Paiement, remboursement et dossier interne sont cohérents.',
           date: date,
         );
       }
@@ -357,7 +391,8 @@ class _FinancialReconciliationPageState
         label: refund.status == RefundStatus.refunded
             ? 'Remboursement à rapprocher'
             : 'Remboursement en cours',
-        description: 'Le dossier de remboursement n’est pas encore totalement rapproché.',
+        description:
+            'Le dossier de remboursement n’est pas encore totalement rapproché.',
         date: date,
       );
     }
@@ -378,7 +413,8 @@ class _FinancialReconciliationPageState
       refund: refund,
       state: _ReconciliationState.inProgress,
       label: 'Traitement en cours',
-      description: 'Le paiement est confirmé et la commande suit son traitement normal.',
+      description:
+          'Le paiement est confirmé et la commande suit son traitement normal.',
       date: date,
     );
   }
@@ -527,11 +563,12 @@ class _ReconciliationCard extends StatelessWidget {
                     children: [
                       Text(
                         item.label,
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: _accent,
-                          fontSize: IzyTelTypeScale.label,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: _accent,
+                              fontSize: IzyTelTypeScale.label,
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -593,10 +630,10 @@ class _NetworkLogo extends StatelessWidget {
   final MobileNetwork network;
 
   String get _asset => switch (network) {
-        MobileNetwork.orange => 'assets/brands/operators/orange_ci.png',
-        MobileNetwork.mtn => 'assets/brands/operators/mtn_ci.png',
-        MobileNetwork.moov => 'assets/brands/operators/moov_africa_ci.png',
-      };
+    MobileNetwork.orange => 'assets/brands/operators/orange_ci.png',
+    MobileNetwork.mtn => 'assets/brands/operators/mtn_ci.png',
+    MobileNetwork.moov => 'assets/brands/operators/moov_africa_ci.png',
+  };
 
   @override
   Widget build(BuildContext context) {

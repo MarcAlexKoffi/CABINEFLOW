@@ -50,7 +50,10 @@ class OrdersTopBar extends StatelessWidget {
             onPressed: onSearchPressed,
             visualDensity: VisualDensity.compact,
             color: IzyTelColors.textPrimary,
-            icon: const Icon(Symbols.search_rounded, size: IzyTelIconSize.action),
+            icon: const Icon(
+              Symbols.search_rounded,
+              size: IzyTelIconSize.action,
+            ),
           ),
         if (onFiltersPressed != null)
           IconButton(
@@ -289,8 +292,8 @@ class QueueFilterButton extends StatelessWidget {
     final Color foreground = isAll && isSelected
         ? IzyTelColors.surface
         : isAll
-            ? IzyTelColors.textPrimary
-            : _accent;
+        ? IzyTelColors.textPrimary
+        : _accent;
     final Color borderColor = isSelected && !isAll
         ? _accent.withAlpha(115)
         : Colors.transparent;
@@ -358,12 +361,12 @@ class QueueOrderCard extends StatelessWidget {
     }
     if (order.isAssignedToAgent) return IzyTelColors.warning;
     return switch (order.status) {
-      QueueOrderStatus.completed || QueueOrderStatus.refunded =>
-        IzyTelColors.success,
-      QueueOrderStatus.failed || QueueOrderStatus.cancelled =>
-        IzyTelColors.error,
-      QueueOrderStatus.expired || QueueOrderStatus.refundPending =>
-        IzyTelColors.warning,
+      QueueOrderStatus.completed ||
+      QueueOrderStatus.refunded => IzyTelColors.success,
+      QueueOrderStatus.failed ||
+      QueueOrderStatus.cancelled => IzyTelColors.error,
+      QueueOrderStatus.expired ||
+      QueueOrderStatus.refundPending => IzyTelColors.warning,
       _ => IzyTelColors.primary,
     };
   }
@@ -385,9 +388,7 @@ class QueueOrderCard extends StatelessWidget {
     if (waitingMinutes >= 60) {
       final int hours = waitingMinutes ~/ 60;
       final int minutes = waitingMinutes.remainder(60);
-      return minutes == 0
-          ? 'Il y a $hours h'
-          : 'Il y a $hours h $minutes min';
+      return minutes == 0 ? 'Il y a $hours h' : 'Il y a $hours h $minutes min';
     }
     return 'Il y a $waitingMinutes min';
   }
@@ -453,9 +454,7 @@ class QueueOrderCard extends StatelessWidget {
                               networkLabel(order.network),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelLarge
+                              style: Theme.of(context).textTheme.labelLarge
                                   ?.copyWith(
                                     color: IzyTelColors.textPrimary,
                                     fontSize: IzyTelTypeScale.label,
@@ -545,9 +544,7 @@ class QueueOrderCard extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.end,
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelMedium
+                          style: Theme.of(context).textTheme.labelMedium
                               ?.copyWith(
                                 color: IzyTelColors.textMuted,
                                 fontSize: IzyTelTypeScale.micro,

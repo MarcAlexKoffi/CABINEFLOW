@@ -30,9 +30,9 @@ void main() {
       expect(rules, contains('allow get, list: if isAdmin();'));
       expect(rules, contains('allow delete: if false;'));
 
-      // Baseline 9E V2 : la Phase 12 ajoute trois getAfter unidirectionnels
-      // (commission -> order, compte -> commission, compte -> payout) sans modifier 9E.
-      expect(RegExp(r'getAfter\(').allMatches(rules), hasLength(24));
+      // Phase 13A ajoute un getAfter unidirectionnel networkTransaction -> order
+      // sans modifier les garde-fous 9E ni les flux précédents.
+      expect(RegExp(r'getAfter\(').allMatches(rules), hasLength(25));
       expect(rules, contains('hasMatchingAutomaticAssignmentArtifacts'));
       expect(rules, contains('autoAssignmentRefusedAgentIds'));
       expect(rules, contains('manualAssignmentRequired'));

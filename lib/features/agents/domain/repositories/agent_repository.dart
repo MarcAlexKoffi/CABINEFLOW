@@ -37,4 +37,10 @@ abstract class AgentRepository {
     required String agentId,
     required AgentIssueDraft issue,
   });
+
+  Future<void> updateIssueStatus({
+    required String issueId,
+    required String status,
+    String? resolvedBy,
+  });
 }

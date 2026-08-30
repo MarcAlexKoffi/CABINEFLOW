@@ -6,6 +6,7 @@ import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:cabine_flow/features/commissions/domain/services/commission_performance_calculator.dart';
+import 'package:cabine_flow/features/commissions/presentation/pages/agent_commissions_page.dart';
 import 'package:cabine_flow/features/commissions/presentation/widgets/commission_payout_sheet.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:flutter/material.dart';
@@ -258,60 +259,138 @@ class _AgentPerformancePageState extends State<AgentPerformancePage> {
               '${performance.transactionsSuccessful} transaction(s) réussie(s)',
         ),
         const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _MetricCard(
-                label: 'TAUX DE RÉUSSITE',
-                value:
-                    '${(performance.successRate * 100).toStringAsFixed(1)} %',
-                icon: Symbols.check_circle_rounded,
-                iconColor: IzyTelColors.success,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _MetricCard(
-                label: 'TEMPS MOYEN',
-                value: _formatDuration(performance.averageProcessingDuration),
-                icon: Symbols.timer_rounded,
-              ),
-            ),
-          ],
+        LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final Widget successCard = _MetricCard(
+              label: 'TAUX DE RÉUSSITE',
+              value: '${(performance.successRate * 100).toStringAsFixed(1)} %',
+              icon: Symbols.check_circle_rounded,
+              iconColor: IzyTelColors.success,
+            );
+            final Widget durationCard = _MetricCard(
+              label: 'TEMPS MOYEN',
+              value: _formatDuration(performance.averageProcessingDuration),
+              icon: Symbols.timer_rounded,
+            );
+
+            if (constraints.maxWidth < 300) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  successCard,
+                  const SizedBox(height: 10),
+                  durationCard,
+                ],
+              );
+            }
+
+            return Row(
+              children: [
+                Expanded(child: successCard),
+                const SizedBox(width: 10),
+                Expanded(child: durationCard),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 10),
         _TransactionsCard(performance: performance),
-        const SizedBox(height: 22),
-        const _SectionTitle(
-          icon: Symbols.account_balance_wallet_rounded,
-          title: 'Commissions',
-        ),
-        const SizedBox(height: 10),
-        _CommissionSummaryCard(
-          performance: performance,
-          isAdminView: widget.isAdminView,
-          onPay: performance.commissionBalance > 0 && widget.isAdminView
-              ? () => _openPayout(performance)
-              : null,
-        ),
-        const SizedBox(height: 22),
-        const _SectionTitle(
-          icon: Symbols.history_rounded,
-          title: 'Dernières commissions',
-        ),
-        const SizedBox(height: 10),
-        if (recentCommissions.isEmpty)
-          const _EmptyCard(message: 'Aucune commission acquise pour le moment.')
-        else
-          _RecentCommissionList(values: recentCommissions),
-        if (recentPayouts.isNotEmpty) ...[
+        if (!widget.isAdminView) ...[
+          const SizedBox(height: 22),
+          InkWell(
+            borderRadius: BorderRadius.circular(IzyTelRadii.card),
+            onTap: () {
+              Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => AgentCommissionsPage(
+                    user: widget.user,
+                    repository: widget.repository,
+                  ),
+                ),
+              );
+            },
+            child: _BaseCard(
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: IzyTelColors.successSoft,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Symbols.account_balance_wallet_rounded,
+                      color: IzyTelColors.success,
+                      size: IzyTelIconSize.action,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Flexible(
+                    fit: FlexFit.tight,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Mes commissions',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: IzyTelColors.textPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${formatCfa(performance.commissionBalance)} disponibles',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: IzyTelColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Symbols.chevron_right_rounded,
+                    color: IzyTelColors.textMuted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ] else ...[
           const SizedBox(height: 22),
           const _SectionTitle(
-            icon: Symbols.payments_rounded,
-            title: 'Historique des paiements',
+            icon: Symbols.account_balance_wallet_rounded,
+            title: 'Commissions',
           ),
           const SizedBox(height: 10),
-          _RecentPayoutList(values: recentPayouts),
+          _CommissionSummaryCard(
+            performance: performance,
+            isAdminView: widget.isAdminView,
+            onPay: performance.commissionBalance > 0
+                ? () => _openPayout(performance)
+                : null,
+          ),
+          const SizedBox(height: 22),
+          const _SectionTitle(
+            icon: Symbols.history_rounded,
+            title: 'Dernières commissions',
+          ),
+          const SizedBox(height: 10),
+          if (recentCommissions.isEmpty)
+            const _EmptyCard(message: 'Aucune commission acquise pour le moment.')
+          else
+            _RecentCommissionList(values: recentCommissions),
+          if (recentPayouts.isNotEmpty) ...[
+            const SizedBox(height: 22),
+            const _SectionTitle(
+              icon: Symbols.payments_rounded,
+              title: 'Historique des paiements',
+            ),
+            const SizedBox(height: 10),
+            _RecentPayoutList(values: recentPayouts),
+          ],
         ],
       ],
     );
@@ -346,12 +425,12 @@ class _AgentIdentityCard extends StatelessWidget {
                   style: const TextStyle(
                     color: IzyTelColors.primary,
                     fontSize: 18,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
               const SizedBox(width: 14),
-              Expanded(
+              Flexible(fit: FlexFit.tight, 
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -365,7 +444,7 @@ class _AgentIdentityCard extends StatelessWidget {
                           style: const TextStyle(
                             color: IzyTelColors.textPrimary,
                             fontSize: 21,
-                            fontWeight: FontWeight.w900,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                         _StatusPill(active: agent.isActive),
@@ -442,7 +521,7 @@ class _PeriodSelector extends StatelessWidget {
         children: CommissionPeriod.values
             .map((CommissionPeriod period) {
               final bool active = period == selected;
-              return Expanded(
+              return Flexible(fit: FlexFit.tight, 
                 child: InkWell(
                   borderRadius: BorderRadius.circular(9),
                   onTap: () => onChanged(period),
@@ -455,15 +534,19 @@ class _PeriodSelector extends StatelessWidget {
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(9),
                     ),
-                    child: Text(
-                      period.label,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: active
-                            ? IzyTelColors.primary
-                            : IzyTelColors.textSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        period.label,
+                        maxLines: 1,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: active
+                              ? IzyTelColors.primary
+                              : IzyTelColors.textSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                   ),
@@ -488,12 +571,16 @@ class _SectionTitle extends StatelessWidget {
       children: [
         Icon(icon, color: IzyTelColors.primary, size: 20),
         const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            color: IzyTelColors.textPrimary,
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: IzyTelColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
       ],
@@ -525,7 +612,7 @@ class _PrimaryMetricCard extends StatelessWidget {
             style: const TextStyle(
               color: IzyTelColors.primary,
               fontSize: 27,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 6),
@@ -566,13 +653,13 @@ class _MetricCard extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(
+              Flexible(fit: FlexFit.tight, 
                 child: Text(
                   value,
                   style: const TextStyle(
                     color: IzyTelColors.textPrimary,
                     fontSize: 20,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
@@ -603,13 +690,13 @@ class _TransactionsCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Expanded(child: _MetricLabel('TRANSACTIONS REÇUES')),
+              const Flexible(fit: FlexFit.tight, child: _MetricLabel('TRANSACTIONS REÇUES')),
               Text(
                 '$total',
                 style: const TextStyle(
                   color: IzyTelColors.textPrimary,
                   fontSize: 20,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
@@ -692,7 +779,7 @@ class _ProgressSegment extends StatelessWidget {
         ? 0
         : (value * 1000 ~/ total).clamp(0, 1000).toInt();
     if (flex <= 0) return const SizedBox.shrink();
-    return Expanded(
+    return Flexible(fit: FlexFit.tight, 
       flex: flex,
       child: Container(height: 8, color: color),
     );
@@ -764,7 +851,7 @@ class _CommissionSummaryCard extends StatelessWidget {
                   size: 17,
                 ),
                 const SizedBox(width: 7),
-                Expanded(
+                Flexible(fit: FlexFit.tight, 
                   child: Text(
                     'Règle actuelle : ${CommissionPolicy.current.label}',
                     style: const TextStyle(
@@ -816,7 +903,7 @@ class _CommissionSummaryCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Expanded(
+                Flexible(fit: FlexFit.tight, 
                   child: Text(
                     isAdminView ? 'Solde à payer' : 'À recevoir',
                     style: const TextStyle(
@@ -830,7 +917,7 @@ class _CommissionSummaryCard extends StatelessWidget {
                   style: const TextStyle(
                     color: IzyTelColors.primary,
                     fontSize: 22,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ],
@@ -879,7 +966,7 @@ class _RecentCommissionList extends StatelessWidget {
                       children: [
                         _NetworkDot(network: value.network),
                         const SizedBox(width: 10),
-                        Expanded(
+                        Flexible(fit: FlexFit.tight, 
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -922,7 +1009,7 @@ class _RecentCommissionList extends StatelessWidget {
                               style: const TextStyle(
                                 color: IzyTelColors.success,
                                 fontSize: 11,
-                                fontWeight: FontWeight.w900,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
                           ],
@@ -971,7 +1058,7 @@ class _RecentPayoutList extends StatelessWidget {
                           size: 20,
                         ),
                         const SizedBox(width: 10),
-                        Expanded(
+                        Flexible(fit: FlexFit.tight, 
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -996,7 +1083,7 @@ class _RecentPayoutList extends StatelessWidget {
                           formatCfa(value.amount),
                           style: const TextStyle(
                             color: IzyTelColors.primary,
-                            fontWeight: FontWeight.w900,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                       ],
@@ -1063,7 +1150,7 @@ class _ValueRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(
+        Flexible(fit: FlexFit.tight, 
           child: Text(
             label,
             style: const TextStyle(

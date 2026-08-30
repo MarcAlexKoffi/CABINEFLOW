@@ -285,40 +285,48 @@ class FinanceFilterPill extends StatelessWidget {
           height: 34,
           padding: const EdgeInsets.symmetric(horizontal: 11),
           alignment: Alignment.center,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                maxLines: 1,
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: selected ? IzyTelColors.surface : IzyTelColors.textPrimary,
-                  fontSize: IzyTelTypeScale.micro,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              if (count != null && count! > 0) ...[
-                const SizedBox(width: 6),
-                Container(
-                  constraints: const BoxConstraints(minWidth: 18),
-                  height: 18,
-                  padding: const EdgeInsets.symmetric(horizontal: 5),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: selected ? IzyTelColors.surface.withAlpha(38) : accent.withAlpha(18),
-                    borderRadius: BorderRadius.circular(99),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: selected
+                        ? IzyTelColors.surface
+                        : IzyTelColors.textPrimary,
+                    fontSize: IzyTelTypeScale.micro,
+                    fontWeight: FontWeight.w600,
                   ),
-                  child: Text(
-                    '$count',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: selected ? IzyTelColors.surface : accent,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
+                ),
+                if (count != null && count! > 0) ...[
+                  const SizedBox(width: 5),
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 18),
+                    height: 18,
+                    padding: const EdgeInsets.symmetric(horizontal: 5),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? IzyTelColors.surface.withAlpha(38)
+                          : accent.withAlpha(18),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(
+                      '$count',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: selected ? IzyTelColors.surface : accent,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

@@ -488,7 +488,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
                           itemCount: _visibleFilters.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 7),
+                          separatorBuilder: (_, _) => const SizedBox(width: 7),
                           itemBuilder: (BuildContext context, int index) {
                             final PaymentOrderFilter filter =
                                 _visibleFilters[index];

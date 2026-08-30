@@ -40,8 +40,8 @@ void main() {
     );
     expect(rules, contains('allow delete: if false;'));
 
-    // Baseline 9E V2 : aucune nouvelle dépendance getAfter n'est introduite.
-    expect(RegExp(r'getAfter\(').allMatches(rules), hasLength(24));
+    // Phase 13A ajoute un getAfter unidirectionnel networkTransaction -> order.
+    expect(RegExp(r'getAfter\(').allMatches(rules), hasLength(25));
     expect(rules, contains('hasMatchingAutomaticAssignmentArtifacts'));
     expect(rules, contains('autoAssignmentRefusedAgentIds'));
     expect(rules, contains('manualAssignmentRequired'));

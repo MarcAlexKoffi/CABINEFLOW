@@ -276,7 +276,9 @@ class PaymentTrackingCard extends StatelessWidget {
 
   String get _relativeTime {
     final Duration difference = DateTime.now().difference(_referenceDate);
-    if (difference.isNegative || difference.inMinutes <= 0) return 'À l’instant';
+    if (difference.isNegative || difference.inMinutes <= 0) {
+      return 'À l’instant';
+    }
     if (difference.inMinutes < 60) return 'Il y a ${difference.inMinutes} min';
     if (difference.inHours < 24) {
       final int minutes = difference.inMinutes.remainder(60);

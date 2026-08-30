@@ -636,7 +636,10 @@ class _ReferenceDetailTopBar extends StatelessWidget {
             tooltip: 'Retour',
             onPressed: onBack,
             visualDensity: VisualDensity.compact,
-            icon: const Icon(Symbols.arrow_back_rounded, size: IzyTelIconSize.action),
+            icon: const Icon(
+              Symbols.arrow_back_rounded,
+              size: IzyTelIconSize.action,
+            ),
           ),
           Expanded(
             child: Text(
@@ -675,8 +678,10 @@ class _ReferenceOrderSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color accent = networkColor(order.network);
     final Color statusColor = _agentStatusColor(order);
-    final double scale = (MediaQuery.sizeOf(context).width / 290)
-        .clamp(.95, 1.35);
+    final double scale = (MediaQuery.sizeOf(context).width / 290).clamp(
+      .95,
+      1.35,
+    );
 
     return SizedBox(
       height: 132 * scale,
@@ -848,8 +853,10 @@ class _ReferenceProgress extends StatelessWidget {
       'En traitement',
       'Terminée',
     ];
-    final double scale = (MediaQuery.sizeOf(context).width / 290)
-        .clamp(.95, 1.35);
+    final double scale = (MediaQuery.sizeOf(context).width / 290).clamp(
+      .95,
+      1.35,
+    );
     return SizedBox(
       height: 54 * scale,
       child: Padding(
@@ -1019,8 +1026,10 @@ class _DetailMenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double scale = (MediaQuery.sizeOf(context).width / 290)
-        .clamp(.95, 1.35);
+    final double scale = (MediaQuery.sizeOf(context).width / 290).clamp(
+      .95,
+      1.35,
+    );
     final double rowHeight = 41 * scale;
 
     return Container(
@@ -1191,12 +1200,10 @@ class _InfoSheetRows extends StatelessWidget {
                     child: Text(
                       row.value,
                       textAlign: TextAlign.right,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyLarge?.copyWith(
-                            fontSize: IzyTelTypeScale.text,
-                            fontWeight: FontWeight.w600,
-                          ),
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontSize: IzyTelTypeScale.text,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -1242,9 +1249,7 @@ class _ActivitySheet extends StatelessWidget {
                   Expanded(
                     child: Text(
                       entry.key,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.labelLarge?.copyWith(
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
                         fontSize: IzyTelTypeScale.label,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1252,9 +1257,7 @@ class _ActivitySheet extends StatelessWidget {
                   ),
                   Text(
                     _formatDateTime(entry.value!),
-                    style: Theme.of(
-                      context,
-                    ).textTheme.labelMedium?.copyWith(
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       fontSize: IzyTelTypeScale.micro,
                     ),
                   ),
@@ -1302,10 +1305,7 @@ class _ProcessingBottomActions extends StatelessWidget {
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Symbols.pause_rounded,
-                        size: IzyTelIconSize.info,
-                      ),
+                      Icon(Symbols.pause_rounded, size: IzyTelIconSize.info),
                       SizedBox(width: 6),
                       Expanded(
                         child: FittedBox(

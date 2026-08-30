@@ -1099,7 +1099,7 @@ class _OrderSummaryCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: IzyTelSpacing.sm),
-              Flexible(
+              Expanded(
                 child: Text(
                   networkLabel(order.network),
                   maxLines: 1,
@@ -1112,9 +1112,15 @@ class _OrderSummaryCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: IzyTelSpacing.sm),
-              _SmallStatusBadge(
-                label: orderStatusLabel(order.status),
-                color: status,
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: _SmallStatusBadge(
+                    label: orderStatusLabel(order.status),
+                    color: status,
+                  ),
+                ),
               ),
             ],
           ),
@@ -1131,9 +1137,12 @@ class _OrderSummaryCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: IzyTelSpacing.md),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final bool compact = constraints.maxWidth < 270;
+              final Widget phone = Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   const Icon(
                     Symbols.phone_iphone_rounded,
                     size: IzyTelIconSize.info,
@@ -1149,35 +1158,52 @@ class _OrderSummaryCard extends StatelessWidget {
                       ),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 3),
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            formatIvorianPhone(order.beneficiaryPhone),
-                            maxLines: 1,
-                            style: const TextStyle(
-                              color: IzyTelColors.textPrimary,
-                              fontSize: IzyTelTypeScale.transactionNumber,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: .05,
-                            ),
+                        child: Text(
+                          formatIvorianPhone(order.beneficiaryPhone),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: IzyTelColors.textPrimary,
+                            fontSize: IzyTelTypeScale.transactionNumber,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: .05,
                           ),
                         ),
                       ),
                     ),
                   ),
+                ],
+              );
+              final Widget amount = Text(
+                formatCfa(order.amount),
+                maxLines: 1,
+                style: const TextStyle(
+                  color: IzyTelColors.primaryStrong,
+                  fontSize: IzyTelTypeScale.money,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -.2,
+                ),
+              );
+
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    phone,
+                    const SizedBox(height: 7),
+                    Align(alignment: Alignment.centerRight, child: amount),
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: phone),
                   const SizedBox(width: IzyTelSpacing.sm),
-                  Text(
-                    formatCfa(order.amount),
-                    maxLines: 1,
-                    style: const TextStyle(
-                      color: IzyTelColors.primaryStrong,
-                      fontSize: IzyTelTypeScale.money,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -.2,
-                    ),
-                  ),
-            ],
+                  amount,
+                ],
+              );
+            },
           ),
           const SizedBox(height: IzyTelSpacing.sm),
           Row(
@@ -1277,14 +1303,12 @@ class _DetailSection extends StatefulWidget {
     required this.title,
     required this.child,
     this.trailing,
-    this.initiallyExpanded = false,
   });
 
   final IconData icon;
   final String title;
   final Widget child;
   final Widget? trailing;
-  final bool initiallyExpanded;
 
   @override
   State<_DetailSection> createState() => _DetailSectionState();
@@ -1296,7 +1320,7 @@ class _DetailSectionState extends State<_DetailSection> {
   @override
   void initState() {
     super.initState();
-    _expanded = widget.initiallyExpanded;
+    _expanded = false;
   }
 
   @override

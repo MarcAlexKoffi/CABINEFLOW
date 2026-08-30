@@ -142,9 +142,16 @@ class AppTheme {
         filled: true,
         fillColor: IzyTelColors.surface,
         isDense: false,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-        hintStyle: typography.bodyMedium?.copyWith(color: IzyTelColors.textMuted),
-        labelStyle: typography.labelMedium?.copyWith(color: IzyTelColors.textSecondary),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 15,
+        ),
+        hintStyle: typography.bodyMedium?.copyWith(
+          color: IzyTelColors.textMuted,
+        ),
+        labelStyle: typography.labelMedium?.copyWith(
+          color: IzyTelColors.textSecondary,
+        ),
         prefixIconColor: IzyTelColors.textSecondary,
         suffixIconColor: IzyTelColors.textSecondary,
         border: inputBorder,
@@ -207,13 +214,17 @@ class AppTheme {
         contentTextStyle: typography.bodyMedium?.copyWith(color: Colors.white),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(color: IzyTelColors.primary),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: IzyTelColors.primary,
+      ),
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: IzyTelColors.surface,
         surfaceTintColor: Colors.transparent,
         showDragHandle: false,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(IzyTelRadii.sheet)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(IzyTelRadii.sheet),
+          ),
         ),
       ),
       dialogTheme: DialogThemeData(

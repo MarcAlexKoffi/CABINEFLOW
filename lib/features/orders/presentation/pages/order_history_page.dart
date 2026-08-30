@@ -1,4 +1,5 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_history_filters.dart';
@@ -6,7 +7,9 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/presentation/view_models/order_history_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 class OrderHistoryPage extends StatefulWidget {
   const OrderHistoryPage({
@@ -51,11 +54,10 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> {
       initialFilters: widget.initialFilters,
     );
     _viewModel.startRealtime();
+
     if (widget.openFiltersOnStart) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _openFilters();
-        }
+        if (mounted) _openFilters();
       });
     }
   }
@@ -71,6 +73,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> {
     final OrderHistoryFilters? filters =
         await showModalBottomSheet<OrderHistoryFilters>(
           context: context,
+          useSafeArea: true,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
           builder: (BuildContext sheetContext) {
@@ -82,9 +85,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> {
           },
         );
 
-    if (filters != null) {
-      _viewModel.applyFilters(filters);
-    }
+    if (filters != null) _viewModel.applyFilters(filters);
   }
 
   void _clearSearch() {
@@ -98,238 +99,106 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> {
       listenable: _viewModel,
       builder: (BuildContext context, Widget? child) {
         final List<QueueOrder> orders = _viewModel.visibleOrders;
+        final int total = _viewModel.filteredOrders.length;
 
-        return SafeArea(
-          bottom: false,
-          child: Column(
-            children: [
-              _HistoryTopBar(user: widget.user, onBack: widget.onBack),
-              Divider(height: 1, color: AppColors.outlineVariant.withAlpha(80)),
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: _viewModel.loadHistory,
-                  child: ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
-                    children: [
-                      const Text(
-                        'Historique des commandes',
-                        style: TextStyle(
-                          color: AppColors.onBackground,
-                          fontSize: 23,
-                          fontWeight: FontWeight.w700,
+        return Scaffold(
+          backgroundColor: IzyTelColors.background,
+          body: SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                _HistoryTopBar(user: widget.user, onBack: widget.onBack),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _viewModel.loadHistory,
+                    color: IzyTelColors.primary,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                      children: [
+                        const IzyTelPageHeader(
+                          title: 'Historique des commandes',
+                          subtitle:
+                              'Retrouve rapidement une ancienne transaction, puis ouvre son détail complet.',
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Recherchez, filtrez et ouvrez les anciennes commandes.',
-                        style: TextStyle(
-                          color: AppColors.onSurfaceVariant,
-                          fontSize: 13,
-                          height: 1.4,
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _searchController,
-                              onChanged: _viewModel.updateSearchQuery,
-                              style: const TextStyle(
-                                color: AppColors.onBackground,
-                                fontSize: 13,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: 'Référence, client, numéro, offre…',
-                                hintStyle: const TextStyle(
-                                  color: AppColors.onSurfaceVariant,
-                                  fontSize: 12,
-                                ),
-                                prefixIcon: const Icon(
-                                  Icons.search_rounded,
-                                  color: AppColors.primaryContainer,
-                                ),
-                                suffixIcon: _viewModel.searchQuery.isNotEmpty
-                                    ? IconButton(
-                                        tooltip: 'Effacer la recherche',
-                                        onPressed: _clearSearch,
-                                        icon: const Icon(
-                                          Icons.close_rounded,
-                                          color: AppColors.onSurfaceVariant,
-                                        ),
-                                      )
-                                    : null,
-                                filled: true,
-                                fillColor: AppColors.surfaceContainer,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(11),
-                                  borderSide: BorderSide(
-                                    color: AppColors.outlineVariant.withAlpha(
-                                      90,
-                                    ),
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(11),
-                                  borderSide: const BorderSide(
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          SizedBox(
-                            width: 54,
-                            height: 52,
-                            child: OutlinedButton(
-                              onPressed: _openFilters,
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.onBackground,
-                                padding: EdgeInsets.zero,
-                                side: BorderSide(
-                                  color: _viewModel.filters.isEmpty
-                                      ? AppColors.outlineVariant.withAlpha(100)
-                                      : AppColors.primary,
-                                ),
-                                backgroundColor: AppColors.surfaceContainer,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(11),
-                                ),
-                              ),
-                              child: Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  const Icon(Icons.tune_rounded),
-                                  if (_viewModel.filters.activeFilterCount > 0)
-                                    Positioned(
-                                      right: -9,
-                                      top: -11,
-                                      child: Container(
-                                        constraints: const BoxConstraints(
-                                          minWidth: 18,
-                                          minHeight: 18,
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 4,
-                                        ),
-                                        decoration: const BoxDecoration(
-                                          color: AppColors.primary,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        alignment: Alignment.center,
-                                        child: Text(
-                                          _viewModel.filters.activeFilterCount
-                                              .toString(),
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (!_viewModel.filters.isEmpty) ...[
-                        const SizedBox(height: 13),
-                        _ActiveFilters(
-                          filters: _viewModel.filters,
-                          onChanged: _viewModel.applyFilters,
-                          onClearAll: _viewModel.clearAllFilters,
-                        ),
-                      ],
-                      const SizedBox(height: 18),
-                      if (_viewModel.isLoading && !_viewModel.hasLoadedOrders)
-                        const SizedBox(
-                          height: 330,
-                          child: Center(child: CircularProgressIndicator()),
-                        )
-                      else if (_viewModel.errorMessage != null)
-                        _HistoryErrorState(
-                          message: _viewModel.errorMessage!,
-                          onRetry: _viewModel.loadHistory,
-                        )
-                      else if (orders.isEmpty)
-                        const _HistoryEmptyState()
-                      else ...[
+                        const SizedBox(height: IzyTelSpacing.lg),
                         Row(
                           children: [
-                            Text(
-                              '${_viewModel.filteredOrders.length} commande${_viewModel.filteredOrders.length > 1 ? 's' : ''}',
-                              style: const TextStyle(
-                                color: AppColors.onSurfaceVariant,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
+                            Expanded(
+                              child: IzyTelSearchField(
+                                controller: _searchController,
+                                hintText: 'Référence, client, numéro, offre…',
+                                onChanged: _viewModel.updateSearchQuery,
+                                onClear: _clearSearch,
                               ),
                             ),
-                            const Spacer(),
-                            const Icon(
-                              Icons.swap_vert_rounded,
-                              color: AppColors.primaryContainer,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 4),
-                            const Text(
-                              'Plus récentes',
-                              style: TextStyle(
-                                color: AppColors.onSurfaceVariant,
-                                fontSize: 11,
-                              ),
+                            const SizedBox(width: 10),
+                            _FilterButton(
+                              count: _viewModel.filters.activeFilterCount,
+                              onTap: _openFilters,
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
-                        ...orders.map((QueueOrder order) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _OrderHistoryCard(
-                              order: order,
-                              currentUser: widget.user,
-                              onPressed: () {
-                                widget.onOpenOrder(
-                                  order,
-                                  _viewModel.searchQuery,
-                                  _viewModel.filters,
-                                );
-                              },
-                            ),
-                          );
-                        }),
-                        if (_viewModel.canLoadMore) ...[
-                          const SizedBox(height: 4),
-                          Center(
-                            child: OutlinedButton.icon(
-                              onPressed: _viewModel.loadMore,
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.onBackground,
-                                side: BorderSide(
-                                  color: AppColors.outlineVariant.withAlpha(90),
-                                ),
-                                backgroundColor: AppColors.surfaceContainer,
-                              ),
-                              icon: const Icon(
-                                Icons.expand_more_rounded,
-                                size: 19,
-                              ),
-                              label: const Text('Charger plus'),
-                            ),
+                        if (!_viewModel.filters.isEmpty) ...[
+                          const SizedBox(height: IzyTelSpacing.sm),
+                          _ActiveFilters(
+                            filters: _viewModel.filters,
+                            onChanged: _viewModel.applyFilters,
+                            onClearAll: _viewModel.clearAllFilters,
                           ),
                         ],
+                        const SizedBox(height: IzyTelSpacing.lg),
+                        _HistorySummary(total: total),
+                        const SizedBox(height: IzyTelSpacing.sm),
+                        if (_viewModel.isLoading && !_viewModel.hasLoadedOrders)
+                          const SizedBox(
+                            height: 320,
+                            child: Center(child: CircularProgressIndicator()),
+                          )
+                        else if (_viewModel.errorMessage != null)
+                          _HistoryErrorState(
+                            message: _viewModel.errorMessage!,
+                            onRetry: _viewModel.loadHistory,
+                          )
+                        else if (orders.isEmpty)
+                          const _HistoryEmptyState()
+                        else ...[
+                          ...orders.map(
+                            (QueueOrder order) => Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _OrderHistoryCard(
+                                order: order,
+                                currentUser: widget.user,
+                                onPressed: () {
+                                  widget.onOpenOrder(
+                                    order,
+                                    _viewModel.searchQuery,
+                                    _viewModel.filters,
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                          if (_viewModel.canLoadMore) ...[
+                            const SizedBox(height: 4),
+                            Center(
+                              child: OutlinedButton.icon(
+                                onPressed: _viewModel.loadMore,
+                                icon: const Icon(
+                                  Symbols.expand_more_rounded,
+                                  size: 19,
+                                ),
+                                label: const Text('Charger plus'),
+                              ),
+                            ),
+                          ],
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -343,60 +212,162 @@ class _HistoryTopBar extends StatelessWidget {
   final AppUser user;
   final VoidCallback onBack;
 
-  String get initial {
-    final String value = user.name.trim();
-    return value.isEmpty ? '?' : value.substring(0, 1).toUpperCase();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.background,
-      padding: const EdgeInsets.fromLTRB(12, 10, 20, 10),
+      padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
+      decoration: const BoxDecoration(
+        color: IzyTelColors.surface,
+        border: Border(bottom: BorderSide(color: IzyTelColors.outline)),
+      ),
       child: Row(
         children: [
           IconButton(
-            tooltip: 'Retour à la file',
+            tooltip: 'Retour aux commandes',
             onPressed: onBack,
-            color: AppColors.primaryContainer,
-            icon: const Icon(Icons.arrow_back_rounded),
+            icon: const Icon(Symbols.arrow_back_rounded),
+            color: IzyTelColors.textPrimary,
           ),
           const SizedBox(width: 2),
-          const Icon(
-            Icons.receipt_long_outlined,
-            color: AppColors.primaryContainer,
-            size: 21,
-          ),
-          const SizedBox(width: 8),
-          const Expanded(
-            child: Text(
-              'CabineFlow',
-              style: TextStyle(
-                color: AppColors.onBackground,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
           Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withAlpha(35),
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.primary.withAlpha(150)),
-            ),
+            width: 34,
+            height: 34,
             alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: IzyTelColors.primarySoft,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Symbols.history_rounded,
+              color: IzyTelColors.primary,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
             child: Text(
-              initial,
-              style: const TextStyle(
-                color: AppColors.primaryContainer,
-                fontWeight: FontWeight.w700,
+              'Historique',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: IzyTelColors.textPrimary,
+                fontWeight: FontWeight.w800,
               ),
             ),
           ),
+          IzyTelAvatar(name: user.name, size: 38),
         ],
       ),
+    );
+  }
+}
+
+class _FilterButton extends StatelessWidget {
+  const _FilterButton({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Filtres',
+      child: SizedBox(
+        width: 54,
+        height: 52,
+        child: Material(
+          color: count > 0
+              ? IzyTelColors.primarySoft
+              : IzyTelColors.surface,
+          borderRadius: BorderRadius.circular(IzyTelRadii.input),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(IzyTelRadii.input),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(IzyTelRadii.input),
+                border: Border.all(
+                  color: count > 0
+                      ? IzyTelColors.primary
+                      : IzyTelColors.outlineStrong,
+                ),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(
+                    Symbols.tune_rounded,
+                    color: count > 0
+                        ? IzyTelColors.primary
+                        : IzyTelColors.textSecondary,
+                    size: 22,
+                  ),
+                  if (count > 0)
+                    Positioned(
+                      right: 4,
+                      top: 4,
+                      child: Container(
+                        constraints: const BoxConstraints(
+                          minWidth: 17,
+                          minHeight: 17,
+                        ),
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        decoration: const BoxDecoration(
+                          color: IzyTelColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          '$count',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HistorySummary extends StatelessWidget {
+  const _HistorySummary({required this.total});
+
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            '$total commande${total > 1 ? 's' : ''}',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: IzyTelColors.textSecondary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const Icon(
+          Symbols.swap_vert_rounded,
+          color: IzyTelColors.primary,
+          size: 18,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          'Plus récentes',
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: IzyTelColors.textMuted,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -414,9 +385,7 @@ class _OrderHistoryCard extends StatelessWidget {
 
   String get operatorLabel {
     final String operatorId = order.takenByUserId?.trim() ?? '';
-    if (operatorId.isEmpty) {
-      return 'Non attribué';
-    }
+    if (operatorId.isEmpty) return 'Non attribuée';
     return operatorId == currentUser.id
         ? currentUser.name
         : compactOperatorLabel(operatorId);
@@ -424,167 +393,227 @@ class _OrderHistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color statusColor = orderStatusColor(order.status);
-    final Color mobileNetworkColor = networkColor(order.network);
+    final Color statusColor = _statusColor(order.status);
+    final Color networkAccent = _networkColor(order.network);
 
-    return Material(
-      color: AppColors.surfaceContainer,
-      borderRadius: BorderRadius.circular(15),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(15),
-        child: Container(
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: AppColors.outlineVariant.withAlpha(80)),
+    return IzyTelSurface(
+      onTap: onPressed,
+      radius: 16,
+      padding: EdgeInsets.zero,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: Container(
+              width: 4,
+              decoration: BoxDecoration(
+                color: networkAccent,
+                borderRadius: const BorderRadius.horizontal(
+                  left: Radius.circular(16),
+                ),
+              ),
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(17, 13, 13, 12),
+            child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '#${order.reference}',
-                          style: const TextStyle(
-                            color: AppColors.primaryContainer,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          formatOrderDateTime(order.createdAt),
-                          style: const TextStyle(
-                            color: AppColors.onSurfaceVariant,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusColor.withAlpha(24),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: statusColor.withAlpha(110)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          orderStatusIcon(order.status),
-                          size: 12,
-                          color: statusColor,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          orderStatusLabel(order.status),
-                          style: TextStyle(
-                            color: statusColor,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Text(
-                order.clientName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.onBackground,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${operationTypeLabel(order.operationType)} • ${formatIvorianPhone(order.beneficiaryPhone)}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.onSurfaceVariant,
-                  fontSize: 11,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Divider(height: 1, color: AppColors.outlineVariant.withAlpha(65)),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: mobileNetworkColor.withAlpha(30),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: mobileNetworkColor.withAlpha(90),
-                      ),
-                    ),
-                    child: Image.asset(
-                      networkAsset(order.network),
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
+                  Row(
+                    children: [
+                      _NetworkLogo(network: order.network),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
                           networkLabel(order.network),
-                          style: const TextStyle(
-                            color: AppColors.onBackground,
-                            fontSize: 12,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            color: IzyTelColors.textPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _HistoryStatusPill(
+                        label: _compactStatusLabel(order.status),
+                        color: statusColor,
+                        icon: _statusIcon(order.status),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    order.offerLabel.trim().isEmpty
+                        ? operationTypeLabel(order.operationType)
+                        : order.offerLabel,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: IzyTelColors.textPrimary,
+                      fontSize: IzyTelTypeScale.cardTitle,
+                      fontWeight: FontWeight.w800,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 9),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Symbols.phone_iphone_rounded,
+                        size: 18,
+                        color: IzyTelColors.textMuted,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          formatIvorianPhone(order.beneficiaryPhone),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: IzyTelColors.textPrimary,
+                            fontSize: IzyTelTypeScale.transactionNumber,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: .1,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        formatCfa(order.amount),
+                        maxLines: 1,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: IzyTelColors.primaryStrong,
+                          fontSize: IzyTelTypeScale.money,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  const Divider(height: 1),
+                  const SizedBox(height: 9),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              order.clientName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                color: IzyTelColors.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${formatOrderDateTime(order.createdAt)} · $operatorLabel',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: IzyTelColors.textMuted,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 108),
+                        child: Text(
+                          order.reference,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: IzyTelColors.textMuted,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        Text(
-                          'Op. $operatorLabel',
-                          style: const TextStyle(
-                            color: AppColors.onSurfaceVariant,
-                            fontSize: 9,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    formatCfa(order.amount),
-                    style: const TextStyle(
-                      color: AppColors.onBackground,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    color: AppColors.primaryContainer,
+                      ),
+                      const SizedBox(width: 2),
+                      const Icon(
+                        Symbols.chevron_right_rounded,
+                        color: IzyTelColors.textMuted,
+                        size: 19,
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
-        ),
+            ),
+        ],
       ),
+    );
+  }
+}
+
+class _HistoryStatusPill extends StatelessWidget {
+  const _HistoryStatusPill({
+    required this.label,
+    required this.color,
+    required this.icon,
+  });
+
+  final String label;
+  final Color color;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 142),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withAlpha(22),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NetworkLogo extends StatelessWidget {
+  const _NetworkLogo({required this.network});
+
+  final MobileNetwork network;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 36,
+      height: 36,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: _networkSoftColor(network),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Image.asset(_networkBrandAsset(network), fit: BoxFit.contain),
     );
   }
 }
@@ -633,6 +662,7 @@ class _ActiveFilters extends StatelessWidget {
       chips.add(
         _FilterSummaryChip(
           label: networkLabel(network),
+          accent: _networkColor(network),
           onDeleted: () {
             final Set<MobileNetwork> networks = Set<MobileNetwork>.from(
               filters.networks,
@@ -676,18 +706,16 @@ class _ActiveFilters extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Wrap(spacing: 7, runSpacing: 7, children: chips),
-        const SizedBox(height: 6),
-        TextButton(
+        const SizedBox(height: 4),
+        TextButton.icon(
           onPressed: onClearAll,
           style: TextButton.styleFrom(
-            padding: EdgeInsets.zero,
-            minimumSize: const Size(0, 30),
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+            minimumSize: Size.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
-          child: const Text(
-            'Effacer tous les filtres',
-            style: TextStyle(fontSize: 11),
-          ),
+          icon: const Icon(Symbols.filter_alt_off_rounded, size: 16),
+          label: const Text('Effacer tous les filtres'),
         ),
       ],
     );
@@ -695,45 +723,52 @@ class _ActiveFilters extends StatelessWidget {
 }
 
 class _FilterSummaryChip extends StatelessWidget {
-  const _FilterSummaryChip({required this.label, required this.onDeleted});
+  const _FilterSummaryChip({
+    required this.label,
+    required this.onDeleted,
+    this.accent = IzyTelColors.primary,
+  });
 
   final String label;
   final VoidCallback onDeleted;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 6, 5, 6),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.outlineVariant.withAlpha(100)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.onBackground,
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(width: 4),
-          InkWell(
-            onTap: onDeleted,
-            borderRadius: BorderRadius.circular(15),
-            child: const Padding(
-              padding: EdgeInsets.all(2),
-              child: Icon(
-                Icons.close_rounded,
-                size: 14,
-                color: AppColors.onSurfaceVariant,
+    return Material(
+      color: accent.withAlpha(14),
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 6, 5, 6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: accent.withAlpha(45)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: IzyTelColors.textPrimary,
+                fontWeight: FontWeight.w700,
               ),
             ),
-          ),
-        ],
+            const SizedBox(width: 4),
+            InkWell(
+              onTap: onDeleted,
+              borderRadius: BorderRadius.circular(999),
+              child: Padding(
+                padding: const EdgeInsets.all(2),
+                child: Icon(
+                  Symbols.close_rounded,
+                  size: 14,
+                  color: accent,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -744,43 +779,45 @@ class _HistoryEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 300,
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.outlineVariant.withAlpha(70)),
-      ),
-      child: const Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.history_toggle_off_rounded,
-            size: 54,
-            color: AppColors.onSurfaceVariant,
-          ),
-          SizedBox(height: 15),
-          Text(
-            'Aucune commande trouvée',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.onBackground,
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
+    return IzyTelSurface(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32),
+        child: Column(
+          children: [
+            Container(
+              width: 62,
+              height: 62,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: IzyTelColors.primarySoft,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Icon(
+                Symbols.history_toggle_off_rounded,
+                size: 30,
+                color: IzyTelColors.primary,
+              ),
             ),
-          ),
-          SizedBox(height: 7),
-          Text(
-            'Modifiez la recherche ou les filtres pour afficher davantage de résultats.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.onSurfaceVariant,
-              fontSize: 12,
-              height: 1.4,
+            const SizedBox(height: 14),
+            Text(
+              'Aucune commande trouvée',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: IzyTelColors.textPrimary,
+                fontWeight: FontWeight.w800,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 6),
+            Text(
+              'Modifie la recherche ou les filtres pour afficher davantage de résultats.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: IzyTelColors.textSecondary,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -794,38 +831,34 @@ class _HistoryErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 300,
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.error.withAlpha(90)),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.cloud_off_outlined,
-            size: 52,
-            color: AppColors.error,
-          ),
-          const SizedBox(height: 14),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.onBackground,
-              fontWeight: FontWeight.w700,
+    return IzyTelSurface(
+      borderColor: IzyTelColors.error.withAlpha(75),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 30),
+        child: Column(
+          children: [
+            const Icon(
+              Symbols.cloud_off_rounded,
+              size: 34,
+              color: IzyTelColors.error,
             ),
-          ),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Réessayer'),
-          ),
-        ],
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: IzyTelColors.textPrimary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Symbols.refresh_rounded),
+              label: const Text('Réessayer'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -878,27 +911,6 @@ class _OrderHistoryFilterSheetState extends State<_OrderHistoryFilterSheet> {
     super.dispose();
   }
 
-  InputDecoration _fieldDecoration(String hintText) {
-    return InputDecoration(
-      hintText: hintText,
-      hintStyle: const TextStyle(
-        color: AppColors.onSurfaceVariant,
-        fontSize: 12,
-      ),
-      filled: true,
-      fillColor: AppColors.surfaceContainerLow,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(9),
-        borderSide: BorderSide(color: AppColors.outlineVariant.withAlpha(80)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(9),
-        borderSide: const BorderSide(color: AppColors.primary),
-      ),
-    );
-  }
-
   void _reset() {
     setState(() {
       _period = OrderHistoryPeriod.all;
@@ -948,257 +960,383 @@ class _OrderHistoryFilterSheetState extends State<_OrderHistoryFilterSheet> {
       if (_operatorId?.trim().isNotEmpty == true) _operatorId!,
     }.toList()..sort();
 
-    return Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * 0.92,
-      ),
-      decoration: const BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 12, 10),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Filtres de l’historique',
-                      style: TextStyle(
-                        color: AppColors.onBackground,
-                        fontSize: 19,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Fermer',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(
-                      Icons.close_rounded,
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+    final double keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    final double availableHeight =
+        MediaQuery.sizeOf(context).height - keyboardInset;
+    final double height = availableHeight * .90;
+
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.fromLTRB(10, 10, 10, keyboardInset),
+      child: SizedBox(
+        height: height,
+        child: Material(
+          color: IzyTelColors.surface,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(IzyTelRadii.sheet),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              const SizedBox(height: 9),
+              Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: IzyTelColors.outlineStrong,
+                  borderRadius: BorderRadius.circular(99),
+                ),
               ),
-            ),
-            Divider(height: 1, color: AppColors.outlineVariant.withAlpha(80)),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 10, 12),
+                child: Row(
                   children: [
-                    const _FilterSectionLabel('Période'),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<OrderHistoryPeriod>(
-                      initialValue: _period,
-                      dropdownColor: AppColors.surfaceContainerHighest,
-                      style: const TextStyle(
-                        color: AppColors.onBackground,
-                        fontSize: 13,
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Filtres de l’historique',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: IzyTelColors.textPrimary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Affiner les résultats sans perdre ta recherche.',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: IzyTelColors.textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
-                      decoration: _fieldDecoration('Période'),
-                      items: OrderHistoryPeriod.values.map((
-                        OrderHistoryPeriod period,
-                      ) {
-                        return DropdownMenuItem<OrderHistoryPeriod>(
-                          value: period,
-                          child: Text(historyPeriodLabel(period)),
-                        );
-                      }).toList(),
-                      onChanged: (OrderHistoryPeriod? value) {
-                        if (value != null) {
-                          setState(() => _period = value);
-                        }
-                      },
                     ),
-                    const SizedBox(height: 22),
-                    const _FilterSectionLabel('État de la commande'),
-                    const SizedBox(height: 9),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: OrderHistoryStateFilter.values.map((
-                        OrderHistoryStateFilter state,
-                      ) {
-                        final bool selected = _states.contains(state);
-                        return FilterChip(
-                          selected: selected,
-                          showCheckmark: false,
-                          label: Text(historyStateLabel(state)),
-                          labelStyle: TextStyle(
-                            color: selected
-                                ? Colors.white
-                                : AppColors.onSurfaceVariant,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          selectedColor: AppColors.primary.withAlpha(170),
-                          backgroundColor: AppColors.surfaceContainerLow,
-                          side: BorderSide(
-                            color: selected
-                                ? AppColors.primary
-                                : AppColors.outlineVariant.withAlpha(90),
-                          ),
-                          onSelected: (bool value) {
-                            setState(() {
-                              value
-                                  ? _states.add(state)
-                                  : _states.remove(state);
-                            });
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 22),
-                    const _FilterSectionLabel('Réseau'),
-                    const SizedBox(height: 9),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: MobileNetwork.values.map((
-                        MobileNetwork network,
-                      ) {
-                        final bool selected = _networks.contains(network);
-                        final Color color = networkColor(network);
-                        return FilterChip(
-                          selected: selected,
-                          showCheckmark: false,
-                          avatar: Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: color,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          label: Text(networkLabel(network)),
-                          labelStyle: TextStyle(
-                            color: selected
-                                ? AppColors.onBackground
-                                : AppColors.onSurfaceVariant,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          selectedColor: color.withAlpha(35),
-                          backgroundColor: AppColors.surfaceContainerLow,
-                          side: BorderSide(
-                            color: selected
-                                ? color
-                                : AppColors.outlineVariant.withAlpha(90),
-                          ),
-                          onSelected: (bool value) {
-                            setState(() {
-                              value
-                                  ? _networks.add(network)
-                                  : _networks.remove(network);
-                            });
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 22),
-                    const _FilterSectionLabel('Montant (F CFA)'),
-                    const SizedBox(height: 9),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _minimumController,
-                            keyboardType: TextInputType.number,
-                            style: const TextStyle(
-                              color: AppColors.onBackground,
-                            ),
-                            decoration: _fieldDecoration('Minimum'),
-                          ),
-                        ),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 9),
-                          child: Text(
-                            '—',
-                            style: TextStyle(color: AppColors.onSurfaceVariant),
-                          ),
-                        ),
-                        Expanded(
-                          child: TextField(
-                            controller: _maximumController,
-                            keyboardType: TextInputType.number,
-                            style: const TextStyle(
-                              color: AppColors.onBackground,
-                            ),
-                            decoration: _fieldDecoration('Maximum'),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 22),
-                    const _FilterSectionLabel('Opérateur responsable'),
-                    const SizedBox(height: 9),
-                    DropdownButtonFormField<String?>(
-                      initialValue: _operatorId,
-                      dropdownColor: AppColors.surfaceContainerHighest,
-                      style: const TextStyle(
-                        color: AppColors.onBackground,
-                        fontSize: 13,
-                      ),
-                      decoration: _fieldDecoration('Tous les opérateurs'),
-                      items: <DropdownMenuItem<String?>>[
-                        const DropdownMenuItem<String?>(
-                          value: null,
-                          child: Text('Tous les opérateurs'),
-                        ),
-                        ...effectiveOperatorIds.map((String operatorId) {
-                          return DropdownMenuItem<String?>(
-                            value: operatorId,
-                            child: Text(
-                              operatorId == widget.currentUser.id
-                                  ? widget.currentUser.name
-                                  : compactOperatorLabel(operatorId),
-                            ),
-                          );
-                        }),
-                      ],
-                      onChanged: (String? value) {
-                        setState(() => _operatorId = value);
-                      },
+                    IconButton(
+                      tooltip: 'Fermer',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Symbols.close_rounded),
                     ),
                   ],
                 ),
               ),
-            ),
-            Divider(height: 1, color: AppColors.outlineVariant.withAlpha(80)),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _reset,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.onBackground,
-                        side: BorderSide(
-                          color: AppColors.outlineVariant.withAlpha(100),
+              const Divider(height: 1),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const _FilterSectionLabel(
+                        icon: Symbols.calendar_month_rounded,
+                        text: 'Période',
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: OrderHistoryPeriod.values.map((period) {
+                          return _ChoicePill(
+                            label: historyPeriodLabel(period),
+                            selected: _period == period,
+                            onTap: () => setState(() => _period = period),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 24),
+                      const _FilterSectionLabel(
+                        icon: Symbols.fact_check_rounded,
+                        text: 'État de la commande',
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: OrderHistoryStateFilter.values.map((state) {
+                          final bool selected = _states.contains(state);
+                          final Color color = _stateFilterColor(state);
+                          return _ChoicePill(
+                            label: historyStateLabel(state),
+                            selected: selected,
+                            accent: color,
+                            onTap: () {
+                              setState(() {
+                                selected
+                                    ? _states.remove(state)
+                                    : _states.add(state);
+                              });
+                            },
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 24),
+                      const _FilterSectionLabel(
+                        icon: Symbols.sim_card_rounded,
+                        text: 'Réseau',
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: MobileNetwork.values.map((network) {
+                          final bool selected = _networks.contains(network);
+                          return _NetworkChoicePill(
+                            network: network,
+                            selected: selected,
+                            onTap: () {
+                              setState(() {
+                                selected
+                                    ? _networks.remove(network)
+                                    : _networks.add(network);
+                              });
+                            },
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 24),
+                      const _FilterSectionLabel(
+                        icon: Symbols.payments_rounded,
+                        text: 'Montant',
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _minimumController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'Minimum',
+                                hintText: '0',
+                                prefixText: 'F ',
+                              ),
+                            ),
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 8),
+                            child: Text(
+                              '—',
+                              style: TextStyle(
+                                color: IzyTelColors.textMuted,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: TextField(
+                              controller: _maximumController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'Maximum',
+                                hintText: '∞',
+                                prefixText: 'F ',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      const _FilterSectionLabel(
+                        icon: Symbols.person_rounded,
+                        text: 'Opérateur responsable',
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String?>(
+                        initialValue: _operatorId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          hintText: 'Tous les opérateurs',
                         ),
-                        minimumSize: const Size.fromHeight(48),
+                        items: <DropdownMenuItem<String?>>[
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('Tous les opérateurs'),
+                          ),
+                          ...effectiveOperatorIds.map((String operatorId) {
+                            return DropdownMenuItem<String?>(
+                              value: operatorId,
+                              child: Text(
+                                operatorId == widget.currentUser.id
+                                    ? widget.currentUser.name
+                                    : compactOperatorLabel(operatorId),
+                              ),
+                            );
+                          }),
+                        ],
+                        onChanged: (String? value) {
+                          setState(() => _operatorId = value);
+                        },
                       ),
-                      child: const Text('Réinitialiser'),
-                    ),
+                    ],
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: _apply,
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(48),
+                ),
+              ),
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _reset,
+                        icon: const Icon(Symbols.restart_alt_rounded, size: 18),
+                        label: const Text('Réinitialiser'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                        ),
                       ),
-                      child: const Text('Appliquer'),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _apply,
+                        icon: const Icon(Symbols.check_rounded, size: 18),
+                        label: const Text('Appliquer'),
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterSectionLabel extends StatelessWidget {
+  const _FilterSectionLabel({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 30,
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: IzyTelColors.primarySoft,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Icon(icon, size: 17, color: IzyTelColors.primary),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: IzyTelColors.textPrimary,
+              fontWeight: FontWeight.w800,
+              height: 1.15,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ChoicePill extends StatelessWidget {
+  const _ChoicePill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.accent = IzyTelColors.primary,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? accent : IzyTelColors.surface,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected ? accent : IzyTelColors.outlineStrong,
+          ),
+        ),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: selected ? Colors.white : IzyTelColors.textSecondary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NetworkChoicePill extends StatelessWidget {
+  const _NetworkChoicePill({
+    required this.network,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final MobileNetwork network;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color accent = _networkColor(network);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.fromLTRB(8, 7, 12, 7),
+        decoration: BoxDecoration(
+          color: selected ? _networkSoftColor(network) : IzyTelColors.surface,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected ? accent : IzyTelColors.outlineStrong,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(7),
+              ),
+              child: Image.asset(
+                _networkBrandAsset(network),
+                fit: BoxFit.contain,
+              ),
+            ),
+            const SizedBox(width: 7),
+            Text(
+              networkLabel(network),
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: selected ? accent : IzyTelColors.textSecondary,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -1208,21 +1346,125 @@ class _OrderHistoryFilterSheetState extends State<_OrderHistoryFilterSheet> {
   }
 }
 
-class _FilterSectionLabel extends StatelessWidget {
-  const _FilterSectionLabel(this.text);
+String _compactStatusLabel(QueueOrderStatus status) {
+  switch (status) {
+    case QueueOrderStatus.awaitingPayment:
+      return 'Paiement attendu';
+    case QueueOrderStatus.paymentToVerify:
+      return 'À vérifier';
+    case QueueOrderStatus.paidReady:
+      return 'Prête à traiter';
+    case QueueOrderStatus.inProgress:
+      return 'En traitement';
+    case QueueOrderStatus.onHold:
+      return 'En attente';
+    case QueueOrderStatus.awaitingCustomerConfirmation:
+      return 'Transaction effectuée';
+    case QueueOrderStatus.completed:
+      return 'Terminée';
+    case QueueOrderStatus.failed:
+      return 'Échouée';
+    case QueueOrderStatus.expired:
+      return 'Expirée';
+    case QueueOrderStatus.cancelled:
+      return 'Annulée';
+    case QueueOrderStatus.refundPending:
+      return 'Remboursement';
+    case QueueOrderStatus.refunded:
+      return 'Remboursée';
+  }
+}
 
-  final String text;
+Color _statusColor(QueueOrderStatus status) {
+  switch (status) {
+    case QueueOrderStatus.completed:
+    case QueueOrderStatus.refunded:
+      return IzyTelColors.success;
+    case QueueOrderStatus.failed:
+    case QueueOrderStatus.cancelled:
+      return IzyTelColors.error;
+    case QueueOrderStatus.awaitingPayment:
+    case QueueOrderStatus.paymentToVerify:
+    case QueueOrderStatus.onHold:
+    case QueueOrderStatus.expired:
+    case QueueOrderStatus.refundPending:
+      return IzyTelColors.warning;
+    case QueueOrderStatus.paidReady:
+    case QueueOrderStatus.inProgress:
+    case QueueOrderStatus.awaitingCustomerConfirmation:
+      return IzyTelColors.primary;
+  }
+}
 
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text.toUpperCase(),
-      style: const TextStyle(
-        color: AppColors.onSurfaceVariant,
-        fontSize: 10,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 0.7,
-      ),
-    );
+IconData _statusIcon(QueueOrderStatus status) {
+  switch (status) {
+    case QueueOrderStatus.completed:
+    case QueueOrderStatus.refunded:
+      return Symbols.check_circle_rounded;
+    case QueueOrderStatus.failed:
+    case QueueOrderStatus.cancelled:
+      return Symbols.cancel_rounded;
+    case QueueOrderStatus.expired:
+      return Symbols.timer_off_rounded;
+    case QueueOrderStatus.refundPending:
+      return Symbols.replay_rounded;
+    case QueueOrderStatus.paidReady:
+      return Symbols.inventory_2_rounded;
+    case QueueOrderStatus.inProgress:
+      return Symbols.autorenew_rounded;
+    case QueueOrderStatus.awaitingCustomerConfirmation:
+      return Symbols.mark_chat_read_rounded;
+    case QueueOrderStatus.awaitingPayment:
+      return Symbols.account_balance_wallet_rounded;
+    case QueueOrderStatus.paymentToVerify:
+      return Symbols.fact_check_rounded;
+    case QueueOrderStatus.onHold:
+      return Symbols.pause_circle_rounded;
+  }
+}
+
+Color _stateFilterColor(OrderHistoryStateFilter state) {
+  switch (state) {
+    case OrderHistoryStateFilter.active:
+      return IzyTelColors.primary;
+    case OrderHistoryStateFilter.completed:
+      return IzyTelColors.success;
+    case OrderHistoryStateFilter.failed:
+      return IzyTelColors.error;
+    case OrderHistoryStateFilter.expired:
+      return IzyTelColors.warning;
+  }
+}
+
+Color _networkColor(MobileNetwork network) {
+  switch (network) {
+    case MobileNetwork.orange:
+      return IzyTelColors.orange;
+    case MobileNetwork.mtn:
+      return IzyTelColors.mtnText;
+    case MobileNetwork.moov:
+      return IzyTelColors.moov;
+  }
+}
+
+Color _networkSoftColor(MobileNetwork network) {
+  switch (network) {
+    case MobileNetwork.orange:
+      return IzyTelColors.orangeSoft;
+    case MobileNetwork.mtn:
+      return IzyTelColors.mtnSoft;
+    case MobileNetwork.moov:
+      return IzyTelColors.moovSoft;
+  }
+}
+
+String _networkBrandAsset(MobileNetwork network) {
+  switch (network) {
+    case MobileNetwork.orange:
+      return 'assets/brands/operators/orange_ci.png';
+    case MobileNetwork.mtn:
+      return 'assets/brands/operators/mtn_ci.png';
+    case MobileNetwork.moov:
+      return 'assets/brands/operators/moov_africa_ci.png';
   }
 }

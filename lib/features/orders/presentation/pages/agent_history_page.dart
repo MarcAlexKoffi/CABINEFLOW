@@ -50,112 +50,126 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
     super.dispose();
   }
 
+  void _closeOpenedOrder() {
+    if (_openedOrderId == null) return;
+    setState(() => _openedOrderId = null);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: IzyTelColors.background,
-      body: SafeArea(
-        bottom: false,
-        child: ListenableBuilder(
-          listenable: _viewModel,
-          builder: (BuildContext context, Widget? child) {
-            final String? openedId = _openedOrderId;
-            if (openedId != null) {
-              final QueueOrder? order = _viewModel.orderById(openedId);
-              if (order != null) {
-                return AgentOrderDetailView(
-                  user: widget.user,
-                  order: order,
-                  viewModel: _viewModel,
-                  onBack: () => setState(() => _openedOrderId = null),
-                );
+    return PopScope(
+      canPop: _openedOrderId == null,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (!didPop && _openedOrderId != null) {
+          _closeOpenedOrder();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: IzyTelColors.background,
+        body: SafeArea(
+          bottom: false,
+          child: ListenableBuilder(
+            listenable: _viewModel,
+            builder: (BuildContext context, Widget? child) {
+              final String? openedId = _openedOrderId;
+              if (openedId != null) {
+                final QueueOrder? order = _viewModel.orderById(openedId);
+                if (order != null) {
+                  return AgentOrderDetailView(
+                    user: widget.user,
+                    order: order,
+                    viewModel: _viewModel,
+                    onBack: _closeOpenedOrder,
+                  );
+                }
               }
-            }
 
-            final List<QueueOrder> orders = _tab == 0
-                ? _viewModel.inProgressOrders
-                : _viewModel.completedOrders;
+              final List<QueueOrder> orders = _tab == 0
+                  ? _viewModel.inProgressOrders
+                  : _viewModel.completedOrders;
 
-            return RefreshIndicator(
-              onRefresh: _viewModel.start,
-              color: IzyTelColors.primary,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
-                children: [
-                  Text(
-                    'Historique',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontSize: IzyTelTypeScale.title2,
-                      height: 1.15,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -.25,
+              return RefreshIndicator(
+                onRefresh: _viewModel.start,
+                color: IzyTelColors.primary,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+                  children: [
+                    Text(
+                      'Historique',
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            fontSize: IzyTelTypeScale.title2,
+                            height: 1.15,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -.25,
+                          ),
                     ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    'Retrouve tes commandes en cours et terminées.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: IzyTelColors.textSecondary,
-                      fontSize: IzyTelTypeScale.label,
-                      height: 1.35,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _HistoryTab(
-                          label: 'En cours',
-                          count: _viewModel.inProgressCount,
-                          selected: _tab == 0,
-                          onTap: () => setState(() => _tab = 0),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _HistoryTab(
-                          label: 'Terminées',
-                          count: _viewModel.completedCount,
-                          selected: _tab == 1,
-                          onTap: () => setState(() => _tab = 1),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  if (_viewModel.isLoading && orders.isEmpty)
-                    const SizedBox(
-                      height: 260,
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  else if (orders.isEmpty)
-                    IzyTelSurface(
-                      radius: IzyTelRadii.card,
-                      child: Text(
-                        _tab == 0
-                            ? 'Aucune commande en cours.'
-                            : 'Aucune commande terminée.',
-                        textAlign: TextAlign.center,
-                      ),
-                    )
-                  else
-                    ...orders.map(
-                      (QueueOrder order) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _HistoryOrderCard(
-                          order: order,
-                          isCompleted: _tab == 1,
-                          onTap: () =>
-                              setState(() => _openedOrderId = order.id),
-                        ),
+                    const SizedBox(height: 5),
+                    Text(
+                      'Retrouve tes commandes en cours et terminées.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: IzyTelColors.textSecondary,
+                        fontSize: IzyTelTypeScale.label,
+                        height: 1.35,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                ],
-              ),
-            );
-          },
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _HistoryTab(
+                            label: 'En cours',
+                            count: _viewModel.inProgressCount,
+                            selected: _tab == 0,
+                            onTap: () => setState(() => _tab = 0),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _HistoryTab(
+                            label: 'Terminées',
+                            count: _viewModel.completedCount,
+                            selected: _tab == 1,
+                            onTap: () => setState(() => _tab = 1),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    if (_viewModel.isLoading && orders.isEmpty)
+                      const SizedBox(
+                        height: 260,
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (orders.isEmpty)
+                      IzyTelSurface(
+                        radius: IzyTelRadii.card,
+                        child: Text(
+                          _tab == 0
+                              ? 'Aucune commande en cours.'
+                              : 'Aucune commande terminée.',
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    else
+                      ...orders.map(
+                        (QueueOrder order) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _HistoryOrderCard(
+                            order: order,
+                            isCompleted: _tab == 1,
+                            onTap: () =>
+                                setState(() => _openedOrderId = order.id),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -196,7 +210,9 @@ class _HistoryTab extends StatelessWidget {
             '$label  $count',
             maxLines: 1,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: selected ? IzyTelColors.surface : IzyTelColors.textSecondary,
+              color: selected
+                  ? IzyTelColors.surface
+                  : IzyTelColors.textSecondary,
               fontSize: IzyTelTypeScale.label,
               fontWeight: FontWeight.w700,
             ),
@@ -227,15 +243,17 @@ class _HistoryOrderCard extends StatelessWidget {
     };
     final (String statusLabel, Color statusColor) = isCompleted
         ? (
-            order.status == QueueOrderStatus.refunded ? 'Remboursée' : 'Terminée',
+            order.status == QueueOrderStatus.refunded
+                ? 'Remboursée'
+                : 'Terminée',
             IzyTelColors.success,
           )
         : switch (order.status) {
             QueueOrderStatus.onHold => ('En attente', IzyTelColors.warning),
             QueueOrderStatus.awaitingCustomerConfirmation => (
-                'À confirmer',
-                IzyTelColors.primary,
-              ),
+              'À confirmer',
+              IzyTelColors.primary,
+            ),
             _ => ('En traitement', IzyTelColors.primary),
           };
 

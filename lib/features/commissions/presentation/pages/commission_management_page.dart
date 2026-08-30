@@ -55,92 +55,182 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
       ),
       body: StreamBuilder<List<AgentDirectoryEntry>>(
         stream: widget.agentRepository.watchAgents(),
-        builder: (
-          BuildContext context,
-          AsyncSnapshot<List<AgentDirectoryEntry>> agentSnapshot,
-        ) {
-          return StreamBuilder<List<CommissionEntry>>(
-            stream: widget.repository.watchCommissions(),
-            builder: (
+        builder:
+            (
               BuildContext context,
-              AsyncSnapshot<List<CommissionEntry>> commissionSnapshot,
+              AsyncSnapshot<List<AgentDirectoryEntry>> agentSnapshot,
             ) {
-              return StreamBuilder<List<CommissionPayout>>(
-                stream: widget.repository.watchPayouts(),
-                builder: (
-                  BuildContext context,
-                  AsyncSnapshot<List<CommissionPayout>> payoutSnapshot,
-                ) {
-                  return StreamBuilder<List<CommissionAccount>>(
-                    stream: widget.repository.watchAccounts(),
-                    builder: (
+              return StreamBuilder<List<CommissionEntry>>(
+                stream: widget.repository.watchCommissions(),
+                builder:
+                    (
                       BuildContext context,
-                      AsyncSnapshot<List<CommissionAccount>> accountSnapshot,
+                      AsyncSnapshot<List<CommissionEntry>> commissionSnapshot,
                     ) {
-                      return StreamBuilder<List<AgentAssignmentMetric>>(
-                        stream: widget.repository.watchAssignmentMetrics(),
-                        builder: (
-                          BuildContext context,
-                          AsyncSnapshot<List<AgentAssignmentMetric>> assignmentSnapshot,
-                        ) {
-                          return StreamBuilder<List<AgentProcessingMetric>>(
-                            stream: widget.repository.watchProcessingMetrics(),
-                            builder: (
+                      return StreamBuilder<List<CommissionPayout>>(
+                        stream: widget.repository.watchPayouts(),
+                        builder:
+                            (
                               BuildContext context,
-                              AsyncSnapshot<List<AgentProcessingMetric>> processingSnapshot,
+                              AsyncSnapshot<List<CommissionPayout>>
+                              payoutSnapshot,
                             ) {
-                              return StreamBuilder<List<AgentOrderMetric>>(
-                                stream: widget.repository.watchOrderMetrics(),
-                                builder: (
-                                  BuildContext context,
-                                  AsyncSnapshot<List<AgentOrderMetric>> orderSnapshot,
-                                ) {
-                                  final bool waiting =
-                                      agentSnapshot.connectionState == ConnectionState.waiting &&
-                                      commissionSnapshot.connectionState == ConnectionState.waiting &&
-                                      !agentSnapshot.hasData &&
-                                      !commissionSnapshot.hasData;
-                                  if (waiting) {
-                                    return const Center(child: CircularProgressIndicator());
-                                  }
-                                  if (agentSnapshot.hasError ||
-                                      commissionSnapshot.hasError ||
-                                      payoutSnapshot.hasError ||
-                                      accountSnapshot.hasError ||
-                                      assignmentSnapshot.hasError ||
-                                      processingSnapshot.hasError ||
-                                      orderSnapshot.hasError) {
-                                    return const SingleChildScrollView(
-                                      child: FinanceEmptyState(
-                                        icon: Symbols.cloud_off_rounded,
-                                        title: 'Commissions indisponibles',
-                                        message: 'Impossible de charger les données de commission pour le moment.',
-                                      ),
-                                    );
-                                  }
+                              return StreamBuilder<List<CommissionAccount>>(
+                                stream: widget.repository.watchAccounts(),
+                                builder:
+                                    (
+                                      BuildContext context,
+                                      AsyncSnapshot<List<CommissionAccount>>
+                                      accountSnapshot,
+                                    ) {
+                                      return StreamBuilder<
+                                        List<AgentAssignmentMetric>
+                                      >(
+                                        stream: widget.repository
+                                            .watchAssignmentMetrics(),
+                                        builder:
+                                            (
+                                              BuildContext context,
+                                              AsyncSnapshot<
+                                                List<AgentAssignmentMetric>
+                                              >
+                                              assignmentSnapshot,
+                                            ) {
+                                              return StreamBuilder<
+                                                List<AgentProcessingMetric>
+                                              >(
+                                                stream: widget.repository
+                                                    .watchProcessingMetrics(),
+                                                builder:
+                                                    (
+                                                      BuildContext context,
+                                                      AsyncSnapshot<
+                                                        List<
+                                                          AgentProcessingMetric
+                                                        >
+                                                      >
+                                                      processingSnapshot,
+                                                    ) {
+                                                      return StreamBuilder<
+                                                        List<AgentOrderMetric>
+                                                      >(
+                                                        stream: widget
+                                                            .repository
+                                                            .watchOrderMetrics(),
+                                                        builder:
+                                                            (
+                                                              BuildContext
+                                                              context,
+                                                              AsyncSnapshot<
+                                                                List<
+                                                                  AgentOrderMetric
+                                                                >
+                                                              >
+                                                              orderSnapshot,
+                                                            ) {
+                                                              final bool
+                                                              waiting =
+                                                                  agentSnapshot
+                                                                          .connectionState ==
+                                                                      ConnectionState
+                                                                          .waiting &&
+                                                                  commissionSnapshot
+                                                                          .connectionState ==
+                                                                      ConnectionState
+                                                                          .waiting &&
+                                                                  !agentSnapshot
+                                                                      .hasData &&
+                                                                  !commissionSnapshot
+                                                                      .hasData;
+                                                              if (waiting) {
+                                                                return const Center(
+                                                                  child:
+                                                                      CircularProgressIndicator(),
+                                                                );
+                                                              }
+                                                              if (agentSnapshot
+                                                                      .hasError ||
+                                                                  commissionSnapshot
+                                                                      .hasError ||
+                                                                  payoutSnapshot
+                                                                      .hasError ||
+                                                                  accountSnapshot
+                                                                      .hasError ||
+                                                                  assignmentSnapshot
+                                                                      .hasError ||
+                                                                  processingSnapshot
+                                                                      .hasError ||
+                                                                  orderSnapshot
+                                                                      .hasError) {
+                                                                return const SingleChildScrollView(
+                                                                  child: FinanceEmptyState(
+                                                                    icon: Symbols
+                                                                        .cloud_off_rounded,
+                                                                    title:
+                                                                        'Commissions indisponibles',
+                                                                    message:
+                                                                        'Impossible de charger les données de commission pour le moment.',
+                                                                  ),
+                                                                );
+                                                              }
 
-                                  return _buildContent(
-                                    agents: agentSnapshot.data ?? const <AgentDirectoryEntry>[],
-                                    commissions: commissionSnapshot.data ?? const <CommissionEntry>[],
-                                    payouts: payoutSnapshot.data ?? const <CommissionPayout>[],
-                                    accounts: accountSnapshot.data ?? const <CommissionAccount>[],
-                                    assignments: assignmentSnapshot.data ?? const <AgentAssignmentMetric>[],
-                                    processing: processingSnapshot.data ?? const <AgentProcessingMetric>[],
-                                    orderMetrics: orderSnapshot.data ?? const <AgentOrderMetric>[],
-                                  );
-                                },
+                                                              return _buildContent(
+                                                                agents:
+                                                                    agentSnapshot
+                                                                        .data ??
+                                                                    const <
+                                                                      AgentDirectoryEntry
+                                                                    >[],
+                                                                commissions:
+                                                                    commissionSnapshot
+                                                                        .data ??
+                                                                    const <
+                                                                      CommissionEntry
+                                                                    >[],
+                                                                payouts:
+                                                                    payoutSnapshot
+                                                                        .data ??
+                                                                    const <
+                                                                      CommissionPayout
+                                                                    >[],
+                                                                accounts:
+                                                                    accountSnapshot
+                                                                        .data ??
+                                                                    const <
+                                                                      CommissionAccount
+                                                                    >[],
+                                                                assignments:
+                                                                    assignmentSnapshot
+                                                                        .data ??
+                                                                    const <
+                                                                      AgentAssignmentMetric
+                                                                    >[],
+                                                                processing:
+                                                                    processingSnapshot
+                                                                        .data ??
+                                                                    const <
+                                                                      AgentProcessingMetric
+                                                                    >[],
+                                                                orderMetrics:
+                                                                    orderSnapshot
+                                                                        .data ??
+                                                                    const <
+                                                                      AgentOrderMetric
+                                                                    >[],
+                                                              );
+                                                            },
+                                                      );
+                                                    },
+                                              );
+                                            },
+                                      );
+                                    },
                               );
                             },
-                          );
-                        },
                       );
                     },
-                  );
-                },
               );
             },
-          );
-        },
       ),
     );
   }
@@ -156,10 +246,14 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
   }) {
     final DateTime now = DateTime.now();
     final List<CommissionEntry> periodCommissions = commissions
-        .where((CommissionEntry value) => _period.contains(value.earnedAt, now: now))
+        .where(
+          (CommissionEntry value) => _period.contains(value.earnedAt, now: now),
+        )
         .toList(growable: false);
     final List<CommissionPayout> periodPayouts = payouts
-        .where((CommissionPayout value) => _period.contains(value.paidAt, now: now))
+        .where(
+          (CommissionPayout value) => _period.contains(value.paidAt, now: now),
+        )
         .toList(growable: false);
 
     final int generated = periodCommissions.fold<int>(
@@ -176,39 +270,50 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
           total + value.balance.clamp(0, value.earnedTotal).toInt(),
     );
 
-    final Map<String, CommissionAccount> accountByAgent = <String, CommissionAccount>{
-      for (final CommissionAccount value in accounts) value.agentId: value,
-    };
+    final Map<String, CommissionAccount> accountByAgent =
+        <String, CommissionAccount>{
+          for (final CommissionAccount value in accounts) value.agentId: value,
+        };
 
-    final List<_AgentRowData> rows = agents
-        .map((AgentDirectoryEntry agent) {
-          final AgentPerformanceSnapshot performance = CommissionPerformanceCalculator.build(
-            agentId: agent.userId,
-            period: _period,
-            commissions: commissions,
-            payouts: payouts,
-            assignments: assignments,
-            processingEvents: processing,
-            orderMetrics: orderMetrics,
-            now: now,
-          );
-          final CommissionAccount? account = accountByAgent[agent.userId];
-          return _AgentRowData(
-            agent: agent,
-            performance: performance,
-            allTimeEarned: account?.earnedTotal ?? performance.totalCommissionEarned,
-            allTimePaid: account?.paidTotal ?? performance.totalCommissionPaid,
-            balance: account?.balance.clamp(0, account.earnedTotal).toInt() ?? performance.commissionBalance,
-          );
-        })
-        .where(_matchesFilter)
-        .toList(growable: false)
-      ..sort((_AgentRowData a, _AgentRowData b) {
-        if (a.balance != b.balance) return b.balance.compareTo(a.balance);
-        return a.agent.name.toLowerCase().compareTo(b.agent.name.toLowerCase());
-      });
+    final List<_AgentRowData> rows =
+        agents
+            .map((AgentDirectoryEntry agent) {
+              final AgentPerformanceSnapshot performance =
+                  CommissionPerformanceCalculator.build(
+                    agentId: agent.userId,
+                    period: _period,
+                    commissions: commissions,
+                    payouts: payouts,
+                    assignments: assignments,
+                    processingEvents: processing,
+                    orderMetrics: orderMetrics,
+                    now: now,
+                  );
+              final CommissionAccount? account = accountByAgent[agent.userId];
+              return _AgentRowData(
+                agent: agent,
+                performance: performance,
+                allTimeEarned:
+                    account?.earnedTotal ?? performance.totalCommissionEarned,
+                allTimePaid:
+                    account?.paidTotal ?? performance.totalCommissionPaid,
+                balance:
+                    account?.balance.clamp(0, account.earnedTotal).toInt() ??
+                    performance.commissionBalance,
+              );
+            })
+            .where(_matchesFilter)
+            .toList(growable: false)
+          ..sort((_AgentRowData a, _AgentRowData b) {
+            if (a.balance != b.balance) return b.balance.compareTo(a.balance);
+            return a.agent.name.toLowerCase().compareTo(
+              b.agent.name.toLowerCase(),
+            );
+          });
 
-    final int toPayCount = accounts.where((CommissionAccount value) => value.balance > 0).length;
+    final int toPayCount = accounts
+        .where((CommissionAccount value) => value.balance > 0)
+        .length;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 6, 20, 30),
@@ -224,7 +329,8 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
         const SizedBox(height: 14),
         _PeriodSelector(
           value: _period,
-          onChanged: (CommissionPeriod value) => setState(() => _period = value),
+          onChanged: (CommissionPeriod value) =>
+              setState(() => _period = value),
         ),
         const SizedBox(height: 16),
         Container(
@@ -284,7 +390,9 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
                 value: formatCfa(outstanding),
                 caption: '$toPayCount agent${toPayCount > 1 ? 's' : ''}',
                 icon: Symbols.account_balance_wallet_rounded,
-                accent: outstanding > 0 ? IzyTelColors.warning : IzyTelColors.success,
+                accent: outstanding > 0
+                    ? IzyTelColors.warning
+                    : IzyTelColors.success,
               ),
             ),
             const SizedBox(width: 10),
@@ -292,7 +400,8 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
               child: FinancialMetricCard(
                 label: 'Payé sur la période',
                 value: formatCfa(paidInPeriod),
-                caption: '${periodPayouts.length} versement${periodPayouts.length > 1 ? 's' : ''}',
+                caption:
+                    '${periodPayouts.length} versement${periodPayouts.length > 1 ? 's' : ''}',
                 icon: Symbols.payments_rounded,
                 accent: IzyTelColors.success,
               ),
@@ -310,22 +419,27 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
               FinanceFilterPill(
                 label: 'Tous',
                 selected: _filter == _CommissionAgentFilter.all,
-                onTap: () => setState(() => _filter = _CommissionAgentFilter.all),
+                onTap: () =>
+                    setState(() => _filter = _CommissionAgentFilter.all),
               ),
               const SizedBox(width: 7),
               FinanceFilterPill(
                 label: 'À payer',
-                count: accounts.where((CommissionAccount account) => account.balance > 0).length,
+                count: accounts
+                    .where((CommissionAccount account) => account.balance > 0)
+                    .length,
                 accent: IzyTelColors.warning,
                 selected: _filter == _CommissionAgentFilter.toPay,
-                onTap: () => setState(() => _filter = _CommissionAgentFilter.toPay),
+                onTap: () =>
+                    setState(() => _filter = _CommissionAgentFilter.toPay),
               ),
               const SizedBox(width: 7),
               FinanceFilterPill(
                 label: 'Payés',
                 accent: IzyTelColors.success,
                 selected: _filter == _CommissionAgentFilter.paid,
-                onTap: () => setState(() => _filter = _CommissionAgentFilter.paid),
+                onTap: () =>
+                    setState(() => _filter = _CommissionAgentFilter.paid),
               ),
             ],
           ),
@@ -335,7 +449,8 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
           const FinanceEmptyState(
             icon: Symbols.account_balance_wallet_rounded,
             title: 'Aucun agent dans ce filtre',
-            message: 'Les commissions apparaîtront automatiquement après les transactions réussies.',
+            message:
+                'Les commissions apparaîtront automatiquement après les transactions réussies.',
           )
         else
           ...rows.map(
@@ -491,18 +606,23 @@ class _AgentCommissionCard extends StatelessWidget {
                           width: 7,
                           height: 7,
                           decoration: BoxDecoration(
-                            color: data.agent.isActive ? IzyTelColors.success : IzyTelColors.error,
+                            color: data.agent.isActive
+                                ? IzyTelColors.success
+                                : IzyTelColors.error,
                             shape: BoxShape.circle,
                           ),
                         ),
                         const SizedBox(width: 5),
                         Text(
-                          data.agent.isActive ? 'Agent actif' : 'Agent suspendu',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: IzyTelColors.textSecondary,
-                            fontSize: IzyTelTypeScale.micro,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          data.agent.isActive
+                              ? 'Agent actif'
+                              : 'Agent suspendu',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: IzyTelColors.textSecondary,
+                                fontSize: IzyTelTypeScale.micro,
+                                fontWeight: FontWeight.w500,
+                              ),
                         ),
                       ],
                     ),
@@ -529,7 +649,9 @@ class _AgentCommissionCard extends StatelessWidget {
               Expanded(
                 child: _CompactMetric(
                   label: 'Générées',
-                  value: formatCfa(data.performance.commissionGeneratedInPeriod),
+                  value: formatCfa(
+                    data.performance.commissionGeneratedInPeriod,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -537,7 +659,9 @@ class _AgentCommissionCard extends StatelessWidget {
                 child: _CompactMetric(
                   label: 'À payer',
                   value: formatCfa(data.balance),
-                  accent: hasBalance ? IzyTelColors.warning : IzyTelColors.success,
+                  accent: hasBalance
+                      ? IzyTelColors.warning
+                      : IzyTelColors.success,
                 ),
               ),
             ],
@@ -549,11 +673,7 @@ class _AgentCommissionCard extends StatelessWidget {
 }
 
 class _CompactMetric extends StatelessWidget {
-  const _CompactMetric({
-    required this.label,
-    required this.value,
-    this.accent,
-  });
+  const _CompactMetric({required this.label, required this.value, this.accent});
 
   final String label;
   final String value;

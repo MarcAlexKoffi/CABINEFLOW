@@ -38,8 +38,15 @@ class SupportRequestCenterPage extends StatefulWidget {
 
 class _SupportRequestCenterPageState extends State<SupportRequestCenterPage> {
   final TextEditingController _searchController = TextEditingController();
+  late final Stream<List<SupportRequest>> _requestsStream;
   _SupportInboxTab _selectedTab = _SupportInboxTab.newRequests;
   String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _requestsStream = widget.repository.watchAllRequests();
+  }
 
   @override
   void dispose() {
@@ -58,95 +65,94 @@ class _SupportRequestCenterPageState extends State<SupportRequestCenterPage> {
       body: SafeArea(
         top: false,
         child: StreamBuilder<List<SupportRequest>>(
-          stream: widget.repository.watchAllRequests(),
-          builder: (
-            BuildContext context,
-            AsyncSnapshot<List<SupportRequest>> snapshot,
-          ) {
-            if (snapshot.hasError) {
-              return _ErrorState(
-                message: 'Impossible de charger les demandes clients.',
-                onRetry: () => setState(() {}),
-              );
-            }
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
+          stream: _requestsStream,
+          builder:
+              (
+                BuildContext context,
+                AsyncSnapshot<List<SupportRequest>> snapshot,
+              ) {
+                if (snapshot.hasError) {
+                  return _ErrorState(
+                    message: 'Impossible de charger les demandes clients.',
+                    onRetry: () => setState(() {}),
+                  );
+                }
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-            final List<SupportRequest> all = snapshot.data!;
-            final int newCount = all
-                .where(
-                  (SupportRequest request) =>
-                      request.status == SupportRequestStatus.newRequest,
-                )
-                .length;
-            final int inProgressCount = all
-                .where(
-                  (SupportRequest request) =>
-                      request.status == SupportRequestStatus.inProgress,
-                )
-                .length;
-            final int historyCount = all
-                .where((SupportRequest request) => request.isResolved)
-                .length;
-            final List<SupportRequest> visible = _filter(all);
-
-            return RefreshIndicator(
-              onRefresh: () async => setState(() {}),
-              color: IzyTelColors.primary,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
-                children: [
-                  IzyTelPageHeader(
-                    title: 'Centre d’assistance',
-                    subtitle: newCount == 0
-                        ? 'Aucune nouvelle demande ne nécessite ton attention.'
-                        : '$newCount demande${newCount > 1 ? 's' : ''} à traiter maintenant.',
-                  ),
-                  const SizedBox(height: IzyTelSpacing.lg),
-                  _SupportSummary(
-                    newCount: newCount,
-                    inProgressCount: inProgressCount,
-                    resolvedCount: historyCount,
-                  ),
-                  const SizedBox(height: IzyTelSpacing.md),
-                  IzyTelSearchField(
-                    controller: _searchController,
-                    hintText: 'Référence, motif, description…',
-                    onChanged: (String value) {
-                      setState(() => _query = value);
-                    },
-                  ),
-                  const SizedBox(height: IzyTelSpacing.sm),
-                  _RequestTabs(
-                    selected: _selectedTab,
-                    newCount: newCount,
-                    inProgressCount: inProgressCount,
-                    historyCount: historyCount,
-                    onChanged: (_SupportInboxTab value) {
-                      setState(() => _selectedTab = value);
-                    },
-                  ),
-                  const SizedBox(height: IzyTelSpacing.lg),
-                  if (visible.isEmpty)
-                    IzyTelSurface(
-                      child: _EmptyState(tab: _selectedTab),
+                final List<SupportRequest> all = snapshot.data!;
+                final int newCount = all
+                    .where(
+                      (SupportRequest request) =>
+                          request.status == SupportRequestStatus.newRequest,
                     )
-                  else
-                    ...visible.map(
-                      (SupportRequest request) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _SupportRequestCard(
-                          request: request,
-                          onTap: () => _openRequest(request),
-                        ),
+                    .length;
+                final int inProgressCount = all
+                    .where(
+                      (SupportRequest request) =>
+                          request.status == SupportRequestStatus.inProgress,
+                    )
+                    .length;
+                final int historyCount = all
+                    .where((SupportRequest request) => request.isResolved)
+                    .length;
+                final List<SupportRequest> visible = _filter(all);
+
+                return RefreshIndicator(
+                  onRefresh: () async => setState(() {}),
+                  color: IzyTelColors.primary,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
+                    children: [
+                      IzyTelPageHeader(
+                        title: 'Centre d’assistance',
+                        subtitle: newCount == 0
+                            ? 'Aucune nouvelle demande ne nécessite ton attention.'
+                            : '$newCount demande${newCount > 1 ? 's' : ''} à traiter maintenant.',
                       ),
-                    ),
-                ],
-              ),
-            );
-          },
+                      const SizedBox(height: IzyTelSpacing.lg),
+                      _SupportSummary(
+                        newCount: newCount,
+                        inProgressCount: inProgressCount,
+                        resolvedCount: historyCount,
+                      ),
+                      const SizedBox(height: IzyTelSpacing.md),
+                      IzyTelSearchField(
+                        controller: _searchController,
+                        hintText: 'Référence, motif, description…',
+                        onChanged: (String value) {
+                          setState(() => _query = value);
+                        },
+                      ),
+                      const SizedBox(height: IzyTelSpacing.sm),
+                      _RequestTabs(
+                        selected: _selectedTab,
+                        newCount: newCount,
+                        inProgressCount: inProgressCount,
+                        historyCount: historyCount,
+                        onChanged: (_SupportInboxTab value) {
+                          setState(() => _selectedTab = value);
+                        },
+                      ),
+                      const SizedBox(height: IzyTelSpacing.lg),
+                      if (visible.isEmpty)
+                        IzyTelSurface(child: _EmptyState(tab: _selectedTab))
+                      else
+                        ...visible.map(
+                          (SupportRequest request) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _SupportRequestCard(
+                              request: request,
+                              onTap: () => _openRequest(request),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
         ),
       ),
     );
@@ -155,29 +161,32 @@ class _SupportRequestCenterPageState extends State<SupportRequestCenterPage> {
   List<SupportRequest> _filter(List<SupportRequest> all) {
     final Iterable<SupportRequest> byTab = switch (_selectedTab) {
       _SupportInboxTab.newRequests => all.where(
-          (SupportRequest request) =>
-              request.status == SupportRequestStatus.newRequest,
-        ),
+        (SupportRequest request) =>
+            request.status == SupportRequestStatus.newRequest,
+      ),
       _SupportInboxTab.inProgress => all.where(
-          (SupportRequest request) =>
-              request.status == SupportRequestStatus.inProgress,
-        ),
-      _SupportInboxTab.history =>
-        all.where((SupportRequest request) => request.isResolved),
+        (SupportRequest request) =>
+            request.status == SupportRequestStatus.inProgress,
+      ),
+      _SupportInboxTab.history => all.where(
+        (SupportRequest request) => request.isResolved,
+      ),
     };
 
     final String query = _query.trim().toLowerCase();
     if (query.isEmpty) return byTab.toList(growable: false);
-    return byTab.where((SupportRequest request) {
-      return <String>[
-        request.orderReference,
-        request.type.label,
-        request.description,
-        request.status.label,
-        request.assignedToName ?? '',
-        request.resolvedByName ?? '',
-      ].join(' ').toLowerCase().contains(query);
-    }).toList(growable: false);
+    return byTab
+        .where((SupportRequest request) {
+          return <String>[
+            request.orderReference,
+            request.type.label,
+            request.description,
+            request.status.label,
+            request.assignedToName ?? '',
+            request.resolvedByName ?? '',
+          ].join(' ').toLowerCase().contains(query);
+        })
+        .toList(growable: false);
   }
 
   Future<void> _openRequest(SupportRequest request) async {
@@ -437,8 +446,8 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
                                                 _InfoRow(
                                                   label: 'WhatsApp',
                                                   value: _formatSupportPhone(
-                                                      order.clientWhatsappPhone,
-                                                    ),
+                                                    order.clientWhatsappPhone,
+                                                  ),
                                                 ),
                                                 _InfoRow(
                                                   label: 'Bénéficiaire',
@@ -1394,9 +1403,7 @@ class _TraceLine extends StatelessWidget {
         border: isLast
             ? null
             : Border(
-                bottom: BorderSide(
-                  color: IzyTelColors.outline.withAlpha(60),
-                ),
+                bottom: BorderSide(color: IzyTelColors.outline.withAlpha(60)),
               ),
       ),
       child: Row(
@@ -1638,7 +1645,6 @@ String _formatAmount(int amount) {
   }
   return buffer.toString();
 }
-
 
 String _formatSupportPhone(String raw) {
   final String digits = raw.replaceAll(RegExp(r'\D'), '');

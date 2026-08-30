@@ -329,6 +329,21 @@ class FirestoreAgentRepository implements AgentRepository {
     });
   }
 
+  @override
+  Future<void> updateIssueStatus({
+    required String issueId,
+    required String status,
+    String? resolvedBy,
+  }) async {
+    final bool marksAsResolved = status == 'resolved' || status == 'cancelled';
+    await _issues.doc(issueId).update(<String, dynamic>{
+      'status': status,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'resolvedAt': marksAsResolved ? FieldValue.serverTimestamp() : null,
+      'resolvedBy': marksAsResolved ? resolvedBy : null,
+    });
+  }
+
   AgentProfile? _profileFromDocument(
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
   ) {

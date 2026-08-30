@@ -200,7 +200,9 @@ class _SupportResolutionNoteDialogState
                               minimumSize: const Size.fromHeight(50),
                               foregroundColor: IzyTelColors.textSecondary,
                               side: BorderSide(
-                                color: IzyTelColors.outlineStrong.withAlpha(110),
+                                color: IzyTelColors.outlineStrong.withAlpha(
+                                  110,
+                                ),
                               ),
                             ),
                             child: const Text('Annuler'),

@@ -357,9 +357,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                             decoration: BoxDecoration(
                               color: IzyTelColors.surfaceMuted,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: IzyTelColors.outline,
-                              ),
+                              border: Border.all(color: IzyTelColors.outline),
                             ),
                             child: Row(
                               children: [
@@ -517,10 +515,7 @@ class _ProfileHeader extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: isActive ? IzyTelColors.success : IzyTelColors.error,
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: IzyTelColors.surface,
-                    width: 2,
-                  ),
+                  border: Border.all(color: IzyTelColors.surface, width: 2),
                 ),
               ),
             ),
@@ -545,9 +540,8 @@ class _ProfileHeader extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
-            color: (isActive ? IzyTelColors.success : IzyTelColors.error).withAlpha(
-              28,
-            ),
+            color: (isActive ? IzyTelColors.success : IzyTelColors.error)
+                .withAlpha(28),
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text(

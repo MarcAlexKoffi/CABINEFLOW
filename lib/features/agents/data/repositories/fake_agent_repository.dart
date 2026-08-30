@@ -263,7 +263,7 @@ class FakeAgentRepository implements AgentRepository {
     final List<AgentIssue> current = _issues[agentId] ?? <AgentIssue>[];
     _issues[agentId] = <AgentIssue>[
       AgentIssue(
-        id: 'ISS-${current.length + 1}',
+        id: 'ISS-${agentId.toUpperCase()}-${current.length + 1}',
         agentId: agentId,
         type: issue.type,
         network: issue.network,
@@ -273,6 +273,36 @@ class FakeAgentRepository implements AgentRepository {
       ),
       ...current,
     ];
+    _notify();
+  }
+
+  @override
+  Future<void> updateIssueStatus({
+    required String issueId,
+    required String status,
+    String? resolvedBy,
+  }) async {
+    final DateTime now = DateTime.now();
+    final bool marksAsResolved = status == 'resolved' || status == 'cancelled';
+    _issues.updateAll((String agentId, List<AgentIssue> items) {
+      return items
+          .map((AgentIssue issue) {
+            if (issue.id != issueId) return issue;
+            return AgentIssue(
+              id: issue.id,
+              agentId: issue.agentId,
+              type: issue.type,
+              network: issue.network,
+              description: issue.description,
+              status: status,
+              createdAt: issue.createdAt,
+              updatedAt: now,
+              resolvedAt: marksAsResolved ? now : null,
+              resolvedBy: marksAsResolved ? resolvedBy : null,
+            );
+          })
+          .toList(growable: false);
+    });
     _notify();
   }
 

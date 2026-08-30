@@ -24,6 +24,11 @@ void main() {
     );
     await tester.pump();
 
+    expect(find.text('Chargement de l’espace opérateur…'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 2200));
+    await tester.pumpAndSettle();
+
     expect(find.text('Bienvenue'), findsOneWidget);
     expect(find.text('Simple. Rapide. Fiable.'), findsOneWidget);
     expect(find.text('Se connecter'), findsOneWidget);
@@ -42,7 +47,7 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('ouvre directement la maquette Splash & Connexion', (
+  testWidgets('affiche le lancement puis la maquette Connexion', (
     WidgetTester tester,
   ) async {
     await openLoginPage(tester);
@@ -161,7 +166,24 @@ void main() {
     await tester.pump(const Duration(milliseconds: 900));
     await tester.pumpAndSettle();
 
-    expect(find.text('Mon Activité'), findsOneWidget);
-    expect(find.text('Statut Agent'), findsOneWidget);
+    // 'Profil' est affiché à la fois comme titre de page et dans la
+    // navigation basse. Le test valide donc le contenu propre à l'écran
+    // Profil plutôt qu'un nombre fragile d'occurrences du libellé.
+    expect(find.text('Profil'), findsWidgets);
+    expect(
+      find.text('Ton activité et tes réglages opérationnels.'),
+      findsOneWidget,
+    );
+    // Le contenu du Profil est dans une ListView paresseuse : `Mon activité`
+    // peut ne pas encore être construit sur un viewport de test compact.
+    // On fait défiler la vraie liste au lieu d'utiliser scrollUntilVisible,
+    // qui exige que la cible soit déjà matérialisée dans l'arbre.
+    final Finder profileList = find.byType(ListView);
+    expect(profileList, findsOneWidget);
+    await tester.drag(profileList, const Offset(0, -420));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mon activité'.toUpperCase(), skipOffstage: false), findsOneWidget);
+    expect(find.text('Mes performances', skipOffstage: false), findsOneWidget);
   });
 }

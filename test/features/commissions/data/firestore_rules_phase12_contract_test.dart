@@ -29,9 +29,9 @@ void main() {
     expect(rules, contains('request.resource.data.amount'));
     expect(rules, contains('account.earnedTotal - account.paidTotal'));
 
-    // Phase 12 ajoute exactement trois getAfter unidirectionnels :
-    // commission -> order, compte -> commission et compte -> payout. Aucun cycle n'est ajouté.
-    expect(RegExp(r'getAfter\(').allMatches(rules), hasLength(24));
+    // Phase 13A ajoute un getAfter unidirectionnel networkTransaction -> order.
+    // Aucun cycle de validation n'est ajouté au flux Phase 12.
+    expect(RegExp(r'getAfter\(').allMatches(rules), hasLength(25));
 
     // Les garde-fous 9E restent présents.
     expect(rules, contains('hasMatchingAutomaticAssignmentArtifacts'));

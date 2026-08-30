@@ -3,6 +3,7 @@ import 'package:cabine_flow/core/theme/app_theme.dart';
 import 'package:cabine_flow/features/agents/data/repositories/fake_agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/commissions/data/repositories/fake_commission_repository.dart';
+import 'package:cabine_flow/features/finances/data/repositories/fake_network_finance_repository.dart';
 import 'package:cabine_flow/features/finances/presentation/pages/finances_page.dart';
 import 'package:cabine_flow/features/finances/presentation/pages/financial_movements_page.dart';
 import 'package:cabine_flow/features/finances/presentation/pages/financial_reconciliation_page.dart';
@@ -10,9 +11,14 @@ import 'package:cabine_flow/features/refunds/data/repositories/fake_refund_repos
 import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/agent_orders_page.dart';
+import 'package:cabine_flow/features/orders/presentation/pages/order_history_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/orders_page.dart';
 import 'package:cabine_flow/features/payments/presentation/pages/payments_page.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_management_page.dart';
+import 'package:cabine_flow/features/agents/presentation/pages/agent_activity_page.dart';
+import 'package:cabine_flow/features/agents/presentation/pages/agent_issues_page.dart';
+import 'package:cabine_flow/features/commissions/presentation/pages/agent_commissions_page.dart';
+import 'package:cabine_flow/features/commissions/presentation/pages/agent_performance_page.dart';
 import 'package:cabine_flow/features/auth/data/repositories/fake_auth_repository.dart';
 import 'package:cabine_flow/features/more/presentation/pages/admin_activity_journal_page.dart';
 import 'package:cabine_flow/features/more/presentation/pages/more_page.dart';
@@ -41,6 +47,12 @@ void main() {
     await useCompactPhone(tester);
     await tester.pumpWidget(const CabineFlowApp());
     await tester.pump();
+
+    expect(find.text('Chargement de l’espace opérateur…'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.pump(const Duration(milliseconds: 2200));
+    await tester.pumpAndSettle();
 
     expect(find.text('Bienvenue'), findsOneWidget);
     expect(find.text('Se souvenir de moi'), findsOneWidget);
@@ -79,6 +91,47 @@ void main() {
     expect(find.text('À traiter'), findsOneWidget);
     expect(find.text('Filtres'), findsOneWidget);
     expect(find.textContaining('à traiter aujourd'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('historique Admin et filtres restent rendables sur petit écran', (
+    WidgetTester tester,
+  ) async {
+    await useCompactPhone(tester);
+    final FakeOrdersRepository ordersRepository = FakeOrdersRepository(
+      isTest: true,
+    );
+
+    const AppUser admin = AppUser(
+      id: 'ADMIN-001',
+      name: 'Marc Alex',
+      phoneNumber: '0700000000',
+      role: UserRole.administrator,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: OrderHistoryPage(
+          user: admin,
+          ordersRepository: ordersRepository,
+          onBack: () {},
+          onOpenOrder: (order, query, filters) {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Historique des commandes'), findsOneWidget);
+    expect(find.textContaining('CabineFlow'), findsNothing);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byTooltip('Filtres'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Filtres de l’historique'), findsOneWidget);
+    expect(find.text('Toutes les périodes'), findsOneWidget);
+    expect(find.text('Appliquer'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -146,11 +199,21 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Finances'), findsOneWidget);
-    expect(find.text('Gestion financière'), findsOneWidget);
-    expect(find.text('Remboursements'), findsOneWidget);
-    expect(find.text('Commissions'), findsOneWidget);
-    expect(find.text('Rapprochements'), findsOneWidget);
-    expect(find.text('Mouvements'), findsOneWidget);
+    final Finder financesScrollable = find.byType(Scrollable).first;
+    for (final String label in <String>[
+      'Gestion financière',
+      'Remboursements',
+      'Commissions',
+      'Rapprochements',
+      'Mouvements',
+    ]) {
+      await tester.scrollUntilVisible(
+        find.text(label),
+        180,
+        scrollable: financesScrollable,
+      );
+      expect(find.text(label), findsOneWidget);
+    }
     expect(tester.takeException(), isNull);
   });
 
@@ -190,7 +253,10 @@ void main() {
     await useCompactPhone(tester);
     final FakeOrdersRepository ordersRepository = FakeOrdersRepository(isTest: true);
     final FakeRefundRepository refundRepository = FakeRefundRepository();
+    final FakeNetworkFinanceRepository networkFinanceRepository =
+        FakeNetworkFinanceRepository();
     addTearDown(refundRepository.dispose);
+    addTearDown(networkFinanceRepository.dispose);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -199,6 +265,7 @@ void main() {
           ordersRepository: ordersRepository,
           refundRepository: refundRepository,
           commissionRepository: FakeCommissionRepository(),
+          networkFinanceRepository: networkFinanceRepository,
         ),
       ),
     );
@@ -359,6 +426,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Offres'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Internet Orange 4 Go'),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Internet Orange 4 Go'), findsOneWidget);
     expect(find.text('1 000 F'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -392,6 +464,11 @@ void main() {
 
     expect(find.text('Administration'), findsOneWidget);
     expect(find.text('Demandes clients'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Journal d’activité'),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Journal d’activité'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -407,6 +484,12 @@ void main() {
       MaterialApp(
         theme: AppTheme.light,
         home: AdminActivityJournalPage(
+          user: const AppUser(
+            id: 'ADMIN-001',
+            name: 'Marc',
+            phoneNumber: '',
+            role: UserRole.administrator,
+          ),
           orderHistoryRepository: FakeOrdersRepository(isTest: true),
           supportRequestRepository: supportRepository,
         ),
@@ -416,6 +499,113 @@ void main() {
 
     expect(find.text('Journal d’activité'), findsOneWidget);
     expect(find.text('Activité récente'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+
+  testWidgets('profil Agent reste rendable sur petit écran', (
+    WidgetTester tester,
+  ) async {
+    await useCompactPhone(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: AgentActivityPage(
+          user: const AppUser(
+            id: 'AGENT-001',
+            name: 'Koffi Kouassi',
+            phoneNumber: '0700000001',
+            role: UserRole.agent,
+          ),
+          repository: FakeAgentRepository(),
+          commissionRepository: FakeCommissionRepository(),
+          isLoggingOut: false,
+          onLogout: () async {},
+          onOpenHistory: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Profil'), findsOneWidget);
+    expect(find.text('Mes performances'), findsOneWidget);
+    expect(find.text('Mes commissions'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Mes signalements'),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Mes signalements'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('performances Agent restent rendables sur petit écran', (
+    WidgetTester tester,
+  ) async {
+    await useCompactPhone(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: AgentPerformancePage(
+          user: const AppUser(
+            id: 'AGENT-001',
+            name: 'Koffi Kouassi',
+            phoneNumber: '0700000001',
+            role: UserRole.agent,
+          ),
+          repository: FakeCommissionRepository(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mes performances'), findsWidgets);
+    expect(find.text('Ce mois'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('commissions Agent restent rendables sur petit écran', (
+    WidgetTester tester,
+  ) async {
+    await useCompactPhone(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: AgentCommissionsPage(
+          user: const AppUser(
+            id: 'AGENT-001',
+            name: 'Koffi Kouassi',
+            phoneNumber: '0700000001',
+            role: UserRole.agent,
+          ),
+          repository: FakeCommissionRepository(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mes commissions'), findsOneWidget);
+    expect(find.text('SOLDE DE COMMISSIONS'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('signalements Agent restent rendables sur petit écran', (
+    WidgetTester tester,
+  ) async {
+    await useCompactPhone(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: AgentIssuesPage(
+          agentId: 'AGENT-001',
+          repository: FakeAgentRepository(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mes signalements'), findsOneWidget);
+    expect(find.text('Signaler un problème'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

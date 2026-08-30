@@ -20,6 +20,8 @@ import 'package:cabine_flow/features/orders/presentation/pages/order_history_pag
 import 'package:cabine_flow/features/orders/presentation/pages/order_processing_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/customer_confirmation_page.dart';
 
+enum _OrderDetailOrigin { queue, history }
+
 class OrdersPage extends StatefulWidget {
   const OrdersPage({
     super.key,
@@ -47,6 +49,7 @@ class _OrdersPageState extends State<OrdersPage> {
   String _historyInitialSearchQuery = '';
   OrderHistoryFilters _historyInitialFilters = const OrderHistoryFilters();
   QueueOrder? _detailOrder;
+  _OrderDetailOrigin _detailOrigin = _OrderDetailOrigin.queue;
   late final SupportRequestRepository _supportRequestRepository;
 
   Future<void> _markTransactionSuccessful() async {
@@ -221,8 +224,9 @@ class _OrdersPageState extends State<OrdersPage> {
   void _openOrderDetail(
     QueueOrder order,
     String searchQuery,
-    OrderHistoryFilters filters,
-  ) {
+    OrderHistoryFilters filters, {
+    _OrderDetailOrigin origin = _OrderDetailOrigin.history,
+  }) {
     if (_historyRepository == null) {
       _showHistoryUnavailable();
       return;
@@ -233,16 +237,25 @@ class _OrdersPageState extends State<OrdersPage> {
       _historyInitialFilters = filters;
       _openHistoryFiltersOnStart = false;
       _detailOrder = order;
+      _detailOrigin = origin;
       _showHistory = false;
     });
   }
 
   void _closeOrderDetail() {
+    final bool returnToHistory = _detailOrigin == _OrderDetailOrigin.history;
     setState(() {
       _detailOrder = null;
-      _showHistory = true;
-      _historyVersion++;
+      _showHistory = returnToHistory;
+      if (returnToHistory) {
+        _historyVersion++;
+      } else {
+        _activeTabIndex = 0;
+      }
     });
+    if (!returnToHistory) {
+      _viewModel.loadQueue();
+    }
   }
 
   void _openCustomerHistory(String whatsappPhone) {
@@ -647,6 +660,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                     order,
                                     '',
                                     const OrderHistoryFilters(),
+                                    origin: _OrderDetailOrigin.queue,
                                   );
                                   return;
                                 }

@@ -110,9 +110,7 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                         tileColor: IzyTelColors.surfaceMuted,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
-                          side: const BorderSide(
-                            color: IzyTelColors.outline,
-                          ),
+                          side: const BorderSide(color: IzyTelColors.outline),
                         ),
                         leading: CircleAvatar(
                           backgroundColor: IzyTelColors.primary.withAlpha(35),
@@ -391,9 +389,7 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                     title: 'Agents & zones',
                     subtitle:
                         'Pilote la disponibilité, les réseaux et les capacités de l’équipe.',
-                    actions: [
-                      IzyTelAvatar(name: widget.user.name, size: 42),
-                    ],
+                    actions: [IzyTelAvatar(name: widget.user.name, size: 42)],
                   ),
                   const SizedBox(height: IzyTelSpacing.lg),
                   Row(
@@ -457,7 +453,8 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                         const SizedBox(width: 8),
                         IzyTelFilterPill(
                           label: 'Disponibles',
-                          selected: _viewModel.availabilityFilter ==
+                          selected:
+                              _viewModel.availabilityFilter ==
                               AgentAvailability.available,
                           selectedColor: IzyTelColors.success,
                           softColor: IzyTelColors.successSoft,
@@ -471,7 +468,8 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                         const SizedBox(width: 8),
                         IzyTelFilterPill(
                           label: 'Indisponibles',
-                          selected: _viewModel.availabilityFilter ==
+                          selected:
+                              _viewModel.availabilityFilter ==
                               AgentAvailability.unavailable,
                           selectedColor: IzyTelColors.warning,
                           softColor: IzyTelColors.warningSoft,
@@ -506,7 +504,9 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                   IzyTelSectionHeader(
                     title: 'Équipe',
                     actionLabel: activeFilters > 0 ? 'Réinitialiser' : null,
-                    onAction: activeFilters > 0 ? _viewModel.clearFilters : null,
+                    onAction: activeFilters > 0
+                        ? _viewModel.clearFilters
+                        : null,
                   ),
                   const SizedBox(height: 8),
                   if (_viewModel.isLoading && _viewModel.agents.isEmpty)
@@ -634,9 +634,7 @@ class _AgentIssuesPanel extends StatelessWidget {
                                 '$agentName · ${_issueTypeLabel(issue.type)}',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelMedium
+                                style: Theme.of(context).textTheme.labelMedium
                                     ?.copyWith(
                                       color: IzyTelColors.textPrimary,
                                       fontWeight: FontWeight.w700,
@@ -655,16 +653,14 @@ class _AgentIssuesPanel extends StatelessWidget {
                           issue.description,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: IzyTelColors.textSecondary,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: IzyTelColors.textSecondary),
                         ),
                         const SizedBox(height: 5),
                         Text(
                           '${issue.network?.label ?? 'Tous réseaux'} · ${_relative(issue.createdAt)}',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: IzyTelColors.textMuted,
-                          ),
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(color: IzyTelColors.textMuted),
                         ),
                       ],
                     ),
@@ -791,7 +787,9 @@ class _AgentCard extends StatelessWidget {
               spacing: 7,
               runSpacing: 7,
               children: profile.authorizedNetworks
-                  .map((AgentNetwork network) => _NetworkBadge(network: network))
+                  .map(
+                    (AgentNetwork network) => _NetworkBadge(network: network),
+                  )
                   .toList(growable: false),
             ),
           ],

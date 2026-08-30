@@ -2,6 +2,7 @@ import 'package:cabine_flow/app/app_routes.dart';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
+import 'package:cabine_flow/features/agents/presentation/pages/agent_issue_center_page.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_management_page.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
@@ -153,7 +154,7 @@ class MorePage extends StatelessWidget {
                                               repository: supportRepository,
                                               refundRepository: refundRepository,
                                               orderHistoryRepository:
-                                                  historyRepository!,
+                                                  historyRepository,
                                             );
                                           },
                                         ),
@@ -168,6 +169,22 @@ class MorePage extends StatelessWidget {
                                   MaterialPageRoute<void>(
                                     builder: (BuildContext context) {
                                       return AgentManagementPage(
+                                        user: user,
+                                        repository: agentRepository,
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                            IzyTelAccountAction(
+                              icon: Symbols.report_problem_rounded,
+                              label: 'Signalements agents',
+                              onTap: () {
+                                Navigator.of(context).push<void>(
+                                  MaterialPageRoute<void>(
+                                    builder: (BuildContext context) {
+                                      return AgentIssueCenterPage(
                                         user: user,
                                         repository: agentRepository,
                                       );
@@ -232,7 +249,7 @@ class MorePage extends StatelessWidget {
                                         repository: supportRepository,
                                         refundRepository: refundRepository,
                                         orderHistoryRepository:
-                                            historyRepository!,
+                                            historyRepository,
                                       );
                                     },
                                   ),
@@ -272,24 +289,49 @@ class MorePage extends StatelessWidget {
                 const SizedBox(height: 6),
                 IzyTelSurface(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
-                  child: IzyTelMenuRow(
-                    icon: Symbols.groups_rounded,
-                    title: 'Agents et zones',
-                    subtitle:
-                        'Disponibilité, capacités, réseaux, zones et incidents agents.',
-                    iconColor: IzyTelColors.moov,
-                    onTap: () {
-                      Navigator.of(context).push<void>(
-                        MaterialPageRoute<void>(
-                          builder: (BuildContext context) {
-                            return AgentManagementPage(
-                              user: user,
-                              repository: agentRepository,
-                            );
-                          },
-                        ),
-                      );
-                    },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IzyTelMenuRow(
+                        icon: Symbols.groups_rounded,
+                        title: 'Agents et zones',
+                        subtitle:
+                            'Disponibilité, capacités, réseaux, zones et incidents agents.',
+                        iconColor: IzyTelColors.moov,
+                        onTap: () {
+                          Navigator.of(context).push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (BuildContext context) {
+                                return AgentManagementPage(
+                                  user: user,
+                                  repository: agentRepository,
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                      const Divider(height: 1),
+                      IzyTelMenuRow(
+                        icon: Symbols.report_problem_rounded,
+                        title: 'Signalements agents',
+                        subtitle:
+                            'Consulter, filtrer et traiter les incidents remontés par les agents.',
+                        iconColor: IzyTelColors.warning,
+                        onTap: () {
+                          Navigator.of(context).push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (BuildContext context) {
+                                return AgentIssueCenterPage(
+                                  user: user,
+                                  repository: agentRepository,
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: IzyTelSpacing.lg),
@@ -313,8 +355,9 @@ class MorePage extends StatelessWidget {
                                   MaterialPageRoute<void>(
                                     builder: (BuildContext context) {
                                       return AdminActivityJournalPage(
+                                        user: user,
                                         orderHistoryRepository:
-                                            historyRepository!,
+                                            historyRepository,
                                         supportRequestRepository:
                                             supportRepository,
                                       );

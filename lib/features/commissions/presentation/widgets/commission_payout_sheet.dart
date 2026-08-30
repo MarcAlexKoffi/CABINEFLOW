@@ -117,7 +117,9 @@ class _CommissionPayoutSheetState extends State<CommissionPayoutSheet> {
       padding: EdgeInsets.only(bottom: bottomInset),
       child: Material(
         color: IzyTelColors.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(IzyTelRadii.sheet)),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(IzyTelRadii.sheet),
+        ),
         child: SafeArea(
           top: false,
           child: SingleChildScrollView(

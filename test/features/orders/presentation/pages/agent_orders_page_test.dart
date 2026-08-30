@@ -14,7 +14,9 @@ void main() {
     role: UserRole.agent,
   );
 
-  Future<QueueOrder> prepareAssignedOrder(FakeOrdersRepository repository) async {
+  Future<QueueOrder> prepareAssignedOrder(
+    FakeOrdersRepository repository,
+  ) async {
     final QueueOrder order = (await repository.fetchPaidQueue()).first;
     await repository.assignToAgent(
       orderId: order.id,

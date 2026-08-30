@@ -66,6 +66,10 @@ class FirestoreOrdersRepository
     return _firestore.collection('commissionAccounts');
   }
 
+  CollectionReference<Map<String, dynamic>> get _networkTransactionsCollection {
+    return _firestore.collection('networkTransactions');
+  }
+
   @override
   Future<QueueOrder> createOrder({required CreateOrderRequest request}) async {
     _validateCreateRequest(request);
@@ -1412,6 +1416,8 @@ class FirestoreOrdersRepository
         _commissionsCollection.doc(orderId);
     final DocumentReference<Map<String, dynamic>> commissionAccountRef =
         _commissionAccountsCollection.doc(cleanedAgentId);
+    final DocumentReference<Map<String, dynamic>> networkTransactionRef =
+        _networkTransactionsCollection.doc('order_$orderId');
     final OrderEventType eventType = OrderEventType.processingSucceeded;
     final DateTime completedAt = DateTime.now();
 
@@ -1472,6 +1478,11 @@ class FirestoreOrdersRepository
         profileData,
         order.network,
       );
+      if (previousCapacity < order.amount) {
+        throw StateError(
+          'La capacité ${order.network.name.toUpperCase()} de cet agent est insuffisante.',
+        );
+      }
       final int remainingCapacity = AgentCapacityPolicy.remainingAfterSuccess(
         currentCapacity: previousCapacity,
         operationAmount: order.amount,
@@ -1532,6 +1543,22 @@ class FirestoreOrdersRepository
         'rate': commissionPolicy.amountPerSuccessfulTransaction,
         'processingStartedAt': order.takenAt,
         'earnedAt': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      transaction.set(networkTransactionRef, <String, dynamic>{
+        'schemaVersion': 1,
+        'network': order.network.name,
+        'direction': 'outgoing',
+        'type': 'orderSuccess',
+        'amount': order.amount,
+        'capacityBefore': previousCapacity,
+        'capacityAfter': remainingCapacity,
+        'agentId': cleanedAgentId,
+        'agentName': commissionAgentName,
+        'orderId': order.id,
+        'orderReference': order.reference,
+        'createdBy': cleanedAgentId,
+        'createdByRole': 'agent',
         'createdAt': FieldValue.serverTimestamp(),
       });
 

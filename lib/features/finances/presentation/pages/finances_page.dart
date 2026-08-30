@@ -9,6 +9,11 @@ import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:cabine_flow/features/commissions/presentation/pages/commission_management_page.dart';
+import 'package:cabine_flow/features/finances/data/repositories/fake_network_finance_repository.dart';
+import 'package:cabine_flow/features/finances/data/repositories/firestore_network_finance_repository.dart';
+import 'package:cabine_flow/features/finances/domain/models/network_finance_models.dart';
+import 'package:cabine_flow/features/finances/domain/repositories/network_finance_repository.dart';
+import 'package:cabine_flow/features/finances/domain/services/network_finance_calculator.dart';
 import 'package:cabine_flow/features/finances/presentation/pages/financial_movements_page.dart';
 import 'package:cabine_flow/features/finances/presentation/pages/financial_reconciliation_page.dart';
 import 'package:cabine_flow/features/finances/presentation/widgets/financial_ui.dart';
@@ -47,6 +52,7 @@ class FinancesPage extends StatefulWidget {
 
 class _FinancesPageState extends State<FinancesPage> {
   late final RefundRepository _refundRepository;
+  late final NetworkFinanceRepository _networkFinanceRepository;
 
   OrderHistoryRepository? get _historyRepository {
     final OrdersRepository repository = widget.ordersRepository;
@@ -68,6 +74,9 @@ class _FinancesPageState extends State<FinancesPage> {
     _refundRepository = Firebase.apps.isNotEmpty
         ? FirestoreRefundRepository()
         : FakeRefundRepository();
+    _networkFinanceRepository = Firebase.apps.isNotEmpty
+        ? FirestoreNetworkFinanceRepository()
+        : FakeNetworkFinanceRepository();
   }
 
   @override
@@ -75,6 +84,11 @@ class _FinancesPageState extends State<FinancesPage> {
     final RefundRepository repository = _refundRepository;
     if (repository is FakeRefundRepository) {
       unawaited(repository.dispose());
+    }
+    final NetworkFinanceRepository networkRepository =
+        _networkFinanceRepository;
+    if (networkRepository is FakeNetworkFinanceRepository) {
+      unawaited(networkRepository.dispose());
     }
     super.dispose();
   }
@@ -113,7 +127,10 @@ class _FinancesPageState extends State<FinancesPage> {
   int _commissionPayoutsToday(List<CommissionPayout> payouts) {
     return payouts
         .where((CommissionPayout payout) => _isToday(payout.paidAt))
-        .fold<int>(0, (int total, CommissionPayout payout) => total + payout.amount);
+        .fold<int>(
+          0,
+          (int total, CommissionPayout payout) => total + payout.amount,
+        );
   }
 
   int _reconciliationAttentionCount(
@@ -140,7 +157,9 @@ class _FinancesPageState extends State<FinancesPage> {
   void _openRefunds() {
     final OrderHistoryRepository? history = _historyRepository;
     if (history == null) {
-      _showUnavailable('L’historique des commandes est requis pour les remboursements.');
+      _showUnavailable(
+        'L’historique des commandes est requis pour les remboursements.',
+      );
       return;
     }
     Navigator.of(context).push<void>(
@@ -185,6 +204,7 @@ class _FinancesPageState extends State<FinancesPage> {
           ordersRepository: widget.ordersRepository,
           refundRepository: _refundRepository,
           commissionRepository: widget.commissionRepository,
+          networkFinanceRepository: _networkFinanceRepository,
         ),
       ),
     );
@@ -208,157 +228,252 @@ class _FinancesPageState extends State<FinancesPage> {
             builder: (BuildContext context, AsyncSnapshot<List<RefundCase>> refundSnapshot) {
               return StreamBuilder<List<CommissionAccount>>(
                 stream: widget.commissionRepository.watchAccounts(),
-                builder: (BuildContext context, AsyncSnapshot<List<CommissionAccount>> accountSnapshot) {
-                  return StreamBuilder<List<CommissionPayout>>(
-                    stream: widget.commissionRepository.watchPayouts(),
-                    builder: (BuildContext context, AsyncSnapshot<List<CommissionPayout>> payoutSnapshot) {
-                      final List<QueueOrder> orders = orderSnapshot.data ?? const <QueueOrder>[];
-                      final List<RefundCase> refunds = refundSnapshot.data ?? const <RefundCase>[];
-                      final List<CommissionAccount> accounts = accountSnapshot.data ?? const <CommissionAccount>[];
-                      final List<CommissionPayout> payouts = payoutSnapshot.data ?? const <CommissionPayout>[];
+                builder:
+                    (
+                      BuildContext context,
+                      AsyncSnapshot<List<CommissionAccount>> accountSnapshot,
+                    ) {
+                      return StreamBuilder<List<CommissionPayout>>(
+                        stream: widget.commissionRepository.watchPayouts(),
+                        builder:
+                            (
+                              BuildContext context,
+                              AsyncSnapshot<List<CommissionPayout>>
+                              payoutSnapshot,
+                            ) {
+                              return StreamBuilder<List<NetworkTransaction>>(
+                                stream: _networkFinanceRepository.watchTransactions(),
+                                builder:
+                                    (
+                                      BuildContext context,
+                                      AsyncSnapshot<List<NetworkTransaction>> networkSnapshot,
+                                    ) {
+                              final List<QueueOrder> orders =
+                                  orderSnapshot.data ?? const <QueueOrder>[];
+                              final List<RefundCase> refunds =
+                                  refundSnapshot.data ?? const <RefundCase>[];
+                              final List<CommissionAccount> accounts =
+                                  accountSnapshot.data ??
+                                  const <CommissionAccount>[];
+                              final List<CommissionPayout> payouts =
+                                  payoutSnapshot.data ??
+                                  const <CommissionPayout>[];
+                              final List<NetworkTransaction> networkTransactions =
+                                  networkSnapshot.data ??
+                                  const <NetworkTransaction>[];
 
-                      final bool initialLoading =
-                          !orderSnapshot.hasData &&
-                          !refundSnapshot.hasData &&
-                          orderSnapshot.connectionState == ConnectionState.waiting;
-                      if (initialLoading) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
+                              final bool initialLoading =
+                                  !orderSnapshot.hasData &&
+                                  !refundSnapshot.hasData &&
+                                  orderSnapshot.connectionState ==
+                                      ConnectionState.waiting;
+                              if (initialLoading) {
+                                return const Center(
+                                  child: CircularProgressIndicator(),
+                                );
+                              }
 
-                      final int incomeToday = _confirmedAmountToday(orders);
-                      final int refundsToday = _refundsPaidToday(refunds);
-                      final int commissionsToday = _commissionPayoutsToday(payouts);
-                      final int netToday = incomeToday - refundsToday - commissionsToday;
-                      final int refundPending = refunds
-                          .where((RefundCase value) => value.isActive)
-                          .fold<int>(0, (int total, RefundCase value) => total + value.amount);
-                      final int refundPendingCount = refunds.where((RefundCase value) => value.isActive).length;
-                      final int commissionsOutstanding = accounts.fold<int>(
-                        0,
-                        (int total, CommissionAccount account) =>
-                            total + account.balance.clamp(0, account.earnedTotal).toInt(),
-                      );
-                      final int attentionCount = _reconciliationAttentionCount(orders, refunds);
+                              final int incomeToday = _confirmedAmountToday(
+                                orders,
+                              );
+                              final int refundsToday = _refundsPaidToday(
+                                refunds,
+                              );
+                              final int commissionsToday =
+                                  _commissionPayoutsToday(payouts);
+                              final int netToday =
+                                  incomeToday - refundsToday - commissionsToday;
+                              final int refundPending = refunds
+                                  .where((RefundCase value) => value.isActive)
+                                  .fold<int>(
+                                    0,
+                                    (int total, RefundCase value) =>
+                                        total + value.amount,
+                                  );
+                              final int refundPendingCount = refunds
+                                  .where((RefundCase value) => value.isActive)
+                                  .length;
+                              final int commissionsOutstanding = accounts
+                                  .fold<int>(
+                                    0,
+                                    (int total, CommissionAccount account) =>
+                                        total +
+                                        account.balance
+                                            .clamp(0, account.earnedTotal)
+                                            .toInt(),
+                                  );
+                              final int attentionCount =
+                                  _reconciliationAttentionCount(
+                                    orders,
+                                    refunds,
+                                  );
 
-                      return ListView(
-                        padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
-                        children: [
-                          Text(
-                            'Finances',
-                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              color: IzyTelColors.textPrimary,
-                              fontSize: IzyTelTypeScale.title2,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -.45,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Vue d’ensemble de l’activité financière IzyTel.',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: IzyTelColors.textSecondary,
-                              fontSize: IzyTelTypeScale.label,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          _FinanceHero(
-                            incomeToday: incomeToday,
-                            netToday: netToday,
-                            refundsToday: refundsToday,
-                            commissionsToday: commissionsToday,
-                          ),
-                          const SizedBox(height: 20),
-                          const IzyTelSectionHeader(title: 'À surveiller'),
-                          const SizedBox(height: 10),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: FinancialMetricCard(
-                                  label: 'Remboursements ouverts',
-                                  value: formatCfa(refundPending),
-                                  caption: '$refundPendingCount dossier${refundPendingCount > 1 ? 's' : ''}',
-                                  icon: Symbols.currency_exchange_rounded,
-                                  accent: refundPending > 0 ? IzyTelColors.warning : IzyTelColors.success,
+                              return ListView(
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  18,
+                                  20,
+                                  32,
                                 ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: FinancialMetricCard(
-                                  label: 'Commissions à payer',
-                                  value: formatCfa(commissionsOutstanding),
-                                  caption: commissionsOutstanding > 0 ? 'Solde agents' : 'À jour',
-                                  icon: Symbols.account_balance_wallet_rounded,
-                                  accent: commissionsOutstanding > 0 ? IzyTelColors.error : IzyTelColors.success,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 22),
-                          const IzyTelSectionHeader(title: 'Fonds de roulement'),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Capacités disponibles chez les agents et encaissements Wave du jour.',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: IzyTelColors.textMuted,
-                              fontSize: IzyTelTypeScale.micro,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          _NetworkCapacitySection(
-                            agentRepository: widget.agentRepository,
-                            waveToday: incomeToday,
-                          ),
-                          const SizedBox(height: 22),
-                          const IzyTelSectionHeader(title: 'Gestion financière'),
-                          const SizedBox(height: 10),
-                          FinanceActionTile(
-                            icon: Symbols.receipt_long_rounded,
-                            title: 'Paiements',
-                            subtitle: 'Vérifier les déclarations et confirmer les encaissements.',
-                            onTap: widget.onOpenPayments,
-                          ),
-                          const SizedBox(height: 8),
-                          FinanceActionTile(
-                            icon: Symbols.currency_exchange_rounded,
-                            title: 'Remboursements',
-                            subtitle: 'Valider, effectuer et tracer les remboursements clients.',
-                            accent: IzyTelColors.warning,
-                            badge: refundPendingCount > 0 ? '$refundPendingCount' : null,
-                            onTap: _openRefunds,
-                          ),
-                          const SizedBox(height: 8),
-                          FinanceActionTile(
-                            icon: Symbols.payments_rounded,
-                            title: 'Commissions',
-                            subtitle: 'Suivre les commissions acquises et les paiements agents.',
-                            accent: IzyTelColors.success,
-                            badge: commissionsOutstanding > 0 ? formatCfa(commissionsOutstanding) : null,
-                            onTap: _openCommissions,
-                          ),
-                          const SizedBox(height: 8),
-                          FinanceActionTile(
-                            icon: Symbols.rule_rounded,
-                            title: 'Rapprochements',
-                            subtitle: 'Contrôler la cohérence commandes, paiements et remboursements.',
-                            accent: attentionCount > 0 ? IzyTelColors.warning : IzyTelColors.primary,
-                            badge: attentionCount > 0 ? '$attentionCount à vérifier' : 'À jour',
-                            onTap: _openReconciliation,
-                          ),
-                          const SizedBox(height: 8),
-                          FinanceActionTile(
-                            icon: Symbols.swap_vert_rounded,
-                            title: 'Mouvements',
-                            subtitle: 'Consulter les entrées et sorties financières dans un journal unique.',
-                            onTap: _openMovements,
-                          ),
-                        ],
+                                children: [
+                                  Text(
+                                    'Finances',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineSmall
+                                        ?.copyWith(
+                                          color: IzyTelColors.textPrimary,
+                                          fontSize: IzyTelTypeScale.title2,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: -.45,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Vue d’ensemble de l’activité financière IzyTel.',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: IzyTelColors.textSecondary,
+                                          fontSize: IzyTelTypeScale.label,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 18),
+                                  _FinanceHero(
+                                    incomeToday: incomeToday,
+                                    netToday: netToday,
+                                    refundsToday: refundsToday,
+                                    commissionsToday: commissionsToday,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  const IzyTelSectionHeader(
+                                    title: 'À surveiller',
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: FinancialMetricCard(
+                                          label: 'Remboursements ouverts',
+                                          value: formatCfa(refundPending),
+                                          caption:
+                                              '$refundPendingCount dossier${refundPendingCount > 1 ? 's' : ''}',
+                                          icon:
+                                              Symbols.currency_exchange_rounded,
+                                          accent: refundPending > 0
+                                              ? IzyTelColors.warning
+                                              : IzyTelColors.success,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: FinancialMetricCard(
+                                          label: 'Commissions à payer',
+                                          value: formatCfa(
+                                            commissionsOutstanding,
+                                          ),
+                                          caption: commissionsOutstanding > 0
+                                              ? 'Solde agents'
+                                              : 'À jour',
+                                          icon: Symbols
+                                              .account_balance_wallet_rounded,
+                                          accent: commissionsOutstanding > 0
+                                              ? IzyTelColors.error
+                                              : IzyTelColors.success,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 22),
+                                  const IzyTelSectionHeader(
+                                    title: 'Fonds de roulement',
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Soldes réseaux disponibles, montants engagés et encaissements Wave du jour.',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: IzyTelColors.textMuted,
+                                          fontSize: IzyTelTypeScale.micro,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  _NetworkCapacitySection(
+                                    agentRepository: widget.agentRepository,
+                                    orders: orders,
+                                    transactions: networkTransactions,
+                                    waveToday: incomeToday,
+                                  ),
+                                  const SizedBox(height: 22),
+                                  const IzyTelSectionHeader(
+                                    title: 'Gestion financière',
+                                  ),
+                                  const SizedBox(height: 10),
+                                  FinanceActionTile(
+                                    icon: Symbols.receipt_long_rounded,
+                                    title: 'Paiements',
+                                    subtitle:
+                                        'Vérifier les déclarations et confirmer les encaissements.',
+                                    onTap: widget.onOpenPayments,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  FinanceActionTile(
+                                    icon: Symbols.currency_exchange_rounded,
+                                    title: 'Remboursements',
+                                    subtitle:
+                                        'Valider, effectuer et tracer les remboursements clients.',
+                                    accent: IzyTelColors.warning,
+                                    badge: refundPendingCount > 0
+                                        ? '$refundPendingCount'
+                                        : null,
+                                    onTap: _openRefunds,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  FinanceActionTile(
+                                    icon: Symbols.payments_rounded,
+                                    title: 'Commissions',
+                                    subtitle:
+                                        'Suivre les commissions acquises et les paiements agents.',
+                                    accent: IzyTelColors.success,
+                                    badge: commissionsOutstanding > 0
+                                        ? formatCfa(commissionsOutstanding)
+                                        : null,
+                                    onTap: _openCommissions,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  FinanceActionTile(
+                                    icon: Symbols.rule_rounded,
+                                    title: 'Rapprochements',
+                                    subtitle:
+                                        'Contrôler la cohérence commandes, paiements et remboursements.',
+                                    accent: attentionCount > 0
+                                        ? IzyTelColors.warning
+                                        : IzyTelColors.primary,
+                                    badge: attentionCount > 0
+                                        ? '$attentionCount à vérifier'
+                                        : 'À jour',
+                                    onTap: _openReconciliation,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  FinanceActionTile(
+                                    icon: Symbols.swap_vert_rounded,
+                                    title: 'Mouvements',
+                                    subtitle:
+                                        'Consulter les entrées et sorties financières dans un journal unique.',
+                                    onTap: _openMovements,
+                                  ),
+                                ],
+                              );
+                                    },
+                              );
+                            },
                       );
                     },
-                  );
-                },
               );
             },
           );
@@ -449,7 +564,9 @@ class _FinanceHero extends StatelessWidget {
             children: [
               _HeroTag(
                 label: 'Net ${formatCfa(netToday)}',
-                icon: netToday >= 0 ? Symbols.trending_up_rounded : Symbols.trending_down_rounded,
+                icon: netToday >= 0
+                    ? Symbols.trending_up_rounded
+                    : Symbols.trending_down_rounded,
               ),
               if (refundsToday > 0)
                 _HeroTag(
@@ -505,91 +622,84 @@ class _HeroTag extends StatelessWidget {
 class _NetworkCapacitySection extends StatelessWidget {
   const _NetworkCapacitySection({
     required this.agentRepository,
+    required this.orders,
+    required this.transactions,
     required this.waveToday,
   });
 
   final AgentRepository agentRepository;
+  final List<QueueOrder> orders;
+  final List<NetworkTransaction> transactions;
   final int waveToday;
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<AgentDirectoryEntry>>(
       stream: agentRepository.watchAgents(),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<List<AgentDirectoryEntry>> snapshot,
-      ) {
-        final List<AgentDirectoryEntry> agents =
-            snapshot.data ?? const <AgentDirectoryEntry>[];
-        int capacity(AgentNetwork network) {
-          return agents
-              .where((AgentDirectoryEntry agent) => agent.isActive && agent.profile != null)
-              .fold<int>(
-                0,
-                (int total, AgentDirectoryEntry agent) =>
-                    total + agent.profile!.capacityFor(network),
-              );
-        }
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<List<AgentDirectoryEntry>> snapshot,
+          ) {
+            final List<AgentDirectoryEntry> agents =
+                snapshot.data ?? const <AgentDirectoryEntry>[];
+            final Map<AgentNetwork, NetworkFundSnapshot> funds =
+                NetworkFinanceCalculator.calculate(
+                  agents: agents,
+                  orders: orders,
+                  transactions: transactions,
+                );
 
-        final int orange = capacity(AgentNetwork.orange);
-        final int mtn = capacity(AgentNetwork.mtn);
-        final int moov = capacity(AgentNetwork.moov);
-
-        return LayoutBuilder(
-          builder: (BuildContext context, BoxConstraints constraints) {
-            final bool compact = constraints.maxWidth < 360;
-            final double width = compact
-                ? constraints.maxWidth
-                : (constraints.maxWidth - 10) / 2;
-            return Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                SizedBox(
-                  width: width,
-                  child: _NetworkFundCard(
-                    label: 'Orange',
-                    amount: orange,
-                    caption: 'Capacité agents',
-                    asset: 'assets/brands/operators/orange_ci.png',
-                    accent: IzyTelColors.orange,
-                  ),
-                ),
-                SizedBox(
-                  width: width,
-                  child: _NetworkFundCard(
-                    label: 'MTN',
-                    amount: mtn,
-                    caption: 'Capacité agents',
-                    asset: 'assets/brands/operators/mtn_ci.png',
-                    accent: IzyTelColors.mtnText,
-                  ),
-                ),
-                SizedBox(
-                  width: width,
-                  child: _NetworkFundCard(
-                    label: 'Moov Africa',
-                    amount: moov,
-                    caption: 'Capacité agents',
-                    asset: 'assets/brands/operators/moov_africa_ci.png',
-                    accent: IzyTelColors.moov,
-                  ),
-                ),
-                SizedBox(
-                  width: width,
-                  child: _NetworkFundCard(
-                    label: 'Wave',
-                    amount: waveToday,
-                    caption: 'Encaissé aujourd’hui',
-                    asset: 'assets/images/wave_logo.png',
-                    accent: IzyTelColors.wave,
-                  ),
-                ),
-              ],
+            return LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                final bool compact = constraints.maxWidth < 360;
+                final double width = compact
+                    ? constraints.maxWidth
+                    : (constraints.maxWidth - 10) / 2;
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    SizedBox(
+                      width: width,
+                      child: _NetworkFundCard(
+                        label: 'Orange',
+                        snapshot: funds[AgentNetwork.orange]!,
+                        asset: 'assets/brands/operators/orange_ci.png',
+                        accent: IzyTelColors.orange,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _NetworkFundCard(
+                        label: 'MTN',
+                        snapshot: funds[AgentNetwork.mtn]!,
+                        asset: 'assets/brands/operators/mtn_ci.png',
+                        accent: IzyTelColors.mtnText,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _NetworkFundCard(
+                        label: 'Moov Africa',
+                        snapshot: funds[AgentNetwork.moov]!,
+                        asset: 'assets/brands/operators/moov_africa_ci.png',
+                        accent: IzyTelColors.moov,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _NetworkFundCard.wave(
+                        amount: waveToday,
+                        asset: 'assets/images/wave_logo.png',
+                        accent: IzyTelColors.wave,
+                      ),
+                    ),
+                  ],
+                );
+              },
             );
           },
-        );
-      },
     );
   }
 }
@@ -597,20 +707,36 @@ class _NetworkCapacitySection extends StatelessWidget {
 class _NetworkFundCard extends StatelessWidget {
   const _NetworkFundCard({
     required this.label,
-    required this.amount,
-    required this.caption,
+    required this.snapshot,
     required this.asset,
     required this.accent,
-  });
+  }) : waveAmount = null;
+
+  const _NetworkFundCard.wave({
+    required int amount,
+    required this.asset,
+    required this.accent,
+  }) : label = 'Wave',
+       snapshot = null,
+       waveAmount = amount;
 
   final String label;
-  final int amount;
-  final String caption;
+  final NetworkFundSnapshot? snapshot;
+  final int? waveAmount;
   final String asset;
   final Color accent;
 
   @override
   Widget build(BuildContext context) {
+    final NetworkFundSnapshot? fund = snapshot;
+    final int amount = fund?.available ?? waveAmount ?? 0;
+    final String caption = fund == null
+        ? 'Encaissé aujourd’hui'
+        : 'Engagé ${formatCfa(fund.committed)}';
+    final String? movementCaption = fund == null
+        ? null
+        : '+${formatCfa(fund.totalIncoming)}  ·  -${formatCfa(fund.totalOutgoing)}';
+
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
@@ -671,6 +797,19 @@ class _NetworkFundCard extends StatelessWidget {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
+                if (movementCaption != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    movementCaption,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: IzyTelColors.textMuted,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

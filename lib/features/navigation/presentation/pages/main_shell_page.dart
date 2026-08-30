@@ -9,6 +9,8 @@ import 'package:cabine_flow/features/agents/presentation/pages/agent_activity_pa
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
+import 'package:cabine_flow/features/commissions/presentation/pages/agent_commissions_page.dart';
+import 'package:cabine_flow/features/commissions/presentation/pages/agent_performance_page.dart';
 import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_repository.dart';
 import 'package:cabine_flow/features/dashboard/presentation/pages/dashboard_page.dart';
 import 'package:cabine_flow/features/dashboard/presentation/widgets/dashboard_widgets.dart';
@@ -24,6 +26,7 @@ import 'package:cabine_flow/features/payments/domain/repositories/payment_link_r
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/offer_catalog_repository.dart';
 
@@ -70,9 +73,8 @@ class _MainShellPageState extends State<MainShellPage> {
   final List<GlobalKey<NavigatorState>> _tabNavigatorKeys =
       List<GlobalKey<NavigatorState>>.generate(
         5,
-        (int index) => GlobalKey<NavigatorState>(
-          debugLabel: 'admin-tab-$index',
-        ),
+        (int index) =>
+            GlobalKey<NavigatorState>(debugLabel: 'admin-tab-$index'),
       );
 
   @override
@@ -267,6 +269,10 @@ class _MainShellPageState extends State<MainShellPage> {
       DashboardPage(
         user: widget.user,
         dashboardRepository: widget.dashboardRepository,
+        orderHistoryRepository:
+            widget.ordersRepository is OrderHistoryRepository
+            ? widget.ordersRepository as OrderHistoryRepository
+            : null,
         onOpenOrders: _openOrdersTab,
         onOpenPayments: _openPaymentsTab,
         onOpenMore: _openMoreTab,
@@ -347,9 +353,8 @@ class _AgentShellState extends State<_AgentShell> {
   final List<GlobalKey<NavigatorState>> _tabNavigatorKeys =
       List<GlobalKey<NavigatorState>>.generate(
         3,
-        (int index) => GlobalKey<NavigatorState>(
-          debugLabel: 'agent-tab-$index',
-        ),
+        (int index) =>
+            GlobalKey<NavigatorState>(debugLabel: 'agent-tab-$index'),
       );
 
   Future<void> _logout() async {
@@ -433,6 +438,47 @@ class _AgentShellState extends State<_AgentShell> {
     );
   }
 
+  void _openAgentProfile() {
+    setState(() => _selectedIndex = 2);
+    _tabNavigatorKeys[2].currentState?.popUntil(
+      (Route<dynamic> route) => route.isFirst,
+    );
+  }
+
+  void _openAgentHistory() {
+    setState(() => _selectedIndex = 1);
+  }
+
+  void _openAgentPerformance() {
+    setState(() => _selectedIndex = 2);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _tabNavigatorKeys[2].currentState?.push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => AgentPerformancePage(
+            user: widget.user,
+            repository: widget.commissionRepository,
+          ),
+        ),
+      );
+    });
+  }
+
+  void _openAgentCommissions() {
+    setState(() => _selectedIndex = 2);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _tabNavigatorKeys[2].currentState?.push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => AgentCommissionsPage(
+            user: widget.user,
+            repository: widget.commissionRepository,
+          ),
+        ),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = <Widget>[
@@ -440,7 +486,9 @@ class _AgentShellState extends State<_AgentShell> {
         user: widget.user,
         ordersRepository: widget.ordersRepository,
         agentRepository: widget.agentRepository,
-        onOpenProfile: () => setState(() => _selectedIndex = 2),
+        onOpenProfile: _openAgentProfile,
+        onOpenPerformance: _openAgentPerformance,
+        onOpenCommissions: _openAgentCommissions,
         onLogout: _logout,
       ),
       AgentHistoryPage(
@@ -454,6 +502,7 @@ class _AgentShellState extends State<_AgentShell> {
         commissionRepository: widget.commissionRepository,
         isLoggingOut: _isLoggingOut,
         onLogout: _logout,
+        onOpenHistory: _openAgentHistory,
       ),
     ];
 

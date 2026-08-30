@@ -178,10 +178,13 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             child: Center(
                               child: ConstrainedBox(
-                                constraints: const BoxConstraints(maxWidth: 420),
+                                constraints: const BoxConstraints(
+                                  maxWidth: 420,
+                                ),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   children: [
                                     Text(
                                       'Bienvenue',
@@ -231,7 +234,8 @@ class _LoginPageState extends State<LoginPage> {
                                             controller: _identifierController,
                                             keyboardType:
                                                 TextInputType.emailAddress,
-                                            textInputAction: TextInputAction.next,
+                                            textInputAction:
+                                                TextInputAction.next,
                                             autofillHints: const [
                                               AutofillHints.email,
                                             ],
@@ -269,7 +273,8 @@ class _LoginPageState extends State<LoginPage> {
                                             obscureText: _obscurePassword,
                                             enableSuggestions: false,
                                             autocorrect: false,
-                                            textInputAction: TextInputAction.done,
+                                            textInputAction:
+                                                TextInputAction.done,
                                             autofillHints: const [
                                               AutofillHints.password,
                                             ],
@@ -305,9 +310,9 @@ class _LoginPageState extends State<LoginPage> {
                                                 icon: Icon(
                                                   _obscurePassword
                                                       ? Symbols
-                                                          .visibility_off_rounded
+                                                            .visibility_off_rounded
                                                       : Symbols
-                                                          .visibility_rounded,
+                                                            .visibility_rounded,
                                                   size: IzyTelIconSize.info,
                                                 ),
                                               ),
@@ -325,7 +330,8 @@ class _LoginPageState extends State<LoginPage> {
                                             children: [
                                               Flexible(
                                                 child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
                                                   children: [
                                                     SizedBox(
                                                       width: 22,
@@ -333,26 +339,28 @@ class _LoginPageState extends State<LoginPage> {
                                                       child: Checkbox(
                                                         value: _rememberMe,
                                                         onChanged:
-                                                            (bool? value) =>
-                                                                setState(
-                                                                  () =>
-                                                                      _rememberMe =
-                                                                          value ??
-                                                                          false,
-                                                                ),
+                                                            (
+                                                              bool? value,
+                                                            ) => setState(
+                                                              () =>
+                                                                  _rememberMe =
+                                                                      value ??
+                                                                      false,
+                                                            ),
                                                         materialTapTargetSize:
                                                             MaterialTapTargetSize
                                                                 .shrinkWrap,
                                                         visualDensity:
-                                                            VisualDensity.compact,
+                                                            VisualDensity
+                                                                .compact,
                                                       ),
                                                     ),
                                                     const SizedBox(width: 6),
                                                     const Flexible(
                                                       child: FittedBox(
                                                         fit: BoxFit.scaleDown,
-                                                        alignment:
-                                                            Alignment.centerLeft,
+                                                        alignment: Alignment
+                                                            .centerLeft,
                                                         child: Text(
                                                           'Se souvenir de moi',
                                                           maxLines: 1,
@@ -394,7 +402,8 @@ class _LoginPageState extends State<LoginPage> {
                                                       softWrap: false,
                                                       style: TextStyle(
                                                         fontSize:
-                                                            IzyTelTypeScale.label,
+                                                            IzyTelTypeScale
+                                                                .label,
                                                         fontWeight:
                                                             FontWeight.w600,
                                                       ),
@@ -417,14 +426,16 @@ class _LoginPageState extends State<LoginPage> {
                                                       child:
                                                           CircularProgressIndicator(
                                                             strokeWidth: 2,
-                                                            color: IzyTelColors.surface,
+                                                            color: IzyTelColors
+                                                                .surface,
                                                           ),
                                                     )
                                                   : const Text(
                                                       'Se connecter',
                                                       style: TextStyle(
                                                         fontSize:
-                                                            IzyTelTypeScale.label,
+                                                            IzyTelTypeScale
+                                                                .label,
                                                         fontWeight:
                                                             FontWeight.w700,
                                                       ),
@@ -490,9 +501,7 @@ class _LoginPageState extends State<LoginPage> {
                               '© 2025 IzyTel. Tous droits réservés.',
                               textAlign: TextAlign.center,
                               maxLines: 1,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelMedium
+                              style: Theme.of(context).textTheme.labelMedium
                                   ?.copyWith(
                                     color: IzyTelColors.textMuted,
                                     fontSize: IzyTelTypeScale.micro,
@@ -512,7 +521,6 @@ class _LoginPageState extends State<LoginPage> {
       },
     );
   }
-
 }
 
 class _FieldLabel extends StatelessWidget {

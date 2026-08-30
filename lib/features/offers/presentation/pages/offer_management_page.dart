@@ -125,7 +125,8 @@ class _OfferManagementPageState extends State<OfferManagementPage> {
           listenable: _viewModel,
           builder: (BuildContext context, Widget? child) {
             final List<AdminOffer> offers = _viewModel.filteredOffers;
-            final bool hasFilters = _viewModel.searchQuery.isNotEmpty ||
+            final bool hasFilters =
+                _viewModel.searchQuery.isNotEmpty ||
                 _viewModel.networkFilter != null ||
                 _viewModel.serviceFilter != null ||
                 _viewModel.statusFilter != OfferStatusFilter.all;
@@ -141,9 +142,7 @@ class _OfferManagementPageState extends State<OfferManagementPage> {
                     title: 'Offres',
                     subtitle:
                         'Gère le catalogue, les tarifs et la disponibilité côté client.',
-                    actions: [
-                      IzyTelAvatar(name: widget.user.name, size: 42),
-                    ],
+                    actions: [IzyTelAvatar(name: widget.user.name, size: 42)],
                   ),
                   const SizedBox(height: IzyTelSpacing.lg),
                   _SummaryHeader(
@@ -172,7 +171,8 @@ class _OfferManagementPageState extends State<OfferManagementPage> {
                   _ServiceStatusFilters(viewModel: _viewModel),
                   const SizedBox(height: IzyTelSpacing.lg),
                   IzyTelSectionHeader(
-                    title: '${offers.length} offre${offers.length > 1 ? 's' : ''}',
+                    title:
+                        '${offers.length} offre${offers.length > 1 ? 's' : ''}',
                     actionLabel: hasFilters ? 'Réinitialiser' : null,
                     onAction: hasFilters ? _clearAll : null,
                   ),
@@ -452,9 +452,7 @@ class _OfferCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             _networkLabel(offer.network),
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelMedium
+                            style: Theme.of(context).textTheme.labelMedium
                                 ?.copyWith(
                                   color: networkColor,
                                   fontWeight: FontWeight.w700,
@@ -490,10 +488,11 @@ class _OfferCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             formatCfa(offer.sellingPrice),
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: IzyTelColors.primary,
-                              fontWeight: FontWeight.w800,
-                            ),
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: IzyTelColors.primary,
+                                  fontWeight: FontWeight.w800,
+                                ),
                           ),
                         ),
                         IconButton(
@@ -503,7 +502,9 @@ class _OfferCard extends StatelessWidget {
                           icon: isBusy
                               ? const SizedBox.square(
                                   dimension: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 )
                               : Icon(
                                   offer.isActive
