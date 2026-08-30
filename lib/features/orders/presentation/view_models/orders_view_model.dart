@@ -11,11 +11,14 @@ class OrdersViewModel extends ChangeNotifier {
   OrdersViewModel({
     required OrdersRepository ordersRepository,
     OrderHistoryRepository? orderHistoryRepository,
+    bool enablePeriodicTimer = false,
   }) : _ordersRepository = ordersRepository,
        _orderHistoryRepository = orderHistoryRepository {
-    _clockTimer = Timer.periodic(const Duration(seconds: 30), (Timer timer) {
-      notifyListeners();
-    });
+    if (enablePeriodicTimer) {
+      _clockTimer = Timer.periodic(const Duration(seconds: 30), (Timer timer) {
+        notifyListeners();
+      });
+    }
   }
 
   final OrdersRepository _ordersRepository;

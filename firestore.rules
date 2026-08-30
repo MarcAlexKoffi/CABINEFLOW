@@ -3141,6 +3141,307 @@ service cloud.firestore {
         );
     }
 
+    // PHASE 12 - commissions et performances agents.
+    // Une commission est créée une seule fois, dans la même transaction que
+    // PROCESSING_SUCCEEDED. Le compte agrégé de l'agent est mis à jour dans
+    // la même transaction. Les dépendances ajoutées restent unidirectionnelles :
+    // commission -> order, commissionAccount -> commission et
+    // commissionAccount -> commissionPayout. Aucun artefact ne relit le compte.
+    function hasValidCommissionValues(commissionId) {
+      return request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'orderId',
+          'orderReference',
+          'agentId',
+          'agentName',
+          'network',
+          'orderAmount',
+          'commissionAmount',
+          'policyId',
+          'policyType',
+          'rate',
+          'processingStartedAt',
+          'earnedAt',
+          'createdAt'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.orderId == commissionId
+        && request.resource.data.orderId is string
+        && request.resource.data.orderId.size() >= 8
+        && request.resource.data.orderReference is string
+        && request.resource.data.orderReference.size() >= 12
+        && request.resource.data.orderReference.size() <= 40
+        && request.resource.data.agentId is string
+        && request.resource.data.agentId.size() >= 1
+        && request.resource.data.agentName is string
+        && request.resource.data.agentName.size() >= 2
+        && request.resource.data.agentName.size() <= 80
+        && request.resource.data.network in ['orange', 'mtn', 'moov']
+        && request.resource.data.orderAmount is int
+        && request.resource.data.orderAmount > 0
+        && request.resource.data.orderAmount <= 1000000
+        && request.resource.data.commissionAmount == 10
+        && request.resource.data.policyId == 'fixed-10-v1'
+        && request.resource.data.policyType == 'fixedPerSuccessfulTransaction'
+        && request.resource.data.rate == 10
+        && (
+          request.resource.data.processingStartedAt == null
+          || request.resource.data.processingStartedAt is timestamp
+        )
+        && request.resource.data.earnedAt == request.time
+        && request.resource.data.createdAt == request.time;
+    }
+
+    function isValidAgentCommissionCreation(commissionId) {
+      let order = getAfter(
+        /databases/$(database)/documents/orders/$(commissionId)
+      ).data;
+
+      return isAgent()
+        && request.resource.data.agentId == request.auth.uid
+        && hasValidCommissionValues(commissionId)
+        && order.reference == request.resource.data.orderReference
+        && order.get('assignedAgentId', null) == request.auth.uid
+        && order.get('assignedAgentName', null) == request.resource.data.agentName
+        && order.get('assignmentStatus', 'unassigned') == 'accepted'
+        && order.paymentStatus == 'confirmed'
+        && order.status == 'awaitingCustomerConfirmation'
+        && order.amount == request.resource.data.orderAmount
+        && order.network == request.resource.data.network
+        && order.get('takenAt', null)
+          == request.resource.data.get('processingStartedAt', null)
+        && order.get('completedAt', null) == request.time
+        && order.get('lastEventType', null) == 'PROCESSING_SUCCEEDED'
+        && order.get('lastEventAt', null) == request.time;
+    }
+
+    function hasValidCommissionAccountValues(accountId) {
+      return request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'agentId',
+          'agentName',
+          'earnedTotal',
+          'paidTotal',
+          'earnedTransactions',
+          'lastCommissionOrderId',
+          'lastPayoutId',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.agentId == accountId
+        && request.resource.data.agentId is string
+        && request.resource.data.agentName is string
+        && request.resource.data.agentName.size() >= 2
+        && request.resource.data.agentName.size() <= 80
+        && request.resource.data.earnedTotal is int
+        && request.resource.data.earnedTotal >= 0
+        && request.resource.data.paidTotal is int
+        && request.resource.data.paidTotal >= 0
+        && request.resource.data.paidTotal <= request.resource.data.earnedTotal
+        && request.resource.data.earnedTransactions is int
+        && request.resource.data.earnedTransactions >= 0
+        && (
+          request.resource.data.get('lastCommissionOrderId', null) == null
+          || request.resource.data.get('lastCommissionOrderId', null) is string
+        )
+        && (
+          request.resource.data.get('lastPayoutId', null) == null
+          || request.resource.data.get('lastPayoutId', null) is string
+        )
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function commissionForAccountRequest() {
+      let commissionId = request.resource.data.get('lastCommissionOrderId', '');
+      return getAfter(
+        /databases/$(database)/documents/commissions/$(commissionId)
+      ).data;
+    }
+
+    function commissionMatchesAccountRequest(accountId, commission) {
+      let commissionId = request.resource.data.get('lastCommissionOrderId', '');
+
+      return commissionId is string
+        && commissionId.size() >= 8
+        && commission.orderId == commissionId
+        && commission.agentId == accountId
+        && commission.agentName == request.resource.data.agentName
+        && commission.commissionAmount is int
+        && commission.commissionAmount > 0
+        && commission.earnedAt == request.time;
+    }
+
+    function isValidAgentCommissionAccountCreation(accountId) {
+      let commission = commissionForAccountRequest();
+
+      return isAgent()
+        && request.auth.uid == accountId
+        && hasValidCommissionAccountValues(accountId)
+        && commissionMatchesAccountRequest(accountId, commission)
+        && request.resource.data.earnedTotal == commission.commissionAmount
+        && request.resource.data.paidTotal == 0
+        && request.resource.data.earnedTransactions == 1
+        && request.resource.data.get('lastPayoutId', null) == null
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidAgentCommissionAccountUpdate(accountId) {
+      let commission = commissionForAccountRequest();
+
+      return isAgent()
+        && request.auth.uid == accountId
+        && hasValidCommissionAccountValues(accountId)
+        && commissionMatchesAccountRequest(accountId, commission)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.paidTotal == resource.data.paidTotal
+        && request.resource.data.get('lastPayoutId', null)
+          == resource.data.get('lastPayoutId', null)
+        && request.resource.data.earnedTotal
+          == resource.data.earnedTotal + commission.commissionAmount
+        && request.resource.data.earnedTransactions
+          == resource.data.earnedTransactions + 1
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'agentName',
+          'earnedTotal',
+          'earnedTransactions',
+          'lastCommissionOrderId',
+          'updatedAt'
+        ]);
+    }
+
+    function hasValidCommissionPayoutValues(payoutId) {
+      let agentId = request.resource.data.agentId;
+      let account = get(
+        /databases/$(database)/documents/commissionAccounts/$(agentId)
+      ).data;
+
+      return isAdmin()
+        && payoutId is string
+        && payoutId.matches('^wave_[A-Za-z0-9_-]+$')
+        && request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'agentId',
+          'agentName',
+          'amount',
+          'paymentChannel',
+          'paymentReference',
+          'note',
+          'paidAt',
+          'createdBy',
+          'createdByName',
+          'createdAt'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && agentId is string
+        && agentId.size() >= 1
+        && request.resource.data.agentName is string
+        && request.resource.data.agentName.size() >= 2
+        && request.resource.data.agentName.size() <= 80
+        && request.resource.data.amount is int
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 100000000
+        && request.resource.data.paymentChannel == 'wave'
+        && request.resource.data.paymentReference is string
+        && request.resource.data.paymentReference.size() >= 3
+        && request.resource.data.paymentReference.size() <= 120
+        && (
+          request.resource.data.get('note', null) == null
+          || (
+            request.resource.data.get('note', null) is string
+            && request.resource.data.get('note', '').size() <= 500
+          )
+        )
+        && request.resource.data.paidAt == request.time
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdByName is string
+        && request.resource.data.createdByName.size() >= 2
+        && request.resource.data.createdByName.size() <= 80
+        && request.resource.data.createdAt == request.time
+        && account.agentId == agentId
+        && account.agentName == request.resource.data.agentName
+        && request.resource.data.amount
+          <= account.earnedTotal - account.paidTotal;
+    }
+
+    function isValidAdminCommissionAccountPayoutUpdate(accountId) {
+      let payoutId = request.resource.data.get('lastPayoutId', '');
+      let payout = getAfter(
+        /databases/$(database)/documents/commissionPayouts/$(payoutId)
+      ).data;
+
+      return isAdmin()
+        && hasValidCommissionAccountValues(accountId)
+        && request.resource.data.agentId == resource.data.agentId
+        && request.resource.data.agentName == resource.data.agentName
+        && request.resource.data.earnedTotal == resource.data.earnedTotal
+        && request.resource.data.earnedTransactions
+          == resource.data.earnedTransactions
+        && request.resource.data.get('lastCommissionOrderId', null)
+          == resource.data.get('lastCommissionOrderId', null)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && payoutId is string
+        && payoutId.size() >= 1
+        && payoutId != resource.data.get('lastPayoutId', null)
+        && payout.agentId == accountId
+        && payout.agentName == resource.data.agentName
+        && payout.createdBy == request.auth.uid
+        && payout.paidAt == request.time
+        && request.resource.data.paidTotal
+          == resource.data.paidTotal + payout.amount
+        && request.resource.data.paidTotal <= request.resource.data.earnedTotal
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'paidTotal',
+          'lastPayoutId',
+          'updatedAt'
+        ]);
+    }
+
+    match /commissions/{commissionId} {
+      allow get: if isAdmin()
+        || (
+          isAgent()
+          && resource.data.agentId == request.auth.uid
+        );
+      allow list: if isAdmin()
+        || (
+          isAgent()
+          && resource.data.agentId == request.auth.uid
+        );
+      allow create: if isValidAgentCommissionCreation(commissionId);
+      allow update, delete: if false;
+    }
+
+    match /commissionAccounts/{accountId} {
+      allow get: if isAdmin()
+        || (isAgent() && request.auth.uid == accountId);
+      allow list: if isAdmin()
+        || (isAgent() && request.auth.uid == accountId);
+      allow create: if isValidAgentCommissionAccountCreation(accountId);
+      allow update: if isValidAgentCommissionAccountUpdate(accountId)
+        || isValidAdminCommissionAccountPayoutUpdate(accountId);
+      allow delete: if false;
+    }
+
+    match /commissionPayouts/{payoutId} {
+      allow get: if isAdmin()
+        || (
+          isAgent()
+          && resource.data.agentId == request.auth.uid
+        );
+      allow list: if isAdmin()
+        || (
+          isAgent()
+          && resource.data.agentId == request.auth.uid
+        );
+      allow create: if hasValidCommissionPayoutValues(payoutId);
+      allow update, delete: if false;
+    }
+
     match /refunds/{refundId} {
       allow get, list: if isAdmin();
       allow create: if isValidAdminRefundCreation(refundId);
@@ -3275,7 +3576,16 @@ service cloud.firestore {
     }
 
     match /orderEvents/{eventId} {
-      allow get, list: if isStaff();
+      allow get: if isStaff()
+        || (
+          isAgent()
+          && resource.data.actorId == request.auth.uid
+        );
+      allow list: if isStaff()
+        || (
+          isAgent()
+          && resource.data.actorId == request.auth.uid
+        );
       allow create: if isValidOrderEventCreation(eventId);
       allow update, delete: if false;
     }

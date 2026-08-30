@@ -1,7 +1,9 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:flutter/material.dart';
 
 class OrdersTopBar extends StatelessWidget {
@@ -20,76 +22,47 @@ class OrdersTopBar extends StatelessWidget {
   final VoidCallback? onSearchPressed;
   final VoidCallback? onFiltersPressed;
 
-  String get initial {
-    final String name = user.name.trim();
-
-    if (name.isEmpty) {
-      return '?';
-    }
-
-    return name.substring(0, 1).toUpperCase();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: AppColors.primary.withAlpha(40),
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.primary, width: 1.5),
-          ),
-          child: Center(
-            child: Text(
-              initial,
-              style: const TextStyle(
-                color: AppColors.primary,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Commandes',
-                style: TextStyle(
-                  color: AppColors.onBackground,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontSize: 20,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              if (subtitle?.trim().isNotEmpty == true)
+              if (subtitle?.trim().isNotEmpty == true) ...[
+                const SizedBox(height: 2),
                 Text(
                   subtitle!,
-                  style: const TextStyle(
-                    color: AppColors.onSurfaceVariant,
-                    fontSize: 13,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontSize: 11,
+                    color: IzyTelColors.textSecondary,
                   ),
                 ),
+              ],
             ],
           ),
         ),
         if (onSearchPressed != null)
           IconButton(
-            tooltip: 'Historique et recherche',
+            tooltip: 'Rechercher',
             onPressed: onSearchPressed,
-            color: AppColors.onBackground,
-            icon: const Icon(Icons.search_rounded),
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.search_rounded, size: 22),
           ),
         if (onFiltersPressed != null)
           IconButton(
-            tooltip: 'Historique filtré',
+            tooltip: 'Filtres',
             onPressed: onFiltersPressed,
-            color: AppColors.onBackground,
-            icon: const Icon(Icons.tune_rounded),
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.tune_rounded, size: 21),
           ),
       ],
     );
@@ -114,110 +87,104 @@ class OrdersTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.outlineVariant.withAlpha(50)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: GestureDetector(
-              onTap: () => onTabChanged(0),
-              behavior: HitTestBehavior.opaque,
-              child: _TabItem(
-                label: 'À traiter',
-                count: todoCount,
-                isActive: activeTabIndex == 0,
-                activeColor: const Color(0xFFFF7900),
-              ),
-            ),
+    return Row(
+      children: [
+        Expanded(
+          child: _TabChip(
+            label: 'À traiter',
+            count: todoCount,
+            selected: activeTabIndex == 0,
+            onTap: () => onTabChanged(0),
           ),
-          Expanded(
-            child: GestureDetector(
-              onTap: () => onTabChanged(1),
-              behavior: HitTestBehavior.opaque,
-              child: _TabItem(
-                label: 'En cours',
-                count: inProgressCount,
-                isActive: activeTabIndex == 1,
-                activeColor: const Color(0xFF1677FF),
-              ),
-            ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _TabChip(
+            label: 'En cours',
+            count: inProgressCount,
+            selected: activeTabIndex == 1,
+            onTap: () => onTabChanged(1),
           ),
-          Expanded(
-            child: GestureDetector(
-              onTap: () => onTabChanged(2),
-              behavior: HitTestBehavior.opaque,
-              child: _TabItem(
-                label: 'Terminées',
-                count: completedCount,
-                isActive: activeTabIndex == 2,
-                activeColor: AppColors.success,
-              ),
-            ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _TabChip(
+            label: 'Terminées',
+            count: completedCount,
+            selected: activeTabIndex == 2,
+            onTap: () => onTabChanged(2),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-class _TabItem extends StatelessWidget {
-  const _TabItem({
+class _TabChip extends StatelessWidget {
+  const _TabChip({
     required this.label,
     required this.count,
-    required this.isActive,
-    required this.activeColor,
+    required this.selected,
+    required this.onTap,
   });
 
   final String label;
   final int count;
-  final bool isActive;
-  final Color activeColor;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        border: isActive
-            ? Border(bottom: BorderSide(color: activeColor, width: 3))
-            : null,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: isActive ? activeColor : AppColors.primary,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
+    return Material(
+      color: selected ? IzyTelColors.primary : IzyTelColors.surfaceMuted,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 9),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: selected ? Colors.white : IzyTelColors.textSecondary,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: isActive ? activeColor : AppColors.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              count.toString(),
-              style: TextStyle(
-                color: isActive ? AppColors.onPrimary : AppColors.primary,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
+              const SizedBox(width: 5),
+              Container(
+                constraints: const BoxConstraints(minWidth: 19),
+                height: 19,
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? Colors.white.withAlpha(38)
+                      : IzyTelColors.surface,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(
+                  '$count',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: selected ? Colors.white : IzyTelColors.textSecondary,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -230,54 +197,7 @@ class OrdersSortBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.outlineVariant.withAlpha(50)),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.hourglass_empty_rounded,
-            size: 16,
-            color: AppColors.onSurfaceVariant,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: const TextStyle(
-                  color: AppColors.onSurfaceVariant,
-                  fontSize: 12,
-                ),
-                children: [
-                  const TextSpan(text: 'La plus ancienne attend depuis '),
-                  TextSpan(
-                    text: '$oldestWaitMinutes min',
-                    style: const TextStyle(
-                      color: AppColors.error,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const Text(
-            'Par ancienneté',
-            style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 12),
-          ),
-          const SizedBox(width: 4),
-          const Icon(
-            Icons.keyboard_arrow_down_rounded,
-            size: 16,
-            color: AppColors.onSurfaceVariant,
-          ),
-        ],
-      ),
-    );
+    return const SizedBox.shrink();
   }
 }
 
@@ -297,47 +217,19 @@ class QueueMetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 100,
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
+    return IzyTelSurface(
+      padding: const EdgeInsets.all(13),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          Text(label, style: Theme.of(context).textTheme.labelMedium),
+          const SizedBox(height: 7),
           Text(
-            label.toUpperCase(),
-            style: Theme.of(context).textTheme.labelLarge,
-          ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                value.toString(),
-                style: TextStyle(
-                  color: valueColor,
-                  fontSize: 30,
-                  height: 1,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 3),
-                child: Text(
-                  unit,
-                  style: const TextStyle(
-                    color: AppColors.onSurface,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
+            '$value $unit',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: valueColor,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ],
       ),
@@ -359,68 +251,66 @@ class QueueFilterButton extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onPressed;
 
+  Color get _accent {
+    switch (label.toLowerCase()) {
+      case 'orange':
+        return IzyTelColors.orange;
+      case 'mtn':
+        return const Color(0xFFC39400);
+      case 'moov':
+        return IzyTelColors.moov;
+      default:
+        return IzyTelColors.primary;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    Color borderColor = AppColors.outlineVariant.withAlpha(50);
-    Color foregroundColor = AppColors.onSurface;
-    Color badgeColor = AppColors.surfaceContainerHighest;
-    Color badgeTextColor = AppColors.onSurfaceVariant;
-
-    if (isSelected) {
-      // Simulate the orange color if selected, or default based on label
-      borderColor = const Color(0xFFFF7900);
-      foregroundColor = AppColors.onBackground;
-      badgeColor = const Color(0xFFFF7900);
-      badgeTextColor = AppColors.onPrimary;
-    } else if (label == 'Orange') {
-      badgeColor = const Color(0xFFFF7900).withAlpha(50);
-      badgeTextColor = const Color(0xFFFF7900);
-    } else if (label == 'MTN') {
-      badgeColor = const Color(0xFFFFCC00).withAlpha(50);
-      badgeTextColor = const Color(0xFFFFCC00);
-    } else if (label == 'Moov') {
-      badgeColor = const Color(0xFF0055A5).withAlpha(50);
-      badgeTextColor = const Color(0xFF0055A5);
-    }
-
     return Material(
-      color: Colors.transparent,
+      color: isSelected ? IzyTelColors.primary : IzyTelColors.surface,
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: isSelected ? IzyTelColors.primary : IzyTelColors.outline,
+        ),
+      ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
         onTap: onPressed,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: borderColor, width: 1),
-          ),
+        customBorder: const StadiumBorder(),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                label,
-                style: TextStyle(
-                  color: foregroundColor,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                decoration: BoxDecoration(
-                  color: badgeColor,
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  count.toString(),
-                  style: TextStyle(
-                    color: badgeTextColor,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+              if (label != 'Tous') ...[
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: _accent,
+                    shape: BoxShape.circle,
                   ),
                 ),
+                const SizedBox(width: 5),
+              ],
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: isSelected ? Colors.white : IzyTelColors.textSecondary,
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
+              if (count > 0) ...[
+                const SizedBox(width: 4),
+                Text(
+                  '$count',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: isSelected ? Colors.white : IzyTelColors.textMuted,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -453,342 +343,198 @@ class QueueOrderCard extends StatelessWidget {
   final String? assignmentLabel;
   final bool isActionEnabled;
 
-  String get networkLabel {
-    switch (order.network) {
-      case MobileNetwork.orange:
-        return 'Orange';
-      case MobileNetwork.mtn:
-        return 'MTN';
-      case MobileNetwork.moov:
-        return 'Moov';
+  String get _stateLabel {
+    if (order.manualAssignmentRequired) return 'Affectation manuelle';
+    if (order.isAssignedToAgent) return 'Affectée';
+    if (order.paymentStatus == OrderPaymentStatus.confirmed) {
+      return 'Paiement confirmé';
     }
+    return orderStatusLabel(order.status);
   }
 
-  Color get networkColor {
-    switch (order.network) {
-      case MobileNetwork.orange:
-        return const Color(0xFFFF7900);
-      case MobileNetwork.mtn:
-        return const Color(0xFFFFCC00);
-      case MobileNetwork.moov:
-        return const Color(0xFF0055A5);
+  Color get _stateColor {
+    if (order.manualAssignmentRequired || order.isAssignedToAgent) {
+      return IzyTelColors.warning;
     }
-  }
-
-  Widget _buildOperatorLogo() {
-    String assetPath;
-    switch (order.network) {
-      case MobileNetwork.orange:
-        assetPath = 'assets/images/orange_logo.png';
-        break;
-      case MobileNetwork.mtn:
-        assetPath = 'assets/images/mtn_logo.png';
-        break;
-      case MobileNetwork.moov:
-        assetPath = 'assets/images/moov_logo.png';
-        break;
+    if (order.paymentStatus == OrderPaymentStatus.confirmed) {
+      return IzyTelColors.success;
     }
-
-    return Container(
-      width: 46,
-      height: 46,
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
-      clipBehavior: Clip.antiAlias,
-      child: Image.asset(assetPath, fit: BoxFit.cover),
-    );
+    return orderStatusColor(order.status);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: isUrgent
-              ? AppColors.error
-              : AppColors.outlineVariant.withAlpha(50),
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              width: 4,
-              decoration: BoxDecoration(
-                color: networkColor,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(10),
-                  bottomLeft: Radius.circular(10),
+    final Color accent = networkColor(order.network);
+    final bool enabled = isActionEnabled && !isProcessing;
+
+    return Material(
+      color: IzyTelColors.surface,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: enabled ? onTakeCharge : null,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(0, 11, 10, 11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: IzyTelColors.outline),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0F0F172A),
+                blurRadius: 16,
+                offset: Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: 3,
+                margin: const EdgeInsets.symmetric(vertical: 5),
+                decoration: BoxDecoration(
+                  color: accent,
+                  borderRadius: BorderRadius.circular(99),
                 ),
               ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
+              const SizedBox(width: 10),
+              Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildOperatorLogo(),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.success.withAlpha(0),
-                                    border: Border.all(
-                                      color: AppColors.success,
-                                    ),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.check_circle_outline_rounded,
-                                        size: 11,
-                                        color: AppColors.success,
-                                      ),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'PAIEMENT CONFIRMÉ',
-                                        style: TextStyle(
-                                          color: AppColors.success,
-                                          fontSize: 8,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
+                        Container(
+                          width: 30,
+                          height: 30,
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: accent.withAlpha(14),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Image.asset(
+                            networkAsset(order.network),
+                            fit: BoxFit.contain,
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.timer_outlined,
-                                  size: 13,
-                                  color: isUrgent
-                                      ? AppColors.error
-                                      : const Color(0xFFFFCC00),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  isUrgent
-                                      ? 'URGENTE • $waitingMinutes min'
-                                      : '$waitingMinutes min',
-                                  style: TextStyle(
-                                    color: isUrgent
-                                        ? AppColors.error
-                                        : const Color(0xFFFFCC00),
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              order.reference,
-                              style: const TextStyle(
-                                color: AppColors.onSurfaceVariant,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Bénéficiaire',
-                      style: TextStyle(
-                        color: AppColors.onSurfaceVariant,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
+                        const SizedBox(width: 9),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                order.beneficiaryPhone,
-                                style: const TextStyle(
-                                  color: AppColors.onBackground,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      networkLabel(order.network),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelMedium
+                                          ?.copyWith(
+                                            color: IzyTelColors.textPrimary,
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                    ),
+                                  ),
+                                  Text(
+                                    waitingMinutes <= 0
+                                        ? 'À l’instant'
+                                        : 'Il y a $waitingMinutes min',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelMedium
+                                        ?.copyWith(
+                                          color: IzyTelColors.error,
+                                          fontSize: 8.5,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 order.offerLabel,
-                                style: const TextStyle(
-                                  color: AppColors.onSurfaceVariant,
-                                  fontSize: 13,
-                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w800,
+                                    ),
                               ),
                             ],
                           ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 9),
+                    Row(
+                      children: [
+                        Text(
+                          order.beneficiaryPhone,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: IzyTelColors.textPrimary,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                        const Spacer(),
                         Text(
                           formatCfa(order.amount),
-                          style: const TextStyle(
-                            color: AppColors.onBackground,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: IzyTelColors.primaryStrong,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                              ),
                         ),
                       ],
                     ),
-                    if (order.manualAssignmentRequired) ...[
-                      const SizedBox(height: 14),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 7,
+                    const SizedBox(height: 9),
+                    Row(
+                      children: [
+                        IzyTelStatusPill(
+                          label: _stateLabel,
+                          color: _stateColor,
                         ),
-                        decoration: BoxDecoration(
-                          color: AppColors.warning.withAlpha(18),
-                          borderRadius: BorderRadius.circular(9),
-                          border: Border.all(
-                            color: AppColors.warning.withAlpha(80),
+                        const Spacer(),
+                        Flexible(
+                          child: Text(
+                            order.reference,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: IzyTelColors.textMuted,
+                                  fontSize: 8.5,
+                                ),
                           ),
                         ),
-                        child: const Row(
-                          children: [
-                            Icon(
-                              Icons.assignment_ind_outlined,
-                              size: 16,
-                              color: AppColors.warning,
-                            ),
-                            SizedBox(width: 7),
-                            Expanded(
-                              child: Text(
-                                'AFFECTATION MANUELLE REQUISE',
-                                style: TextStyle(
-                                  color: AppColors.warning,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    if (assignmentLabel != null &&
-                        assignmentLabel!.trim().isNotEmpty) ...[
-                      const SizedBox(height: 14),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.warning.withAlpha(18),
-                          borderRadius: BorderRadius.circular(9),
-                          border: Border.all(
-                            color: AppColors.warning.withAlpha(80),
+                        const SizedBox(width: 4),
+                        if (isProcessing)
+                          const SizedBox.square(
+                            dimension: 14,
+                            child: CircularProgressIndicator(strokeWidth: 1.7),
+                          )
+                        else
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            size: 17,
+                            color: IzyTelColors.textMuted,
                           ),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.person_pin_circle_outlined,
-                              size: 16,
-                              color: AppColors.warning,
-                            ),
-                            const SizedBox(width: 7),
-                            Expanded(
-                              child: Text(
-                                'Affectée à $assignmentLabel',
-                                style: const TextStyle(
-                                  color: AppColors.warning,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: isProcessing || !isActionEnabled
-                            ? null
-                            : onTakeCharge,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(
-                            0xFF0F52BA,
-                          ), // Deep blue from image
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: isProcessing
-                            ? const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  SizedBox(width: 10),
-                                  Text(
-                                    'Traitement...',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : Text(
-                                actionLabel,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
-                      ),
+                      ],
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -800,26 +546,29 @@ class QueueEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return IzyTelSurface(
       padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
       child: Column(
         children: [
-          const Icon(
-            Icons.task_alt_rounded,
-            size: 48,
-            color: AppColors.success,
+          Container(
+            width: 54,
+            height: 54,
+            decoration: const BoxDecoration(
+              color: IzyTelColors.successSoft,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.task_alt_rounded,
+              size: 28,
+              color: IzyTelColors.success,
+            ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           Text(
             'Aucune commande à traiter',
-            style: Theme.of(context).textTheme.titleLarge,
+            style: Theme.of(context).textTheme.titleMedium,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             'Toutes les commandes payées ont été prises en charge.',
             textAlign: TextAlign.center,

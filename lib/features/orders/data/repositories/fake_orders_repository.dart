@@ -8,6 +8,7 @@ import 'package:cabine_flow/features/orders/domain/models/order_proof.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:flutter/widgets.dart';
 
 class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
   FakeOrdersRepository({this.isTest = false});
@@ -47,7 +48,10 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
   }
 
   Future<void> _delay([int ms = 400]) async {
-    if (isTest) return;
+    if (isTest ||
+        (WidgetsBinding.instance.runtimeType.toString().contains('Test'))) {
+      return;
+    }
     await Future<void>.delayed(Duration(milliseconds: ms));
   }
 

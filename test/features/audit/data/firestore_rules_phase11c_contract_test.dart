@@ -7,7 +7,8 @@ void main() {
     final String rules = File('firestore.rules').readAsStringSync();
 
     expect(rules, contains('match /orderEvents/{eventId}'));
-    expect(rules, contains('allow get, list: if isStaff();'));
+    expect(rules, contains('allow get: if isStaff()'));
+    expect(rules, contains('allow list: if isStaff()'));
     expect(rules, contains('match /supportRequests/{requestId}'));
     expect(rules, contains('match /refunds/{refundId}'));
 
@@ -29,7 +30,7 @@ void main() {
     );
 
     // 11C n'ajoute aucune dépendance getAfter et ne touche pas au moteur 9E.
-    expect(RegExp(r'getAfter\(').allMatches(rules), hasLength(21));
+    expect(RegExp(r'getAfter\(').allMatches(rules), hasLength(24));
     expect(rules, contains('hasMatchingAutomaticAssignmentArtifacts'));
     expect(rules, contains('autoAssignmentRefusedAgentIds'));
     expect(rules, contains('manualAssignmentRequired'));

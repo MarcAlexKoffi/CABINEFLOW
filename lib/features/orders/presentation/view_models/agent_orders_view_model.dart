@@ -5,6 +5,7 @@ import 'package:cabine_flow/features/agents/domain/repositories/agent_repository
 import 'package:cabine_flow/features/orders/domain/models/automatic_assignment.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_proof.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/features/orders/domain/services/agent_order_priority_policy.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -38,29 +39,33 @@ class AgentOrdersViewModel extends ChangeNotifier {
   bool _isLoading = true;
 
   AgentOrdersTab get selectedTab => _selectedTab;
+  AgentProfile? get agentProfile => _agentProfile;
   String? get busyOrderId => _busyOrderId;
   String? get errorMessage => _errorMessage;
   bool get isLoading => _isLoading;
 
-  List<QueueOrder> get toAcceptOrders => _sorted(
-    _orders.where((QueueOrder order) {
-      return order.assignmentStatus == OrderAssignmentStatus.assigned;
-    }),
-  );
+  List<QueueOrder> get toAcceptOrders =>
+      AgentOrderPriorityPolicy.sortActiveQueue(
+        _orders.where((QueueOrder order) {
+          return order.assignmentStatus == OrderAssignmentStatus.assigned;
+        }),
+      );
 
-  List<QueueOrder> get inProgressOrders => _sorted(
-    _orders.where((QueueOrder order) {
-      return order.assignmentStatus == OrderAssignmentStatus.accepted &&
-          !_isCompleted(order.status);
-    }),
-  );
+  List<QueueOrder> get inProgressOrders =>
+      AgentOrderPriorityPolicy.sortActiveQueue(
+        _orders.where((QueueOrder order) {
+          return order.assignmentStatus == OrderAssignmentStatus.accepted &&
+              !_isCompleted(order.status);
+        }),
+      );
 
-  List<QueueOrder> get completedOrders => _sorted(
-    _orders.where((QueueOrder order) {
-      return order.assignmentStatus == OrderAssignmentStatus.accepted &&
-          _isCompleted(order.status);
-    }),
-  );
+  List<QueueOrder> get completedOrders =>
+      AgentOrderPriorityPolicy.sortCompleted(
+        _orders.where((QueueOrder order) {
+          return order.assignmentStatus == OrderAssignmentStatus.accepted &&
+              _isCompleted(order.status);
+        }),
+      );
 
   List<QueueOrder> get visibleOrders {
     switch (_selectedTab) {
@@ -539,16 +544,6 @@ class AgentOrdersViewModel extends ChangeNotifier {
     _orders = _orders
         .map((QueueOrder order) => order.id == updated.id ? updated : order)
         .toList(growable: false);
-  }
-
-  List<QueueOrder> _sorted(Iterable<QueueOrder> source) {
-    final List<QueueOrder> result = source.toList(growable: false);
-    result.sort((QueueOrder first, QueueOrder second) {
-      final DateTime firstDate = first.assignedAt ?? first.createdAt;
-      final DateTime secondDate = second.assignedAt ?? second.createdAt;
-      return secondDate.compareTo(firstDate);
-    });
-    return List<QueueOrder>.unmodifiable(result);
   }
 
   bool _isCompleted(QueueOrderStatus status) {

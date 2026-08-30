@@ -46,9 +46,9 @@ void main() {
 
     await tester.pumpWidget(const CabineFlowApp());
 
-    // Éléments réellement présents sur le nouveau splash.
-    expect(find.text('Chargement...'), findsOneWidget);
-    expect(find.text('Commandes & transactions simplifiées'), findsOneWidget);
+    // Éléments réellement présents sur le splash IzyTel.
+    expect(find.text('Votre espace professionnel'), findsOneWidget);
+    expect(find.text('Simple. Rapide. Fiable.'), findsOneWidget);
 
     await tester.pump(const Duration(milliseconds: 2600));
     await tester.pumpAndSettle();
@@ -88,14 +88,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1100));
     await tester.pumpAndSettle();
 
-    expect(find.text('Bonjour Marc'), findsOneWidget);
+    expect(find.textContaining('Bonjour Marc'), findsOneWidget);
 
     // FakeDashboardRepository attend environ 800 ms.
     await tester.pump(const Duration(milliseconds: 900));
     await tester.pumpAndSettle();
 
     expect(find.text('Activité du jour'), findsOneWidget);
-    expect(find.text('Statut des commandes payées'), findsOneWidget);
+    expect(find.text('À faire maintenant'), findsOneWidget);
   });
 
   testWidgets('permet de changer d’onglet après la connexion', (
@@ -119,12 +119,14 @@ void main() {
 
     expect(find.text('Activité du jour'), findsOneWidget);
 
-    await tester.tap(find.text('Commandes'));
+    await tester.tap(find.byIcon(Icons.receipt_long_outlined).last);
+    await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
 
-    expect(find.text('File d’attente'), findsOneWidget);
+    expect(find.text('À traiter'), findsOneWidget);
 
-    await tester.tap(find.text('Accueil'));
+    await tester.tap(find.byIcon(Icons.home_outlined).last);
+    await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
 
     expect(find.text('Activité du jour'), findsOneWidget);
@@ -149,6 +151,7 @@ void main() {
     expect(find.text('Terminées'), findsOneWidget);
 
     await tester.tap(find.text('Profil'));
+    await tester.pump(const Duration(milliseconds: 900));
     await tester.pumpAndSettle();
 
     expect(find.text('Mon Activité'), findsOneWidget);

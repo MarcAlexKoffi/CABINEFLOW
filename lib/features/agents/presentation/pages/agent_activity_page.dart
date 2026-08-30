@@ -3,6 +3,8 @@ import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/agents/presentation/view_models/agent_activity_view_model.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
+import 'package:cabine_flow/features/commissions/presentation/pages/agent_performance_page.dart';
 import 'package:flutter/material.dart';
 
 class AgentActivityPage extends StatefulWidget {
@@ -10,12 +12,14 @@ class AgentActivityPage extends StatefulWidget {
     super.key,
     required this.user,
     required this.repository,
+    required this.commissionRepository,
     required this.isLoggingOut,
     required this.onLogout,
   });
 
   final AppUser user;
   final AgentRepository repository;
+  final CommissionRepository commissionRepository;
   final bool isLoggingOut;
   final Future<void> Function() onLogout;
 
@@ -98,18 +102,13 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
+    return Material(
+      color: AppColors.background,
+      child: SafeArea(
         child: ListenableBuilder(
           listenable: _viewModel,
           builder: (_, _) {
-            if (_viewModel.isLoading && _viewModel.profile == null) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            final AgentProfile? profile = _viewModel.profile;
-            if (profile == null) {
+            if (_viewModel.errorMessage != null && _viewModel.profile == null) {
               return _MissingProfile(
                 user: widget.user,
                 message: _viewModel.errorMessage,
@@ -117,6 +116,32 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
                 onLogout: widget.onLogout,
               );
             }
+
+            final AgentProfile profile =
+                _viewModel.profile ??
+                AgentProfile(
+                  userId: widget.user.id,
+                  agentCode:
+                      'AG-${widget.user.id.replaceAll(RegExp(r'[^0-9]'), '').padLeft(4, '0')}',
+                  availability: AgentAvailability.available,
+                  authorizedNetworks: const <AgentNetwork>[
+                    AgentNetwork.orange,
+                    AgentNetwork.mtn,
+                    AgentNetwork.moov,
+                  ],
+                  activeNetworks: const <AgentNetwork>[
+                    AgentNetwork.orange,
+                    AgentNetwork.mtn,
+                    AgentNetwork.moov,
+                  ],
+                  orangeCapacity: 0,
+                  mtnCapacity: 0,
+                  moovCapacity: 0,
+                  zoneIds: const <String>[],
+                  maxTransactionsPerDay: 0,
+                  dailyTransactionLimit: 0,
+                  updatedAt: DateTime.now(),
+                );
 
             return RefreshIndicator(
               onRefresh: _viewModel.start,
@@ -290,8 +315,27 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
                             runSpacing: 8,
                             children: _viewModel.assignedZones
                                 .map(
-                                  (zone) =>
-                                      Chip(label: Text(zone.displayLabel)),
+                                  (zone) => Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.surfaceContainerHigh,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: AppColors.outlineVariant,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      zone.displayLabel,
+                                      style: const TextStyle(
+                                        color: AppColors.onBackground,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
                                 )
                                 .toList(growable: false),
                           ),
@@ -352,6 +396,21 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
                     ),
                   ],
                   const SizedBox(height: 20),
+                  _PerformanceAccessCard(
+                    onTap: () {
+                      Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (BuildContext context) {
+                            return AgentPerformancePage(
+                              user: widget.user,
+                              repository: widget.commissionRepository,
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
                   _LogoutCard(
                     isLoggingOut: widget.isLoggingOut,
                     onLogout: widget.onLogout,
@@ -1031,6 +1090,70 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
+class _PerformanceAccessCard extends StatelessWidget {
+  const _PerformanceAccessCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.primary.withAlpha(85)),
+          ),
+          child: const Row(
+            children: [
+              Icon(
+                Icons.query_stats_rounded,
+                color: AppColors.primaryContainer,
+                size: 24,
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Mes performances et commissions',
+                      style: TextStyle(
+                        color: AppColors.onBackground,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Consulte tes transactions, ton taux de réussite et le solde à recevoir.',
+                      style: TextStyle(
+                        color: AppColors.onSurfaceVariant,
+                        fontSize: 11,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(width: 8),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.primaryContainer,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _LogoutCard extends StatelessWidget {
   const _LogoutCard({required this.isLoggingOut, required this.onLogout});
 
@@ -1086,7 +1209,7 @@ class _LogoutCard extends StatelessWidget {
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.error,
               side: const BorderSide(color: AppColors.error),
-              minimumSize: const Size.fromHeight(48),
+              padding: const EdgeInsets.symmetric(vertical: 14),
             ),
           ),
         ],
@@ -1122,6 +1245,7 @@ class _MissingProfile extends StatelessWidget {
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Icon(
                 Icons.manage_accounts_outlined,
@@ -1131,6 +1255,7 @@ class _MissingProfile extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 'Bonjour ${user.name}',
+                textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: AppColors.onBackground,
                   fontSize: 20,
@@ -1145,24 +1270,20 @@ class _MissingProfile extends StatelessWidget {
                 style: const TextStyle(color: AppColors.onSurfaceVariant),
               ),
               const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: isLoggingOut ? null : () => onLogout(),
-                  icon: isLoggingOut
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.logout_rounded),
-                  label: Text(
-                    isLoggingOut ? 'Déconnexion...' : 'Se déconnecter',
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.error,
-                    side: const BorderSide(color: AppColors.error),
-                  ),
+              OutlinedButton.icon(
+                onPressed: isLoggingOut ? null : () => onLogout(),
+                icon: isLoggingOut
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.logout_rounded),
+                label: Text(isLoggingOut ? 'Déconnexion...' : 'Se déconnecter'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                  side: const BorderSide(color: AppColors.error),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
             ],

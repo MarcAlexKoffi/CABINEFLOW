@@ -1,4 +1,4 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_history_filters.dart';
@@ -389,26 +389,38 @@ class _OrdersPageState extends State<OrdersPage> {
     final OrderHistoryRepository? historyRepository = _historyRepository;
 
     if (detailOrder != null && historyRepository != null) {
-      return OrderDetailPage(
-        user: widget.user,
-        initialOrder: detailOrder,
-        ordersRepository: historyRepository,
-        onBack: _closeOrderDetail,
-        onOpenCustomerHistory: _openCustomerHistory,
-        supportRequestRepository: _supportRequestRepository,
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (bool didPop, Object? result) {
+          if (!didPop) _closeOrderDetail();
+        },
+        child: OrderDetailPage(
+          user: widget.user,
+          initialOrder: detailOrder,
+          ordersRepository: historyRepository,
+          onBack: _closeOrderDetail,
+          onOpenCustomerHistory: _openCustomerHistory,
+          supportRequestRepository: _supportRequestRepository,
+        ),
       );
     }
 
     if (_showHistory && historyRepository != null) {
-      return OrderHistoryPage(
-        key: ValueKey<int>(_historyVersion),
-        user: widget.user,
-        ordersRepository: historyRepository,
-        onBack: _closeHistory,
-        onOpenOrder: _openOrderDetail,
-        initialSearchQuery: _historyInitialSearchQuery,
-        initialFilters: _historyInitialFilters,
-        openFiltersOnStart: _openHistoryFiltersOnStart,
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (bool didPop, Object? result) {
+          if (!didPop) _closeHistory();
+        },
+        child: OrderHistoryPage(
+          key: ValueKey<int>(_historyVersion),
+          user: widget.user,
+          ordersRepository: historyRepository,
+          onBack: _closeHistory,
+          onOpenOrder: _openOrderDetail,
+          initialSearchQuery: _historyInitialSearchQuery,
+          initialFilters: _historyInitialFilters,
+          openFiltersOnStart: _openHistoryFiltersOnStart,
+        ),
       );
     }
 
@@ -451,11 +463,12 @@ class _OrdersPageState extends State<OrdersPage> {
           child: Column(
             children: [
               Container(
-                color: AppColors.background,
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 13),
+                color: IzyTelColors.background,
+                padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
                 child: OrdersTopBar(
                   user: widget.user,
-                  subtitle: 'File d’attente',
+                  subtitle:
+                      '${_viewModel.allReadyOrders.length} à traiter aujourd’hui',
                   onSearchPressed: () {
                     _openHistory();
                   },
@@ -475,13 +488,13 @@ class _OrdersPageState extends State<OrdersPage> {
                   },
                 ),
               ),
-              Divider(height: 1, color: AppColors.outlineVariant.withAlpha(80)),
+              const Divider(height: 1, color: IzyTelColors.outline),
               Expanded(
                 child: RefreshIndicator(
                   onRefresh: _viewModel.loadQueue,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                    padding: const EdgeInsets.fromLTRB(18, 13, 18, 26),
                     children: [
                       OrdersTabs(
                         todoCount: _viewModel.allReadyOrders.length,
@@ -490,59 +503,74 @@ class _OrdersPageState extends State<OrdersPage> {
                         activeTabIndex: _activeTabIndex,
                         onTabChanged: _handleOrdersTabChanged,
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Row(
-                          children: QueueFilter.values.map((
-                            QueueFilter filter,
-                          ) {
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: QueueFilterButton(
-                                label: _filterLabel(filter),
-                                count: _viewModel.countForFilter(filter),
-                                isSelected: _viewModel.selectedFilter == filter,
-                                onPressed: () {
-                                  _viewModel.selectFilter(filter);
-                                },
+                          children: [
+                            ...QueueFilter.values.map((QueueFilter filter) {
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 7),
+                                child: QueueFilterButton(
+                                  label: _filterLabel(filter),
+                                  count: _viewModel.countForFilter(filter),
+                                  isSelected:
+                                      _viewModel.selectedFilter == filter,
+                                  onPressed: () {
+                                    _viewModel.selectFilter(filter);
+                                  },
+                                ),
+                              );
+                            }),
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                _openHistory(openFiltersOnStart: true);
+                              },
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(0, 32),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 7,
+                                ),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                shape: const StadiumBorder(),
+                                side: const BorderSide(
+                                  color: IzyTelColors.outline,
+                                ),
                               ),
-                            );
-                          }).toList(),
+                              icon: const Icon(Icons.tune_rounded, size: 14),
+                              label: const Text(
+                                'Filtres',
+                                style: TextStyle(fontSize: 9.5),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      OrdersSortBar(
-                        oldestWaitMinutes: _viewModel.allReadyOrders.isNotEmpty
-                            ? _viewModel.waitingMinutes(
-                                _viewModel.allReadyOrders.first,
-                              )
-                            : 0,
-                      ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 13),
                       if (_viewModel.errorMessage != null &&
                           _viewModel.hasOrders) ...[
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: AppColors.errorContainer.withAlpha(55),
-                            borderRadius: BorderRadius.circular(10),
+                            color: IzyTelColors.errorSoft,
+                            borderRadius: BorderRadius.circular(14),
                             border: Border.all(
-                              color: AppColors.error.withAlpha(90),
+                              color: IzyTelColors.error.withAlpha(90),
                             ),
                           ),
                           child: Row(
                             children: [
                               const Icon(
                                 Icons.error_outline_rounded,
-                                color: AppColors.error,
+                                color: IzyTelColors.error,
                               ),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
                                   _viewModel.errorMessage!,
                                   style: const TextStyle(
-                                    color: AppColors.error,
+                                    color: IzyTelColors.error,
                                   ),
                                 ),
                               ),
@@ -562,8 +590,9 @@ class _OrdersPageState extends State<OrdersPage> {
                         Container(
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            color: AppColors.surfaceContainer,
-                            borderRadius: BorderRadius.circular(14),
+                            color: IzyTelColors.surface,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: IzyTelColors.outline),
                           ),
                           child: const Text(
                             'Aucune commande ne correspond à ce filtre.',
@@ -588,8 +617,17 @@ class _OrdersPageState extends State<OrdersPage> {
                                         : 'Affecter'
                                   : 'Prendre en charge',
                               assignmentLabel: order.assignedAgentName,
-                              isActionEnabled: !order.isAssignedToAgent,
+                              isActionEnabled: true,
                               onTakeCharge: () {
+                                if (order.isAssignedToAgent &&
+                                    _historyRepository != null) {
+                                  _openOrderDetail(
+                                    order,
+                                    '',
+                                    const OrderHistoryFilters(),
+                                  );
+                                  return;
+                                }
                                 if (widget.user.role ==
                                     UserRole.administrator) {
                                   _openAgentAssignment(order);

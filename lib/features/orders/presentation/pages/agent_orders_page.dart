@@ -1,5 +1,6 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
+import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
@@ -7,6 +8,7 @@ import 'package:cabine_flow/features/orders/domain/repositories/orders_repositor
 import 'package:cabine_flow/features/orders/presentation/pages/agent_order_detail_view.dart';
 import 'package:cabine_flow/features/orders/presentation/view_models/agent_orders_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:flutter/material.dart';
 
 class AgentOrdersPage extends StatefulWidget {
@@ -15,11 +17,15 @@ class AgentOrdersPage extends StatefulWidget {
     required this.user,
     required this.ordersRepository,
     this.agentRepository,
+    this.onOpenProfile,
+    this.onLogout,
   });
 
   final AppUser user;
   final OrdersRepository ordersRepository;
   final AgentRepository? agentRepository;
+  final VoidCallback? onOpenProfile;
+  final VoidCallback? onLogout;
 
   @override
   State<AgentOrdersPage> createState() => _AgentOrdersPageState();
@@ -112,158 +118,300 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _openAccountMenu() {
+    final AgentProfile? profile = _viewModel.agentProfile;
+    showIzyTelAccountSheet(
+      context: context,
+      name: widget.user.name,
+      role: profile == null
+          ? 'Agent IzyTel'
+          : 'Agent • ${profile.availability.label}',
+      actions: <IzyTelAccountAction>[
+        if (widget.onOpenProfile != null)
+          IzyTelAccountAction(
+            icon: Icons.person_outline_rounded,
+            label: 'Mon profil',
+            onTap: widget.onOpenProfile!,
+          ),
+        if (widget.onOpenProfile != null)
+          IzyTelAccountAction(
+            icon: Icons.insights_outlined,
+            label: 'Mes performances et commissions',
+            onTap: widget.onOpenProfile!,
+          ),
+        if (widget.onLogout != null)
+          IzyTelAccountAction(
+            icon: Icons.logout_rounded,
+            label: 'Se déconnecter',
+            destructive: true,
+            onTap: widget.onLogout!,
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: ListenableBuilder(
-          listenable: _viewModel,
-          builder: (_, _) {
-            final String? openedOrderId = _openedOrderId;
-            if (openedOrderId != null) {
-              final QueueOrder? openedOrder = _viewModel.orderById(
-                openedOrderId,
-              );
-              if (openedOrder != null) {
-                return AgentOrderDetailView(
-                  user: widget.user,
-                  order: openedOrder,
-                  viewModel: _viewModel,
-                  onBack: _closeOrderDetail,
+    return PopScope(
+      canPop: _openedOrderId == null,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (!didPop && _openedOrderId != null) {
+          _closeOrderDetail();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: IzyTelColors.background,
+        body: SafeArea(
+          bottom: false,
+          child: ListenableBuilder(
+            listenable: _viewModel,
+            builder: (_, _) {
+              final String? openedOrderId = _openedOrderId;
+              if (openedOrderId != null) {
+                final QueueOrder? openedOrder = _viewModel.orderById(
+                  openedOrderId,
                 );
+                if (openedOrder != null) {
+                  return AgentOrderDetailView(
+                    user: widget.user,
+                    order: openedOrder,
+                    viewModel: _viewModel,
+                    onBack: _closeOrderDetail,
+                  );
+                }
               }
-            }
 
-            return RefreshIndicator(
-              onRefresh: _viewModel.start,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-                children: [
-                  _Header(user: widget.user),
-                  const SizedBox(height: 22),
-                  const Text(
-                    'Mes commandes',
-                    style: TextStyle(
-                      color: AppColors.onBackground,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
+              final List<QueueOrder> queue = _viewModel.toAcceptOrders;
+              final List<QueueOrder> inProgress = _viewModel.inProgressOrders;
+
+              return RefreshIndicator(
+                onRefresh: _viewModel.start,
+                color: IzyTelColors.primary,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 26),
+                  children: [
+                    _AgentHeader(
+                      user: widget.user,
+                      profile: _viewModel.agentProfile,
+                      onAvatarTap: _openAccountMenu,
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Retrouve uniquement les commandes qui te sont affectées.',
-                    style: TextStyle(color: AppColors.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: 18),
-                  _OrdersTabs(
-                    selectedTab: _viewModel.selectedTab,
-                    toAcceptCount: _viewModel.toAcceptCount,
-                    inProgressCount: _viewModel.inProgressCount,
-                    completedCount: _viewModel.completedCount,
-                    onChanged: _viewModel.selectTab,
-                  ),
-                  const SizedBox(height: 18),
-                  if (_viewModel.errorMessage != null) ...[
-                    _MessageCard(
-                      icon: Icons.error_outline_rounded,
-                      title: 'Une action n’a pas abouti',
-                      message: _viewModel.errorMessage!,
-                      color: AppColors.error,
+                    const SizedBox(height: 16),
+                    Text(
+                      'Mes commandes',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 14),
-                  ],
-                  if (_viewModel.isLoading && _viewModel.visibleOrders.isEmpty)
-                    const SizedBox(
-                      height: 280,
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  else if (_viewModel.visibleOrders.isEmpty)
-                    _EmptyState(tab: _viewModel.selectedTab)
-                  else
-                    ..._viewModel.visibleOrders.map((QueueOrder order) {
-                      final bool isBusy = _viewModel.busyOrderId == order.id;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _AgentOrderCard(
-                          order: order,
-                          isBusy: isBusy,
-                          showDecisionActions:
-                              _viewModel.selectedTab == AgentOrdersTab.toAccept,
-                          onAccept: () => _accept(order),
-                          onRefuse: () => _refuse(order),
-                          onOpen: () => _openOrder(order),
+                    _AgentTabs(
+                      selectedTab: _viewModel.selectedTab,
+                      toAcceptCount: queue.length,
+                      inProgressCount: inProgress.length,
+                      completedCount: _viewModel.completedOrders.length,
+                      onChanged: _viewModel.selectTab,
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${queue.length} commande${queue.length > 1 ? 's' : ''} à traiter',
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
                         ),
-                      );
-                    }),
-                ],
-              ),
-            );
-          },
+                        IconButton(
+                          tooltip: 'Actualiser',
+                          onPressed: _viewModel.start,
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.tune_rounded, size: 19),
+                        ),
+                      ],
+                    ),
+                    if (_viewModel.errorMessage != null) ...[
+                      const SizedBox(height: 10),
+                      _AgentMessageCard(
+                        icon: Icons.error_outline_rounded,
+                        title: 'Une action n’a pas abouti',
+                        message: _viewModel.errorMessage!,
+                        color: IzyTelColors.error,
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    if (_viewModel.isLoading && queue.isEmpty)
+                      const SizedBox(
+                        height: 280,
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (queue.isEmpty)
+                      const _AgentEmptyState(tab: AgentOrdersTab.toAccept)
+                    else
+                      ...List<Widget>.generate(queue.length, (int index) {
+                        final QueueOrder order = queue[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _PremiumAgentOrderCard(
+                            order: order,
+                            isBusy: _viewModel.busyOrderId == order.id,
+                            queuePosition: index + 1,
+                            showDecisionActions: true,
+                            onAccept: () => _accept(order),
+                            onRefuse: () => _refuse(order),
+                            onOpen: () => _openOrder(order),
+                          ),
+                        );
+                      }),
+                    if (inProgress.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Commandes en cours',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                          Text(
+                            '${inProgress.length}',
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(color: IzyTelColors.textMuted),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      ...inProgress.map(
+                        (QueueOrder order) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _AgentInProgressTile(
+                            order: order,
+                            onTap: () => _openOrder(order),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.user});
+class _AgentHeader extends StatelessWidget {
+  const _AgentHeader({
+    required this.user,
+    required this.profile,
+    required this.onAvatarTap,
+  });
 
   final AppUser user;
+  final AgentProfile? profile;
+  final VoidCallback onAvatarTap;
 
   @override
   Widget build(BuildContext context) {
-    final String cleaned = user.name.trim();
-    final String initial = cleaned.isEmpty ? '?' : cleaned[0].toUpperCase();
+    final bool available = profile?.availability == AgentAvailability.available;
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CircleAvatar(
-          radius: 24,
-          backgroundColor: AppColors.primary.withAlpha(35),
-          child: Text(
-            initial,
-            style: const TextStyle(
-              color: AppColors.primaryContainer,
-              fontWeight: FontWeight.w900,
-              fontSize: 18,
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            const SizedBox(
+              width: 31,
+              height: 31,
+              child: Icon(
+                Icons.notifications_none_rounded,
+                size: 21,
+                color: IzyTelColors.textPrimary,
+              ),
             ),
-          ),
+            Positioned(
+              right: 3,
+              top: 3,
+              child: Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: IzyTelColors.error,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                user.name,
-                style: const TextStyle(
-                  color: AppColors.onBackground,
-                  fontSize: 18,
+                'Bonjour ${user.name.split(' ').first} 👋',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontSize: 15,
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              const Text(
-                'Espace Agent',
-                style: TextStyle(
-                  color: AppColors.onSurfaceVariant,
-                  fontSize: 12,
-                ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: available
+                          ? IzyTelColors.success
+                          : IzyTelColors.textMuted,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    profile?.availability.label ?? 'Profil Agent',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: available
+                          ? IzyTelColors.textPrimary
+                          : IzyTelColors.textSecondary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
-        const Icon(
-          Icons.receipt_long_rounded,
-          color: AppColors.primaryContainer,
+        const SizedBox(width: 8),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IzyTelAvatar(name: user.name, onTap: onAvatarTap, size: 36),
+            const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 16,
+              color: IzyTelColors.textSecondary,
+            ),
+          ],
         ),
       ],
     );
   }
 }
 
-class _OrdersTabs extends StatelessWidget {
-  const _OrdersTabs({
+class _AgentTabs extends StatelessWidget {
+  const _AgentTabs({
     required this.selectedTab,
     required this.toAcceptCount,
     required this.inProgressCount,
@@ -279,40 +427,29 @@ class _OrdersTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          Expanded(
-            child: _TabButton(
-              label: 'À accepter',
-              count: toAcceptCount,
-              color: AppColors.warning,
-              isSelected: selectedTab == AgentOrdersTab.toAccept,
-              onTap: () => onChanged(AgentOrdersTab.toAccept),
-            ),
+          _AgentTabChip(
+            label: 'À accepter',
+            count: toAcceptCount,
+            selected: selectedTab == AgentOrdersTab.toAccept,
+            onTap: () => onChanged(AgentOrdersTab.toAccept),
           ),
-          Expanded(
-            child: _TabButton(
-              label: 'En cours',
-              count: inProgressCount,
-              color: AppColors.primary,
-              isSelected: selectedTab == AgentOrdersTab.inProgress,
-              onTap: () => onChanged(AgentOrdersTab.inProgress),
-            ),
+          const SizedBox(width: 8),
+          _AgentTabChip(
+            label: 'En cours',
+            count: inProgressCount,
+            selected: selectedTab == AgentOrdersTab.inProgress,
+            onTap: () => onChanged(AgentOrdersTab.inProgress),
           ),
-          Expanded(
-            child: _TabButton(
-              label: 'Terminées',
-              count: completedCount,
-              color: AppColors.success,
-              isSelected: selectedTab == AgentOrdersTab.completed,
-              onTap: () => onChanged(AgentOrdersTab.completed),
-            ),
+          const SizedBox(width: 8),
+          _AgentTabChip(
+            label: 'Terminées',
+            count: completedCount,
+            selected: selectedTab == AgentOrdersTab.completed,
+            onTap: () => onChanged(AgentOrdersTab.completed),
           ),
         ],
       ),
@@ -320,63 +457,57 @@ class _OrdersTabs extends StatelessWidget {
   }
 }
 
-class _TabButton extends StatelessWidget {
-  const _TabButton({
+class _AgentTabChip extends StatelessWidget {
+  const _AgentTabChip({
     required this.label,
     required this.count,
-    required this.color,
-    required this.isSelected,
+    required this.selected,
     required this.onTap,
   });
 
   final String label;
   final int count;
-  final Color color;
-  final bool isSelected;
+  final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.transparent,
+      color: selected ? IzyTelColors.primary : IzyTelColors.surface,
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: selected ? IzyTelColors.primary : IzyTelColors.outline,
+        ),
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
-          decoration: BoxDecoration(
-            border: isSelected
-                ? Border(bottom: BorderSide(color: color, width: 3))
-                : null,
-          ),
-          child: Column(
+        customBorder: const StadiumBorder(),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: isSelected ? color : AppColors.onSurfaceVariant,
-                  fontSize: 12,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: selected ? Colors.white : IzyTelColors.textSecondary,
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 5),
+              const SizedBox(width: 7),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? color.withAlpha(35)
-                      : AppColors.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(99),
+                  color: selected
+                      ? Colors.white.withAlpha(38)
+                      : IzyTelColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   '$count',
-                  style: TextStyle(
-                    color: isSelected ? color : AppColors.onSurfaceVariant,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: selected ? Colors.white : IzyTelColors.textSecondary,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
@@ -388,10 +519,11 @@ class _TabButton extends StatelessWidget {
   }
 }
 
-class _AgentOrderCard extends StatelessWidget {
-  const _AgentOrderCard({
+class _PremiumAgentOrderCard extends StatelessWidget {
+  const _PremiumAgentOrderCard({
     required this.order,
     required this.isBusy,
+    required this.queuePosition,
     required this.showDecisionActions,
     required this.onAccept,
     required this.onRefuse,
@@ -400,186 +532,212 @@ class _AgentOrderCard extends StatelessWidget {
 
   final QueueOrder order;
   final bool isBusy;
+  final int? queuePosition;
   final bool showDecisionActions;
   final VoidCallback onAccept;
   final VoidCallback onRefuse;
   final VoidCallback onOpen;
 
+  Duration get _waiting {
+    final DateTime since =
+        order.paymentConfirmedAt ??
+        order.paidAt ??
+        order.assignedAt ??
+        order.createdAt;
+    final Duration value = DateTime.now().difference(since);
+    return value.isNegative ? Duration.zero : value;
+  }
+
+  String get _waitingLabel {
+    final Duration wait = _waiting;
+    if (wait.inHours > 0) {
+      return 'Depuis ${wait.inHours} h ${wait.inMinutes.remainder(60)} min';
+    }
+    return 'Depuis ${wait.inMinutes} min';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final Color accent = networkColor(order.network);
+    final Color network = networkColor(order.network);
+    final bool first = queuePosition == 1;
+    final Color priorityColor = first
+        ? IzyTelColors.error
+        : IzyTelColors.warning;
 
-    // Important : le liseré réseau n'est pas dessiné avec un Border non
-    // uniforme + borderRadius. Cette combinaison peut provoquer une erreur de
-    // peinture et remplacer toute la carte par un ErrorWidget vide/sombre sur
-    // l'appareil. Le liseré est donc un calque interne, tandis que la bordure
-    // externe reste uniforme.
     return Material(
-      color: Colors.transparent,
+      color: IzyTelColors.surface,
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onOpen,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         child: Container(
-          clipBehavior: Clip.antiAlias,
+          padding: const EdgeInsets.fromLTRB(13, 12, 13, 13),
           decoration: BoxDecoration(
-            color: AppColors.surfaceContainer,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.outlineVariant),
-          ),
-          child: Stack(
-            children: [
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: 4,
-                child: ColoredBox(color: accent),
+            color: IzyTelColors.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: first
+                  ? IzyTelColors.error.withAlpha(115)
+                  : IzyTelColors.outline,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0F0F172A),
+                blurRadius: 16,
+                offset: Offset(0, 6),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: accent.withAlpha(28),
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                          child: Text(
-                            networkLabel(order.network),
-                            style: TextStyle(
-                              color: accent,
-                              fontSize: 11,
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  if (queuePosition != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: priorityColor.withAlpha(18),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Text(
+                        'PRIORITÉ $queuePosition',
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: priorityColor,
+                              fontSize: 8.5,
                               fontWeight: FontWeight.w900,
                             ),
-                          ),
+                      ),
+                    ),
+                  const Spacer(),
+                  Text(
+                    _waitingLabel,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: first
+                          ? IzyTelColors.error
+                          : IzyTelColors.textMuted,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: network.withAlpha(16),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Image.asset(
+                      networkAsset(order.network),
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          networkLabel(order.network),
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: IzyTelColors.textPrimary,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                              ),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            order.reference,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.end,
-                            style: const TextStyle(
-                              color: AppColors.onSurfaceVariant,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                        const SizedBox(height: 4),
+                        Text(
+                          order.offerLabel,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                              ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 13),
-                    Text(
-                      order.offerLabel,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.onBackground,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      'Bénéficiaire : ${order.beneficiaryPhone}',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 9),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      order.beneficiaryPhone,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.onSurfaceVariant,
-                        fontSize: 12,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: IzyTelColors.textPrimary,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _Info(
-                            label: 'MONTANT',
-                            value: formatCfa(order.amount),
-                            valueColor: accent,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _Info(
-                            label: 'CLIENT',
-                            value: order.clientName,
-                          ),
-                        ),
-                      ],
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    formatCfa(order.amount),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: IzyTelColors.primaryStrong,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
                     ),
-                    if (!showDecisionActions) ...[
-                      const SizedBox(height: 12),
-                      _StatusLine(order: order),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Text(
-                            'Voir et traiter',
-                            style: TextStyle(
-                              color: accent,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.chevron_right_rounded,
-                            color: accent,
-                            size: 18,
-                          ),
-                        ],
-                      ),
-                    ],
-                    if (showDecisionActions) ...[
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: isBusy ? null : onRefuse,
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.error,
-                                side: const BorderSide(color: AppColors.error),
-                                minimumSize: const Size.fromHeight(46),
-                              ),
-                              child: const Text('Refuser'),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: FilledButton(
-                              onPressed: isBusy ? null : onAccept,
-                              style: FilledButton.styleFrom(
-                                minimumSize: const Size.fromHeight(46),
-                              ),
-                              child: isBusy
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: AppColors.onPrimary,
-                                      ),
-                                    )
-                                  : const Text('Accepter'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 9),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IzyTelStatusPill(
+                  label: order.paymentStatus == OrderPaymentStatus.confirmed
+                      ? 'Paiement confirmé'
+                      : orderStatusLabel(order.status),
+                  color: order.paymentStatus == OrderPaymentStatus.confirmed
+                      ? IzyTelColors.success
+                      : orderStatusColor(order.status),
                 ),
               ),
+              if (showDecisionActions) ...[
+                const SizedBox(height: 11),
+                SizedBox(
+                  height: 38,
+                  child: FilledButton.icon(
+                    onPressed: isBusy ? null : onAccept,
+                    style: FilledButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                    ),
+                    icon: isBusy
+                        ? const SizedBox.square(
+                            dimension: 15,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.8,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.check_rounded, size: 16),
+                    label: Text(
+                      isBusy ? 'Traitement...' : 'Accepter',
+                      style: const TextStyle(fontSize: 10.5),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -588,81 +746,59 @@ class _AgentOrderCard extends StatelessWidget {
   }
 }
 
-class _Info extends StatelessWidget {
-  const _Info({required this.label, required this.value, this.valueColor});
-
-  final String label;
-  final String value;
-  final Color? valueColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.onSurfaceVariant,
-            fontSize: 9,
-            fontWeight: FontWeight.w800,
-            letterSpacing: .6,
-          ),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          value,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: valueColor ?? AppColors.onBackground,
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatusLine extends StatelessWidget {
-  const _StatusLine({required this.order});
+class _AgentInProgressTile extends StatelessWidget {
+  const _AgentInProgressTile({required this.order, required this.onTap});
 
   final QueueOrder order;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final bool acceptedReady =
-        order.assignmentStatus == OrderAssignmentStatus.accepted &&
-        order.status == QueueOrderStatus.paidReady;
-    final Color color = acceptedReady
-        ? AppColors.primary
-        : orderStatusColor(order.status);
-    final IconData icon = acceptedReady
-        ? Icons.check_circle_outline_rounded
-        : orderStatusIcon(order.status);
-    final String label = acceptedReady
-        ? 'Commande acceptée'
-        : orderStatusLabel(order.status);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(11),
-      ),
+    return IzyTelSurface(
+      onTap: onTap,
+      radius: 14,
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
+          Container(
+            width: 30,
+            height: 30,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: networkColor(order.network).withAlpha(16),
+              borderRadius: BorderRadius.circular(8),
             ),
+            child: Image.asset(
+              networkAsset(order.network),
+              fit: BoxFit.contain,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  order.offerLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelLarge?.copyWith(fontSize: 11),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  order.beneficiaryPhone,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelMedium?.copyWith(fontSize: 9.5),
+                ),
+              ],
+            ),
+          ),
+          const Icon(
+            Icons.chevron_right_rounded,
+            color: IzyTelColors.textMuted,
           ),
         ],
       ),
@@ -670,48 +806,40 @@ class _StatusLine extends StatelessWidget {
   }
 }
 
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.tab});
-
+class _AgentEmptyState extends StatelessWidget {
+  const _AgentEmptyState({required this.tab});
   final AgentOrdersTab tab;
 
   @override
   Widget build(BuildContext context) {
     late final String title;
     late final String message;
-    late final IconData icon;
-
     switch (tab) {
       case AgentOrdersTab.toAccept:
         title = 'Aucune commande à accepter';
-        message =
-            'Les nouvelles commandes qui te sont affectées apparaîtront ici.';
-        icon = Icons.inbox_outlined;
+        message = 'Les nouvelles commandes affectées apparaîtront ici.';
         break;
       case AgentOrdersTab.inProgress:
         title = 'Aucune commande en cours';
         message =
-            'Une commande acceptée passera automatiquement dans cet onglet.';
-        icon = Icons.autorenew_rounded;
+            'Une commande acceptée apparaîtra ici pendant son traitement.';
         break;
       case AgentOrdersTab.completed:
         title = 'Aucune commande terminée';
-        message = 'Les commandes clôturées apparaîtront ici.';
-        icon = Icons.task_alt_rounded;
+        message = 'Tes dernières opérations terminées apparaîtront ici.';
         break;
     }
-
-    return _MessageCard(
-      icon: icon,
+    return _AgentMessageCard(
+      icon: Icons.inbox_outlined,
       title: title,
       message: message,
-      color: AppColors.primaryContainer,
+      color: IzyTelColors.primary,
     );
   }
 }
 
-class _MessageCard extends StatelessWidget {
-  const _MessageCard({
+class _AgentMessageCard extends StatelessWidget {
+  const _AgentMessageCard({
     required this.icon,
     required this.title,
     required this.message,
@@ -725,34 +853,29 @@ class _MessageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
+    return IzyTelSurface(
       child: Column(
         children: [
-          Icon(icon, color: color, size: 38),
-          const SizedBox(height: 10),
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: color.withAlpha(18),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color),
+          ),
+          const SizedBox(height: 12),
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.onBackground,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-            ),
+            style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 5),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.onSurfaceVariant,
-              height: 1.4,
-            ),
+            style: Theme.of(context).textTheme.bodyMedium,
           ),
         ],
       ),
@@ -814,7 +937,7 @@ class _RefusalReasonSheetState extends State<_RefusalReasonSheet> {
                 child: Text(
                   'Refuser la commande',
                   style: TextStyle(
-                    color: AppColors.onBackground,
+                    color: IzyTelColors.textPrimary,
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
                   ),
@@ -823,7 +946,7 @@ class _RefusalReasonSheetState extends State<_RefusalReasonSheet> {
               IconButton(
                 onPressed: () => Navigator.of(context).pop(),
                 icon: const Icon(Icons.close_rounded),
-                color: AppColors.onSurfaceVariant,
+                color: IzyTelColors.textSecondary,
               ),
             ],
           ),
@@ -831,7 +954,7 @@ class _RefusalReasonSheetState extends State<_RefusalReasonSheet> {
           Text(
             '${widget.reference} sera renvoyée dans le circuit de réaffectation.',
             style: const TextStyle(
-              color: AppColors.onSurfaceVariant,
+              color: IzyTelColors.textSecondary,
               fontSize: 13,
             ),
           ),
@@ -842,12 +965,12 @@ class _RefusalReasonSheetState extends State<_RefusalReasonSheet> {
             minLines: 3,
             maxLines: 5,
             maxLength: 500,
-            cursorColor: AppColors.primary,
+            cursorColor: IzyTelColors.primary,
             style: const TextStyle(
-              color: AppColors.onBackground,
+              color: IzyTelColors.textPrimary,
               fontWeight: FontWeight.w500,
             ),
-            decoration: _darkAgentInputDecoration(
+            decoration: _agentInputDecoration(
               labelText: 'Motif du refus',
               hintText: 'Ex. capacité insuffisante ou réseau indisponible…',
               errorText: _error,
@@ -873,8 +996,8 @@ class _RefusalReasonSheetState extends State<_RefusalReasonSheet> {
                 child: FilledButton(
                   onPressed: _submit,
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.error,
-                    foregroundColor: AppColors.onError,
+                    backgroundColor: IzyTelColors.error,
+                    foregroundColor: Colors.white,
                   ),
                   child: const Text('Confirmer le refus'),
                 ),
@@ -904,9 +1027,9 @@ class _AgentOrdersBottomSheetContainer extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(12, 12, 12, bottomInset + 12),
         child: Container(
           decoration: BoxDecoration(
-            color: AppColors.surfaceContainerHighest,
+            color: IzyTelColors.surface,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppColors.outlineVariant),
+            border: Border.all(color: IzyTelColors.outline),
           ),
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
@@ -918,7 +1041,7 @@ class _AgentOrdersBottomSheetContainer extends StatelessWidget {
   }
 }
 
-InputDecoration _darkAgentInputDecoration({
+InputDecoration _agentInputDecoration({
   String? labelText,
   String? hintText,
   String? errorText,
@@ -927,34 +1050,34 @@ InputDecoration _darkAgentInputDecoration({
 
   return InputDecoration(
     filled: true,
-    fillColor: AppColors.surfaceContainerHigh,
+    fillColor: IzyTelColors.surfaceMuted,
     labelText: labelText,
     hintText: hintText,
     errorText: errorText,
-    labelStyle: const TextStyle(color: AppColors.onSurfaceVariant),
-    floatingLabelStyle: const TextStyle(color: AppColors.primaryContainer),
-    hintStyle: const TextStyle(color: AppColors.onSurfaceVariant),
-    counterStyle: const TextStyle(color: AppColors.onSurfaceVariant),
+    labelStyle: const TextStyle(color: IzyTelColors.textSecondary),
+    floatingLabelStyle: const TextStyle(color: IzyTelColors.primary),
+    hintStyle: const TextStyle(color: IzyTelColors.textSecondary),
+    counterStyle: const TextStyle(color: IzyTelColors.textSecondary),
     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
     border: const OutlineInputBorder(
       borderRadius: radius,
-      borderSide: BorderSide(color: AppColors.outlineVariant),
+      borderSide: BorderSide(color: IzyTelColors.outline),
     ),
     enabledBorder: const OutlineInputBorder(
       borderRadius: radius,
-      borderSide: BorderSide(color: AppColors.outlineVariant),
+      borderSide: BorderSide(color: IzyTelColors.outline),
     ),
     focusedBorder: const OutlineInputBorder(
       borderRadius: radius,
-      borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+      borderSide: BorderSide(color: IzyTelColors.primary, width: 1.5),
     ),
     errorBorder: const OutlineInputBorder(
       borderRadius: radius,
-      borderSide: BorderSide(color: AppColors.error),
+      borderSide: BorderSide(color: IzyTelColors.error),
     ),
     focusedErrorBorder: const OutlineInputBorder(
       borderRadius: radius,
-      borderSide: BorderSide(color: AppColors.error, width: 1.5),
+      borderSide: BorderSide(color: IzyTelColors.error, width: 1.5),
     ),
   );
 }

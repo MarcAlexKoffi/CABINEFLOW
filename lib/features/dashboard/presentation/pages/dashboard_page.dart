@@ -1,9 +1,17 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'dart:async';
+
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/dashboard/domain/models/dashboard_data.dart';
 import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_repository.dart';
 import 'package:cabine_flow/features/dashboard/presentation/view_models/dashboard_view_model.dart';
-import 'package:cabine_flow/features/dashboard/presentation/widgets/dashboard_widgets.dart';
+import 'package:cabine_flow/features/support/data/repositories/fake_support_request_repository.dart';
+import 'package:cabine_flow/features/support/data/repositories/firestore_support_request_repository.dart';
+import 'package:cabine_flow/features/support/domain/models/support_request.dart';
+import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -12,20 +20,25 @@ class DashboardPage extends StatefulWidget {
     required this.user,
     required this.dashboardRepository,
     this.onOpenOrders,
+    this.onOpenMore,
+    this.onLogout,
   });
 
   final AppUser user;
   final DashboardRepository dashboardRepository;
   final VoidCallback? onOpenOrders;
+  final VoidCallback? onOpenMore;
+  final VoidCallback? onLogout;
 
   @override
-  State<DashboardPage> createState() {
-    return _DashboardPageState();
-  }
+  State<DashboardPage> createState() => _DashboardPageState();
 }
 
 class _DashboardPageState extends State<DashboardPage> {
   late final DashboardViewModel _viewModel;
+  late final SupportRequestRepository _supportRepository;
+  StreamSubscription<List<SupportRequest>>? _supportSubscription;
+  int _customerRequestsCount = 0;
 
   @override
   void initState() {
@@ -34,16 +47,27 @@ class _DashboardPageState extends State<DashboardPage> {
       dashboardRepository: widget.dashboardRepository,
     );
     _viewModel.startRealtime();
+
+    _supportRepository = Firebase.apps.isNotEmpty
+        ? FirestoreSupportRequestRepository()
+        : FakeSupportRequestRepository();
+    _supportSubscription = _supportRepository.watchNewRequests().listen((
+      List<SupportRequest> requests,
+    ) {
+      if (!mounted) return;
+      setState(() => _customerRequestsCount = requests.length);
+    }, onError: (_) {});
   }
 
   @override
   void dispose() {
+    _supportSubscription?.cancel();
     _viewModel.dispose();
     super.dispose();
   }
 
   String _formatCurrentDate() {
-    const List<String> months = [
+    const List<String> months = <String>[
       'janvier',
       'février',
       'mars',
@@ -57,11 +81,7 @@ class _DashboardPageState extends State<DashboardPage> {
       'novembre',
       'décembre',
     ];
-    final DateTime currentDate = DateTime.now();
-    final String month = months[currentDate.month - 1];
-
-    // Pour coller à la maquette "Mercredi 5 août 2026"
-    final List<String> days = [
+    const List<String> days = <String>[
       'Lundi',
       'Mardi',
       'Mercredi',
@@ -70,25 +90,46 @@ class _DashboardPageState extends State<DashboardPage> {
       'Samedi',
       'Dimanche',
     ];
-    final String dayName = days[currentDate.weekday - 1];
-
-    return '$dayName ${currentDate.day} $month ${currentDate.year}';
+    final DateTime date = DateTime.now();
+    return '${days[date.weekday - 1]} ${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
-  void _showTemporaryMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  int? _getBalanceForOperator(DashboardData data, ServiceChannel channel) {
-    try {
-      return data.balances
-          .firstWhere((AccountBalance balance) => balance.channel == channel)
-          .amount;
-    } catch (_) {
-      return null;
+  int? _balance(DashboardData data, ServiceChannel channel) {
+    for (final AccountBalance balance in data.balances) {
+      if (balance.channel == channel) return balance.amount;
     }
+    return null;
+  }
+
+  void _openAccountSheet() {
+    final List<IzyTelAccountAction> actions = <IzyTelAccountAction>[
+      if (widget.onOpenMore != null)
+        IzyTelAccountAction(
+          icon: Icons.person_outline_rounded,
+          label: 'Mon espace administrateur',
+          onTap: widget.onOpenMore!,
+        ),
+      if (widget.onOpenMore != null)
+        IzyTelAccountAction(
+          icon: Icons.settings_outlined,
+          label: 'Paramètres et administration',
+          onTap: widget.onOpenMore!,
+        ),
+      if (widget.onLogout != null)
+        IzyTelAccountAction(
+          icon: Icons.logout_rounded,
+          label: 'Se déconnecter',
+          destructive: true,
+          onTap: widget.onLogout!,
+        ),
+    ];
+
+    showIzyTelAccountSheet(
+      context: context,
+      name: widget.user.name,
+      role: widget.user.roleLabel,
+      actions: actions,
+    );
   }
 
   @override
@@ -96,225 +137,171 @@ class _DashboardPageState extends State<DashboardPage> {
     return ListenableBuilder(
       listenable: _viewModel,
       builder: (BuildContext context, Widget? child) {
-        final DashboardData? dashboardData = _viewModel.dashboardData;
+        final DashboardData? data = _viewModel.dashboardData;
 
         return Scaffold(
-          backgroundColor: AppColors.background,
+          backgroundColor: IzyTelColors.background,
           body: SafeArea(
             bottom: false,
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
-                  child: DashboardHeader(
+            child: RefreshIndicator(
+              onRefresh: _viewModel.loadDashboard,
+              color: IzyTelColors.primary,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 26),
+                children: [
+                  _Header(
                     user: widget.user,
                     dateLabel: _formatCurrentDate(),
-                    onSearchPressed: () {
-                      _showTemporaryMessage('Recherche...');
-                    },
-                    onNotificationsPressed: () {
-                      _showTemporaryMessage('Notifications...');
-                    },
+                    onAvatarTap: _openAccountSheet,
                   ),
-                ),
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: _viewModel.loadDashboard,
-                    color: AppColors.primaryContainer,
-                    backgroundColor: AppColors.surfaceContainer,
-                    child: ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(
-                        20,
-                        10,
-                        20,
-                        120,
-                      ), // Padding augmenté pour ne pas cacher la dernière carte sous le FAB
-                      children: [
-                        if (_viewModel.isLoading && dashboardData == null)
-                          const _DashboardLoadingState()
-                        else if (_viewModel.errorMessage != null &&
-                            dashboardData == null)
-                          _DashboardErrorState(
-                            message: _viewModel.errorMessage!,
-                            onRetry: _viewModel.loadDashboard,
-                          )
-                        else if (dashboardData != null) ...[
-                          if (_viewModel.isLoading) ...[
-                            const LinearProgressIndicator(
-                              color: AppColors.primary,
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-
-                          // Activité du jour
-                          DailyActivityCard(
-                            revenue: dashboardData.todayRevenue,
-                            percentageIncrease:
-                                dashboardData.revenueChangePercentage,
+                  const SizedBox(height: 16),
+                  if (_viewModel.isLoading && data == null)
+                    const _LoadingState()
+                  else if (_viewModel.errorMessage != null && data == null)
+                    _ErrorState(
+                      message: _viewModel.errorMessage!,
+                      onRetry: _viewModel.loadDashboard,
+                    )
+                  else if (data != null) ...[
+                    _RevenueHero(
+                      amount: data.todayRevenue,
+                      percentage: data.revenueChangePercentage,
+                    ),
+                    const SizedBox(height: 18),
+                    IzyTelSectionHeader(
+                      title: 'À faire maintenant',
+                      actionLabel: 'Voir tout',
+                      onAction: widget.onOpenOrders,
+                    ),
+                    const SizedBox(height: 8),
+                    IzyTelSurface(
+                      padding: EdgeInsets.zero,
+                      radius: 16,
+                      child: Column(
+                        children: [
+                          _ActionRow(
+                            icon: Icons.receipt_long_outlined,
+                            iconColor: IzyTelColors.warning,
+                            title:
+                                '${data.statistics.paymentsToVerify} paiements à vérifier',
+                            onTap: widget.onOpenOrders,
                           ),
-                          const SizedBox(height: 16),
-
-                          // Statut des commandes
-                          OrderStatusCard(
-                            paidCount: dashboardData.statistics.newRequests,
-                            inProgressCount:
-                                dashboardData.statistics.inProgress,
-                            completedCount: dashboardData.statistics.completed,
+                          const Divider(),
+                          _ActionRow(
+                            icon: Icons.inventory_2_outlined,
+                            iconColor: IzyTelColors.primary,
+                            title:
+                                '${data.statistics.newRequests} commandes à affecter',
+                            onTap: widget.onOpenOrders,
                           ),
-                          const SizedBox(height: 24),
-
-                          // Disponibilités réseaux
-                          const SectionHeader(
-                            icon: Icons.sim_card_outlined,
-                            title: 'Disponibilités réseaux',
+                          const Divider(),
+                          _ActionRow(
+                            icon: Icons.person_outline_rounded,
+                            iconColor: IzyTelColors.orange,
+                            title: '$_customerRequestsCount demandes client',
+                            onTap: widget.onOpenMore,
                           ),
-                          const SizedBox(height: 16),
-
-                          LayoutBuilder(
-                            builder:
-                                (
-                                  BuildContext context,
-                                  BoxConstraints constraints,
-                                ) {
-                                  final List<Widget> cards = <Widget>[
-                                    OperatorBalanceCard(
-                                      operatorName: 'Orange',
-                                      balance: _getBalanceForOperator(
-                                        dashboardData,
-                                        ServiceChannel.orange,
-                                      ),
-                                      logoAsset:
-                                          'assets/images/orange_logo.png',
-                                      accentColor: const Color(0xFFFF7900),
-                                      signalBars: 3,
-                                    ),
-                                    OperatorBalanceCard(
-                                      operatorName: 'MTN',
-                                      balance: _getBalanceForOperator(
-                                        dashboardData,
-                                        ServiceChannel.mtn,
-                                      ),
-                                      logoAsset: 'assets/images/mtn_logo.png',
-                                      accentColor: const Color(0xFFFFCC00),
-                                      signalBars: 4,
-                                    ),
-                                    OperatorBalanceCard(
-                                      operatorName: 'Moov Africa',
-                                      balance: _getBalanceForOperator(
-                                        dashboardData,
-                                        ServiceChannel.moov,
-                                      ),
-                                      logoAsset: 'assets/images/moov_logo.png',
-                                      accentColor: const Color(0xFF0055A5),
-                                      signalBars: 2,
-                                    ),
-                                  ];
-
-                                  if (constraints.maxWidth < 380) {
-                                    return SingleChildScrollView(
-                                      scrollDirection: Axis.horizontal,
-                                      child: IntrinsicHeight(
-                                        child: Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          children: [
-                                            for (
-                                              int index = 0;
-                                              index < cards.length;
-                                              index++
-                                            ) ...[
-                                              SizedBox(
-                                                width: 146,
-                                                child: cards[index],
-                                              ),
-                                              if (index != cards.length - 1)
-                                                const SizedBox(width: 8),
-                                            ],
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  }
-
-                                  return IntrinsicHeight(
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        for (
-                                          int index = 0;
-                                          index < cards.length;
-                                          index++
-                                        ) ...[
-                                          Expanded(child: cards[index]),
-                                          if (index != cards.length - 1)
-                                            const SizedBox(width: 8),
-                                        ],
-                                      ],
-                                    ),
-                                  );
-                                },
-                          ),
-                          if (dashboardData.balances.every(
-                            (AccountBalance balance) => !balance.isAvailable,
-                          )) ...[
-                            const SizedBox(height: 10),
-                            const Text(
-                              'Les soldes seront disponibles après la mise en place du module Réseaux et Finances.',
-                              style: TextStyle(
-                                color: Color(0xFF6B7280),
-                                fontSize: 11,
-                                height: 1.35,
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 16),
-
-                          // Caisse Wave
-                          WaveBalanceCard(
-                            balance: _getBalanceForOperator(
-                              dashboardData,
-                              ServiceChannel.wave,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-
-                          // À traiter en priorité
-                          const SectionHeader(
-                            icon: Icons.track_changes_rounded,
-                            title: 'À traiter en priorité',
-                          ),
-                          const SizedBox(height: 16),
-                          if (dashboardData.priorityOrders.isEmpty)
-                            const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(16.0),
-                                child: Text(
-                                  'Aucune commande en attente',
-                                  style: TextStyle(color: Color(0xFF6B7280)),
-                                ),
-                              ),
-                            )
-                          else
-                            ...dashboardData.priorityOrders.map((order) {
-                              return PriorityOrderItemCard(
-                                reference: order.reference,
-                                phoneNumber: order.phoneNumber,
-                                operationLabel: order.operationLabel,
-                                amount: order.amount,
-                                channel: order.channel.name,
-                                statusLabel: order.status.name,
-                                actionLabel: order.actionLabel,
-                                onPressed: widget.onOpenOrders ?? () {},
-                              );
-                            }),
                         ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const IzyTelSectionHeader(title: 'Activité du jour'),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _MetricCard(
+                            label: 'Payées',
+                            value: data.statistics.newRequests.toString(),
+                            color: IzyTelColors.success,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _MetricCard(
+                            label: 'En cours',
+                            value: data.statistics.inProgress.toString(),
+                            color: IzyTelColors.warning,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _MetricCard(
+                            label: 'Terminées',
+                            value: data.statistics.completed.toString(),
+                            color: IzyTelColors.primary,
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                ),
-              ],
+                    const SizedBox(height: 18),
+                    IzyTelSectionHeader(
+                      title: 'Disponibilité réseau',
+                      actionLabel: 'Voir tout',
+                      onAction: widget.onOpenMore,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _NetworkCard(
+                            name: 'Orange',
+                            asset: 'assets/brands/operators/orange_ci.png',
+                            color: IzyTelColors.orange,
+                            balance: _balance(data, ServiceChannel.orange),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _NetworkCard(
+                            name: 'MTN',
+                            asset: 'assets/brands/operators/mtn_ci.png',
+                            color: IzyTelColors.mtn,
+                            balance: _balance(data, ServiceChannel.mtn),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _NetworkCard(
+                            name: 'Moov',
+                            asset: 'assets/brands/operators/moov_africa_ci.png',
+                            color: IzyTelColors.moov,
+                            balance: _balance(data, ServiceChannel.moov),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    const IzyTelSectionHeader(title: 'Activité récente'),
+                    const SizedBox(height: 8),
+                    if (data.priorityOrders.isEmpty)
+                      const _EmptyRecentState()
+                    else
+                      IzyTelSurface(
+                        padding: EdgeInsets.zero,
+                        radius: 16,
+                        child: Column(
+                          children: List<Widget>.generate(
+                            data.priorityOrders.take(2).length,
+                            (int index) {
+                              final PriorityOrder order =
+                                  data.priorityOrders[index];
+                              return Column(
+                                children: [
+                                  _RecentActivityRow(order: order),
+                                  if (index <
+                                      data.priorityOrders.take(2).length - 1)
+                                    const Divider(),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                  ],
+                ],
+              ),
             ),
           ),
         );
@@ -323,46 +310,453 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 }
 
-class _DashboardLoadingState extends StatelessWidget {
-  const _DashboardLoadingState();
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.user,
+    required this.dateLabel,
+    required this.onAvatarTap,
+  });
+
+  final AppUser user;
+  final String dateLabel;
+  final VoidCallback onAvatarTap;
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 48),
-      child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Bonjour ${user.name.split(' ').first} 👋',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                dateLabel,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: IzyTelColors.textSecondary,
+                  fontSize: 10.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IzyTelAvatar(name: user.name, onTap: onAvatarTap, size: 38),
+            const SizedBox(width: 2),
+            const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 16,
+              color: IzyTelColors.textSecondary,
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
 
-class _DashboardErrorState extends StatelessWidget {
-  const _DashboardErrorState({required this.message, required this.onRetry});
+class _RevenueHero extends StatelessWidget {
+  const _RevenueHero({required this.amount, required this.percentage});
+  final int amount;
+  final double? percentage;
 
+  @override
+  Widget build(BuildContext context) {
+    final double? change = percentage;
+    final bool positive = (change ?? 0) >= 0;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF2E72EE), Color(0xFF1565E8)],
+        ),
+        borderRadius: BorderRadius.circular(17),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x242563EB),
+            blurRadius: 22,
+            offset: Offset(0, 9),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Encaissements aujourd’hui',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: Colors.white,
+                    fontSize: 10.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  formatCfaFull(amount),
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    color: Colors.white,
+                    fontSize: 23,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (change != null) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: positive
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFFDC2626),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(
+                      '${positive ? '+' : ''}${change.toStringAsFixed(1)}%  vs hier',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: Colors.white,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(25),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: const Icon(
+              Icons.account_balance_wallet_outlined,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionRow extends StatelessWidget {
+  const _ActionRow({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(15),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              width: 31,
+              height: 31,
+              decoration: BoxDecoration(
+                color: iconColor.withAlpha(18),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(icon, color: iconColor, size: 17),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                title,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: IzyTelColors.textPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: IzyTelColors.textMuted,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MetricCard extends StatelessWidget {
+  const _MetricCard({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return IzyTelSurface(
+      radius: 15,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(fontSize: 10.5),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: 32,
+            height: 3,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(99),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NetworkCard extends StatelessWidget {
+  const _NetworkCard({
+    required this.name,
+    required this.asset,
+    required this.color,
+    required this.balance,
+  });
+
+  final String name;
+  final String asset;
+  final Color color;
+  final int? balance;
+
+  String get _status {
+    if (balance == null) return 'À configurer';
+    if (balance! <= 5000) return 'Faible';
+    return 'Disponible';
+  }
+
+  Color get _statusColor {
+    if (balance == null) return IzyTelColors.textMuted;
+    if (balance! <= 5000) return IzyTelColors.warning;
+    return IzyTelColors.success;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IzyTelSurface(
+      radius: 15,
+      padding: const EdgeInsets.all(11),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: color.withAlpha(16),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Image.asset(asset, fit: BoxFit.contain),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.labelLarge?.copyWith(fontSize: 11),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            _status,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: _statusColor,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecentActivityRow extends StatelessWidget {
+  const _RecentActivityRow({required this.order});
+
+  final PriorityOrder order;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool confirmed = order.status == PriorityOrderStatus.ready;
+    final Color color = confirmed ? IzyTelColors.success : IzyTelColors.primary;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 31,
+            height: 31,
+            decoration: BoxDecoration(
+              color: color.withAlpha(18),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(
+              confirmed
+                  ? Icons.account_balance_wallet_outlined
+                  : Icons.assignment_turned_in_outlined,
+              size: 16,
+              color: color,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  confirmed ? 'Paiement confirmé' : order.operationLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: IzyTelColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 10.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  order.reference,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: IzyTelColors.textMuted,
+                    fontSize: 9,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            confirmed ? '+${formatCfa(order.amount)}' : order.actionLabel,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: confirmed ? IzyTelColors.success : IzyTelColors.textMuted,
+              fontWeight: FontWeight.w700,
+              fontSize: 9.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyRecentState extends StatelessWidget {
+  const _EmptyRecentState();
+
+  @override
+  Widget build(BuildContext context) {
+    return IzyTelSurface(
+      radius: 15,
+      child: Row(
+        children: [
+          const Icon(Icons.task_alt_rounded, color: IzyTelColors.success),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Aucune activité récente pour le moment.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LoadingState extends StatelessWidget {
+  const _LoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 90),
+      child: Center(child: CircularProgressIndicator()),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({required this.message, required this.onRetry});
   final String message;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 48),
+    return IzyTelSurface(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.cloud_off_rounded, size: 48, color: AppColors.error),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.error,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
+          const Icon(
+            Icons.cloud_off_rounded,
+            color: IzyTelColors.error,
+            size: 38,
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 12),
+          Text(message, textAlign: TextAlign.center),
+          const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: onRetry,
-            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
             icon: const Icon(Icons.refresh_rounded),
             label: const Text('Réessayer'),
           ),

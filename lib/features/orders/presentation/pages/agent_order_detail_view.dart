@@ -1,4 +1,4 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_proof.dart';
@@ -97,7 +97,7 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
       label: 'Motif du refus',
       hint: 'Ex. réseau indisponible ou capacité insuffisante…',
       confirmLabel: 'Confirmer le refus',
-      confirmColor: AppColors.error,
+      confirmColor: IzyTelColors.error,
       maxLength: 500,
     );
     if (reason == null || !mounted) return;
@@ -218,7 +218,7 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          backgroundColor: AppColors.surfaceContainerHighest,
+          backgroundColor: IzyTelColors.surface,
           title: const Text('Confirmer la réussite'),
           content: Text(
             'La commande ${widget.order.reference} sera marquée comme réussie.',
@@ -230,7 +230,9 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
             ),
             FilledButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: FilledButton.styleFrom(backgroundColor: AppColors.success),
+              style: FilledButton.styleFrom(
+                backgroundColor: IzyTelColors.success,
+              ),
               child: const Text('Confirmer'),
             ),
           ],
@@ -321,234 +323,512 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
     );
   }
 
+  void _showInfoSheet({required String title, required Widget child}) {
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext sheetContext) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+          decoration: const BoxDecoration(
+            color: IzyTelColors.surface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: IzyTelColors.outlineStrong,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                title,
+                style: Theme.of(
+                  sheetContext,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 16),
+              child,
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  int _activityCount(QueueOrder order) {
+    int count = 1;
+    if (order.paymentConfirmedAt != null || order.paidAt != null) count++;
+    if (order.assignedAt != null) count++;
+    if (order.takenAt != null) count++;
+    if (order.lastHeldAt != null) count++;
+    if (order.lastResumedAt != null) count++;
+    if (order.completedAt != null) count++;
+    return count;
+  }
+
+  Widget? _buildBottomActions(QueueOrder order) {
+    if (order.assignmentStatus == OrderAssignmentStatus.assigned) {
+      return _SingleBottomAction(
+        isBusy: _isBusy,
+        label: 'Accepter',
+        icon: Icons.check_rounded,
+        onPressed: _accept,
+      );
+    }
+
+    if (order.assignmentStatus == OrderAssignmentStatus.accepted &&
+        order.status == QueueOrderStatus.paidReady) {
+      return _SingleBottomAction(
+        isBusy: _isBusy,
+        label: 'Démarrer le traitement',
+        icon: Icons.play_arrow_rounded,
+        onPressed: _startProcessing,
+      );
+    }
+
+    if (order.status == QueueOrderStatus.onHold) {
+      return _SingleBottomAction(
+        isBusy: _isBusy,
+        label: 'Reprendre le traitement',
+        icon: Icons.play_arrow_rounded,
+        onPressed: _resumeProcessing,
+      );
+    }
+
+    if (order.status == QueueOrderStatus.inProgress) {
+      return _ProcessingBottomActions(
+        isBusy: _isBusy,
+        onHold: _putOnHold,
+        onSuccess: _confirmSuccess,
+      );
+    }
+
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final QueueOrder order = widget.order;
+    final Widget? bottomActions = _buildBottomActions(order);
+
     return Column(
       children: [
-        _DetailTopBar(order: order, onBack: widget.onBack),
-        Divider(height: 1, color: AppColors.outlineVariant.withAlpha(90)),
+        _ReferenceDetailTopBar(
+          order: order,
+          onBack: widget.onBack,
+          onMenuSelected: (String value) {
+            if (value == 'refuse') {
+              _refuse();
+            } else if (value == 'failure') {
+              _markFailed();
+            }
+          },
+        ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              14,
+              16,
+              bottomActions == null ? 24 : 100,
+            ),
             children: [
-              Text(
-                'Détail de la commande\n#${order.reference}',
-                style: const TextStyle(
-                  color: AppColors.onBackground,
-                  fontSize: 28,
-                  height: 1.15,
-                  fontWeight: FontWeight.w900,
-                ),
+              _ReferenceOrderSummary(order: order),
+              const SizedBox(height: 15),
+              _ReferenceProgress(order: order),
+              const SizedBox(height: 15),
+              _DetailMenuCard(
+                rows: [
+                  _DetailMenuRowData(
+                    icon: Icons.person_outline_rounded,
+                    label: 'Client',
+                    onTap: () => _showInfoSheet(
+                      title: 'Client',
+                      child: _InfoSheetRows(
+                        rows: <MapEntry<String, String>>[
+                          MapEntry('Nom', order.clientName),
+                          MapEntry('WhatsApp', order.clientWhatsappPhone),
+                          MapEntry('Bénéficiaire', order.beneficiaryPhone),
+                        ],
+                      ),
+                    ),
+                  ),
+                  _DetailMenuRowData(
+                    icon: Icons.account_balance_wallet_outlined,
+                    label: 'Paiement',
+                    trailing:
+                        order.paymentStatus == OrderPaymentStatus.confirmed
+                        ? const _TinyStateBadge(
+                            label: 'Confirmé',
+                            color: IzyTelColors.success,
+                          )
+                        : null,
+                    onTap: () => _showInfoSheet(
+                      title: 'Paiement',
+                      child: _InfoSheetRows(
+                        rows: <MapEntry<String, String>>[
+                          MapEntry('Montant', formatCfaFull(order.amount)),
+                          MapEntry(
+                            'Payeur',
+                            order.paymentPayerName ?? order.clientName,
+                          ),
+                          MapEntry(
+                            'Référence',
+                            order.paymentReference ?? 'Non renseignée',
+                          ),
+                          MapEntry(
+                            'Statut',
+                            order.paymentStatus == OrderPaymentStatus.confirmed
+                                ? 'Confirmé'
+                                : 'En attente',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  _DetailMenuRowData(
+                    icon: Icons.format_list_bulleted_rounded,
+                    label: 'Détails de l’offre',
+                    onTap: () => _showInfoSheet(
+                      title: 'Détails de l’offre',
+                      child: _InfoSheetRows(
+                        rows: <MapEntry<String, String>>[
+                          MapEntry('Réseau', networkLabel(order.network)),
+                          MapEntry('Offre', order.offerLabel),
+                          MapEntry('Montant', formatCfaFull(order.amount)),
+                          MapEntry('Bénéficiaire', order.beneficiaryPhone),
+                        ],
+                      ),
+                    ),
+                  ),
+                  _DetailMenuRowData(
+                    icon: Icons.image_outlined,
+                    label: 'Preuve',
+                    trailing: _ProofThumbnail(
+                      proof: _proof,
+                      isLoading: _isLoadingProof,
+                    ),
+                    onTap: order.status == QueueOrderStatus.inProgress
+                        ? _chooseProofSource
+                        : () {
+                            if (_proof == null) {
+                              _showMessage('Aucune preuve enregistrée.');
+                              return;
+                            }
+                            _showInfoSheet(
+                              title: 'Preuve de transfert',
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(14),
+                                child: Image.memory(
+                                  _proof!.bytes,
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                            );
+                          },
+                  ),
+                  _DetailMenuRowData(
+                    icon: Icons.schedule_rounded,
+                    label: 'Journal d’activité',
+                    trailing: _CountBadge(value: _activityCount(order)),
+                    onTap: () => _showInfoSheet(
+                      title: 'Journal d’activité',
+                      child: _ActivitySheet(order: order),
+                    ),
+                  ),
+                  _DetailMenuRowData(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    label: 'Demande client',
+                    onTap: () => _showInfoSheet(
+                      title: 'Demande client',
+                      child: Text(
+                        'Les demandes liées à cette commande sont consultables depuis le centre de support IzyTel.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                  ),
+                  _DetailMenuRowData(
+                    icon: Icons.payments_outlined,
+                    label: 'Remboursement',
+                    onTap: () => _showInfoSheet(
+                      title: 'Remboursement',
+                      child: Text(
+                        'Les remboursements sont validés depuis l’espace administrateur.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 7),
-              Text(
-                'Créée le ${_formatDateTime(order.createdAt)}',
-                style: const TextStyle(
-                  color: AppColors.onSurfaceVariant,
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(height: 20),
-              _GeneralInformationCard(order: order),
-              const SizedBox(height: 16),
-              _TrackingCard(order: order),
-              const SizedBox(height: 16),
-              if (order.assignmentStatus == OrderAssignmentStatus.assigned)
-                _DecisionCard(
-                  isBusy: _isBusy,
-                  onAccept: _accept,
-                  onRefuse: _refuse,
-                )
-              else if (order.assignmentStatus ==
-                      OrderAssignmentStatus.accepted &&
-                  order.status == QueueOrderStatus.paidReady)
-                _StartProcessingCard(isBusy: _isBusy, onStart: _startProcessing)
-              else if (order.status == QueueOrderStatus.onHold)
-                _HoldCard(
-                  order: order,
-                  isBusy: _isBusy,
-                  onResume: _resumeProcessing,
-                )
-              else if (order.status == QueueOrderStatus.inProgress)
-                _ProcessingActionsCard(
-                  proof: _proof,
-                  isLoadingProof: _isLoadingProof,
-                  isBusy: _isBusy,
-                  onPickProof: _chooseProofSource,
-                  onSuccess: _confirmSuccess,
-                  onFailure: _markFailed,
-                  onHold: _putOnHold,
-                )
-              else
-                _TerminalResultCard(order: order),
-              if (order.status != QueueOrderStatus.inProgress &&
-                  _proof != null) ...[
-                const SizedBox(height: 16),
-                _ReadOnlyProofCard(proof: _proof!),
-              ],
             ],
           ),
         ),
+        ?bottomActions,
       ],
     );
   }
 }
 
-class _DetailTopBar extends StatelessWidget {
-  const _DetailTopBar({required this.order, required this.onBack});
+class _ReferenceDetailTopBar extends StatelessWidget {
+  const _ReferenceDetailTopBar({
+    required this.order,
+    required this.onBack,
+    required this.onMenuSelected,
+  });
 
   final QueueOrder order;
   final VoidCallback onBack;
+  final ValueChanged<String> onMenuSelected;
 
   @override
   Widget build(BuildContext context) {
+    final List<PopupMenuEntry<String>> actions = <PopupMenuEntry<String>>[];
+    if (order.assignmentStatus == OrderAssignmentStatus.assigned) {
+      actions.add(
+        const PopupMenuItem<String>(
+          value: 'refuse',
+          child: Text('Refuser la commande'),
+        ),
+      );
+    }
+    if (order.status == QueueOrderStatus.inProgress) {
+      actions.add(
+        const PopupMenuItem<String>(
+          value: 'failure',
+          child: Text('Signaler un échec'),
+        ),
+      );
+    }
+
     return Container(
-      color: AppColors.surfaceContainerLow,
-      padding: const EdgeInsets.fromLTRB(10, 9, 18, 9),
+      padding: const EdgeInsets.fromLTRB(5, 6, 7, 6),
+      decoration: const BoxDecoration(
+        color: IzyTelColors.surface,
+        border: Border(bottom: BorderSide(color: IzyTelColors.outline)),
+      ),
       child: Row(
         children: [
           IconButton(
             tooltip: 'Retour',
             onPressed: onBack,
-            icon: const Icon(Icons.arrow_back_rounded),
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.arrow_back_rounded, size: 21),
           ),
-          const SizedBox(width: 4),
           Expanded(
             child: Text(
-              order.reference,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.onBackground,
-                fontSize: 17,
+              'Détail commande',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontSize: 13,
                 fontWeight: FontWeight.w800,
               ),
             ),
           ),
-          _StatusPill(order: order),
+          if (actions.isNotEmpty)
+            PopupMenuButton<String>(
+              onSelected: onMenuSelected,
+              itemBuilder: (_) => actions,
+              icon: const Icon(Icons.more_vert_rounded, size: 20),
+            )
+          else
+            const SizedBox(width: 44),
         ],
       ),
     );
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.order});
+class _ReferenceOrderSummary extends StatelessWidget {
+  const _ReferenceOrderSummary({required this.order});
 
   final QueueOrder order;
 
   @override
   Widget build(BuildContext context) {
-    final Color color = _agentStatusColor(order);
+    final Color accent = networkColor(order.network);
+    final Color statusColor = _agentStatusColor(order);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      padding: const EdgeInsets.fromLTRB(13, 12, 13, 11),
       decoration: BoxDecoration(
-        color: color.withAlpha(24),
-        borderRadius: BorderRadius.circular(99),
-        border: Border.all(color: color.withAlpha(90)),
+        color: IzyTelColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: IzyTelColors.outline),
       ),
-      child: Text(
-        _agentStatusLabel(order),
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-    );
-  }
-}
-
-class _GeneralInformationCard extends StatelessWidget {
-  const _GeneralInformationCard({required this.order});
-
-  final QueueOrder order;
-
-  @override
-  Widget build(BuildContext context) {
-    final Color networkAccent = networkColor(order.network);
-    return _SectionCard(
-      title: 'Informations générales',
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _LabelValue(label: 'BÉNÉFICIAIRE', value: order.beneficiaryPhone),
-          const SizedBox(height: 18),
-          _LabelValue(
-            label: 'MONTANT',
-            value: formatCfa(order.amount),
-            valueColor: AppColors.primaryContainer,
-            valueSize: 23,
-          ),
-          const SizedBox(height: 18),
-          const Text('RÉSEAU', style: _smallLabelStyle),
-          const SizedBox(height: 6),
           Row(
             children: [
               Container(
-                width: 4,
-                height: 20,
+                width: 30,
+                height: 30,
+                padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
-                  color: networkAccent,
-                  borderRadius: BorderRadius.circular(99),
+                  color: accent.withAlpha(15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Image.asset(
+                  networkAsset(order.network),
+                  fit: BoxFit.contain,
                 ),
               ),
               const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  networkLabel(order.network),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: IzyTelColors.textPrimary,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              _TinyStateBadge(
+                label: _agentStatusLabel(order),
+                color: statusColor,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            order.offerLabel,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 9),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  order.beneficiaryPhone,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: IzyTelColors.textPrimary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
               Text(
-                networkLabel(order.network),
-                style: const TextStyle(
-                  color: AppColors.onBackground,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
+                formatCfa(order.amount),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: IzyTelColors.primaryStrong,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          _LabelValue(label: 'OFFRE', value: order.offerLabel),
-          const SizedBox(height: 18),
-          _LabelValue(label: 'CLIENT', value: order.clientName),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              order.reference,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: IzyTelColors.textMuted,
+                fontSize: 8,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _TrackingCard extends StatelessWidget {
-  const _TrackingCard({required this.order});
+enum _ReferenceStepState { done, active, pending }
+
+class _ReferenceProgress extends StatelessWidget {
+  const _ReferenceProgress({required this.order});
 
   final QueueOrder order;
 
+  bool get _isAssigned =>
+      order.assignedAt != null ||
+      order.assignmentStatus != OrderAssignmentStatus.unassigned;
+
+  bool get _isProcessing => <QueueOrderStatus>{
+    QueueOrderStatus.inProgress,
+    QueueOrderStatus.onHold,
+    QueueOrderStatus.awaitingCustomerConfirmation,
+    QueueOrderStatus.completed,
+    QueueOrderStatus.failed,
+    QueueOrderStatus.refunded,
+  }.contains(order.status);
+
+  bool get _isFinished => <QueueOrderStatus>{
+    QueueOrderStatus.completed,
+    QueueOrderStatus.failed,
+    QueueOrderStatus.refunded,
+  }.contains(order.status);
+
+  _ReferenceStepState _state(int index) {
+    if (index == 0) {
+      return order.paymentStatus == OrderPaymentStatus.confirmed
+          ? _ReferenceStepState.done
+          : _ReferenceStepState.active;
+    }
+    if (index == 1) {
+      if (_isAssigned) return _ReferenceStepState.done;
+      return _ReferenceStepState.pending;
+    }
+    if (index == 2) {
+      if (_isFinished) return _ReferenceStepState.done;
+      if (_isProcessing) return _ReferenceStepState.active;
+      return _ReferenceStepState.pending;
+    }
+    return _isFinished ? _ReferenceStepState.done : _ReferenceStepState.pending;
+  }
+
+  String _dateLabel(int index) {
+    final DateTime? date = switch (index) {
+      0 => order.paymentConfirmedAt ?? order.paidAt,
+      1 => order.assignedAt,
+      2 => order.takenAt ?? order.lastResumedAt,
+      _ => order.completedAt,
+    };
+    if (date == null) return '';
+    final DateTime local = date.toLocal();
+    return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')} · ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final List<_TrackStep> steps = <_TrackStep>[
-      _TrackStep(
-        title: 'Commande reçue',
-        subtitle: _formatDateTime(order.createdAt),
-        state: _StepState.done,
-      ),
-      _TrackStep(
-        title: 'Affectée à ${order.assignedAgentName ?? 'l’agent'}',
-        subtitle: order.assignedAt == null
-            ? 'Affectation enregistrée'
-            : _formatDateTime(order.assignedAt!),
-        state: order.assignedAt == null ? _StepState.upcoming : _StepState.done,
-      ),
-      _TrackStep(
-        title: _processingStepTitle(order),
-        subtitle: _processingStepSubtitle(order),
-        state: _processingStepState(order),
-      ),
+    const List<String> labels = <String>[
+      'Payée',
+      'Affectée',
+      'En traitement',
+      'Terminée',
     ];
-
-    return _SectionCard(
-      title: 'Suivi du traitement',
-      child: Column(
-        children: List<Widget>.generate(steps.length, (int index) {
-          return _TimelineStep(
-            step: steps[index],
-            isLast: index == steps.length - 1,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: List<Widget>.generate(labels.length, (int index) {
+          final _ReferenceStepState state = _state(index);
+          return Expanded(
+            child: _ReferenceProgressStep(
+              label: labels[index],
+              date: _dateLabel(index),
+              state: state,
+              showLeftLine: index > 0,
+              showRightLine: index < labels.length - 1,
+            ),
           );
         }),
       ),
@@ -556,181 +836,479 @@ class _TrackingCard extends StatelessWidget {
   }
 }
 
-class _DecisionCard extends StatelessWidget {
-  const _DecisionCard({
-    required this.isBusy,
-    required this.onAccept,
-    required this.onRefuse,
+class _ReferenceProgressStep extends StatelessWidget {
+  const _ReferenceProgressStep({
+    required this.label,
+    required this.date,
+    required this.state,
+    required this.showLeftLine,
+    required this.showRightLine,
   });
 
-  final bool isBusy;
-  final VoidCallback onAccept;
-  final VoidCallback onRefuse;
+  final String label;
+  final String date;
+  final _ReferenceStepState state;
+  final bool showLeftLine;
+  final bool showRightLine;
 
   @override
   Widget build(BuildContext context) {
-    return _SectionCard(
-      title: 'Action requise',
+    final Color color = switch (state) {
+      _ReferenceStepState.done => IzyTelColors.success,
+      _ReferenceStepState.active => IzyTelColors.primary,
+      _ReferenceStepState.pending => IzyTelColors.outlineStrong,
+    };
+    return Column(
+      children: [
+        SizedBox(
+          height: 27,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (showLeftLine)
+                Positioned(
+                  left: 0,
+                  right: 13,
+                  child: Container(
+                    height: 1.5,
+                    color: state == _ReferenceStepState.pending
+                        ? IzyTelColors.outline
+                        : color.withAlpha(140),
+                  ),
+                ),
+              if (showRightLine)
+                Positioned(
+                  left: 13,
+                  right: 0,
+                  child: Container(
+                    height: 1.5,
+                    color: state == _ReferenceStepState.done
+                        ? IzyTelColors.success.withAlpha(140)
+                        : IzyTelColors.outline,
+                  ),
+                ),
+              Container(
+                width: 21,
+                height: 21,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: state == _ReferenceStepState.pending
+                      ? Colors.white
+                      : color,
+                  shape: BoxShape.circle,
+                  border: state == _ReferenceStepState.pending
+                      ? Border.all(color: IzyTelColors.outlineStrong)
+                      : null,
+                ),
+                child: Icon(
+                  state == _ReferenceStepState.done
+                      ? Icons.check_rounded
+                      : state == _ReferenceStepState.active
+                      ? Icons.hourglass_top_rounded
+                      : Icons.person_outline_rounded,
+                  size: 12,
+                  color: state == _ReferenceStepState.pending
+                      ? IzyTelColors.textMuted
+                      : Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: state == _ReferenceStepState.pending
+                ? IzyTelColors.textSecondary
+                : IzyTelColors.textPrimary,
+            fontSize: 8,
+            fontWeight: state == _ReferenceStepState.active
+                ? FontWeight.w800
+                : FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          date,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: IzyTelColors.textMuted,
+            fontSize: 6.8,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DetailMenuRowData {
+  const _DetailMenuRowData({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Widget? trailing;
+}
+
+class _DetailMenuCard extends StatelessWidget {
+  const _DetailMenuCard({required this.rows});
+
+  final List<_DetailMenuRowData> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: IzyTelColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: IzyTelColors.outline),
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            'Accepte la commande si tu peux la traiter maintenant. Sinon, refuse-la avec un motif pour qu’elle soit réaffectée.',
-            style: TextStyle(color: AppColors.onSurfaceVariant, height: 1.45),
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: isBusy ? null : onAccept,
-            icon: const Icon(Icons.check_circle_outline_rounded),
-            label: const Text('Accepter et commencer'),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: isBusy ? null : onRefuse,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.error,
-              side: const BorderSide(color: AppColors.error),
-              minimumSize: const Size.fromHeight(50),
-            ),
-            icon: const Icon(Icons.cancel_outlined),
-            label: const Text('Refuser'),
-          ),
-        ],
+        children: List<Widget>.generate(rows.length, (int index) {
+          final _DetailMenuRowData row = rows[index];
+          return Column(
+            children: [
+              InkWell(
+                onTap: row.onTap,
+                borderRadius: BorderRadius.circular(14),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(row.icon, size: 17, color: IzyTelColors.textPrimary),
+                      const SizedBox(width: 11),
+                      Expanded(
+                        child: Text(
+                          row.label,
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: IzyTelColors.textPrimary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                      if (row.trailing != null) ...[
+                        row.trailing!,
+                        const SizedBox(width: 6),
+                      ],
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: IzyTelColors.textMuted,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (index < rows.length - 1)
+                const Divider(indent: 12, endIndent: 12),
+            ],
+          );
+        }),
       ),
     );
   }
 }
 
-class _StartProcessingCard extends StatelessWidget {
-  const _StartProcessingCard({required this.isBusy, required this.onStart});
+class _TinyStateBadge extends StatelessWidget {
+  const _TinyStateBadge({required this.label, required this.color});
 
-  final bool isBusy;
-  final VoidCallback onStart;
+  final String label;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    return _SectionCard(
-      title: 'Commande acceptée',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            'Cette commande a été acceptée avant l’activation du traitement 9C. Démarre-la pour continuer.',
-            style: TextStyle(color: AppColors.onSurfaceVariant, height: 1.45),
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: isBusy ? null : onStart,
-            icon: const Icon(Icons.play_arrow_rounded),
-            label: const Text('Démarrer le traitement'),
-          ),
-        ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withAlpha(18),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+          color: color,
+          fontSize: 7.5,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }
 }
 
-class _ProcessingActionsCard extends StatelessWidget {
-  const _ProcessingActionsCard({
-    required this.proof,
-    required this.isLoadingProof,
-    required this.isBusy,
-    required this.onPickProof,
-    required this.onSuccess,
-    required this.onFailure,
-    required this.onHold,
-  });
+class _CountBadge extends StatelessWidget {
+  const _CountBadge({required this.value});
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 19,
+      height: 19,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        color: IzyTelColors.primarySoft,
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        '$value',
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+          color: IzyTelColors.primary,
+          fontSize: 8,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProofThumbnail extends StatelessWidget {
+  const _ProofThumbnail({required this.proof, required this.isLoading});
 
   final OrderProof? proof;
-  final bool isLoadingProof;
-  final bool isBusy;
-  final VoidCallback onPickProof;
-  final VoidCallback onSuccess;
-  final VoidCallback onFailure;
-  final VoidCallback onHold;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
-    return _SectionCard(
-      title: 'Traitement',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Row(
-            children: [
-              Icon(
-                Icons.info_outline_rounded,
-                size: 18,
-                color: AppColors.primaryContainer,
+    if (isLoading) {
+      return const SizedBox.square(
+        dimension: 28,
+        child: Padding(
+          padding: EdgeInsets.all(7),
+          child: CircularProgressIndicator(strokeWidth: 1.5),
+        ),
+      );
+    }
+    if (proof == null) return const SizedBox.shrink();
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(5),
+      child: Image.memory(
+        proof!.bytes,
+        width: 34,
+        height: 28,
+        fit: BoxFit.cover,
+      ),
+    );
+  }
+}
+
+class _InfoSheetRows extends StatelessWidget {
+  const _InfoSheetRows({required this.rows});
+  final List<MapEntry<String, String>> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: rows
+          .map(
+            (MapEntry<String, String> row) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 105,
+                    child: Text(
+                      row.key,
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      row.value,
+                      textAlign: TextAlign.right,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelLarge?.copyWith(fontSize: 11),
+                    ),
+                  ),
+                ],
               ),
-              SizedBox(width: 8),
-              Text(
-                'APRÈS LE TRANSFERT',
-                style: TextStyle(
-                  color: AppColors.onSurfaceVariant,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: .8,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Preuve de transfert',
-            style: TextStyle(
-              color: AppColors.onSurfaceVariant,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
             ),
+          )
+          .toList(growable: false),
+    );
+  }
+}
+
+class _ActivitySheet extends StatelessWidget {
+  const _ActivitySheet({required this.order});
+  final QueueOrder order;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<MapEntry<String, DateTime?>> entries =
+        <MapEntry<String, DateTime?>>[
+          MapEntry('Commande reçue', order.createdAt),
+          MapEntry(
+            'Paiement confirmé',
+            order.paymentConfirmedAt ?? order.paidAt,
           ),
-          const SizedBox(height: 9),
-          _ProofPicker(
-            proof: proof,
-            isLoading: isLoadingProof,
-            enabled: !isBusy,
-            onTap: onPickProof,
-          ),
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            onPressed: isBusy ? null : onSuccess,
-            style: FilledButton.styleFrom(backgroundColor: AppColors.success),
-            icon: const Icon(Icons.check_circle_outline_rounded),
-            label: const Text('Marquer comme réussi'),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: isBusy ? null : onFailure,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.error,
-                    side: const BorderSide(color: AppColors.error),
-                    minimumSize: const Size.fromHeight(48),
+          MapEntry('Commande affectée', order.assignedAt),
+          MapEntry('Traitement démarré', order.takenAt),
+          MapEntry('Traitement terminé', order.completedAt),
+        ];
+    return Column(
+      children: entries
+          .where((MapEntry<String, DateTime?> e) => e.value != null)
+          .map((MapEntry<String, DateTime?> entry) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 13),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.check_circle_outline_rounded,
+                    size: 17,
+                    color: IzyTelColors.success,
                   ),
-                  child: const Text('Signaler échec'),
-                ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      entry.key,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelLarge?.copyWith(fontSize: 10.5),
+                    ),
+                  ),
+                  Text(
+                    _formatDateTime(entry.value!),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelMedium?.copyWith(fontSize: 8.5),
+                  ),
+                ],
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton(
+            );
+          })
+          .toList(growable: false),
+    );
+  }
+}
+
+class _ProcessingBottomActions extends StatelessWidget {
+  const _ProcessingBottomActions({
+    required this.isBusy,
+    required this.onHold,
+    required this.onSuccess,
+  });
+
+  final bool isBusy;
+  final VoidCallback onHold;
+  final VoidCallback onSuccess;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: const BoxDecoration(
+        color: IzyTelColors.surface,
+        border: Border(top: BorderSide(color: IzyTelColors.outline)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 45,
+                child: OutlinedButton.icon(
                   onPressed: isBusy ? null : onHold,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.warning,
-                    side: const BorderSide(color: AppColors.warning),
-                    minimumSize: const Size.fromHeight(48),
+                  icon: const Icon(Icons.pause_rounded, size: 16),
+                  label: const Text(
+                    'Mettre en attente',
+                    style: TextStyle(fontSize: 9.5),
                   ),
-                  child: const Text('En attente'),
                 ),
               ),
-            ],
-          ),
-          if (isBusy) ...[
-            const SizedBox(height: 14),
-            const Center(child: CircularProgressIndicator()),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 2,
+              child: SizedBox(
+                height: 45,
+                child: FilledButton.icon(
+                  onPressed: isBusy ? null : onSuccess,
+                  icon: isBusy
+                      ? const SizedBox.square(
+                          dimension: 15,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.8,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.check_circle_outline_rounded,
+                          size: 16,
+                        ),
+                  label: const Text(
+                    'Marquer comme réussie',
+                    style: TextStyle(fontSize: 9.5),
+                  ),
+                ),
+              ),
+            ),
           ],
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SingleBottomAction extends StatelessWidget {
+  const _SingleBottomAction({
+    required this.isBusy,
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final bool isBusy;
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: const BoxDecoration(
+        color: IzyTelColors.surface,
+        border: Border(top: BorderSide(color: IzyTelColors.outline)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 45,
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: isBusy ? null : onPressed,
+            icon: isBusy
+                ? const SizedBox.square(
+                    dimension: 15,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.8,
+                      color: Colors.white,
+                    ),
+                  )
+                : Icon(icon, size: 16),
+            label: Text(label),
+          ),
+        ),
       ),
     );
   }
@@ -747,9 +1325,9 @@ class _ProofSourceSheet extends StatelessWidget {
         margin: const EdgeInsets.all(12),
         padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
         decoration: BoxDecoration(
-          color: AppColors.surfaceContainerHighest,
+          color: IzyTelColors.surface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.outlineVariant),
+          border: Border.all(color: IzyTelColors.outline),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -760,7 +1338,7 @@ class _ProofSourceSheet extends StatelessWidget {
                 width: 42,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.outlineVariant,
+                  color: IzyTelColors.outline,
                   borderRadius: BorderRadius.circular(99),
                 ),
               ),
@@ -769,7 +1347,7 @@ class _ProofSourceSheet extends StatelessWidget {
             const Text(
               'Ajouter une preuve',
               style: TextStyle(
-                color: AppColors.onBackground,
+                color: IzyTelColors.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
               ),
@@ -778,7 +1356,7 @@ class _ProofSourceSheet extends StatelessWidget {
             const Text(
               'Choisis une photo existante ou prends-en une maintenant.',
               style: TextStyle(
-                color: AppColors.onSurfaceVariant,
+                color: IzyTelColors.textSecondary,
                 fontSize: 12,
                 height: 1.4,
               ),
@@ -820,7 +1398,7 @@ class _ProofSourceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceContainerHigh,
+      color: IzyTelColors.surface,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -833,10 +1411,10 @@ class _ProofSourceTile extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withAlpha(28),
+                  color: IzyTelColors.primary.withAlpha(28),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: AppColors.primaryContainer),
+                child: Icon(icon, color: IzyTelColors.primary),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -846,7 +1424,7 @@ class _ProofSourceTile extends StatelessWidget {
                     Text(
                       title,
                       style: const TextStyle(
-                        color: AppColors.onBackground,
+                        color: IzyTelColors.textPrimary,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -854,7 +1432,7 @@ class _ProofSourceTile extends StatelessWidget {
                     Text(
                       subtitle,
                       style: const TextStyle(
-                        color: AppColors.onSurfaceVariant,
+                        color: IzyTelColors.textSecondary,
                         fontSize: 11,
                       ),
                     ),
@@ -863,433 +1441,11 @@ class _ProofSourceTile extends StatelessWidget {
               ),
               const Icon(
                 Icons.chevron_right_rounded,
-                color: AppColors.onSurfaceVariant,
+                color: IzyTelColors.textSecondary,
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _ProofPicker extends StatelessWidget {
-  const _ProofPicker({
-    required this.proof,
-    required this.isLoading,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  final OrderProof? proof;
-  final bool isLoading;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    if (isLoading) {
-      return Container(
-        height: 150,
-        decoration: _proofDecoration(),
-        child: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(13),
-        child: Container(
-          height: proof == null ? 150 : 205,
-          clipBehavior: Clip.antiAlias,
-          decoration: _proofDecoration(),
-          child: proof == null
-              ? const Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.add_photo_alternate_outlined,
-                      color: AppColors.onSurfaceVariant,
-                      size: 34,
-                    ),
-                    SizedBox(height: 9),
-                    Text(
-                      'Ajouter une preuve',
-                      style: TextStyle(
-                        color: AppColors.onBackground,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Appareil photo ou galerie · compression automatique',
-                      style: TextStyle(
-                        color: AppColors.onSurfaceVariant,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                )
-              : Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Image.memory(proof!.bytes, fit: BoxFit.cover),
-                    Positioned(
-                      left: 10,
-                      right: 10,
-                      bottom: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.background.withAlpha(220),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(
-                              Icons.check_circle_rounded,
-                              color: AppColors.success,
-                              size: 18,
-                            ),
-                            SizedBox(width: 7),
-                            Expanded(
-                              child: Text(
-                                'Preuve enregistrée — toucher pour remplacer',
-                                style: TextStyle(
-                                  color: AppColors.onBackground,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-        ),
-      ),
-    );
-  }
-
-  BoxDecoration _proofDecoration() {
-    return BoxDecoration(
-      color: AppColors.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(13),
-      border: Border.all(color: AppColors.outlineVariant, width: 1.2),
-    );
-  }
-}
-
-class _HoldCard extends StatelessWidget {
-  const _HoldCard({
-    required this.order,
-    required this.isBusy,
-    required this.onResume,
-  });
-
-  final QueueOrder order;
-  final bool isBusy;
-  final VoidCallback onResume;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      title: 'Commande en attente',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(13),
-            decoration: BoxDecoration(
-              color: AppColors.warning.withAlpha(18),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.warning.withAlpha(90)),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(
-                  Icons.pause_circle_outline_rounded,
-                  color: AppColors.warning,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    order.lastHoldReason ??
-                        'Traitement temporairement suspendu.',
-                    style: const TextStyle(
-                      color: AppColors.onBackground,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: isBusy ? null : onResume,
-            icon: const Icon(Icons.play_arrow_rounded),
-            label: const Text('Reprendre le traitement'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TerminalResultCard extends StatelessWidget {
-  const _TerminalResultCard({required this.order});
-
-  final QueueOrder order;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool success =
-        order.status == QueueOrderStatus.completed ||
-        order.status == QueueOrderStatus.awaitingCustomerConfirmation;
-    final Color color = success ? AppColors.success : AppColors.error;
-    return _SectionCard(
-      title: 'Résultat du traitement',
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            success ? Icons.check_circle_rounded : Icons.error_outline_rounded,
-            color: color,
-            size: 28,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  success ? 'Traitement réussi' : 'Échec signalé',
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  success
-                      ? (order.status ==
-                                QueueOrderStatus.awaitingCustomerConfirmation
-                            ? 'Le travail de l’agent est terminé. Le retour client reste à clôturer.'
-                            : 'Cette commande est terminée.')
-                      : _failureSummary(order),
-                  style: const TextStyle(
-                    color: AppColors.onSurfaceVariant,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ReadOnlyProofCard extends StatelessWidget {
-  const _ReadOnlyProofCard({required this.proof});
-
-  final OrderProof proof;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      title: 'Preuve de transfert',
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.memory(proof.bytes, fit: BoxFit.cover),
-      ),
-    );
-  }
-}
-
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({required this.title, required this.child});
-
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: AppColors.onBackground,
-              fontSize: 19,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Divider(height: 1, color: AppColors.outlineVariant.withAlpha(100)),
-          const SizedBox(height: 16),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-class _LabelValue extends StatelessWidget {
-  const _LabelValue({
-    required this.label,
-    required this.value,
-    this.valueColor = AppColors.onBackground,
-    this.valueSize = 15,
-  });
-
-  final String label;
-  final String value;
-  final Color valueColor;
-  final double valueSize;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: _smallLabelStyle),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: TextStyle(
-            color: valueColor,
-            fontSize: valueSize,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-const TextStyle _smallLabelStyle = TextStyle(
-  color: AppColors.onSurfaceVariant,
-  fontSize: 10,
-  fontWeight: FontWeight.w900,
-  letterSpacing: .55,
-);
-
-enum _StepState { done, current, upcoming, warning, failed }
-
-class _TrackStep {
-  const _TrackStep({
-    required this.title,
-    required this.subtitle,
-    required this.state,
-  });
-
-  final String title;
-  final String subtitle;
-  final _StepState state;
-}
-
-class _TimelineStep extends StatelessWidget {
-  const _TimelineStep({required this.step, required this.isLast});
-
-  final _TrackStep step;
-  final bool isLast;
-
-  @override
-  Widget build(BuildContext context) {
-    final Color color = switch (step.state) {
-      _StepState.done => AppColors.primaryContainer,
-      _StepState.current => AppColors.primary,
-      _StepState.warning => AppColors.warning,
-      _StepState.failed => AppColors.error,
-      _StepState.upcoming => AppColors.outline,
-    };
-    final IconData icon = switch (step.state) {
-      _StepState.done => Icons.check_rounded,
-      _StepState.current => Icons.autorenew_rounded,
-      _StepState.warning => Icons.pause_rounded,
-      _StepState.failed => Icons.close_rounded,
-      _StepState.upcoming => Icons.more_horiz_rounded,
-    };
-
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 34,
-            child: Column(
-              children: [
-                Container(
-                  width: 30,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    color: color.withAlpha(30),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: color.withAlpha(150)),
-                  ),
-                  child: Icon(icon, color: color, size: 17),
-                ),
-                if (!isLast)
-                  Expanded(
-                    child: Container(
-                      width: 2,
-                      margin: const EdgeInsets.symmetric(vertical: 3),
-                      color: AppColors.outlineVariant,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(bottom: isLast ? 0 : 19),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    step.title,
-                    style: TextStyle(
-                      color: step.state == _StepState.upcoming
-                          ? AppColors.onSurfaceVariant
-                          : AppColors.onBackground,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    step.subtitle,
-                    style: const TextStyle(
-                      color: AppColors.onSurfaceVariant,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1348,7 +1504,7 @@ class _ReasonSheetState extends State<_ReasonSheet> {
           const SizedBox(height: 4),
           Text(
             widget.subtitle,
-            style: const TextStyle(color: AppColors.onSurfaceVariant),
+            style: const TextStyle(color: IzyTelColors.textSecondary),
           ),
           const SizedBox(height: 18),
           TextField(
@@ -1357,7 +1513,7 @@ class _ReasonSheetState extends State<_ReasonSheet> {
             minLines: 3,
             maxLines: 5,
             maxLength: widget.maxLength,
-            style: const TextStyle(color: AppColors.onBackground),
+            style: const TextStyle(color: IzyTelColors.textPrimary),
             decoration: _darkInputDecoration(
               labelText: widget.label,
               hintText: widget.hint,
@@ -1424,7 +1580,7 @@ class _HoldReasonSheetState extends State<_HoldReasonSheet> {
           const SizedBox(height: 5),
           const Text(
             'Choisis un motif rapide ou saisis le tien.',
-            style: TextStyle(color: AppColors.onSurfaceVariant),
+            style: TextStyle(color: IzyTelColors.textSecondary),
           ),
           const SizedBox(height: 14),
           Wrap(
@@ -1432,8 +1588,8 @@ class _HoldReasonSheetState extends State<_HoldReasonSheet> {
             runSpacing: 7,
             children: suggestions.map((String suggestion) {
               return ActionChip(
-                backgroundColor: AppColors.surfaceContainerHigh,
-                side: const BorderSide(color: AppColors.outlineVariant),
+                backgroundColor: IzyTelColors.surface,
+                side: const BorderSide(color: IzyTelColors.outline),
                 label: Text(suggestion),
                 onPressed: () {
                   _controller.text = suggestion;
@@ -1448,7 +1604,7 @@ class _HoldReasonSheetState extends State<_HoldReasonSheet> {
             minLines: 2,
             maxLines: 4,
             maxLength: 300,
-            style: const TextStyle(color: AppColors.onBackground),
+            style: const TextStyle(color: IzyTelColors.textPrimary),
             decoration: _darkInputDecoration(
               labelText: 'Motif',
               hintText: 'Ex. le réseau revient dans quelques minutes…',
@@ -1462,8 +1618,8 @@ class _HoldReasonSheetState extends State<_HoldReasonSheet> {
           FilledButton(
             onPressed: _submit,
             style: FilledButton.styleFrom(
-              backgroundColor: AppColors.warningContainer,
-              foregroundColor: AppColors.onBackground,
+              backgroundColor: IzyTelColors.warningSoft,
+              foregroundColor: IzyTelColors.textPrimary,
             ),
             child: const Text('Mettre en attente'),
           ),
@@ -1501,7 +1657,7 @@ class _FailureSheetState extends State<_FailureSheet> {
           const SizedBox(height: 5),
           const Text(
             'Choisis la cause principale. Une observation reste facultative.',
-            style: TextStyle(color: AppColors.onSurfaceVariant),
+            style: TextStyle(color: IzyTelColors.textSecondary),
           ),
           const SizedBox(height: 14),
           Wrap(
@@ -1514,10 +1670,10 @@ class _FailureSheetState extends State<_FailureSheet> {
               return ChoiceChip(
                 selected: selected,
                 label: Text(_failureReasonLabel(reason)),
-                selectedColor: AppColors.error.withAlpha(35),
-                backgroundColor: AppColors.surfaceContainerHigh,
+                selectedColor: IzyTelColors.error.withAlpha(35),
+                backgroundColor: IzyTelColors.surface,
                 side: BorderSide(
-                  color: selected ? AppColors.error : AppColors.outlineVariant,
+                  color: selected ? IzyTelColors.error : IzyTelColors.outline,
                 ),
                 onSelected: (_) => setState(() => _selectedReason = reason),
               );
@@ -1529,7 +1685,7 @@ class _FailureSheetState extends State<_FailureSheet> {
             minLines: 2,
             maxLines: 4,
             maxLength: 1000,
-            style: const TextStyle(color: AppColors.onBackground),
+            style: const TextStyle(color: IzyTelColors.textPrimary),
             decoration: _darkInputDecoration(
               labelText: 'Observation (facultatif)',
               hintText: 'Détail utile pour le suivi…',
@@ -1548,7 +1704,7 @@ class _FailureSheetState extends State<_FailureSheet> {
                       ),
                     );
                   },
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            style: FilledButton.styleFrom(backgroundColor: IzyTelColors.error),
             child: const Text('Confirmer l’échec'),
           ),
         ],
@@ -1570,7 +1726,7 @@ class _SheetHeader extends StatelessWidget {
           child: Text(
             title,
             style: const TextStyle(
-              color: AppColors.onBackground,
+              color: IzyTelColors.textPrimary,
               fontSize: 21,
               fontWeight: FontWeight.w900,
             ),
@@ -1579,7 +1735,7 @@ class _SheetHeader extends StatelessWidget {
         IconButton(
           onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Icons.close_rounded),
-          color: AppColors.onSurfaceVariant,
+          color: IzyTelColors.textSecondary,
         ),
       ],
     );
@@ -1600,9 +1756,9 @@ class _SheetFrame extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(12, 12, 12, inset + 12),
         child: Container(
           decoration: BoxDecoration(
-            color: AppColors.surfaceContainerHighest,
+            color: IzyTelColors.surface,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppColors.outlineVariant),
+            border: Border.all(color: IzyTelColors.outline),
           ),
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
@@ -1629,33 +1785,33 @@ InputDecoration _darkInputDecoration({
   const BorderRadius radius = BorderRadius.all(Radius.circular(12));
   return InputDecoration(
     filled: true,
-    fillColor: AppColors.surfaceContainerHigh,
+    fillColor: IzyTelColors.surface,
     labelText: labelText,
     hintText: hintText,
     errorText: errorText,
-    labelStyle: const TextStyle(color: AppColors.onSurfaceVariant),
-    floatingLabelStyle: const TextStyle(color: AppColors.primaryContainer),
-    hintStyle: const TextStyle(color: AppColors.onSurfaceVariant),
-    counterStyle: const TextStyle(color: AppColors.onSurfaceVariant),
+    labelStyle: const TextStyle(color: IzyTelColors.textSecondary),
+    floatingLabelStyle: const TextStyle(color: IzyTelColors.primary),
+    hintStyle: const TextStyle(color: IzyTelColors.textSecondary),
+    counterStyle: const TextStyle(color: IzyTelColors.textSecondary),
     border: const OutlineInputBorder(
       borderRadius: radius,
-      borderSide: BorderSide(color: AppColors.outlineVariant),
+      borderSide: BorderSide(color: IzyTelColors.outline),
     ),
     enabledBorder: const OutlineInputBorder(
       borderRadius: radius,
-      borderSide: BorderSide(color: AppColors.outlineVariant),
+      borderSide: BorderSide(color: IzyTelColors.outline),
     ),
     focusedBorder: const OutlineInputBorder(
       borderRadius: radius,
-      borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+      borderSide: BorderSide(color: IzyTelColors.primary, width: 1.5),
     ),
     errorBorder: const OutlineInputBorder(
       borderRadius: radius,
-      borderSide: BorderSide(color: AppColors.error),
+      borderSide: BorderSide(color: IzyTelColors.error),
     ),
     focusedErrorBorder: const OutlineInputBorder(
       borderRadius: radius,
-      borderSide: BorderSide(color: AppColors.error, width: 1.5),
+      borderSide: BorderSide(color: IzyTelColors.error, width: 1.5),
     ),
   );
 }
@@ -1705,64 +1861,6 @@ String _formatDateTime(DateTime date) {
   return '$day/$month/${local.year} à $hours:$minutes';
 }
 
-String _processingStepTitle(QueueOrder order) {
-  if (order.assignmentStatus == OrderAssignmentStatus.assigned) {
-    return 'En attente d’acceptation';
-  }
-  switch (order.status) {
-    case QueueOrderStatus.paidReady:
-      return 'Commande acceptée';
-    case QueueOrderStatus.inProgress:
-      return 'En cours de traitement';
-    case QueueOrderStatus.onHold:
-      return 'Traitement en attente';
-    case QueueOrderStatus.awaitingCustomerConfirmation:
-    case QueueOrderStatus.completed:
-      return 'Traitement réussi';
-    case QueueOrderStatus.failed:
-      return 'Échec signalé';
-    default:
-      return orderStatusLabel(order.status);
-  }
-}
-
-String _processingStepSubtitle(QueueOrder order) {
-  if (order.status == QueueOrderStatus.onHold) {
-    return order.lastHoldReason ?? 'Reprise nécessaire.';
-  }
-  if (order.status == QueueOrderStatus.inProgress && order.takenAt != null) {
-    return 'Démarré le ${_formatDateTime(order.takenAt!)}';
-  }
-  if ((order.status == QueueOrderStatus.awaitingCustomerConfirmation ||
-          order.status == QueueOrderStatus.completed ||
-          order.status == QueueOrderStatus.failed) &&
-      order.completedAt != null) {
-    return _formatDateTime(order.completedAt!);
-  }
-  if (order.assignmentStatus == OrderAssignmentStatus.assigned) {
-    return 'Action requise par l’agent.';
-  }
-  if (order.status == QueueOrderStatus.paidReady) {
-    return 'Prête à démarrer.';
-  }
-  return orderStatusLabel(order.status);
-}
-
-_StepState _processingStepState(QueueOrder order) {
-  if (order.status == QueueOrderStatus.failed) return _StepState.failed;
-  if (order.status == QueueOrderStatus.onHold) return _StepState.warning;
-  if (order.status == QueueOrderStatus.awaitingCustomerConfirmation ||
-      order.status == QueueOrderStatus.completed) {
-    return _StepState.done;
-  }
-  if (order.status == QueueOrderStatus.inProgress ||
-      order.status == QueueOrderStatus.paidReady ||
-      order.assignmentStatus == OrderAssignmentStatus.assigned) {
-    return _StepState.current;
-  }
-  return _StepState.upcoming;
-}
-
 String _agentStatusLabel(QueueOrder order) {
   if (order.assignmentStatus == OrderAssignmentStatus.assigned) {
     return 'À ACCEPTER';
@@ -1786,21 +1884,21 @@ String _agentStatusLabel(QueueOrder order) {
 
 Color _agentStatusColor(QueueOrder order) {
   if (order.assignmentStatus == OrderAssignmentStatus.assigned) {
-    return AppColors.warning;
+    return IzyTelColors.warning;
   }
   switch (order.status) {
     case QueueOrderStatus.inProgress:
     case QueueOrderStatus.paidReady:
-      return AppColors.primary;
+      return IzyTelColors.primary;
     case QueueOrderStatus.onHold:
-      return AppColors.warning;
+      return IzyTelColors.warning;
     case QueueOrderStatus.awaitingCustomerConfirmation:
     case QueueOrderStatus.completed:
-      return AppColors.success;
+      return IzyTelColors.success;
     case QueueOrderStatus.failed:
-      return AppColors.error;
+      return IzyTelColors.error;
     default:
-      return AppColors.onSurfaceVariant;
+      return IzyTelColors.textSecondary;
   }
 }
 
@@ -1821,14 +1919,4 @@ String _failureReasonLabel(OrderFailureReason reason) {
     case OrderFailureReason.other:
       return 'Autre';
   }
-}
-
-String _failureSummary(QueueOrder order) {
-  final OrderFailureReason? reason = order.failureReason;
-  final String base = reason == null
-      ? 'Échec enregistré.'
-      : _failureReasonLabel(reason);
-  final String? observation = order.observation;
-  if (observation == null || observation.trim().isEmpty) return base;
-  return '$base — ${observation.trim()}';
 }

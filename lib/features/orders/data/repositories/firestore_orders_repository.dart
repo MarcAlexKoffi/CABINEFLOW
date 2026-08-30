@@ -1,4 +1,5 @@
 import 'package:cabine_flow/features/orders/data/mappers/firestore_order_mapper.dart';
+import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
 
 import 'package:cabine_flow/features/orders/domain/models/automatic_assignment.dart';
 import 'package:cabine_flow/features/orders/domain/models/create_order_request.dart';
@@ -55,6 +56,14 @@ class FirestoreOrdersRepository
 
   CollectionReference<Map<String, dynamic>> get _autoAssignmentQueueCollection {
     return _firestore.collection('autoAssignmentQueue');
+  }
+
+  CollectionReference<Map<String, dynamic>> get _commissionsCollection {
+    return _firestore.collection('commissions');
+  }
+
+  CollectionReference<Map<String, dynamic>> get _commissionAccountsCollection {
+    return _firestore.collection('commissionAccounts');
   }
 
   @override
@@ -1399,6 +1408,10 @@ class FirestoreOrdersRepository
         _agentProfilesCollection.doc(cleanedAgentId);
     final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
         .doc();
+    final DocumentReference<Map<String, dynamic>> commissionRef =
+        _commissionsCollection.doc(orderId);
+    final DocumentReference<Map<String, dynamic>> commissionAccountRef =
+        _commissionAccountsCollection.doc(cleanedAgentId);
     final OrderEventType eventType = OrderEventType.processingSucceeded;
     final DateTime completedAt = DateTime.now();
 
@@ -1413,10 +1426,14 @@ class FirestoreOrdersRepository
           await transaction.get(proofRef);
       final DocumentSnapshot<Map<String, dynamic>> profileSnapshot =
           await transaction.get(profileRef);
+      final DocumentSnapshot<Map<String, dynamic>> commissionAccountSnapshot =
+          await transaction.get(commissionAccountRef);
       final Map<String, dynamic>? orderData = orderSnapshot.data();
       final Map<String, dynamic>? assignmentData = assignmentSnapshot.data();
       final Map<String, dynamic>? proofData = proofSnapshot.data();
       final Map<String, dynamic>? profileData = profileSnapshot.data();
+      final Map<String, dynamic>? commissionAccountData =
+          commissionAccountSnapshot.data();
 
       if (!orderSnapshot.exists || orderData == null) {
         throw StateError('La commande est introuvable.');
@@ -1489,6 +1506,63 @@ class FirestoreOrdersRepository
           metadata: <String, dynamic>{'assignmentId': assignmentRef.id},
         ),
       );
+
+      final CommissionPolicy commissionPolicy = CommissionPolicy.current;
+      final String commissionAgentName =
+          (order.assignedAgentName ??
+                  assignmentData['agentName'] as String? ??
+                  '')
+              .trim();
+      if (commissionAgentName.length < 2) {
+        throw StateError(
+          'Le nom de l’agent est introuvable pour la commission.',
+        );
+      }
+      transaction.set(commissionRef, <String, dynamic>{
+        'schemaVersion': 1,
+        'orderId': order.id,
+        'orderReference': order.reference,
+        'agentId': cleanedAgentId,
+        'agentName': commissionAgentName,
+        'network': order.network.name,
+        'orderAmount': order.amount,
+        'commissionAmount': commissionPolicy.amountPerSuccessfulTransaction,
+        'policyId': commissionPolicy.id,
+        'policyType': commissionPolicy.type.name,
+        'rate': commissionPolicy.amountPerSuccessfulTransaction,
+        'processingStartedAt': order.takenAt,
+        'earnedAt': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      final int previousEarnedTotal = commissionAccountData == null
+          ? 0
+          : (commissionAccountData['earnedTotal'] as num?)?.toInt() ?? 0;
+      final int previousPaidTotal = commissionAccountData == null
+          ? 0
+          : (commissionAccountData['paidTotal'] as num?)?.toInt() ?? 0;
+      final int previousEarnedTransactions = commissionAccountData == null
+          ? 0
+          : (commissionAccountData['earnedTransactions'] as num?)?.toInt() ?? 0;
+      final Map<String, dynamic> accountData = <String, dynamic>{
+        'schemaVersion': 1,
+        'agentId': cleanedAgentId,
+        'agentName': commissionAgentName,
+        'earnedTotal':
+            previousEarnedTotal +
+            commissionPolicy.amountPerSuccessfulTransaction,
+        'paidTotal': previousPaidTotal,
+        'earnedTransactions': previousEarnedTransactions + 1,
+        'lastCommissionOrderId': order.id,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      if (!commissionAccountSnapshot.exists) {
+        accountData['createdAt'] = FieldValue.serverTimestamp();
+        accountData['lastPayoutId'] = null;
+        transaction.set(commissionAccountRef, accountData);
+      } else {
+        transaction.update(commissionAccountRef, accountData);
+      }
 
       debugPrint(
         '[AgentCapacity][deduct] agentId=$cleanedAgentId '

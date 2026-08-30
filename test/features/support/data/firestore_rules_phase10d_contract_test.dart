@@ -41,7 +41,7 @@ void main() {
     expect(rules, contains('allow delete: if false;'));
 
     // Baseline 9E V2 : aucune nouvelle dépendance getAfter n'est introduite.
-    expect(RegExp(r'getAfter\(').allMatches(rules), hasLength(21));
+    expect(RegExp(r'getAfter\(').allMatches(rules), hasLength(24));
     expect(rules, contains('hasMatchingAutomaticAssignmentArtifacts'));
     expect(rules, contains('autoAssignmentRefusedAgentIds'));
     expect(rules, contains('manualAssignmentRequired'));

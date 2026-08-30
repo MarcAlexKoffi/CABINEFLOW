@@ -1,4 +1,5 @@
 import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
 
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:flutter/material.dart';
@@ -875,90 +876,90 @@ class CabineBottomNavigationBar extends StatelessWidget {
     ),
     _CabineNavigationItem(
       label: 'Finances',
-      icon: Icons.pie_chart_outline_rounded,
-      selectedIcon: Icons.pie_chart_rounded,
+      icon: Icons.account_balance_outlined,
+      selectedIcon: Icons.account_balance_rounded,
     ),
     _CabineNavigationItem(
       label: 'Plus',
-      icon: Icons.more_horiz_rounded,
-      selectedIcon: Icons.more_horiz_rounded,
+      icon: Icons.menu_rounded,
+      selectedIcon: Icons.menu_rounded,
     ),
   ];
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        height: 74,
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
-        decoration: const BoxDecoration(
-          color: Color(0xFF020713), // Ultra dark
-          border: Border(top: BorderSide(color: Color(0x3343B5FF))),
-        ),
-        child: Row(
-          children: List<Widget>.generate(_items.length, (int index) {
-            final _CabineNavigationItem item = _items[index];
-            final bool isSelected = index == selectedIndex;
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: IzyTelColors.surface,
+        border: Border(top: BorderSide(color: IzyTelColors.outline)),
+        boxShadow: [
+          BoxShadow(
+            color: IzyTelColors.shadow,
+            blurRadius: 24,
+            offset: Offset(0, -8),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 58,
+          child: Row(
+            children: List<Widget>.generate(_items.length, (int index) {
+              final _CabineNavigationItem item = _items[index];
+              final bool selected = index == selectedIndex;
+              final Color color = selected
+                  ? IzyTelColors.primary
+                  : IzyTelColors.textSecondary;
 
-            final Color itemColor = isSelected
-                ? AppColors.primary
-                : const Color(0xFF9CA3AF);
-
-            return Expanded(
-              child: Material(
-                color: Colors.transparent,
+              return Expanded(
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(14),
-                  onTap: () {
-                    onDestinationSelected(index);
-                  },
+                  onTap: () => onDestinationSelected(index),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 2,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.primary.withAlpha(40)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
+                    curve: Curves.easeOutCubic,
+                    padding: const EdgeInsets.symmetric(vertical: 5),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          isSelected ? item.selectedIcon : item.icon,
-                          size: 23,
-                          color: itemColor,
-                        ),
-                        const SizedBox(height: 4),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              item.label,
-                              maxLines: 1,
-                              softWrap: false,
-                              style: TextStyle(
-                                color: itemColor,
-                                fontSize: 11,
-                                fontWeight: isSelected
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                              ),
-                            ),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          width: selected ? 30 : 26,
+                          height: 24,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? IzyTelColors.primarySoft
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
                           ),
+                          child: Icon(
+                            selected ? item.selectedIcon : item.icon,
+                            size: 18,
+                            color: color,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          item.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: color,
+                                fontSize: 8.6,
+                                fontWeight: selected
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                              ),
                         ),
                       ],
                     ),
                   ),
                 ),
-              ),
-            );
-          }),
+              );
+            }),
+          ),
         ),
       ),
     );

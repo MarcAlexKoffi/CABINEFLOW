@@ -1,7 +1,13 @@
+import 'package:cabine_flow/app/app_routes.dart';
 import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_management_page.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
+import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
+import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
+import 'package:cabine_flow/features/commissions/presentation/pages/commission_management_page.dart';
 import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
 import 'package:cabine_flow/features/offers/presentation/pages/offer_management_page.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
@@ -24,15 +30,64 @@ class MorePage extends StatelessWidget {
   const MorePage({
     super.key,
     required this.user,
+    required this.authRepository,
     required this.adminOfferRepository,
     required this.agentRepository,
     required this.ordersRepository,
+    required this.commissionRepository,
   });
 
   final AppUser user;
+  final AuthRepository authRepository;
   final AdminOfferRepository adminOfferRepository;
   final AgentRepository agentRepository;
   final OrdersRepository ordersRepository;
+  final CommissionRepository commissionRepository;
+
+  Future<void> _logout(BuildContext context) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.surfaceContainerHighest,
+          title: const Text('Se déconnecter ?'),
+          content: const Text(
+            'Tu devras te reconnecter pour accéder de nouveau à l’espace Administration.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.logout_rounded),
+              label: const Text('Se déconnecter'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await authRepository.logout();
+      if (!context.mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        AppRoutes.login,
+        (Route<dynamic> route) => false,
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Impossible de se déconnecter pour le moment.'),
+          ),
+        );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -179,6 +234,46 @@ class MorePage extends StatelessWidget {
                 },
           ),
           const SizedBox(height: 12),
+          StreamBuilder<List<CommissionAccount>>(
+            stream: commissionRepository.watchAccounts(),
+            builder:
+                (
+                  BuildContext context,
+                  AsyncSnapshot<List<CommissionAccount>> snapshot,
+                ) {
+                  final int outstanding =
+                      (snapshot.data ?? const <CommissionAccount>[]).fold<int>(
+                        0,
+                        (int total, CommissionAccount account) =>
+                            total +
+                            account.balance
+                                .clamp(0, account.earnedTotal)
+                                .toInt(),
+                      );
+                  return _AdminFeatureCard(
+                    icon: Icons.account_balance_wallet_outlined,
+                    title: 'Commissions',
+                    description: outstanding > 0
+                        ? 'Suivre les performances et ${formatCfa(outstanding)} restant à payer aux agents.'
+                        : 'Suivre les performances, commissions acquises et paiements des agents.',
+                    enabled: true,
+                    onTap: () {
+                      Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (BuildContext context) {
+                            return CommissionManagementPage(
+                              user: user,
+                              repository: commissionRepository,
+                              agentRepository: agentRepository,
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  );
+                },
+          ),
+          const SizedBox(height: 12),
           _AdminFeatureCard(
             icon: Icons.local_offer_rounded,
             title: 'Gestion des offres',
@@ -225,7 +320,63 @@ class MorePage extends StatelessWidget {
             description:
                 'Rapprochements, anomalies et alertes opérationnelles.',
           ),
+          const SizedBox(height: 22),
+          _AdminLogoutCard(onTap: () => _logout(context)),
         ],
+      ),
+    );
+  }
+}
+
+class _AdminLogoutCard extends StatelessWidget {
+  const _AdminLogoutCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceContainer,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.error.withAlpha(90)),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.logout_rounded, color: AppColors.error),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Se déconnecter',
+                      style: TextStyle(
+                        color: AppColors.onBackground,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Fermer la session Administration sur cet appareil.',
+                      style: TextStyle(
+                        color: AppColors.onSurfaceVariant,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: AppColors.error),
+            ],
+          ),
+        ),
       ),
     );
   }

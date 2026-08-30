@@ -12,6 +12,9 @@ import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.da
 import 'package:cabine_flow/features/auth/presentation/pages/login_page.dart';
 import 'package:cabine_flow/features/auth/presentation/pages/pending_account_page.dart';
 import 'package:cabine_flow/features/dashboard/data/repositories/fake_dashboard_repository.dart';
+import 'package:cabine_flow/features/commissions/data/repositories/fake_commission_repository.dart';
+import 'package:cabine_flow/features/commissions/data/repositories/firestore_commission_repository.dart';
+import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:cabine_flow/features/dashboard/data/repositories/firestore_dashboard_repository.dart';
 import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_repository.dart';
 import 'package:cabine_flow/features/navigation/presentation/pages/main_shell_page.dart';
@@ -40,6 +43,7 @@ class CabineFlowApp extends StatelessWidget {
     this.adminOfferRepository,
     this.paymentLinkRepository,
     this.agentRepository,
+    this.commissionRepository,
   });
 
   final AuthRepository? authRepository;
@@ -49,6 +53,7 @@ class CabineFlowApp extends StatelessWidget {
   final AdminOfferRepository? adminOfferRepository;
   final PaymentLinkRepository? paymentLinkRepository;
   final AgentRepository? agentRepository;
+  final CommissionRepository? commissionRepository;
 
   Route<dynamic> _createErrorRoute() {
     return MaterialPageRoute<void>(
@@ -104,12 +109,18 @@ class CabineFlowApp extends StatelessWidget {
             ? FirestoreAgentRepository()
             : FakeAgentRepository());
 
+    final CommissionRepository effectiveCommissionRepository =
+        commissionRepository ??
+        (isFirebaseInitialized
+            ? FirestoreCommissionRepository()
+            : FakeCommissionRepository());
+
     return MaterialApp(
-      title: 'CabineFlow',
+      title: 'IzyTel',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark,
+      theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.dark,
+      themeMode: ThemeMode.light,
       initialRoute: AppRoutes.splash,
       onGenerateRoute: (RouteSettings settings) {
         switch (settings.name) {
@@ -166,6 +177,7 @@ class CabineFlowApp extends StatelessWidget {
                   adminOfferRepository: effectiveAdminOfferRepository,
                   paymentLinkRepository: effectivePaymentLinkRepository,
                   agentRepository: effectiveAgentRepository,
+                  commissionRepository: effectiveCommissionRepository,
                 );
               },
             );
