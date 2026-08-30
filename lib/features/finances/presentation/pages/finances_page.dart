@@ -1,17 +1,681 @@
-import 'package:cabine_flow/shared/widgets/feature_placeholder_page.dart';
-import 'package:flutter/material.dart';
+import 'dart:async';
 
-class FinancesPage extends StatelessWidget {
-  const FinancesPage({super.key});
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
+import 'package:cabine_flow/core/utils/currency_formatter.dart';
+import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
+import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
+import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
+import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
+import 'package:cabine_flow/features/commissions/presentation/pages/commission_management_page.dart';
+import 'package:cabine_flow/features/finances/presentation/pages/financial_movements_page.dart';
+import 'package:cabine_flow/features/finances/presentation/pages/financial_reconciliation_page.dart';
+import 'package:cabine_flow/features/finances/presentation/widgets/financial_ui.dart';
+import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/features/refunds/data/repositories/fake_refund_repository.dart';
+import 'package:cabine_flow/features/refunds/data/repositories/firestore_refund_repository.dart';
+import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
+import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
+import 'package:cabine_flow/features/refunds/presentation/pages/refund_management_page.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
+
+class FinancesPage extends StatefulWidget {
+  const FinancesPage({
+    super.key,
+    required this.user,
+    required this.ordersRepository,
+    required this.commissionRepository,
+    required this.agentRepository,
+    required this.onOpenPayments,
+  });
+
+  final AppUser user;
+  final OrdersRepository ordersRepository;
+  final CommissionRepository commissionRepository;
+  final AgentRepository agentRepository;
+  final VoidCallback onOpenPayments;
+
+  @override
+  State<FinancesPage> createState() => _FinancesPageState();
+}
+
+class _FinancesPageState extends State<FinancesPage> {
+  late final RefundRepository _refundRepository;
+
+  OrderHistoryRepository? get _historyRepository {
+    final OrdersRepository repository = widget.ordersRepository;
+    if (repository is OrderHistoryRepository) {
+      return repository as OrderHistoryRepository;
+    }
+    return null;
+  }
+
+  Stream<List<QueueOrder>> get _ordersStream {
+    final OrderHistoryRepository? history = _historyRepository;
+    return history?.watchOrderHistory() ??
+        widget.ordersRepository.watchPaymentTrackingOrders();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _refundRepository = Firebase.apps.isNotEmpty
+        ? FirestoreRefundRepository()
+        : FakeRefundRepository();
+  }
+
+  @override
+  void dispose() {
+    final RefundRepository repository = _refundRepository;
+    if (repository is FakeRefundRepository) {
+      unawaited(repository.dispose());
+    }
+    super.dispose();
+  }
+
+  bool _isToday(DateTime? value) {
+    if (value == null) return false;
+    final DateTime now = DateTime.now();
+    return value.year == now.year &&
+        value.month == now.month &&
+        value.day == now.day;
+  }
+
+  bool _isConfirmed(QueueOrder order) {
+    return order.paymentStatus == OrderPaymentStatus.confirmed &&
+        (order.paymentConfirmedAt != null || order.paidAt != null);
+  }
+
+  DateTime? _paymentDate(QueueOrder order) =>
+      order.paymentConfirmedAt ?? order.paidAt;
+
+  int _confirmedAmountToday(List<QueueOrder> orders) {
+    return orders
+        .where(
+          (QueueOrder order) =>
+              _isConfirmed(order) && _isToday(_paymentDate(order)),
+        )
+        .fold<int>(0, (int total, QueueOrder order) => total + order.amount);
+  }
+
+  int _refundsPaidToday(List<RefundCase> refunds) {
+    return refunds
+        .where((RefundCase refund) => _isToday(refund.refundedAt))
+        .fold<int>(0, (int total, RefundCase refund) => total + refund.amount);
+  }
+
+  int _commissionPayoutsToday(List<CommissionPayout> payouts) {
+    return payouts
+        .where((CommissionPayout payout) => _isToday(payout.paidAt))
+        .fold<int>(0, (int total, CommissionPayout payout) => total + payout.amount);
+  }
+
+  int _reconciliationAttentionCount(
+    List<QueueOrder> orders,
+    List<RefundCase> refunds,
+  ) {
+    final Set<String> reconciledRefundOrders = refunds
+        .where((RefundCase refund) => refund.status == RefundStatus.reconciled)
+        .map((RefundCase refund) => refund.orderId)
+        .toSet();
+
+    return orders.where((QueueOrder order) {
+      if (order.paymentStatus == OrderPaymentStatus.declared) return true;
+      if (!_isConfirmed(order)) return false;
+      if (order.status == QueueOrderStatus.failed ||
+          order.status == QueueOrderStatus.refundPending ||
+          order.status == QueueOrderStatus.refunded) {
+        return !reconciledRefundOrders.contains(order.id);
+      }
+      return false;
+    }).length;
+  }
+
+  void _openRefunds() {
+    final OrderHistoryRepository? history = _historyRepository;
+    if (history == null) {
+      _showUnavailable('L’historique des commandes est requis pour les remboursements.');
+      return;
+    }
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => RefundManagementPage(
+          user: widget.user,
+          repository: _refundRepository,
+          orderHistoryRepository: history,
+        ),
+      ),
+    );
+  }
+
+  void _openCommissions() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => CommissionManagementPage(
+          user: widget.user,
+          repository: widget.commissionRepository,
+          agentRepository: widget.agentRepository,
+        ),
+      ),
+    );
+  }
+
+  void _openReconciliation() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => FinancialReconciliationPage(
+          user: widget.user,
+          ordersRepository: widget.ordersRepository,
+          refundRepository: _refundRepository,
+        ),
+      ),
+    );
+  }
+
+  void _openMovements() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => FinancialMovementsPage(
+          ordersRepository: widget.ordersRepository,
+          refundRepository: _refundRepository,
+          commissionRepository: widget.commissionRepository,
+        ),
+      ),
+    );
+  }
+
+  void _showUnavailable(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context) {
-    return const FeaturePlaceholderPage(
-      title: 'Finances',
-      description: 'Suis les caisses, les soldes et les résultats.',
-      message:
-          'La caisse Wave, les réseaux, les fournisseurs et les dépenses seront regroupés ici.',
-      icon: Icons.account_balance_wallet_rounded,
+    return SafeArea(
+      bottom: false,
+      child: StreamBuilder<List<QueueOrder>>(
+        stream: _ordersStream,
+        builder: (BuildContext context, AsyncSnapshot<List<QueueOrder>> orderSnapshot) {
+          return StreamBuilder<List<RefundCase>>(
+            stream: _refundRepository.watchAll(),
+            builder: (BuildContext context, AsyncSnapshot<List<RefundCase>> refundSnapshot) {
+              return StreamBuilder<List<CommissionAccount>>(
+                stream: widget.commissionRepository.watchAccounts(),
+                builder: (BuildContext context, AsyncSnapshot<List<CommissionAccount>> accountSnapshot) {
+                  return StreamBuilder<List<CommissionPayout>>(
+                    stream: widget.commissionRepository.watchPayouts(),
+                    builder: (BuildContext context, AsyncSnapshot<List<CommissionPayout>> payoutSnapshot) {
+                      final List<QueueOrder> orders = orderSnapshot.data ?? const <QueueOrder>[];
+                      final List<RefundCase> refunds = refundSnapshot.data ?? const <RefundCase>[];
+                      final List<CommissionAccount> accounts = accountSnapshot.data ?? const <CommissionAccount>[];
+                      final List<CommissionPayout> payouts = payoutSnapshot.data ?? const <CommissionPayout>[];
+
+                      final bool initialLoading =
+                          !orderSnapshot.hasData &&
+                          !refundSnapshot.hasData &&
+                          orderSnapshot.connectionState == ConnectionState.waiting;
+                      if (initialLoading) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      final int incomeToday = _confirmedAmountToday(orders);
+                      final int refundsToday = _refundsPaidToday(refunds);
+                      final int commissionsToday = _commissionPayoutsToday(payouts);
+                      final int netToday = incomeToday - refundsToday - commissionsToday;
+                      final int refundPending = refunds
+                          .where((RefundCase value) => value.isActive)
+                          .fold<int>(0, (int total, RefundCase value) => total + value.amount);
+                      final int refundPendingCount = refunds.where((RefundCase value) => value.isActive).length;
+                      final int commissionsOutstanding = accounts.fold<int>(
+                        0,
+                        (int total, CommissionAccount account) =>
+                            total + account.balance.clamp(0, account.earnedTotal).toInt(),
+                      );
+                      final int attentionCount = _reconciliationAttentionCount(orders, refunds);
+
+                      return ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
+                        children: [
+                          Text(
+                            'Finances',
+                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              color: IzyTelColors.textPrimary,
+                              fontSize: IzyTelTypeScale.title2,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -.45,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Vue d’ensemble de l’activité financière IzyTel.',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: IzyTelColors.textSecondary,
+                              fontSize: IzyTelTypeScale.label,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          _FinanceHero(
+                            incomeToday: incomeToday,
+                            netToday: netToday,
+                            refundsToday: refundsToday,
+                            commissionsToday: commissionsToday,
+                          ),
+                          const SizedBox(height: 20),
+                          const IzyTelSectionHeader(title: 'À surveiller'),
+                          const SizedBox(height: 10),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: FinancialMetricCard(
+                                  label: 'Remboursements ouverts',
+                                  value: formatCfa(refundPending),
+                                  caption: '$refundPendingCount dossier${refundPendingCount > 1 ? 's' : ''}',
+                                  icon: Symbols.currency_exchange_rounded,
+                                  accent: refundPending > 0 ? IzyTelColors.warning : IzyTelColors.success,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: FinancialMetricCard(
+                                  label: 'Commissions à payer',
+                                  value: formatCfa(commissionsOutstanding),
+                                  caption: commissionsOutstanding > 0 ? 'Solde agents' : 'À jour',
+                                  icon: Symbols.account_balance_wallet_rounded,
+                                  accent: commissionsOutstanding > 0 ? IzyTelColors.error : IzyTelColors.success,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 22),
+                          const IzyTelSectionHeader(title: 'Fonds de roulement'),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Capacités disponibles chez les agents et encaissements Wave du jour.',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: IzyTelColors.textMuted,
+                              fontSize: IzyTelTypeScale.micro,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          _NetworkCapacitySection(
+                            agentRepository: widget.agentRepository,
+                            waveToday: incomeToday,
+                          ),
+                          const SizedBox(height: 22),
+                          const IzyTelSectionHeader(title: 'Gestion financière'),
+                          const SizedBox(height: 10),
+                          FinanceActionTile(
+                            icon: Symbols.receipt_long_rounded,
+                            title: 'Paiements',
+                            subtitle: 'Vérifier les déclarations et confirmer les encaissements.',
+                            onTap: widget.onOpenPayments,
+                          ),
+                          const SizedBox(height: 8),
+                          FinanceActionTile(
+                            icon: Symbols.currency_exchange_rounded,
+                            title: 'Remboursements',
+                            subtitle: 'Valider, effectuer et tracer les remboursements clients.',
+                            accent: IzyTelColors.warning,
+                            badge: refundPendingCount > 0 ? '$refundPendingCount' : null,
+                            onTap: _openRefunds,
+                          ),
+                          const SizedBox(height: 8),
+                          FinanceActionTile(
+                            icon: Symbols.payments_rounded,
+                            title: 'Commissions',
+                            subtitle: 'Suivre les commissions acquises et les paiements agents.',
+                            accent: IzyTelColors.success,
+                            badge: commissionsOutstanding > 0 ? formatCfa(commissionsOutstanding) : null,
+                            onTap: _openCommissions,
+                          ),
+                          const SizedBox(height: 8),
+                          FinanceActionTile(
+                            icon: Symbols.rule_rounded,
+                            title: 'Rapprochements',
+                            subtitle: 'Contrôler la cohérence commandes, paiements et remboursements.',
+                            accent: attentionCount > 0 ? IzyTelColors.warning : IzyTelColors.primary,
+                            badge: attentionCount > 0 ? '$attentionCount à vérifier' : 'À jour',
+                            onTap: _openReconciliation,
+                          ),
+                          const SizedBox(height: 8),
+                          FinanceActionTile(
+                            icon: Symbols.swap_vert_rounded,
+                            title: 'Mouvements',
+                            subtitle: 'Consulter les entrées et sorties financières dans un journal unique.',
+                            onTap: _openMovements,
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _FinanceHero extends StatelessWidget {
+  const _FinanceHero({
+    required this.incomeToday,
+    required this.netToday,
+    required this.refundsToday,
+    required this.commissionsToday,
+  });
+
+  final int incomeToday;
+  final int netToday;
+  final int refundsToday;
+  final int commissionsToday;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: <Color>[IzyTelColors.primary, IzyTelColors.primaryStrong],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(IzyTelRadii.largeCard),
+        boxShadow: [
+          BoxShadow(
+            color: IzyTelColors.primary.withAlpha(40),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Encaissements aujourd’hui',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: IzyTelColors.surface.withAlpha(225),
+                    fontSize: IzyTelTypeScale.label,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: IzyTelColors.surface.withAlpha(26),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(
+                  Symbols.account_balance_wallet_rounded,
+                  color: IzyTelColors.surface,
+                  size: 23,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            formatCfaFull(incomeToday),
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              color: IzyTelColors.surface,
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -.7,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _HeroTag(
+                label: 'Net ${formatCfa(netToday)}',
+                icon: netToday >= 0 ? Symbols.trending_up_rounded : Symbols.trending_down_rounded,
+              ),
+              if (refundsToday > 0)
+                _HeroTag(
+                  label: '- ${formatCfa(refundsToday)} remboursés',
+                  icon: Symbols.currency_exchange_rounded,
+                ),
+              if (commissionsToday > 0)
+                _HeroTag(
+                  label: '- ${formatCfa(commissionsToday)} commissions',
+                  icon: Symbols.payments_rounded,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroTag extends StatelessWidget {
+  const _HeroTag({required this.label, required this.icon});
+
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: IzyTelColors.surface.withAlpha(28),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: IzyTelColors.surface, size: 14),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: IzyTelColors.surface,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NetworkCapacitySection extends StatelessWidget {
+  const _NetworkCapacitySection({
+    required this.agentRepository,
+    required this.waveToday,
+  });
+
+  final AgentRepository agentRepository;
+  final int waveToday;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<AgentDirectoryEntry>>(
+      stream: agentRepository.watchAgents(),
+      builder: (
+        BuildContext context,
+        AsyncSnapshot<List<AgentDirectoryEntry>> snapshot,
+      ) {
+        final List<AgentDirectoryEntry> agents =
+            snapshot.data ?? const <AgentDirectoryEntry>[];
+        int capacity(AgentNetwork network) {
+          return agents
+              .where((AgentDirectoryEntry agent) => agent.isActive && agent.profile != null)
+              .fold<int>(
+                0,
+                (int total, AgentDirectoryEntry agent) =>
+                    total + agent.profile!.capacityFor(network),
+              );
+        }
+
+        final int orange = capacity(AgentNetwork.orange);
+        final int mtn = capacity(AgentNetwork.mtn);
+        final int moov = capacity(AgentNetwork.moov);
+
+        return LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final bool compact = constraints.maxWidth < 360;
+            final double width = compact
+                ? constraints.maxWidth
+                : (constraints.maxWidth - 10) / 2;
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                SizedBox(
+                  width: width,
+                  child: _NetworkFundCard(
+                    label: 'Orange',
+                    amount: orange,
+                    caption: 'Capacité agents',
+                    asset: 'assets/brands/operators/orange_ci.png',
+                    accent: IzyTelColors.orange,
+                  ),
+                ),
+                SizedBox(
+                  width: width,
+                  child: _NetworkFundCard(
+                    label: 'MTN',
+                    amount: mtn,
+                    caption: 'Capacité agents',
+                    asset: 'assets/brands/operators/mtn_ci.png',
+                    accent: IzyTelColors.mtnText,
+                  ),
+                ),
+                SizedBox(
+                  width: width,
+                  child: _NetworkFundCard(
+                    label: 'Moov Africa',
+                    amount: moov,
+                    caption: 'Capacité agents',
+                    asset: 'assets/brands/operators/moov_africa_ci.png',
+                    accent: IzyTelColors.moov,
+                  ),
+                ),
+                SizedBox(
+                  width: width,
+                  child: _NetworkFundCard(
+                    label: 'Wave',
+                    amount: waveToday,
+                    caption: 'Encaissé aujourd’hui',
+                    asset: 'assets/images/wave_logo.png',
+                    accent: IzyTelColors.wave,
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _NetworkFundCard extends StatelessWidget {
+  const _NetworkFundCard({
+    required this.label,
+    required this.amount,
+    required this.caption,
+    required this.asset,
+    required this.accent,
+  });
+
+  final String label;
+  final int amount;
+  final String caption;
+  final String asset;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: IzyTelColors.surface,
+        borderRadius: BorderRadius.circular(IzyTelRadii.card),
+        border: Border.all(color: IzyTelColors.outline),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: accent.withAlpha(18),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Image.asset(asset, fit: BoxFit.contain),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: IzyTelColors.textPrimary,
+                    fontSize: IzyTelTypeScale.micro,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    formatCfa(amount),
+                    maxLines: 1,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: IzyTelColors.textPrimary,
+                      fontSize: IzyTelTypeScale.label,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  caption,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: IzyTelColors.textMuted,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

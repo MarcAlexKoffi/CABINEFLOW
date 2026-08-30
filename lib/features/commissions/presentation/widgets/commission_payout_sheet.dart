@@ -1,8 +1,10 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter/services.dart';
 
 class CommissionPayoutSheet extends StatefulWidget {
@@ -114,8 +116,8 @@ class _CommissionPayoutSheetState extends State<CommissionPayoutSheet> {
       duration: const Duration(milliseconds: 180),
       padding: EdgeInsets.only(bottom: bottomInset),
       child: Material(
-        color: AppColors.surfaceContainerHigh,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        color: IzyTelColors.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(IzyTelRadii.sheet)),
         child: SafeArea(
           top: false,
           child: SingleChildScrollView(
@@ -130,8 +132,8 @@ class _CommissionPayoutSheetState extends State<CommissionPayoutSheet> {
                       child: Text(
                         'Payer une commission',
                         style: TextStyle(
-                          color: AppColors.onBackground,
-                          fontSize: 22,
+                          color: IzyTelColors.textPrimary,
+                          fontSize: IzyTelTypeScale.title2,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -141,7 +143,7 @@ class _CommissionPayoutSheetState extends State<CommissionPayoutSheet> {
                       onPressed: _isSubmitting
                           ? null
                           : () => Navigator.of(context).pop(false),
-                      icon: const Icon(Icons.close_rounded),
+                      icon: const Icon(Symbols.close_rounded),
                     ),
                   ],
                 ),
@@ -149,19 +151,19 @@ class _CommissionPayoutSheetState extends State<CommissionPayoutSheet> {
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceContainerHighest,
+                    color: IzyTelColors.surfaceMuted,
                     borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: AppColors.outlineVariant),
+                    border: Border.all(color: IzyTelColors.outline),
                   ),
                   child: Row(
                     children: [
                       CircleAvatar(
                         radius: 20,
-                        backgroundColor: AppColors.primary.withAlpha(50),
+                        backgroundColor: IzyTelColors.primary.withAlpha(50),
                         child: Text(
                           _initials(widget.agentName),
                           style: const TextStyle(
-                            color: AppColors.primaryContainer,
+                            color: IzyTelColors.primary,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -174,14 +176,14 @@ class _CommissionPayoutSheetState extends State<CommissionPayoutSheet> {
                             const Text(
                               'Agent',
                               style: TextStyle(
-                                color: AppColors.onSurfaceVariant,
-                                fontSize: 11,
+                                color: IzyTelColors.textSecondary,
+                                fontSize: IzyTelTypeScale.micro,
                               ),
                             ),
                             Text(
                               widget.agentName,
                               style: const TextStyle(
-                                color: AppColors.onBackground,
+                                color: IzyTelColors.textPrimary,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
@@ -194,14 +196,14 @@ class _CommissionPayoutSheetState extends State<CommissionPayoutSheet> {
                           const Text(
                             'Solde disponible',
                             style: TextStyle(
-                              color: AppColors.onSurfaceVariant,
+                              color: IzyTelColors.textSecondary,
                               fontSize: 10,
                             ),
                           ),
                           Text(
                             formatCfaFull(widget.availableBalance),
                             style: const TextStyle(
-                              color: AppColors.primaryContainer,
+                              color: IzyTelColors.primary,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -230,7 +232,7 @@ class _CommissionPayoutSheetState extends State<CommissionPayoutSheet> {
                         child: Text(
                           'F CFA',
                           style: TextStyle(
-                            color: AppColors.onSurfaceVariant,
+                            color: IzyTelColors.textSecondary,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -243,7 +245,7 @@ class _CommissionPayoutSheetState extends State<CommissionPayoutSheet> {
                 const SizedBox(height: 7),
                 const _ReadOnlyField(
                   value: 'Wave',
-                  icon: Icons.account_balance_wallet_outlined,
+                  icon: Symbols.account_balance_wallet_rounded,
                 ),
                 const SizedBox(height: 14),
                 _Label('Référence du paiement Wave'),
@@ -276,7 +278,7 @@ class _CommissionPayoutSheetState extends State<CommissionPayoutSheet> {
                   Text(
                     _errorText!,
                     style: const TextStyle(
-                      color: AppColors.error,
+                      color: IzyTelColors.error,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -285,9 +287,9 @@ class _CommissionPayoutSheetState extends State<CommissionPayoutSheet> {
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceContainer,
+                    color: IzyTelColors.surface,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.outlineVariant),
+                    border: Border.all(color: IzyTelColors.outline),
                   ),
                   child: Column(
                     children: [
@@ -298,13 +300,13 @@ class _CommissionPayoutSheetState extends State<CommissionPayoutSheet> {
                       _SummaryRow(
                         label: 'Montant à déduire',
                         value: '- ${formatCfa(_amount)}',
-                        valueColor: AppColors.error,
+                        valueColor: IzyTelColors.error,
                       ),
                       const Divider(height: 22),
                       _SummaryRow(
                         label: 'Solde restant estimé',
                         value: formatCfa(remaining),
-                        valueColor: AppColors.primaryContainer,
+                        valueColor: IzyTelColors.primary,
                       ),
                     ],
                   ),
@@ -314,8 +316,8 @@ class _CommissionPayoutSheetState extends State<CommissionPayoutSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(
-                      Icons.info_outline_rounded,
-                      color: AppColors.primaryContainer,
+                      Symbols.info_rounded,
+                      color: IzyTelColors.primary,
                       size: 18,
                     ),
                     SizedBox(width: 8),
@@ -323,7 +325,7 @@ class _CommissionPayoutSheetState extends State<CommissionPayoutSheet> {
                       child: Text(
                         'Effectue d’abord réellement le paiement dans Wave. IzyTel enregistre ensuite la référence et conserve l’historique sans supprimer les commissions originales.',
                         style: TextStyle(
-                          color: AppColors.onSurfaceVariant,
+                          color: IzyTelColors.textSecondary,
                           fontSize: 11,
                           height: 1.35,
                         ),
@@ -381,7 +383,7 @@ class _Label extends StatelessWidget {
           child: Text(
             label,
             style: const TextStyle(
-              color: AppColors.onSurfaceVariant,
+              color: IzyTelColors.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
@@ -391,7 +393,7 @@ class _Label extends StatelessWidget {
           Text(
             trailing!,
             style: const TextStyle(
-              color: AppColors.onSurfaceVariant,
+              color: IzyTelColors.textSecondary,
               fontSize: 10,
             ),
           ),
@@ -412,18 +414,18 @@ class _ReadOnlyField extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
+        color: IzyTelColors.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.outlineVariant),
+        border: Border.all(color: IzyTelColors.outline),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: AppColors.primaryContainer),
+          Icon(icon, size: 18, color: IzyTelColors.primary),
           const SizedBox(width: 9),
           Text(
             value,
             style: const TextStyle(
-              color: AppColors.onBackground,
+              color: IzyTelColors.textPrimary,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -453,7 +455,7 @@ class _SummaryRow extends StatelessWidget {
           child: Text(
             label,
             style: const TextStyle(
-              color: AppColors.onSurfaceVariant,
+              color: IzyTelColors.textSecondary,
               fontSize: 12,
             ),
           ),
@@ -464,7 +466,7 @@ class _SummaryRow extends StatelessWidget {
             value,
             textAlign: TextAlign.right,
             style: TextStyle(
-              color: valueColor ?? AppColors.onBackground,
+              color: valueColor ?? IzyTelColors.textPrimary,
               fontSize: 12,
               fontWeight: FontWeight.w800,
             ),

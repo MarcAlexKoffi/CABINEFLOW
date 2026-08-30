@@ -1,4 +1,8 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
+import 'package:cabine_flow/features/finances/presentation/widgets/financial_ui.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
@@ -40,149 +44,199 @@ class _RefundManagementPageState extends State<RefundManagementPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: IzyTelColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.onBackground,
+        backgroundColor: IzyTelColors.background,
+        foregroundColor: IzyTelColors.textPrimary,
         elevation: 0,
+        scrolledUnderElevation: 0,
         title: const Text(
           'Remboursements',
-          style: TextStyle(fontWeight: FontWeight.w800),
+          style: TextStyle(
+            fontSize: IzyTelTypeScale.title3,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
       body: SafeArea(
         top: false,
         child: StreamBuilder<List<RefundCase>>(
           stream: widget.repository.watchAll(),
-          builder:
-              (BuildContext context, AsyncSnapshot<List<RefundCase>> snapshot) {
-                if (snapshot.hasError) {
-                  return const _RefundEmptyState(
-                    icon: Icons.cloud_off_rounded,
-                    title: 'Impossible de charger les remboursements',
-                    message: 'Vérifiez la connexion puis réessayez.',
-                  );
-                }
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+          builder: (BuildContext context, AsyncSnapshot<List<RefundCase>> snapshot) {
+            if (snapshot.hasError) {
+              return const SingleChildScrollView(
+                child: FinanceEmptyState(
+                  icon: Symbols.cloud_off_rounded,
+                  title: 'Impossible de charger les remboursements',
+                  message: 'Vérifie la connexion puis réessaie.',
+                ),
+              );
+            }
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-                final List<RefundCase> all = snapshot.data!;
-                final List<RefundCase> visible = _filtered(all);
-                final int pendingCount = all
-                    .where(
-                      (RefundCase value) =>
-                          value.status == RefundStatus.pendingApproval,
-                    )
-                    .length;
-                final int approvedCount = all
-                    .where(
-                      (RefundCase value) =>
-                          value.status == RefundStatus.approved,
-                    )
-                    .length;
+            final List<RefundCase> all = snapshot.data!;
+            final List<RefundCase> visible = _filtered(all);
+            final List<RefundCase> pending = all
+                .where((RefundCase value) => value.status == RefundStatus.pendingApproval)
+                .toList(growable: false);
+            final List<RefundCase> approved = all
+                .where((RefundCase value) => value.status == RefundStatus.approved)
+                .toList(growable: false);
+            final int pendingAmount = pending.fold<int>(
+              0,
+              (int total, RefundCase value) => total + value.amount,
+            );
+            final int approvedAmount = approved.fold<int>(
+              0,
+              (int total, RefundCase value) => total + value.amount,
+            );
 
-                return Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          TextField(
-                            controller: _searchController,
-                            onChanged: (_) => setState(() {}),
-                            style: const TextStyle(
-                              color: AppColors.onBackground,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Rechercher une référence, un client…',
-                              hintStyle: const TextStyle(
-                                color: AppColors.onSurfaceVariant,
-                              ),
-                              prefixIcon: const Icon(Icons.search_rounded),
-                              filled: true,
-                              fillColor: AppColors.surfaceContainer,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                borderSide: BorderSide.none,
-                              ),
+                          Expanded(
+                            child: FinancialMetricCard(
+                              label: 'À valider',
+                              value: _formatAmount(pendingAmount) + ' F',
+                              caption: '${pending.length} dossier${pending.length > 1 ? 's' : ''}',
+                              icon: Symbols.fact_check_rounded,
+                              accent: IzyTelColors.warning,
                             ),
                           ),
-                          const SizedBox(height: 10),
-                          SizedBox(
-                            height: 40,
-                            child: ListView(
-                              scrollDirection: Axis.horizontal,
-                              children: [
-                                _FilterChip(
-                                  label: 'Tous',
-                                  selected: _filter == _RefundFilter.all,
-                                  onTap: () => _setFilter(_RefundFilter.all),
-                                ),
-                                _FilterChip(
-                                  label: 'À valider',
-                                  count: pendingCount,
-                                  selected: _filter == _RefundFilter.pending,
-                                  onTap: () =>
-                                      _setFilter(_RefundFilter.pending),
-                                ),
-                                _FilterChip(
-                                  label: 'À effectuer',
-                                  count: approvedCount,
-                                  selected: _filter == _RefundFilter.approved,
-                                  onTap: () =>
-                                      _setFilter(_RefundFilter.approved),
-                                ),
-                                _FilterChip(
-                                  label: 'Remboursés',
-                                  selected: _filter == _RefundFilter.refunded,
-                                  onTap: () =>
-                                      _setFilter(_RefundFilter.refunded),
-                                ),
-                                _FilterChip(
-                                  label: 'Rapprochés',
-                                  selected: _filter == _RefundFilter.reconciled,
-                                  onTap: () =>
-                                      _setFilter(_RefundFilter.reconciled),
-                                ),
-                                _FilterChip(
-                                  label: 'Rejetés',
-                                  selected: _filter == _RefundFilter.rejected,
-                                  onTap: () =>
-                                      _setFilter(_RefundFilter.rejected),
-                                ),
-                              ],
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: FinancialMetricCard(
+                              label: 'À effectuer',
+                              value: _formatAmount(approvedAmount) + ' F',
+                              caption: '${approved.length} dossier${approved.length > 1 ? 's' : ''}',
+                              icon: Symbols.currency_exchange_rounded,
+                              accent: IzyTelColors.primary,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    Expanded(
-                      child: visible.isEmpty
-                          ? const _RefundEmptyState(
-                              icon: Icons.currency_exchange_rounded,
-                              title: 'Aucun remboursement',
-                              message:
-                                  'Les dossiers correspondant à ce filtre apparaîtront ici.',
-                            )
-                          : ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
-                              itemCount: visible.length,
-                              separatorBuilder: (_, _) =>
-                                  const SizedBox(height: 10),
-                              itemBuilder: (BuildContext context, int index) {
-                                final RefundCase refund = visible[index];
-                                return _RefundCard(
-                                  refund: refund,
-                                  onTap: () => _openDetail(refund),
-                                );
-                              },
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _searchController,
+                        onChanged: (_) => setState(() {}),
+                        style: const TextStyle(
+                          color: IzyTelColors.textPrimary,
+                          fontSize: IzyTelTypeScale.label,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Référence, client, numéro ou motif…',
+                          hintStyle: const TextStyle(
+                            color: IzyTelColors.textMuted,
+                            fontSize: IzyTelTypeScale.label,
+                          ),
+                          prefixIcon: const Icon(
+                            Symbols.search_rounded,
+                            size: IzyTelIconSize.action,
+                            color: IzyTelColors.textSecondary,
+                          ),
+                          filled: true,
+                          fillColor: IzyTelColors.surface,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(IzyTelRadii.card),
+                            borderSide: const BorderSide(color: IzyTelColors.outline),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(IzyTelRadii.card),
+                            borderSide: const BorderSide(color: IzyTelColors.outline),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        height: 34,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          children: [
+                            FinanceFilterPill(
+                              label: 'Tous',
+                              count: all.length,
+                              selected: _filter == _RefundFilter.all,
+                              onTap: () => _setFilter(_RefundFilter.all),
                             ),
-                    ),
-                  ],
-                );
-              },
+                            const SizedBox(width: 7),
+                            FinanceFilterPill(
+                              label: 'À valider',
+                              count: pending.length,
+                              accent: IzyTelColors.warning,
+                              selected: _filter == _RefundFilter.pending,
+                              onTap: () => _setFilter(_RefundFilter.pending),
+                            ),
+                            const SizedBox(width: 7),
+                            FinanceFilterPill(
+                              label: 'À effectuer',
+                              count: approved.length,
+                              selected: _filter == _RefundFilter.approved,
+                              onTap: () => _setFilter(_RefundFilter.approved),
+                            ),
+                            const SizedBox(width: 7),
+                            FinanceFilterPill(
+                              label: 'Remboursés',
+                              accent: IzyTelColors.success,
+                              selected: _filter == _RefundFilter.refunded,
+                              onTap: () => _setFilter(_RefundFilter.refunded),
+                            ),
+                            const SizedBox(width: 7),
+                            FinanceFilterPill(
+                              label: 'Rapprochés',
+                              accent: IzyTelColors.moov,
+                              selected: _filter == _RefundFilter.reconciled,
+                              onTap: () => _setFilter(_RefundFilter.reconciled),
+                            ),
+                            const SizedBox(width: 7),
+                            FinanceFilterPill(
+                              label: 'Rejetés',
+                              accent: IzyTelColors.error,
+                              selected: _filter == _RefundFilter.rejected,
+                              onTap: () => _setFilter(_RefundFilter.rejected),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: visible.isEmpty
+                      ? const SingleChildScrollView(
+                          child: FinanceEmptyState(
+                            icon: Symbols.currency_exchange_rounded,
+                            title: 'Aucun remboursement',
+                            message: 'Les dossiers correspondant à ce filtre apparaîtront ici.',
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(20, 2, 20, 28),
+                          itemCount: visible.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 10),
+                          itemBuilder: (BuildContext context, int index) {
+                            final RefundCase refund = visible[index];
+                            return _RefundCard(
+                              refund: refund,
+                              onTap: () => _openDetail(refund),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -270,14 +324,17 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: IzyTelColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.onBackground,
+        backgroundColor: IzyTelColors.background,
+        foregroundColor: IzyTelColors.textPrimary,
         elevation: 0,
         title: const Text(
           'Détail du remboursement',
-          style: TextStyle(fontWeight: FontWeight.w800),
+          style: TextStyle(
+            fontSize: IzyTelTypeScale.title3,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
       body: SafeArea(
@@ -298,13 +355,13 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
                   ) {
                     final QueueOrder? order = orderSnapshot.data;
                     return ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
                       children: [
                         _RefundHeader(refund: refund),
                         const SizedBox(height: 12),
                         _SectionCard(
                           title: 'Demande client',
-                          icon: Icons.support_agent_rounded,
+                          icon: Symbols.support_agent_rounded,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -332,7 +389,7 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
                         const SizedBox(height: 12),
                         _SectionCard(
                           title: 'Commande liée',
-                          icon: Icons.receipt_long_rounded,
+                          icon: Symbols.receipt_long_rounded,
                           child: Column(
                             children: [
                               _InfoRow(
@@ -345,7 +402,7 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
                               ),
                               _InfoRow(
                                 label: 'WhatsApp',
-                                value: refund.clientWhatsappPhone,
+                                value: formatIvorianPhone(refund.clientWhatsappPhone),
                               ),
                               _InfoRow(
                                 label: 'Montant initial',
@@ -358,7 +415,7 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
                         const SizedBox(height: 12),
                         _SectionCard(
                           title: 'Paiement initial',
-                          icon: Icons.account_balance_wallet_outlined,
+                          icon: Symbols.account_balance_wallet_rounded,
                           child:
                               orderSnapshot.connectionState ==
                                   ConnectionState.waiting
@@ -371,7 +428,7 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
                               : order == null
                               ? const Text(
                                   'Impossible de charger le paiement initial.',
-                                  style: TextStyle(color: AppColors.error),
+                                  style: TextStyle(color: IzyTelColors.error),
                                 )
                               : Column(
                                   children: [
@@ -405,7 +462,7 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
                         const SizedBox(height: 12),
                         _SectionCard(
                           title: 'Traitement',
-                          icon: Icons.gavel_rounded,
+                          icon: Symbols.gavel_rounded,
                           child: Column(
                             children: [
                               _InfoRow(
@@ -461,7 +518,7 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
         return <Widget>[
           FilledButton.icon(
             onPressed: () => _approve(refund),
-            icon: const Icon(Icons.check_circle_outline_rounded),
+            icon: const Icon(Symbols.check_circle_rounded),
             label: const Text('Approuver le remboursement'),
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(50),
@@ -470,11 +527,11 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
           const SizedBox(height: 10),
           OutlinedButton.icon(
             onPressed: () => _reject(refund),
-            icon: const Icon(Icons.cancel_outlined),
+            icon: const Icon(Symbols.cancel_rounded),
             label: const Text('Rejeter'),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(48),
-              foregroundColor: AppColors.error,
+              foregroundColor: IzyTelColors.error,
             ),
           ),
         ];
@@ -484,14 +541,14 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.only(bottom: 12),
             decoration: BoxDecoration(
-              color: AppColors.warning.withAlpha(22),
+              color: IzyTelColors.warning.withAlpha(22),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.warning.withAlpha(70)),
+              border: Border.all(color: IzyTelColors.warning.withAlpha(70)),
             ),
             child: const Text(
               'Effectuez maintenant le remboursement réel dans Wave, puis revenez enregistrer sa référence. IzyTel ne déclenche pas automatiquement la transaction.',
               style: TextStyle(
-                color: AppColors.onSurfaceVariant,
+                color: IzyTelColors.textSecondary,
                 fontSize: 11,
                 height: 1.4,
               ),
@@ -499,7 +556,7 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
           ),
           FilledButton.icon(
             onPressed: () => _markRefunded(refund),
-            icon: const Icon(Icons.payments_outlined),
+            icon: const Icon(Symbols.payments_rounded),
             label: const Text('Marquer comme remboursé'),
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(50),
@@ -511,7 +568,7 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
           if (!refund.customerWasNotified)
             FilledButton.icon(
               onPressed: order == null ? null : () => _notify(refund, order),
-              icon: const Icon(Icons.chat_rounded),
+              icon: const Icon(Symbols.chat_rounded),
               label: const Text('Notifier le client sur WhatsApp'),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(50),
@@ -520,7 +577,7 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
           if (!refund.customerWasNotified) const SizedBox(height: 10),
           OutlinedButton.icon(
             onPressed: () => _reconcile(refund),
-            icon: const Icon(Icons.account_balance_rounded),
+            icon: const Icon(Symbols.account_balance_rounded),
             label: const Text('Rapprocher le remboursement'),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(48),
@@ -532,7 +589,7 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
           if (!refund.customerWasNotified)
             FilledButton.icon(
               onPressed: order == null ? null : () => _notify(refund, order),
-              icon: const Icon(Icons.chat_rounded),
+              icon: const Icon(Symbols.chat_rounded),
               label: const Text('Notifier le client sur WhatsApp'),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(50),
@@ -540,7 +597,7 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
             )
           else
             const _ReadOnlyResult(
-              icon: Icons.verified_rounded,
+              icon: Symbols.verified_rounded,
               message:
                   'Remboursement effectué, rapproché et conservé dans l’historique.',
             ),
@@ -548,7 +605,7 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
       case RefundStatus.rejected:
         return const <Widget>[
           _ReadOnlyResult(
-            icon: Icons.cancel_outlined,
+            icon: Symbols.cancel_rounded,
             message:
                 'Cette demande de remboursement a été rejetée et reste conservée pour audit.',
           ),
@@ -773,115 +830,146 @@ class _RefundCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color statusColor = _refundStatusColor(refund.status);
-    return Material(
-      color: AppColors.surfaceContainer,
-      borderRadius: BorderRadius.circular(15),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(15),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: statusColor.withAlpha(80)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+    return IzyTelSurface(
+      radius: IzyTelRadii.card,
+      padding: const EdgeInsets.fromLTRB(13, 12, 13, 12),
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'RÉFÉRENCE COMMANDE',
-                          style: TextStyle(
-                            color: AppColors.onSurfaceVariant,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          refund.orderReference,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.primaryContainer,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _RefundStatusChip(status: refund.status),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _MiniInfo(label: 'Client', value: refund.clientName),
-                  ),
-                  Expanded(
-                    child: _MiniInfo(
-                      label: 'Montant',
-                      value: '${_formatAmount(refund.amount)} F',
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: _MiniInfo(
-                      label: 'Motif',
-                      value: refund.reason.label,
-                    ),
-                  ),
-                  Expanded(
-                    child: _MiniInfo(
-                      label: 'Date',
-                      value: _formatDate(refund.requestedAt),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withAlpha(28),
-                  borderRadius: BorderRadius.circular(10),
+                  color: statusColor.withAlpha(18),
+                  borderRadius: BorderRadius.circular(11),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: Icon(
+                  Symbols.currency_exchange_rounded,
+                  color: statusColor,
+                  size: IzyTelIconSize.action,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      _actionIcon(refund.status),
-                      size: 17,
-                      color: AppColors.primaryContainer,
-                    ),
-                    const SizedBox(width: 7),
                     Text(
-                      _actionLabel(refund.status),
-                      style: const TextStyle(
-                        color: AppColors.primaryContainer,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
+                      refund.clientName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: IzyTelColors.textPrimary,
+                        fontSize: IzyTelTypeScale.text,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      formatIvorianPhone(refund.clientWhatsappPhone),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: IzyTelColors.textSecondary,
+                        fontSize: IzyTelTypeScale.micro,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
+              _RefundStatusChip(status: refund.status),
             ],
           ),
-        ),
+          const SizedBox(height: 11),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      refund.reason.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: IzyTelColors.textPrimary,
+                        fontSize: IzyTelTypeScale.cardTitle,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      refund.orderReference,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: IzyTelColors.textMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '${_formatAmount(refund.amount)} F',
+                maxLines: 1,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: IzyTelColors.primaryStrong,
+                  fontSize: IzyTelTypeScale.cardTitle,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Icon(
+                _actionIcon(refund.status),
+                size: IzyTelIconSize.info,
+                color: statusColor,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  _actionLabel(refund.status),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: statusColor,
+                    fontSize: IzyTelTypeScale.micro,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Text(
+                financeRelativeTime(refund.updatedAt),
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: IzyTelColors.textMuted,
+                  fontSize: 10,
+                ),
+              ),
+              const SizedBox(width: 3),
+              const Icon(
+                Symbols.chevron_right_rounded,
+                color: IzyTelColors.textMuted,
+                size: IzyTelIconSize.info,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -897,7 +985,7 @@ class _RefundHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
+        color: IzyTelColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: _refundStatusColor(refund.status).withAlpha(100),
@@ -913,7 +1001,7 @@ class _RefundHeader extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             child: Icon(
-              Icons.currency_exchange_rounded,
+              Symbols.currency_exchange_rounded,
               color: _refundStatusColor(refund.status),
             ),
           ),
@@ -925,7 +1013,7 @@ class _RefundHeader extends StatelessWidget {
                 const Text(
                   'Remboursement',
                   style: TextStyle(
-                    color: AppColors.onBackground,
+                    color: IzyTelColors.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                   ),
@@ -934,7 +1022,7 @@ class _RefundHeader extends StatelessWidget {
                 Text(
                   refund.orderReference,
                   style: const TextStyle(
-                    color: AppColors.onSurfaceVariant,
+                    color: IzyTelColors.textSecondary,
                     fontSize: 12,
                   ),
                 ),
@@ -958,9 +1046,9 @@ class _RefundAmountCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerHigh,
+        color: IzyTelColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primaryContainer.withAlpha(90)),
+        border: Border.all(color: IzyTelColors.primary.withAlpha(90)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -968,7 +1056,7 @@ class _RefundAmountCard extends StatelessWidget {
           const Text(
             'MONTANT À REMBOURSER',
             style: TextStyle(
-              color: AppColors.primaryContainer,
+              color: IzyTelColors.primary,
               fontSize: 10,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.6,
@@ -978,7 +1066,7 @@ class _RefundAmountCard extends StatelessWidget {
           Text(
             '${_formatAmount(refund.amount)} F CFA',
             style: const TextStyle(
-              color: AppColors.onBackground,
+              color: IzyTelColors.textPrimary,
               fontSize: 26,
               fontWeight: FontWeight.w900,
             ),
@@ -1048,7 +1136,7 @@ class _RefundTimeline extends StatelessWidget {
 
     return _SectionCard(
       title: 'Historique',
-      icon: Icons.history_rounded,
+      icon: Symbols.history_rounded,
       child: Column(
         children: List<Widget>.generate(items.length, (int index) {
           final _TimelineItem item = items[index];
@@ -1092,7 +1180,7 @@ class _TimelineRow extends StatelessWidget {
                 width: 9,
                 height: 9,
                 decoration: const BoxDecoration(
-                  color: AppColors.primaryContainer,
+                  color: IzyTelColors.primary,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -1100,7 +1188,7 @@ class _TimelineRow extends StatelessWidget {
                 Container(
                   width: 1,
                   height: 48,
-                  color: AppColors.outlineVariant,
+                  color: IzyTelColors.outline,
                 ),
             ],
           ),
@@ -1115,7 +1203,7 @@ class _TimelineRow extends StatelessWidget {
                 Text(
                   item.label,
                   style: const TextStyle(
-                    color: AppColors.onBackground,
+                    color: IzyTelColors.textPrimary,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
@@ -1124,7 +1212,7 @@ class _TimelineRow extends StatelessWidget {
                 Text(
                   '${item.actor} · ${_formatDateTime(item.date)}',
                   style: const TextStyle(
-                    color: AppColors.onSurfaceVariant,
+                    color: IzyTelColors.textSecondary,
                     fontSize: 10,
                   ),
                 ),
@@ -1164,55 +1252,6 @@ class _RefundStatusChip extends StatelessWidget {
   }
 }
 
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    this.count,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  final int? count;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: ChoiceChip(
-        label: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(label),
-            if (count != null && count! > 0) ...[
-              const SizedBox(width: 6),
-              Text(
-                '$count',
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
-            ],
-          ],
-        ),
-        selected: selected,
-        onSelected: (_) => onTap(),
-        selectedColor: AppColors.primary,
-        backgroundColor: AppColors.surfaceContainer,
-        labelStyle: TextStyle(
-          color: selected ? AppColors.onPrimary : AppColors.onBackground,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-        ),
-        side: BorderSide(
-          color: selected ? AppColors.primary : AppColors.outlineVariant,
-        ),
-        showCheckmark: false,
-      ),
-    );
-  }
-}
-
 class _SectionCard extends StatelessWidget {
   const _SectionCard({
     required this.title,
@@ -1229,22 +1268,22 @@ class _SectionCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
+        color: IzyTelColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.outlineVariant),
+        border: Border.all(color: IzyTelColors.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              Icon(icon, color: AppColors.primaryContainer, size: 19),
+              Icon(icon, color: IzyTelColors.primary, size: 19),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   title,
                   style: const TextStyle(
-                    color: AppColors.onBackground,
+                    color: IzyTelColors.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                   ),
@@ -1285,7 +1324,7 @@ class _InfoRow extends StatelessWidget {
             child: Text(
               label,
               style: const TextStyle(
-                color: AppColors.onSurfaceVariant,
+                color: IzyTelColors.textSecondary,
                 fontSize: 11,
               ),
             ),
@@ -1296,7 +1335,7 @@ class _InfoRow extends StatelessWidget {
               value,
               textAlign: multiline ? TextAlign.left : TextAlign.right,
               style: const TextStyle(
-                color: AppColors.onBackground,
+                color: IzyTelColors.textPrimary,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 height: 1.35,
@@ -1331,7 +1370,7 @@ class _CopyInfoRow extends StatelessWidget {
             child: Text(
               label,
               style: const TextStyle(
-                color: AppColors.onSurfaceVariant,
+                color: IzyTelColors.textSecondary,
                 fontSize: 11,
               ),
             ),
@@ -1342,7 +1381,7 @@ class _CopyInfoRow extends StatelessWidget {
               value,
               textAlign: TextAlign.right,
               style: const TextStyle(
-                color: AppColors.onBackground,
+                color: IzyTelColors.textPrimary,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),
@@ -1352,91 +1391,12 @@ class _CopyInfoRow extends StatelessWidget {
             tooltip: 'Copier',
             onPressed: onCopy,
             icon: const Icon(
-              Icons.content_copy_rounded,
+              Symbols.content_copy_rounded,
               size: 17,
-              color: AppColors.primaryContainer,
+              color: IzyTelColors.primary,
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _MiniInfo extends StatelessWidget {
-  const _MiniInfo({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.onSurfaceVariant,
-            fontSize: 9,
-          ),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          value,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: AppColors.onBackground,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _RefundEmptyState extends StatelessWidget {
-  const _RefundEmptyState({
-    required this.icon,
-    required this.title,
-    required this.message,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 44, color: AppColors.onSurfaceVariant),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.onBackground,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.onSurfaceVariant,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1453,19 +1413,19 @@ class _ReadOnlyResult extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
+        color: IzyTelColors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outlineVariant),
+        border: Border.all(color: IzyTelColors.outline),
       ),
       child: Row(
         children: [
-          Icon(icon, color: AppColors.success),
+          Icon(icon, color: IzyTelColors.success),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
               style: const TextStyle(
-                color: AppColors.onSurfaceVariant,
+                color: IzyTelColors.textSecondary,
                 fontSize: 12,
                 height: 1.4,
               ),
@@ -1480,15 +1440,15 @@ class _ReadOnlyResult extends StatelessWidget {
 Color _refundStatusColor(RefundStatus status) {
   switch (status) {
     case RefundStatus.pendingApproval:
-      return AppColors.warning;
+      return IzyTelColors.warning;
     case RefundStatus.approved:
-      return AppColors.primaryContainer;
+      return IzyTelColors.primary;
     case RefundStatus.refunded:
-      return AppColors.success;
+      return IzyTelColors.success;
     case RefundStatus.reconciled:
-      return const Color(0xFF5DD6C0);
+      return IzyTelColors.moov;
     case RefundStatus.rejected:
-      return AppColors.error;
+      return IzyTelColors.error;
   }
 }
 
@@ -1510,15 +1470,15 @@ String _actionLabel(RefundStatus status) {
 IconData _actionIcon(RefundStatus status) {
   switch (status) {
     case RefundStatus.pendingApproval:
-      return Icons.gavel_rounded;
+      return Symbols.gavel_rounded;
     case RefundStatus.approved:
-      return Icons.payments_outlined;
+      return Symbols.payments_rounded;
     case RefundStatus.refunded:
-      return Icons.account_balance_rounded;
+      return Symbols.account_balance_rounded;
     case RefundStatus.reconciled:
-      return Icons.visibility_outlined;
+      return Symbols.visibility_rounded;
     case RefundStatus.rejected:
-      return Icons.visibility_outlined;
+      return Symbols.visibility_rounded;
   }
 }
 

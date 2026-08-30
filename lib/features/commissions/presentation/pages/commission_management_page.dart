@@ -1,4 +1,5 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
@@ -7,7 +8,10 @@ import 'package:cabine_flow/features/commissions/domain/models/commission_models
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:cabine_flow/features/commissions/domain/services/commission_performance_calculator.dart';
 import 'package:cabine_flow/features/commissions/presentation/pages/agent_performance_page.dart';
+import 'package:cabine_flow/features/finances/presentation/widgets/financial_ui.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 enum _CommissionAgentFilter { all, toPay, paid }
 
@@ -35,222 +39,108 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Commissions')),
+      backgroundColor: IzyTelColors.background,
+      appBar: AppBar(
+        backgroundColor: IzyTelColors.background,
+        foregroundColor: IzyTelColors.textPrimary,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: const Text(
+          'Commissions',
+          style: TextStyle(
+            fontSize: IzyTelTypeScale.title3,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
       body: StreamBuilder<List<AgentDirectoryEntry>>(
         stream: widget.agentRepository.watchAgents(),
-        builder:
-            (
+        builder: (
+          BuildContext context,
+          AsyncSnapshot<List<AgentDirectoryEntry>> agentSnapshot,
+        ) {
+          return StreamBuilder<List<CommissionEntry>>(
+            stream: widget.repository.watchCommissions(),
+            builder: (
               BuildContext context,
-              AsyncSnapshot<List<AgentDirectoryEntry>> agentSnapshot,
+              AsyncSnapshot<List<CommissionEntry>> commissionSnapshot,
             ) {
-              return StreamBuilder<List<CommissionEntry>>(
-                stream: widget.repository.watchCommissions(),
-                builder:
-                    (
+              return StreamBuilder<List<CommissionPayout>>(
+                stream: widget.repository.watchPayouts(),
+                builder: (
+                  BuildContext context,
+                  AsyncSnapshot<List<CommissionPayout>> payoutSnapshot,
+                ) {
+                  return StreamBuilder<List<CommissionAccount>>(
+                    stream: widget.repository.watchAccounts(),
+                    builder: (
                       BuildContext context,
-                      AsyncSnapshot<List<CommissionEntry>> commissionSnapshot,
+                      AsyncSnapshot<List<CommissionAccount>> accountSnapshot,
                     ) {
-                      return StreamBuilder<List<CommissionPayout>>(
-                        stream: widget.repository.watchPayouts(),
-                        builder:
-                            (
+                      return StreamBuilder<List<AgentAssignmentMetric>>(
+                        stream: widget.repository.watchAssignmentMetrics(),
+                        builder: (
+                          BuildContext context,
+                          AsyncSnapshot<List<AgentAssignmentMetric>> assignmentSnapshot,
+                        ) {
+                          return StreamBuilder<List<AgentProcessingMetric>>(
+                            stream: widget.repository.watchProcessingMetrics(),
+                            builder: (
                               BuildContext context,
-                              AsyncSnapshot<List<CommissionPayout>>
-                              payoutSnapshot,
+                              AsyncSnapshot<List<AgentProcessingMetric>> processingSnapshot,
                             ) {
-                              return StreamBuilder<List<CommissionAccount>>(
-                                stream: widget.repository.watchAccounts(),
-                                builder:
-                                    (
-                                      BuildContext context,
-                                      AsyncSnapshot<List<CommissionAccount>>
-                                      accountSnapshot,
-                                    ) {
-                                      return StreamBuilder<
-                                        List<AgentAssignmentMetric>
-                                      >(
-                                        stream: widget.repository
-                                            .watchAssignmentMetrics(),
-                                        builder:
-                                            (
-                                              BuildContext context,
-                                              AsyncSnapshot<
-                                                List<AgentAssignmentMetric>
-                                              >
-                                              assignmentSnapshot,
-                                            ) {
-                                              return StreamBuilder<
-                                                List<AgentProcessingMetric>
-                                              >(
-                                                stream: widget.repository
-                                                    .watchProcessingMetrics(),
-                                                builder:
-                                                    (
-                                                      BuildContext context,
-                                                      AsyncSnapshot<
-                                                        List<
-                                                          AgentProcessingMetric
-                                                        >
-                                                      >
-                                                      processingSnapshot,
-                                                    ) {
-                                                      return StreamBuilder<
-                                                        List<AgentOrderMetric>
-                                                      >(
-                                                        stream: widget
-                                                            .repository
-                                                            .watchOrderMetrics(),
-                                                        builder:
-                                                            (
-                                                              BuildContext
-                                                              context,
-                                                              AsyncSnapshot<
-                                                                List<
-                                                                  AgentOrderMetric
-                                                                >
-                                                              >
-                                                              orderSnapshot,
-                                                            ) {
-                                                              final bool
-                                                              hasAnyError =
-                                                                  agentSnapshot
-                                                                      .hasError ||
-                                                                  commissionSnapshot
-                                                                      .hasError ||
-                                                                  payoutSnapshot
-                                                                      .hasError ||
-                                                                  accountSnapshot
-                                                                      .hasError ||
-                                                                  assignmentSnapshot
-                                                                      .hasError ||
-                                                                  processingSnapshot
-                                                                      .hasError ||
-                                                                  orderSnapshot
-                                                                      .hasError;
-                                                              final bool
-                                                              waiting =
-                                                                  agentSnapshot
-                                                                          .connectionState ==
-                                                                      ConnectionState
-                                                                          .waiting ||
-                                                                  commissionSnapshot
-                                                                          .connectionState ==
-                                                                      ConnectionState
-                                                                          .waiting;
-                                                              if (waiting &&
-                                                                  !agentSnapshot
-                                                                      .hasData &&
-                                                                  !commissionSnapshot
-                                                                      .hasData) {
-                                                                return const Center(
-                                                                  child:
-                                                                      CircularProgressIndicator(),
-                                                                );
-                                                              }
-                                                              if (hasAnyError) {
-                                                                return const _PageState(
-                                                                  icon: Icons
-                                                                      .error_outline_rounded,
-                                                                  title:
-                                                                      'Commissions indisponibles',
-                                                                  message:
-                                                                      'Impossible de charger les données de commission pour le moment.',
-                                                                );
-                                                              }
+                              return StreamBuilder<List<AgentOrderMetric>>(
+                                stream: widget.repository.watchOrderMetrics(),
+                                builder: (
+                                  BuildContext context,
+                                  AsyncSnapshot<List<AgentOrderMetric>> orderSnapshot,
+                                ) {
+                                  final bool waiting =
+                                      agentSnapshot.connectionState == ConnectionState.waiting &&
+                                      commissionSnapshot.connectionState == ConnectionState.waiting &&
+                                      !agentSnapshot.hasData &&
+                                      !commissionSnapshot.hasData;
+                                  if (waiting) {
+                                    return const Center(child: CircularProgressIndicator());
+                                  }
+                                  if (agentSnapshot.hasError ||
+                                      commissionSnapshot.hasError ||
+                                      payoutSnapshot.hasError ||
+                                      accountSnapshot.hasError ||
+                                      assignmentSnapshot.hasError ||
+                                      processingSnapshot.hasError ||
+                                      orderSnapshot.hasError) {
+                                    return const SingleChildScrollView(
+                                      child: FinanceEmptyState(
+                                        icon: Symbols.cloud_off_rounded,
+                                        title: 'Commissions indisponibles',
+                                        message: 'Impossible de charger les données de commission pour le moment.',
+                                      ),
+                                    );
+                                  }
 
-                                                              final List<
-                                                                AgentDirectoryEntry
-                                                              >
-                                                              agents =
-                                                                  agentSnapshot
-                                                                      .data ??
-                                                                  const <
-                                                                    AgentDirectoryEntry
-                                                                  >[];
-                                                              final List<
-                                                                CommissionEntry
-                                                              >
-                                                              commissions =
-                                                                  commissionSnapshot
-                                                                      .data ??
-                                                                  const <
-                                                                    CommissionEntry
-                                                                  >[];
-                                                              final List<
-                                                                CommissionPayout
-                                                              >
-                                                              payouts =
-                                                                  payoutSnapshot
-                                                                      .data ??
-                                                                  const <
-                                                                    CommissionPayout
-                                                                  >[];
-                                                              final List<
-                                                                CommissionAccount
-                                                              >
-                                                              accounts =
-                                                                  accountSnapshot
-                                                                      .data ??
-                                                                  const <
-                                                                    CommissionAccount
-                                                                  >[];
-                                                              final List<
-                                                                AgentAssignmentMetric
-                                                              >
-                                                              assignments =
-                                                                  assignmentSnapshot
-                                                                      .data ??
-                                                                  const <
-                                                                    AgentAssignmentMetric
-                                                                  >[];
-                                                              final List<
-                                                                AgentProcessingMetric
-                                                              >
-                                                              processing =
-                                                                  processingSnapshot
-                                                                      .data ??
-                                                                  const <
-                                                                    AgentProcessingMetric
-                                                                  >[];
-                                                              final List<
-                                                                AgentOrderMetric
-                                                              >
-                                                              orderMetrics =
-                                                                  orderSnapshot
-                                                                      .data ??
-                                                                  const <
-                                                                    AgentOrderMetric
-                                                                  >[];
-
-                                                              return _buildContent(
-                                                                agents: agents,
-                                                                commissions:
-                                                                    commissions,
-                                                                payouts:
-                                                                    payouts,
-                                                                accounts:
-                                                                    accounts,
-                                                                assignments:
-                                                                    assignments,
-                                                                processing:
-                                                                    processing,
-                                                                orderMetrics:
-                                                                    orderMetrics,
-                                                              );
-                                                            },
-                                                      );
-                                                    },
-                                              );
-                                            },
-                                      );
-                                    },
+                                  return _buildContent(
+                                    agents: agentSnapshot.data ?? const <AgentDirectoryEntry>[],
+                                    commissions: commissionSnapshot.data ?? const <CommissionEntry>[],
+                                    payouts: payoutSnapshot.data ?? const <CommissionPayout>[],
+                                    accounts: accountSnapshot.data ?? const <CommissionAccount>[],
+                                    assignments: assignmentSnapshot.data ?? const <AgentAssignmentMetric>[],
+                                    processing: processingSnapshot.data ?? const <AgentProcessingMetric>[],
+                                    orderMetrics: orderSnapshot.data ?? const <AgentOrderMetric>[],
+                                  );
+                                },
                               );
                             },
+                          );
+                        },
                       );
                     },
+                  );
+                },
               );
             },
+          );
+        },
       ),
     );
   }
@@ -266,15 +156,12 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
   }) {
     final DateTime now = DateTime.now();
     final List<CommissionEntry> periodCommissions = commissions
-        .where(
-          (CommissionEntry value) => _period.contains(value.earnedAt, now: now),
-        )
+        .where((CommissionEntry value) => _period.contains(value.earnedAt, now: now))
         .toList(growable: false);
     final List<CommissionPayout> periodPayouts = payouts
-        .where(
-          (CommissionPayout value) => _period.contains(value.paidAt, now: now),
-        )
+        .where((CommissionPayout value) => _period.contains(value.paidAt, now: now))
         .toList(growable: false);
+
     final int generated = periodCommissions.fold<int>(
       0,
       (int total, CommissionEntry value) => total + value.commissionAmount,
@@ -289,116 +176,177 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
           total + value.balance.clamp(0, value.earnedTotal).toInt(),
     );
 
-    final Map<String, CommissionAccount> accountByAgent =
-        <String, CommissionAccount>{
-          for (final CommissionAccount value in accounts) value.agentId: value,
-        };
+    final Map<String, CommissionAccount> accountByAgent = <String, CommissionAccount>{
+      for (final CommissionAccount value in accounts) value.agentId: value,
+    };
 
-    final List<_AgentRowData> rows =
-        agents
-            .map((AgentDirectoryEntry agent) {
-              final AgentPerformanceSnapshot performance =
-                  CommissionPerformanceCalculator.build(
-                    agentId: agent.userId,
-                    period: _period,
-                    commissions: commissions,
-                    payouts: payouts,
-                    assignments: assignments,
-                    processingEvents: processing,
-                    orderMetrics: orderMetrics,
-                    now: now,
-                  );
-              final CommissionAccount? account = accountByAgent[agent.userId];
-              return _AgentRowData(
-                agent: agent,
-                performance: performance,
-                allTimeEarned:
-                    account?.earnedTotal ?? performance.totalCommissionEarned,
-                allTimePaid:
-                    account?.paidTotal ?? performance.totalCommissionPaid,
-                balance:
-                    account?.balance.clamp(0, account.earnedTotal).toInt() ??
-                    performance.commissionBalance,
-              );
-            })
-            .where(_matchesFilter)
-            .toList(growable: false)
-          ..sort((a, b) {
-            if (a.balance != b.balance) return b.balance.compareTo(a.balance);
-            return a.agent.name.toLowerCase().compareTo(
-              b.agent.name.toLowerCase(),
-            );
-          });
+    final List<_AgentRowData> rows = agents
+        .map((AgentDirectoryEntry agent) {
+          final AgentPerformanceSnapshot performance = CommissionPerformanceCalculator.build(
+            agentId: agent.userId,
+            period: _period,
+            commissions: commissions,
+            payouts: payouts,
+            assignments: assignments,
+            processingEvents: processing,
+            orderMetrics: orderMetrics,
+            now: now,
+          );
+          final CommissionAccount? account = accountByAgent[agent.userId];
+          return _AgentRowData(
+            agent: agent,
+            performance: performance,
+            allTimeEarned: account?.earnedTotal ?? performance.totalCommissionEarned,
+            allTimePaid: account?.paidTotal ?? performance.totalCommissionPaid,
+            balance: account?.balance.clamp(0, account.earnedTotal).toInt() ?? performance.commissionBalance,
+          );
+        })
+        .where(_matchesFilter)
+        .toList(growable: false)
+      ..sort((_AgentRowData a, _AgentRowData b) {
+        if (a.balance != b.balance) return b.balance.compareTo(a.balance);
+        return a.agent.name.toLowerCase().compareTo(b.agent.name.toLowerCase());
+      });
+
+    final int toPayCount = accounts.where((CommissionAccount value) => value.balance > 0).length;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 30),
       children: [
-        const Text(
+        Text(
           'Suivi des commissions des agents',
-          style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 13),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: IzyTelColors.textSecondary,
+            fontSize: IzyTelTypeScale.label,
+            fontWeight: FontWeight.w500,
+          ),
         ),
-        const SizedBox(height: 15),
-        _PeriodDropdown(
+        const SizedBox(height: 14),
+        _PeriodSelector(
           value: _period,
-          onChanged: (CommissionPeriod value) =>
-              setState(() => _period = value),
+          onChanged: (CommissionPeriod value) => setState(() => _period = value),
         ),
-        const SizedBox(height: 18),
-        _BigStatCard(
-          label: 'COMMISSIONS GÉNÉRÉES',
-          value: formatCfa(generated),
-          accent: AppColors.primaryContainer,
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: IzyTelColors.primary,
+            borderRadius: BorderRadius.circular(IzyTelRadii.largeCard),
+            boxShadow: [
+              BoxShadow(
+                color: IzyTelColors.primary.withAlpha(36),
+                blurRadius: 22,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Commissions générées',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: IzyTelColors.surface.withAlpha(220),
+                  fontSize: IzyTelTypeScale.label,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                formatCfaFull(generated),
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: IzyTelColors.surface,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -.6,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '${periodCommissions.length} transaction${periodCommissions.length > 1 ? 's' : ''} rémunérée${periodCommissions.length > 1 ? 's' : ''}',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: IzyTelColors.surface.withAlpha(205),
+                  fontSize: IzyTelTypeScale.micro,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 10),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: _BigStatCard(
-                label: 'SOLDE À PAYER',
+              child: FinancialMetricCard(
+                label: 'Solde à payer',
                 value: formatCfa(outstanding),
-                accent: AppColors.error,
+                caption: '$toPayCount agent${toPayCount > 1 ? 's' : ''}',
+                icon: Symbols.account_balance_wallet_rounded,
+                accent: outstanding > 0 ? IzyTelColors.warning : IzyTelColors.success,
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: _BigStatCard(
-                label: 'PAYÉ SUR LA PÉRIODE',
+              child: FinancialMetricCard(
+                label: 'Payé sur la période',
                 value: formatCfa(paidInPeriod),
-                accent: AppColors.onBackground,
+                caption: '${periodPayouts.length} versement${periodPayouts.length > 1 ? 's' : ''}',
+                icon: Symbols.payments_rounded,
+                accent: IzyTelColors.success,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 10),
-        _BigStatCard(
-          label: 'TRANSACTIONS RÉMUNÉRÉES',
-          value: '${periodCommissions.length}',
-          accent: AppColors.onBackground,
+        const SizedBox(height: 20),
+        const IzyTelSectionHeader(title: 'Agents'),
+        const SizedBox(height: 9),
+        SizedBox(
+          height: 34,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              FinanceFilterPill(
+                label: 'Tous',
+                selected: _filter == _CommissionAgentFilter.all,
+                onTap: () => setState(() => _filter = _CommissionAgentFilter.all),
+              ),
+              const SizedBox(width: 7),
+              FinanceFilterPill(
+                label: 'À payer',
+                count: accounts.where((CommissionAccount account) => account.balance > 0).length,
+                accent: IzyTelColors.warning,
+                selected: _filter == _CommissionAgentFilter.toPay,
+                onTap: () => setState(() => _filter = _CommissionAgentFilter.toPay),
+              ),
+              const SizedBox(width: 7),
+              FinanceFilterPill(
+                label: 'Payés',
+                accent: IzyTelColors.success,
+                selected: _filter == _CommissionAgentFilter.paid,
+                onTap: () => setState(() => _filter = _CommissionAgentFilter.paid),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 18),
-        _FilterBar(
-          value: _filter,
-          onChanged: (value) => setState(() => _filter = value),
-        ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         if (rows.isEmpty)
-          const _PageState(
-            icon: Icons.account_balance_wallet_outlined,
+          const FinanceEmptyState(
+            icon: Symbols.account_balance_wallet_rounded,
             title: 'Aucun agent dans ce filtre',
-            message:
-                'Les commissions apparaîtront automatiquement après les transactions réussies.',
-            compact: true,
+            message: 'Les commissions apparaîtront automatiquement après les transactions réussies.',
           )
         else
           ...rows.map(
             (_AgentRowData row) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(bottom: 10),
               child: _AgentCommissionCard(
                 data: row,
                 onTap: () {
                   Navigator.of(context).push<void>(
                     MaterialPageRoute<void>(
-                      builder: (BuildContext context) => AgentPerformancePage(
+                      builder: (_) => AgentPerformancePage(
                         user: widget.user,
                         repository: widget.repository,
                         agent: row.agent,
@@ -441,8 +389,8 @@ class _AgentRowData {
   final int balance;
 }
 
-class _PeriodDropdown extends StatelessWidget {
-  const _PeriodDropdown({required this.value, required this.onChanged});
+class _PeriodSelector extends StatelessWidget {
+  const _PeriodSelector({required this.value, required this.onChanged});
 
   final CommissionPeriod value;
   final ValueChanged<CommissionPeriod> onChanged;
@@ -452,16 +400,19 @@ class _PeriodDropdown extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.outlineVariant),
+        color: IzyTelColors.surface,
+        borderRadius: BorderRadius.circular(IzyTelRadii.card),
+        border: Border.all(color: IzyTelColors.outline),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<CommissionPeriod>(
           value: value,
           isExpanded: true,
-          dropdownColor: AppColors.surfaceContainerHighest,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded),
+          dropdownColor: IzyTelColors.surface,
+          icon: const Icon(
+            Symbols.keyboard_arrow_down_rounded,
+            color: IzyTelColors.textSecondary,
+          ),
           items: CommissionPeriod.values
               .map(
                 (CommissionPeriod period) => DropdownMenuItem<CommissionPeriod>(
@@ -469,14 +420,18 @@ class _PeriodDropdown extends StatelessWidget {
                   child: Row(
                     children: [
                       const Icon(
-                        Icons.calendar_month_outlined,
-                        size: 17,
-                        color: AppColors.primaryContainer,
+                        Symbols.calendar_month_rounded,
+                        size: IzyTelIconSize.info,
+                        color: IzyTelColors.primary,
                       ),
-                      const SizedBox(width: 9),
+                      const SizedBox(width: 8),
                       Text(
                         period.label,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+                        style: const TextStyle(
+                          color: IzyTelColors.textPrimary,
+                          fontSize: IzyTelTypeScale.label,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
@@ -492,88 +447,6 @@ class _PeriodDropdown extends StatelessWidget {
   }
 }
 
-class _BigStatCard extends StatelessWidget {
-  const _BigStatCard({
-    required this.label,
-    required this.value,
-    required this.accent,
-  });
-
-  final String label;
-  final String value;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 105),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.onSurfaceVariant,
-              fontSize: 9,
-              fontWeight: FontWeight.w800,
-              letterSpacing: .35,
-            ),
-          ),
-          const SizedBox(height: 9),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: TextStyle(
-                color: accent,
-                fontSize: 25,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FilterBar extends StatelessWidget {
-  const _FilterBar({required this.value, required this.onChanged});
-  final _CommissionAgentFilter value;
-  final ValueChanged<_CommissionAgentFilter> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    const labels = <_CommissionAgentFilter, String>{
-      _CommissionAgentFilter.all: 'Tous',
-      _CommissionAgentFilter.toPay: 'À payer',
-      _CommissionAgentFilter.paid: 'Payés',
-    };
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: _CommissionAgentFilter.values
-          .map((filter) {
-            final bool active = filter == value;
-            return ChoiceChip(
-              selected: active,
-              onSelected: (_) => onChanged(filter),
-              label: Text(labels[filter]!),
-            );
-          })
-          .toList(growable: false),
-    );
-  }
-}
-
 class _AgentCommissionCard extends StatelessWidget {
   const _AgentCommissionCard({required this.data, required this.onTap});
 
@@ -582,105 +455,92 @@ class _AgentCommissionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
+    final bool hasBalance = data.balance > 0;
+    return IzyTelSurface(
+      radius: IzyTelRadii.card,
+      padding: const EdgeInsets.fromLTRB(13, 12, 13, 12),
+      onTap: onTap,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 22,
-                backgroundColor: AppColors.surfaceContainerHighest,
-                child: Text(
-                  _initials(data.agent.name),
-                  style: const TextStyle(
-                    color: AppColors.primaryContainer,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 11),
+              IzyTelAvatar(name: data.agent.name, size: 38),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       data.agent.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.onBackground,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      data.agent.isActive ? 'Agent actif' : 'Agent suspendu',
-                      style: TextStyle(
-                        color: data.agent.isActive
-                            ? AppColors.success
-                            : AppColors.error,
-                        fontSize: 10,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: IzyTelColors.textPrimary,
+                        fontSize: IzyTelTypeScale.text,
                         fontWeight: FontWeight.w700,
                       ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: data.agent.isActive ? IzyTelColors.success : IzyTelColors.error,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          data.agent.isActive ? 'Agent actif' : 'Agent suspendu',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: IzyTelColors.textSecondary,
+                            fontSize: IzyTelTypeScale.micro,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
+              const Icon(
+                Symbols.chevron_right_rounded,
+                color: IzyTelColors.textMuted,
+                size: IzyTelIconSize.action,
+              ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
-                child: _MiniStat(
-                  label: 'TRANSACTIONS',
-                  value: '${data.performance.transactionsSuccessful} réussies',
+                child: _CompactMetric(
+                  label: 'Réussies',
+                  value: '${data.performance.transactionsSuccessful}',
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: _MiniStat(
-                  label: 'GÉNÉRÉE',
-                  value: formatCfa(
-                    data.performance.commissionGeneratedInPeriod,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: _MiniStat(
-                  label: 'DÉJÀ PAYÉ',
-                  value: formatCfa(data.allTimePaid),
+                child: _CompactMetric(
+                  label: 'Générées',
+                  value: formatCfa(data.performance.commissionGeneratedInPeriod),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: _MiniStat(
-                  label: 'À PAYER',
+                child: _CompactMetric(
+                  label: 'À payer',
                   value: formatCfa(data.balance),
-                  emphasized: data.balance > 0,
+                  accent: hasBalance ? IzyTelColors.warning : IzyTelColors.success,
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: onTap,
-              child: const Text('Voir le détail'),
-            ),
           ),
         ],
       ),
@@ -688,115 +548,52 @@ class _AgentCommissionCard extends StatelessWidget {
   }
 }
 
-class _MiniStat extends StatelessWidget {
-  const _MiniStat({
+class _CompactMetric extends StatelessWidget {
+  const _CompactMetric({
     required this.label,
     required this.value,
-    this.emphasized = false,
+    this.accent,
   });
+
   final String label;
   final String value;
-  final bool emphasized;
+  final Color? accent;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
+        color: IzyTelColors.surfaceMuted,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: emphasized
-              ? AppColors.error.withAlpha(90)
-              : AppColors.outlineVariant,
-        ),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: const TextStyle(
-              color: AppColors.onSurfaceVariant,
-              fontSize: 8,
-              fontWeight: FontWeight.w800,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: IzyTelColors.textMuted,
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 3),
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: emphasized ? AppColors.warning : AppColors.onBackground,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: accent ?? IzyTelColors.textPrimary,
+              fontSize: IzyTelTypeScale.micro,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
       ),
     );
   }
-}
-
-class _PageState extends StatelessWidget {
-  const _PageState({
-    required this.icon,
-    required this.title,
-    required this.message,
-    this.compact = false,
-  });
-  final IconData icon;
-  final String title;
-  final String message;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(compact ? 18 : 30),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: AppColors.onSurfaceVariant,
-              size: compact ? 30 : 42,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.onBackground,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.onSurfaceVariant,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-String _initials(String name) {
-  final List<String> words = name
-      .trim()
-      .split(RegExp(r'\s+'))
-      .where((String value) => value.isNotEmpty)
-      .toList(growable: false);
-  if (words.isEmpty) return '?';
-  if (words.length == 1) return words.first.substring(0, 1).toUpperCase();
-  return '${words.first.substring(0, 1)}${words.last.substring(0, 1)}'
-      .toUpperCase();
 }

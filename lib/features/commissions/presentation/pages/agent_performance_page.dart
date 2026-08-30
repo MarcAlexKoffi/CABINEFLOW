@@ -1,4 +1,5 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
@@ -8,6 +9,7 @@ import 'package:cabine_flow/features/commissions/domain/services/commission_perf
 import 'package:cabine_flow/features/commissions/presentation/widgets/commission_payout_sheet.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 class AgentPerformancePage extends StatefulWidget {
   const AgentPerformancePage({
@@ -61,10 +63,18 @@ class _AgentPerformancePageState extends State<AgentPerformancePage> {
   Widget build(BuildContext context) {
     final String agentId = widget.agentId;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: IzyTelColors.background,
       appBar: AppBar(
+        backgroundColor: IzyTelColors.background,
+        foregroundColor: IzyTelColors.textPrimary,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         title: Text(
           widget.isAdminView ? 'Performance Agent' : 'Mes performances',
+          style: const TextStyle(
+            fontSize: IzyTelTypeScale.title3,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
       body: StreamBuilder<List<CommissionEntry>>(
@@ -237,7 +247,7 @@ class _AgentPerformancePageState extends State<AgentPerformancePage> {
         ),
         const SizedBox(height: 20),
         _SectionTitle(
-          icon: Icons.query_stats_rounded,
+          icon: Symbols.query_stats_rounded,
           title: widget.isAdminView ? 'Performances' : 'Mes performances',
         ),
         const SizedBox(height: 10),
@@ -255,8 +265,8 @@ class _AgentPerformancePageState extends State<AgentPerformancePage> {
                 label: 'TAUX DE RÉUSSITE',
                 value:
                     '${(performance.successRate * 100).toStringAsFixed(1)} %',
-                icon: Icons.check_circle_outline_rounded,
-                iconColor: AppColors.success,
+                icon: Symbols.check_circle_rounded,
+                iconColor: IzyTelColors.success,
               ),
             ),
             const SizedBox(width: 10),
@@ -264,7 +274,7 @@ class _AgentPerformancePageState extends State<AgentPerformancePage> {
               child: _MetricCard(
                 label: 'TEMPS MOYEN',
                 value: _formatDuration(performance.averageProcessingDuration),
-                icon: Icons.timer_outlined,
+                icon: Symbols.timer_rounded,
               ),
             ),
           ],
@@ -273,7 +283,7 @@ class _AgentPerformancePageState extends State<AgentPerformancePage> {
         _TransactionsCard(performance: performance),
         const SizedBox(height: 22),
         const _SectionTitle(
-          icon: Icons.account_balance_wallet_outlined,
+          icon: Symbols.account_balance_wallet_rounded,
           title: 'Commissions',
         ),
         const SizedBox(height: 10),
@@ -286,7 +296,7 @@ class _AgentPerformancePageState extends State<AgentPerformancePage> {
         ),
         const SizedBox(height: 22),
         const _SectionTitle(
-          icon: Icons.history_rounded,
+          icon: Symbols.history_rounded,
           title: 'Dernières commissions',
         ),
         const SizedBox(height: 10),
@@ -297,7 +307,7 @@ class _AgentPerformancePageState extends State<AgentPerformancePage> {
         if (recentPayouts.isNotEmpty) ...[
           const SizedBox(height: 22),
           const _SectionTitle(
-            icon: Icons.payments_outlined,
+            icon: Symbols.payments_rounded,
             title: 'Historique des paiements',
           ),
           const SizedBox(height: 10),
@@ -319,9 +329,9 @@ class _AgentIdentityCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerHigh,
+        color: IzyTelColors.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.outlineVariant),
+        border: Border.all(color: IzyTelColors.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -330,11 +340,11 @@ class _AgentIdentityCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 28,
-                backgroundColor: AppColors.primary.withAlpha(45),
+                backgroundColor: IzyTelColors.primary.withAlpha(45),
                 child: Text(
                   _initials(agent.name),
                   style: const TextStyle(
-                    color: AppColors.primaryContainer,
+                    color: IzyTelColors.primary,
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
                   ),
@@ -353,7 +363,7 @@ class _AgentIdentityCard extends StatelessWidget {
                         Text(
                           agent.name,
                           style: const TextStyle(
-                            color: AppColors.onBackground,
+                            color: IzyTelColors.textPrimary,
                             fontSize: 21,
                             fontWeight: FontWeight.w900,
                           ),
@@ -367,7 +377,7 @@ class _AgentIdentityCard extends StatelessWidget {
                           ? 'Profil opérationnel à compléter'
                           : '${profile.zoneIds.length} zone(s) assignée(s)',
                       style: const TextStyle(
-                        color: AppColors.onSurfaceVariant,
+                        color: IzyTelColors.textSecondary,
                         fontSize: 12,
                       ),
                     ),
@@ -398,7 +408,7 @@ class _AgentIdentityCard extends StatelessWidget {
                         Text(
                           network.label,
                           style: const TextStyle(
-                            color: AppColors.onBackground,
+                            color: IzyTelColors.textPrimary,
                             fontSize: 11,
                           ),
                         ),
@@ -425,7 +435,7 @@ class _PeriodSelector extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerHighest,
+        color: IzyTelColors.surfaceMuted,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -441,7 +451,7 @@ class _PeriodSelector extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
                       color: active
-                          ? AppColors.primary.withAlpha(55)
+                          ? IzyTelColors.primary.withAlpha(55)
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(9),
                     ),
@@ -450,8 +460,8 @@ class _PeriodSelector extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: active
-                            ? AppColors.primaryContainer
-                            : AppColors.onSurfaceVariant,
+                            ? IzyTelColors.primary
+                            : IzyTelColors.textSecondary,
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
                       ),
@@ -476,12 +486,12 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, color: AppColors.primaryContainer, size: 20),
+        Icon(icon, color: IzyTelColors.primary, size: 20),
         const SizedBox(width: 8),
         Text(
           title,
           style: const TextStyle(
-            color: AppColors.onBackground,
+            color: IzyTelColors.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w800,
           ),
@@ -513,7 +523,7 @@ class _PrimaryMetricCard extends StatelessWidget {
           Text(
             value,
             style: const TextStyle(
-              color: AppColors.primaryContainer,
+              color: IzyTelColors.primary,
               fontSize: 27,
               fontWeight: FontWeight.w900,
             ),
@@ -522,7 +532,7 @@ class _PrimaryMetricCard extends StatelessWidget {
           Text(
             helper,
             style: const TextStyle(
-              color: AppColors.success,
+              color: IzyTelColors.success,
               fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
@@ -560,7 +570,7 @@ class _MetricCard extends StatelessWidget {
                 child: Text(
                   value,
                   style: const TextStyle(
-                    color: AppColors.onBackground,
+                    color: IzyTelColors.textPrimary,
                     fontSize: 20,
                     fontWeight: FontWeight.w900,
                   ),
@@ -568,7 +578,7 @@ class _MetricCard extends StatelessWidget {
               ),
               Icon(
                 icon,
-                color: iconColor ?? AppColors.primaryContainer,
+                color: iconColor ?? IzyTelColors.primary,
                 size: 22,
               ),
             ],
@@ -597,7 +607,7 @@ class _TransactionsCard extends StatelessWidget {
               Text(
                 '$total',
                 style: const TextStyle(
-                  color: AppColors.onBackground,
+                  color: IzyTelColors.textPrimary,
                   fontSize: 20,
                   fontWeight: FontWeight.w900,
                 ),
@@ -612,22 +622,22 @@ class _TransactionsCard extends StatelessWidget {
                 _ProgressSegment(
                   value: performance.transactionsSuccessful,
                   total: total,
-                  color: AppColors.success,
+                  color: IzyTelColors.success,
                 ),
                 _ProgressSegment(
                   value: performance.transactionsOther,
                   total: total,
-                  color: AppColors.primary,
+                  color: IzyTelColors.primary,
                 ),
                 _ProgressSegment(
                   value: performance.transactionsRefused,
                   total: total,
-                  color: AppColors.warningContainer,
+                  color: IzyTelColors.warning,
                 ),
                 _ProgressSegment(
                   value: performance.transactionsFailed,
                   total: total,
-                  color: AppColors.error,
+                  color: IzyTelColors.error,
                 ),
               ],
             ),
@@ -638,22 +648,22 @@ class _TransactionsCard extends StatelessWidget {
             runSpacing: 9,
             children: [
               _Legend(
-                color: AppColors.success,
+                color: IzyTelColors.success,
                 label: 'Réussies',
                 value: performance.transactionsSuccessful,
               ),
               _Legend(
-                color: AppColors.primary,
+                color: IzyTelColors.primary,
                 label: 'En attente',
                 value: performance.transactionsOther,
               ),
               _Legend(
-                color: AppColors.warningContainer,
+                color: IzyTelColors.warning,
                 label: 'Refusées',
                 value: performance.transactionsRefused,
               ),
               _Legend(
-                color: AppColors.error,
+                color: IzyTelColors.error,
                 label: 'Échouées',
                 value: performance.transactionsFailed,
               ),
@@ -714,7 +724,7 @@ class _Legend extends StatelessWidget {
         Text(
           '$label : $value',
           style: const TextStyle(
-            color: AppColors.onSurfaceVariant,
+            color: IzyTelColors.textSecondary,
             fontSize: 11,
           ),
         ),
@@ -743,14 +753,14 @@ class _CommissionSummaryCard extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: AppColors.surfaceContainer,
+              color: IzyTelColors.surface,
               borderRadius: BorderRadius.circular(11),
             ),
             child: Row(
               children: [
                 const Icon(
-                  Icons.info_outline_rounded,
-                  color: AppColors.primaryContainer,
+                  Symbols.info_rounded,
+                  color: IzyTelColors.primary,
                   size: 17,
                 ),
                 const SizedBox(width: 7),
@@ -758,7 +768,7 @@ class _CommissionSummaryCard extends StatelessWidget {
                   child: Text(
                     'Règle actuelle : ${CommissionPolicy.current.label}',
                     style: const TextStyle(
-                      color: AppColors.onBackground,
+                      color: IzyTelColors.textPrimary,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
@@ -771,7 +781,7 @@ class _CommissionSummaryCard extends StatelessWidget {
           const Text(
             'Les performances historiques restent visibles, mais seules les transactions réussies depuis l’activation des commissions génèrent une rémunération.',
             style: TextStyle(
-              color: AppColors.onSurfaceVariant,
+              color: IzyTelColors.textSecondary,
               fontSize: 10,
               height: 1.35,
             ),
@@ -800,9 +810,9 @@ class _CommissionSummaryCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 15),
             decoration: BoxDecoration(
-              color: AppColors.primary.withAlpha(28),
+              color: IzyTelColors.primary.withAlpha(28),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.primary.withAlpha(90)),
+              border: Border.all(color: IzyTelColors.primary.withAlpha(90)),
             ),
             child: Row(
               children: [
@@ -810,7 +820,7 @@ class _CommissionSummaryCard extends StatelessWidget {
                   child: Text(
                     isAdminView ? 'Solde à payer' : 'À recevoir',
                     style: const TextStyle(
-                      color: AppColors.primaryContainer,
+                      color: IzyTelColors.primary,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -818,7 +828,7 @@ class _CommissionSummaryCard extends StatelessWidget {
                 Text(
                   formatCfa(performance.commissionBalance),
                   style: const TextStyle(
-                    color: AppColors.primaryContainer,
+                    color: IzyTelColors.primary,
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
                   ),
@@ -832,7 +842,7 @@ class _CommissionSummaryCard extends StatelessWidget {
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: onPay,
-                icon: const Icon(Icons.payments_outlined),
+                icon: const Icon(Symbols.payments_rounded),
                 label: const Text('Enregistrer un paiement'),
               ),
             ),
@@ -878,7 +888,7 @@ class _RecentCommissionList extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  color: AppColors.onBackground,
+                                  color: IzyTelColors.textPrimary,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w800,
                                 ),
@@ -887,7 +897,7 @@ class _RecentCommissionList extends StatelessWidget {
                               Text(
                                 '${_networkLabel(value.network)} • ${_formatShortDate(value.earnedAt)}',
                                 style: const TextStyle(
-                                  color: AppColors.onSurfaceVariant,
+                                  color: IzyTelColors.textSecondary,
                                   fontSize: 10,
                                 ),
                               ),
@@ -901,7 +911,7 @@ class _RecentCommissionList extends StatelessWidget {
                             Text(
                               formatCfa(value.orderAmount),
                               style: const TextStyle(
-                                color: AppColors.onBackground,
+                                color: IzyTelColors.textPrimary,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -910,7 +920,7 @@ class _RecentCommissionList extends StatelessWidget {
                             Text(
                               '+${formatCfa(value.commissionAmount)}',
                               style: const TextStyle(
-                                color: AppColors.success,
+                                color: IzyTelColors.success,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w900,
                               ),
@@ -956,8 +966,8 @@ class _RecentPayoutList extends StatelessWidget {
                     child: Row(
                       children: [
                         const Icon(
-                          Icons.account_balance_wallet_outlined,
-                          color: AppColors.wave,
+                          Symbols.account_balance_wallet_rounded,
+                          color: IzyTelColors.wave,
                           size: 20,
                         ),
                         const SizedBox(width: 10),
@@ -968,14 +978,14 @@ class _RecentPayoutList extends StatelessWidget {
                               Text(
                                 value.paymentReference,
                                 style: const TextStyle(
-                                  color: AppColors.onBackground,
+                                  color: IzyTelColors.textPrimary,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
                               Text(
                                 '${_formatShortDate(value.paidAt)} • ${value.createdByName}',
                                 style: const TextStyle(
-                                  color: AppColors.onSurfaceVariant,
+                                  color: IzyTelColors.textSecondary,
                                   fontSize: 10,
                                 ),
                               ),
@@ -985,7 +995,7 @@ class _RecentPayoutList extends StatelessWidget {
                         Text(
                           formatCfa(value.amount),
                           style: const TextStyle(
-                            color: AppColors.primaryContainer,
+                            color: IzyTelColors.primary,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -1017,9 +1027,9 @@ class _BaseCard extends StatelessWidget {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerHigh,
+        color: IzyTelColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.outlineVariant),
+        border: Border.all(color: IzyTelColors.outline),
       ),
       child: child,
     );
@@ -1035,7 +1045,7 @@ class _MetricLabel extends StatelessWidget {
     return Text(
       value,
       style: const TextStyle(
-        color: AppColors.onSurfaceVariant,
+        color: IzyTelColors.textSecondary,
         fontSize: 10,
         fontWeight: FontWeight.w800,
         letterSpacing: .35,
@@ -1057,7 +1067,7 @@ class _ValueRow extends StatelessWidget {
           child: Text(
             label,
             style: const TextStyle(
-              color: AppColors.onSurfaceVariant,
+              color: IzyTelColors.textSecondary,
               fontSize: 12,
             ),
           ),
@@ -1066,7 +1076,7 @@ class _ValueRow extends StatelessWidget {
         Text(
           value,
           style: const TextStyle(
-            color: AppColors.onBackground,
+            color: IzyTelColors.textPrimary,
             fontSize: 12,
             fontWeight: FontWeight.w800,
           ),
@@ -1102,13 +1112,13 @@ class _StatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: (active ? AppColors.success : AppColors.error).withAlpha(30),
+        color: (active ? IzyTelColors.success : IzyTelColors.error).withAlpha(30),
         borderRadius: BorderRadius.circular(99),
       ),
       child: Text(
         active ? 'Agent actif' : 'Agent suspendu',
         style: TextStyle(
-          color: active ? AppColors.success : AppColors.error,
+          color: active ? IzyTelColors.success : IzyTelColors.error,
           fontSize: 9,
           fontWeight: FontWeight.w800,
         ),
@@ -1126,7 +1136,7 @@ class _EmptyCard extends StatelessWidget {
     return _BaseCard(
       child: Text(
         message,
-        style: const TextStyle(color: AppColors.onSurfaceVariant),
+        style: const TextStyle(color: IzyTelColors.textSecondary),
       ),
     );
   }
@@ -1150,12 +1160,12 @@ class _StateMessage extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: AppColors.onSurfaceVariant, size: 40),
+            Icon(icon, color: IzyTelColors.textSecondary, size: 40),
             const SizedBox(height: 12),
             Text(
               title,
               style: const TextStyle(
-                color: AppColors.onBackground,
+                color: IzyTelColors.textPrimary,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -1163,7 +1173,7 @@ class _StateMessage extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.onSurfaceVariant),
+              style: const TextStyle(color: IzyTelColors.textSecondary),
             ),
           ],
         ),
@@ -1175,22 +1185,22 @@ class _StateMessage extends StatelessWidget {
 Color _networkColor(MobileNetwork network) {
   switch (network) {
     case MobileNetwork.orange:
-      return AppColors.orange;
+      return IzyTelColors.orange;
     case MobileNetwork.mtn:
-      return AppColors.mtn;
+      return IzyTelColors.mtn;
     case MobileNetwork.moov:
-      return AppColors.moov;
+      return IzyTelColors.moov;
   }
 }
 
 Color _agentNetworkColor(AgentNetwork network) {
   switch (network) {
     case AgentNetwork.orange:
-      return AppColors.orange;
+      return IzyTelColors.orange;
     case AgentNetwork.mtn:
-      return AppColors.mtn;
+      return IzyTelColors.mtn;
     case AgentNetwork.moov:
-      return AppColors.moov;
+      return IzyTelColors.moov;
   }
 }
 

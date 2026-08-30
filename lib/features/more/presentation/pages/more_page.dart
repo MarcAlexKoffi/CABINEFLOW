@@ -1,22 +1,16 @@
 import 'package:cabine_flow/app/app_routes.dart';
 import 'package:cabine_flow/core/theme/app_colors.dart';
-import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_management_page.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
-import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
-import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
-import 'package:cabine_flow/features/commissions/presentation/pages/commission_management_page.dart';
 import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
 import 'package:cabine_flow/features/offers/presentation/pages/offer_management_page.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/refunds/data/repositories/fake_refund_repository.dart';
 import 'package:cabine_flow/features/refunds/data/repositories/firestore_refund_repository.dart';
-import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
-import 'package:cabine_flow/features/refunds/presentation/pages/refund_management_page.dart';
 import 'package:cabine_flow/features/support/data/repositories/fake_support_request_repository.dart';
 import 'package:cabine_flow/features/support/data/repositories/firestore_support_request_repository.dart';
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
@@ -34,7 +28,6 @@ class MorePage extends StatelessWidget {
     required this.adminOfferRepository,
     required this.agentRepository,
     required this.ordersRepository,
-    required this.commissionRepository,
   });
 
   final AppUser user;
@@ -42,7 +35,6 @@ class MorePage extends StatelessWidget {
   final AdminOfferRepository adminOfferRepository;
   final AgentRepository agentRepository;
   final OrdersRepository ordersRepository;
-  final CommissionRepository commissionRepository;
 
   Future<void> _logout(BuildContext context) async {
     final bool? confirmed = await showDialog<bool>(
@@ -196,84 +188,7 @@ class MorePage extends StatelessWidget {
                 },
           ),
           const SizedBox(height: 12),
-          StreamBuilder<List<RefundCase>>(
-            stream: refundRepository.watchAll(),
-            builder:
-                (
-                  BuildContext context,
-                  AsyncSnapshot<List<RefundCase>> snapshot,
-                ) {
-                  final List<RefundCase> refunds =
-                      snapshot.data ?? const <RefundCase>[];
-                  final int activeCount = refunds
-                      .where((RefundCase refund) => refund.isActive)
-                      .length;
-                  return _AdminFeatureCard(
-                    icon: Icons.currency_exchange_rounded,
-                    title: 'Remboursements',
-                    description:
-                        'Valider, effectuer, tracer et rapprocher les remboursements clients.',
-                    enabled: historyRepository != null,
-                    badgeCount: activeCount,
-                    onTap: historyRepository == null
-                        ? null
-                        : () {
-                            Navigator.of(context).push<void>(
-                              MaterialPageRoute<void>(
-                                builder: (BuildContext context) {
-                                  return RefundManagementPage(
-                                    user: user,
-                                    repository: refundRepository,
-                                    orderHistoryRepository: historyRepository,
-                                  );
-                                },
-                              ),
-                            );
-                          },
-                  );
-                },
-          ),
-          const SizedBox(height: 12),
-          StreamBuilder<List<CommissionAccount>>(
-            stream: commissionRepository.watchAccounts(),
-            builder:
-                (
-                  BuildContext context,
-                  AsyncSnapshot<List<CommissionAccount>> snapshot,
-                ) {
-                  final int outstanding =
-                      (snapshot.data ?? const <CommissionAccount>[]).fold<int>(
-                        0,
-                        (int total, CommissionAccount account) =>
-                            total +
-                            account.balance
-                                .clamp(0, account.earnedTotal)
-                                .toInt(),
-                      );
-                  return _AdminFeatureCard(
-                    icon: Icons.account_balance_wallet_outlined,
-                    title: 'Commissions',
-                    description: outstanding > 0
-                        ? 'Suivre les performances et ${formatCfa(outstanding)} restant à payer aux agents.'
-                        : 'Suivre les performances, commissions acquises et paiements des agents.',
-                    enabled: true,
-                    onTap: () {
-                      Navigator.of(context).push<void>(
-                        MaterialPageRoute<void>(
-                          builder: (BuildContext context) {
-                            return CommissionManagementPage(
-                              user: user,
-                              repository: commissionRepository,
-                              agentRepository: agentRepository,
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  );
-                },
-          ),
-          const SizedBox(height: 12),
+          // Remboursements et commissions ont été déplacés dans l’onglet Finances.
           _AdminFeatureCard(
             icon: Icons.local_offer_rounded,
             title: 'Gestion des offres',
@@ -318,7 +233,7 @@ class MorePage extends StatelessWidget {
             icon: Icons.rule_folder_outlined,
             title: 'Supervision et incidents',
             description:
-                'Rapprochements, anomalies et alertes opérationnelles.',
+                'Anomalies, alertes opérationnelles et contrôles d’audit.',
           ),
           const SizedBox(height: 22),
           _AdminLogoutCard(onTap: () => _logout(context)),

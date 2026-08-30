@@ -1,4 +1,5 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:flutter/material.dart';
 
 class RefundTextInputSheet extends StatefulWidget {
@@ -50,8 +51,8 @@ class _RefundTextInputSheetState extends State<RefundTextInputSheet> {
       duration: const Duration(milliseconds: 180),
       padding: EdgeInsets.only(bottom: bottomInset),
       child: Material(
-        color: AppColors.surfaceContainer,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        color: IzyTelColors.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(IzyTelRadii.sheet)),
         child: SafeArea(
           top: false,
           child: SingleChildScrollView(
@@ -66,7 +67,7 @@ class _RefundTextInputSheetState extends State<RefundTextInputSheet> {
                     width: 42,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: AppColors.outline.withAlpha(90),
+                      color: IzyTelColors.outlineStrong.withAlpha(90),
                       borderRadius: BorderRadius.circular(99),
                     ),
                   ),
@@ -75,8 +76,8 @@ class _RefundTextInputSheetState extends State<RefundTextInputSheet> {
                 Text(
                   widget.title,
                   style: const TextStyle(
-                    color: AppColors.onBackground,
-                    fontSize: 20,
+                    color: IzyTelColors.textPrimary,
+                    fontSize: IzyTelTypeScale.title3,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -85,8 +86,8 @@ class _RefundTextInputSheetState extends State<RefundTextInputSheet> {
                   Text(
                     widget.description!,
                     style: const TextStyle(
-                      color: AppColors.onSurfaceVariant,
-                      fontSize: 12,
+                      color: IzyTelColors.textSecondary,
+                      fontSize: IzyTelTypeScale.micro,
                       height: 1.4,
                     ),
                   ),
@@ -95,8 +96,8 @@ class _RefundTextInputSheetState extends State<RefundTextInputSheet> {
                 Text(
                   widget.label,
                   style: const TextStyle(
-                    color: AppColors.onBackground,
-                    fontSize: 12,
+                    color: IzyTelColors.textPrimary,
+                    fontSize: IzyTelTypeScale.label,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -106,12 +107,12 @@ class _RefundTextInputSheetState extends State<RefundTextInputSheet> {
                   minLines: widget.maxLines > 1 ? 2 : 1,
                   maxLines: widget.maxLines,
                   maxLength: widget.maxLength,
-                  style: const TextStyle(color: AppColors.inputText),
+                  style: const TextStyle(color: IzyTelColors.textPrimary),
                   decoration: InputDecoration(
                     hintText: widget.hint,
                     filled: true,
-                    fillColor: AppColors.inputBackground,
-                    hintStyle: const TextStyle(color: AppColors.inputHint),
+                    fillColor: IzyTelColors.surfaceMuted,
+                    hintStyle: const TextStyle(color: IzyTelColors.textMuted),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -119,7 +120,7 @@ class _RefundTextInputSheetState extends State<RefundTextInputSheet> {
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(
-                        color: AppColors.primary,
+                        color: IzyTelColors.primary,
                         width: 1.4,
                       ),
                     ),
@@ -130,7 +131,7 @@ class _RefundTextInputSheetState extends State<RefundTextInputSheet> {
                   Text(
                     _errorMessage!,
                     style: const TextStyle(
-                      color: AppColors.error,
+                      color: IzyTelColors.error,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),

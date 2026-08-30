@@ -283,14 +283,19 @@ class _MainShellPageState extends State<MainShellPage> {
         onPaymentConfirmed: _handlePaymentConfirmed,
         onOpenOrders: _openOrdersTab,
       ),
-      const FinancesPage(),
+      FinancesPage(
+        user: widget.user,
+        ordersRepository: widget.ordersRepository,
+        commissionRepository: widget.commissionRepository,
+        agentRepository: widget.agentRepository,
+        onOpenPayments: _openPaymentsTab,
+      ),
       MorePage(
         user: widget.user,
         authRepository: widget.authRepository,
         adminOfferRepository: widget.adminOfferRepository,
         agentRepository: widget.agentRepository,
         ordersRepository: widget.ordersRepository,
-        commissionRepository: widget.commissionRepository,
       ),
     ];
 
