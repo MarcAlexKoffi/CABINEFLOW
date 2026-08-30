@@ -1,12 +1,15 @@
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/audit/data/repositories/fake_order_audit_repository.dart';
 import 'package:cabine_flow/features/audit/data/repositories/firestore_order_audit_repository.dart';
 import 'package:cabine_flow/features/audit/domain/models/order_audit_entry.dart';
 import 'package:cabine_flow/features/audit/domain/repositories/order_audit_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/orders/domain/models/order_proof.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/features/support/data/repositories/fake_support_request_repository.dart';
 import 'package:cabine_flow/features/support/data/repositories/firestore_support_request_repository.dart';
@@ -16,6 +19,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class OrderDetailPage extends StatefulWidget {
@@ -44,7 +48,9 @@ class OrderDetailPage extends StatefulWidget {
 
 class _OrderDetailPageState extends State<OrderDetailPage> {
   late QueueOrder _order;
+  OrderProof? _proof;
   bool _isRefreshing = false;
+  bool _isProofLoading = false;
   String? _errorMessage;
   late final SupportRequestRepository _supportRequestRepository;
   late final OrderAuditRepository _auditRepository;
@@ -65,7 +71,42 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                 includeRefundEvents: widget.user.role == UserRole.administrator,
               )
             : FakeOrderAuditRepository());
-    _refreshOrder(showLoader: false);
+    _refreshAll(showLoader: false);
+  }
+
+  Future<void> _refreshAll({bool showLoader = true}) async {
+    await Future.wait(<Future<void>>[
+      _refreshOrder(showLoader: showLoader),
+      _loadProof(),
+    ]);
+  }
+
+  Future<void> _loadProof() async {
+    final OrdersRepository? repository = widget.ordersRepository is OrdersRepository
+        ? widget.ordersRepository as OrdersRepository
+        : null;
+    if (repository == null) {
+      return;
+    }
+
+    if (mounted) {
+      setState(() => _isProofLoading = true);
+    }
+
+    try {
+      final OrderProof? proof = await repository.fetchOrderProof(
+        orderId: _order.id,
+      );
+      if (!mounted) return;
+      setState(() => _proof = proof);
+    } catch (_) {
+      // Une preuve absente ou momentanément indisponible ne doit pas bloquer
+      // l'affichage du détail de commande.
+    } finally {
+      if (mounted) {
+        setState(() => _isProofLoading = false);
+      }
+    }
   }
 
   Future<void> _refreshOrder({bool showLoader = true}) async {
@@ -167,6 +208,28 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  String get _refundLabel {
+    switch (_order.status) {
+      case QueueOrderStatus.refundPending:
+        return 'En attente';
+      case QueueOrderStatus.refunded:
+        return 'Remboursée';
+      default:
+        return 'Aucun';
+    }
+  }
+
+  Color get _refundColor {
+    switch (_order.status) {
+      case QueueOrderStatus.refundPending:
+        return IzyTelColors.warning;
+      case QueueOrderStatus.refunded:
+        return IzyTelColors.success;
+      default:
+        return IzyTelColors.textMuted;
+    }
+  }
+
   String _processingDurationLabel() {
     final DateTime? startedAt = _order.takenAt;
     if (startedAt == null) {
@@ -206,13 +269,14 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
           children: [
             _DetailTopBar(
               onBack: widget.onBack,
-              onRefresh: () => _refreshOrder(),
+              onRefresh: () => _refreshAll(),
+              onCopyReference: () => _copyValue(_order.reference, 'Référence'),
               isRefreshing: _isRefreshing,
             ),
             const Divider(height: 1, color: IzyTelColors.outline),
             Expanded(
               child: RefreshIndicator(
-                onRefresh: _refreshOrder,
+                onRefresh: _refreshAll,
                 color: IzyTelColors.primary,
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
@@ -232,7 +296,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                         child: Row(
                           children: [
                             const Icon(
-                              Icons.error_outline_rounded,
+                              Symbols.error_rounded,
                               color: IzyTelColors.error,
                             ),
                             const SizedBox(width: 10),
@@ -251,232 +315,285 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                       ),
                     ],
                     const SizedBox(height: 20),
-                    _DetailSection(
-                      icon: Icons.person_outline_rounded,
-                      title: 'Client',
-                      child: Column(
-                        children: [
-                          _ClientIdentityCard(order: _order),
-                          if (_order.customerAuthUid?.trim().isNotEmpty ==
-                              true) ...[
-                            const SizedBox(height: 10),
-                            _DetailRow(
-                              label: 'Identifiant technique',
-                              value: _order.customerAuthUid!,
-                              showDivider: false,
-                            ),
-                          ],
-                          const SizedBox(height: 12),
-                          Row(
+                    _DetailGroup(
+                      children: [
+                        _DetailSection(
+                          icon: Symbols.person_rounded,
+                          title: 'Client',
+                          child: Column(
                             children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: _openWhatsapp,
-                                  icon: Image.asset(
-                                    'assets/images/whatsapp_logo.png',
-                                    width: 20,
-                                    height: 20,
+                              _ClientIdentityCard(order: _order),
+                              if (_order.customerAuthUid?.trim().isNotEmpty ==
+                                  true) ...[
+                                const SizedBox(height: IzyTelSpacing.sm),
+                                _DetailRow(
+                                  label: 'Identifiant technique',
+                                  value: _order.customerAuthUid!,
+                                  canCopy: true,
+                                  onCopy: () => _copyValue(
+                                    _order.customerAuthUid!,
+                                    'Identifiant technique',
                                   ),
-                                  label: const Text('WhatsApp'),
+                                  showDivider: false,
                                 ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () => widget.onOpenCustomerHistory(
-                                    _order.clientWhatsappPhone,
+                              ],
+                              const SizedBox(height: IzyTelSpacing.md),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    fit: FlexFit.tight,
+                                    child: OutlinedButton.icon(
+                                      onPressed: _openWhatsapp,
+                                      icon: Image.asset(
+                                        'assets/images/whatsapp_logo.png',
+                                        width: 20,
+                                        height: 20,
+                                      ),
+                                      label: const Text('WhatsApp'),
+                                    ),
                                   ),
-                                  icon: const Icon(Icons.history_rounded),
-                                  label: const Text('Historique'),
-                                ),
+                                  const SizedBox(width: IzyTelSpacing.sm),
+                                  Flexible(
+                                    fit: FlexFit.tight,
+                                    child: OutlinedButton.icon(
+                                      onPressed: () =>
+                                          widget.onOpenCustomerHistory(
+                                        _order.clientWhatsappPhone,
+                                      ),
+                                      icon: const Icon(
+                                        Symbols.history_rounded,
+                                        size: IzyTelIconSize.info,
+                                      ),
+                                      label: const Text('Historique'),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _DetailSection(
-                      icon: Icons.account_balance_wallet_outlined,
-                      title: 'Paiement',
-                      trailing: _SmallStatusBadge(
-                        label: paymentStatusLabel(_order.paymentStatus),
-                        color:
-                            _order.paymentStatus == OrderPaymentStatus.confirmed
-                            ? IzyTelColors.success
-                            : IzyTelColors.warning,
-                      ),
-                      child: Column(
-                        children: [
-                          _DetailRow(
-                            label: 'Payeur',
-                            value: _order.paymentPayerName ?? _order.clientName,
-                          ),
-                          _DetailRow(
-                            label: 'Numéro payeur',
-                            value: _order.paymentPayerPhone == null
-                                ? 'Non renseigné'
-                                : formatIvorianPhone(_order.paymentPayerPhone!),
-                          ),
-                          _DetailRow(
-                            label: 'Montant reçu',
-                            value:
-                                _order.paymentStatus ==
-                                    OrderPaymentStatus.confirmed
-                                ? formatCfa(_order.amount)
-                                : 'Non confirmé',
-                            valueColor:
+                        ),
+                        _DetailSection(
+                          icon: Symbols.wallet_rounded,
+                          title: 'Paiement',
+                          trailing: _SmallStatusBadge(
+                            label: paymentStatusLabel(_order.paymentStatus),
+                            color:
                                 _order.paymentStatus ==
                                     OrderPaymentStatus.confirmed
                                 ? IzyTelColors.success
-                                : IzyTelColors.textPrimary,
+                                : IzyTelColors.warning,
                           ),
-                          _DetailRow(
-                            label: 'Référence confirmée',
-                            value: _order.paymentReference ?? 'Non renseignée',
-                            canCopy: _order.paymentReference != null,
-                            onCopy: _order.paymentReference == null
-                                ? null
-                                : () => _copyValue(
-                                    _order.paymentReference!,
-                                    'Référence de paiement',
+                          child: Column(
+                            children: [
+                              _DetailRow(
+                                label: 'Payeur',
+                                value:
+                                    _order.paymentPayerName ?? _order.clientName,
+                              ),
+                              _DetailRow(
+                                label: 'Numéro payeur',
+                                value: _order.paymentPayerPhone == null
+                                    ? 'Non renseigné'
+                                    : formatIvorianPhone(
+                                        _order.paymentPayerPhone!,
+                                      ),
+                              ),
+                              _DetailRow(
+                                label: 'Montant reçu',
+                                value:
+                                    _order.paymentStatus ==
+                                        OrderPaymentStatus.confirmed
+                                    ? formatCfa(_order.amount)
+                                    : 'Non confirmé',
+                                valueColor:
+                                    _order.paymentStatus ==
+                                        OrderPaymentStatus.confirmed
+                                    ? IzyTelColors.success
+                                    : IzyTelColors.textPrimary,
+                              ),
+                              _DetailRow(
+                                label: 'Référence confirmée',
+                                value:
+                                    _order.paymentReference ?? 'Non renseignée',
+                                canCopy: _order.paymentReference != null,
+                                onCopy: _order.paymentReference == null
+                                    ? null
+                                    : () => _copyValue(
+                                        _order.paymentReference!,
+                                        'Référence de paiement',
+                                      ),
+                              ),
+                              _DetailRow(
+                                label: 'Confirmation',
+                                value: _order.paymentConfirmedAt == null
+                                    ? 'Non confirmée'
+                                    : formatOrderDateTime(
+                                        _order.paymentConfirmedAt!,
+                                      ),
+                                showDivider: false,
+                              ),
+                            ],
+                          ),
+                        ),
+                        _DetailSection(
+                          icon: Symbols.receipt_long_rounded,
+                          title: 'Détails de l’offre',
+                          child: Column(
+                            children: [
+                              _DetailRow(
+                                label: 'Service',
+                                value: operationTypeLabel(_order.operationType),
+                              ),
+                              _DetailRow(
+                                label: 'Offre',
+                                value: _order.offerLabel,
+                              ),
+                              _DetailRow(
+                                label: 'Réseau',
+                                value: networkLabel(_order.network),
+                              ),
+                              _DetailRow(
+                                label: 'Bénéficiaire',
+                                value: formatIvorianPhone(
+                                  _order.beneficiaryPhone,
+                                ),
+                                valueColor: IzyTelColors.primaryStrong,
+                                showDivider: false,
+                              ),
+                            ],
+                          ),
+                        ),
+                        _DetailSection(
+                          icon: Symbols.image_rounded,
+                          title: 'Preuve',
+                          trailing: _proof == null
+                              ? null
+                              : const _SmallStatusBadge(
+                                  label: 'Ajoutée',
+                                  color: IzyTelColors.success,
+                                ),
+                          child: _ProofSectionContent(
+                            proof: _proof,
+                            isLoading: _isProofLoading,
+                          ),
+                        ),
+                        _DetailSection(
+                          icon: Symbols.autorenew_rounded,
+                          title: 'Traitement',
+                          child: Column(
+                            children: [
+                              _DetailRow(
+                                label: 'Agent affecté',
+                                value:
+                                    _order.assignedAgentName ?? 'Non affectée',
+                              ),
+                              _DetailRow(
+                                label: 'Mode d’affectation',
+                                value: _order.assignmentMode == null
+                                    ? 'Non renseigné'
+                                    : (_order.assignmentMode ==
+                                              OrderAssignmentMode.manual
+                                          ? 'Manuelle'
+                                          : 'Automatique'),
+                              ),
+                              _DetailRow(
+                                label: 'Prise en charge',
+                                value: _order.takenAt == null
+                                    ? 'Non prise en charge'
+                                    : formatOrderDateTime(_order.takenAt!),
+                              ),
+                              _DetailRow(
+                                label: 'Durée',
+                                value: _processingDurationLabel(),
+                              ),
+                              _DetailRow(
+                                label: 'Résultat',
+                                value: orderStatusLabel(_order.status),
+                                valueColor: statusColor,
+                              ),
+                              if (_order.failureReason != null)
+                                _DetailRow(
+                                  label: 'Motif d’échec',
+                                  value: failureReasonLabel(
+                                    _order.failureReason,
                                   ),
+                                ),
+                              _DetailRow(
+                                label: 'Observation',
+                                value:
+                                    _order.observation ?? 'Aucune observation',
+                                showDivider: false,
+                              ),
+                            ],
                           ),
-                          _DetailRow(
-                            label: 'Confirmation',
-                            value: _order.paymentConfirmedAt == null
-                                ? 'Non confirmée'
-                                : formatOrderDateTime(
-                                    _order.paymentConfirmedAt!,
-                                  ),
-                            showDivider: false,
+                        ),
+                        _DetailSection(
+                          icon: Symbols.history_rounded,
+                          title: 'Journal d’activité',
+                          trailing: const _SmallStatusBadge(
+                            label: 'Temps réel',
+                            color: IzyTelColors.primary,
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _DetailSection(
-                      icon: Icons.receipt_long_outlined,
-                      title: 'Détails de la commande',
-                      child: Column(
-                        children: [
-                          _DetailRow(
-                            label: 'Service',
-                            value: operationTypeLabel(_order.operationType),
+                          child: _OrderAuditTimeline(
+                            orderId: _order.id,
+                            repository: _auditRepository,
+                            includesRefunds:
+                                widget.user.role == UserRole.administrator,
                           ),
-                          _DetailRow(label: 'Offre', value: _order.offerLabel),
-                          _DetailRow(
-                            label: 'Réseau',
-                            value: networkLabel(_order.network),
+                        ),
+                        _DetailSection(
+                          icon: Symbols.chat_bubble_rounded,
+                          title: 'Demandes client',
+                          child: _OrderSupportRequests(
+                            orderId: _order.id,
+                            repository: _supportRequestRepository,
                           ),
-                          _DetailRow(
-                            label: 'Bénéficiaire',
-                            value: formatIvorianPhone(_order.beneficiaryPhone),
-                            showDivider: false,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _DetailSection(
-                      icon: Icons.support_agent_rounded,
-                      title: 'Demandes client',
-                      child: _OrderSupportRequests(
-                        orderId: _order.id,
-                        repository: _supportRequestRepository,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _DetailSection(
-                      icon: Icons.settings_suggest_outlined,
-                      title: 'Traitement',
-                      child: Column(
-                        children: [
-                          _DetailRow(
-                            label: 'Agent affecté',
-                            value: _order.assignedAgentName ?? 'Non affectée',
-                          ),
-                          _DetailRow(
-                            label: 'Mode d’affectation',
-                            value: _order.assignmentMode == null
-                                ? 'Non renseigné'
-                                : (_order.assignmentMode ==
-                                          OrderAssignmentMode.manual
-                                      ? 'Manuelle'
-                                      : 'Automatique'),
-                          ),
-                          _DetailRow(
-                            label: 'Prise en charge',
-                            value: _order.takenAt == null
-                                ? 'Non prise en charge'
-                                : formatOrderDateTime(_order.takenAt!),
-                          ),
-                          _DetailRow(
-                            label: 'Durée',
-                            value: _processingDurationLabel(),
-                          ),
-                          _DetailRow(
-                            label: 'Résultat',
-                            value: orderStatusLabel(_order.status),
-                            valueColor: statusColor,
-                          ),
-                          if (_order.failureReason != null)
-                            _DetailRow(
-                              label: 'Motif d’échec',
-                              value: failureReasonLabel(_order.failureReason),
+                        ),
+                        if (widget.user.role == UserRole.administrator)
+                          _DetailSection(
+                            icon: Symbols.payments_rounded,
+                            title: 'Remboursement',
+                            trailing: _SmallStatusBadge(
+                              label: _refundLabel,
+                              color: _refundColor,
                             ),
-                          _DetailRow(
-                            label: 'Observation',
-                            value: _order.observation ?? 'Aucune observation',
-                            showDivider: false,
+                            child: _RefundSectionContent(order: _order),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _DetailSection(
-                      icon: Icons.history_rounded,
-                      title: 'Journal d’activité',
-                      trailing: const _SmallStatusBadge(
-                        label: 'Temps réel',
-                        color: IzyTelColors.primary,
-                      ),
-                      child: _OrderAuditTimeline(
-                        orderId: _order.id,
-                        repository: _auditRepository,
-                        includesRefunds:
-                            widget.user.role == UserRole.administrator,
-                      ),
+                      ],
                     ),
                     if (_order.internalNotes?.trim().isNotEmpty == true ||
                         _order.originalWhatsappMessage?.trim().isNotEmpty ==
                             true) ...[
                       const SizedBox(height: 10),
-                      _DetailSection(
-                        icon: Icons.notes_rounded,
-                        title: 'Notes',
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (_order.internalNotes?.trim().isNotEmpty == true)
-                              _TextBlock(
-                                label: 'Note interne',
-                                value: _order.internalNotes!,
-                              ),
-                            if (_order.originalWhatsappMessage
-                                    ?.trim()
-                                    .isNotEmpty ==
-                                true) ...[
-                              if (_order.internalNotes?.trim().isNotEmpty ==
-                                  true)
-                                const SizedBox(height: 12),
-                              _TextBlock(
-                                label: 'Message WhatsApp original',
-                                value: _order.originalWhatsappMessage!,
-                              ),
-                            ],
-                          ],
-                        ),
+                      _DetailGroup(
+                        children: [
+                          _DetailSection(
+                            icon: Symbols.receipt_long_rounded,
+                            title: 'Notes',
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (_order.internalNotes?.trim().isNotEmpty == true)
+                                  _TextBlock(
+                                    label: 'Note interne',
+                                    value: _order.internalNotes!,
+                                  ),
+                                if (_order.originalWhatsappMessage
+                                        ?.trim()
+                                        .isNotEmpty ==
+                                    true) ...[
+                                  if (_order.internalNotes?.trim().isNotEmpty ==
+                                      true)
+                                    const SizedBox(height: 12),
+                                  _TextBlock(
+                                    label: 'Message WhatsApp original',
+                                    value: _order.originalWhatsappMessage!,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ],
@@ -514,66 +631,94 @@ class _OrderProgressTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool currentProcessing = _processing && !_done;
     final List<_ProgressStepData> steps = <_ProgressStepData>[
       _ProgressStepData(
         label: 'Payée',
-        active: _paid,
+        state: _paid ? _ProgressState.done : _ProgressState.pending,
         date: order.paymentConfirmedAt,
       ),
       _ProgressStepData(
         label: 'Affectée',
-        active: _assigned,
+        state: _assigned ? _ProgressState.done : _ProgressState.pending,
         date: order.assignedAt,
       ),
       _ProgressStepData(
         label: order.status == QueueOrderStatus.onHold
             ? 'En attente'
             : 'En traitement',
-        active: _processing,
+        state: currentProcessing
+            ? _ProgressState.current
+            : (_done ? _ProgressState.done : _ProgressState.pending),
         date: order.takenAt,
       ),
       _ProgressStepData(
         label: order.status == QueueOrderStatus.failed ? 'Échouée' : 'Terminée',
-        active: _done,
+        state: _done ? _ProgressState.done : _ProgressState.pending,
         date: order.completedAt,
       ),
     ];
 
-    return IzyTelSurface(
-      padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: List<Widget>.generate(steps.length * 2 - 1, (int index) {
-          if (index.isOdd) {
-            final int previous = (index - 1) ~/ 2;
-            final bool active =
-                steps[previous].active && steps[previous + 1].active;
-            return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 15),
-                child: Container(
-                  height: 2,
-                  color: active ? IzyTelColors.success : IzyTelColors.outline,
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double itemWidth = constraints.maxWidth / steps.length;
+        return SizedBox(
+          height: 82,
+          child: Stack(
+            children: [
+              Positioned(
+                left: itemWidth / 2,
+                right: itemWidth / 2,
+                top: 15,
+                child: Row(
+                  children: List<Widget>.generate(steps.length - 1, (int index) {
+                    final _ProgressState left = steps[index].state;
+                    final _ProgressState right = steps[index + 1].state;
+                    final bool completed =
+                        left == _ProgressState.done &&
+                        right != _ProgressState.pending;
+                    return Flexible(
+                      fit: FlexFit.tight,
+                      child: Container(
+                        height: 2,
+                        color: completed
+                            ? IzyTelColors.success
+                            : IzyTelColors.outlineStrong,
+                      ),
+                    );
+                  }),
                 ),
               ),
-            );
-          }
-          final _ProgressStepData step = steps[index ~/ 2];
-          return _ProgressStep(step: step);
-        }),
-      ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: steps
+                    .map(
+                      (_ProgressStepData step) => Flexible(
+                        fit: FlexFit.tight,
+                        child: _ProgressStep(step: step),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
 
+enum _ProgressState { done, current, pending }
+
 class _ProgressStepData {
   const _ProgressStepData({
     required this.label,
-    required this.active,
+    required this.state,
     this.date,
   });
+
   final String label;
-  final bool active;
+  final _ProgressState state;
   final DateTime? date;
 }
 
@@ -581,64 +726,83 @@ class _ProgressStep extends StatelessWidget {
   const _ProgressStep({required this.step});
   final _ProgressStepData step;
 
-  String _time(DateTime? value) {
+  String _dateTime(DateTime? value) {
     if (value == null) return '';
     final DateTime d = value.toLocal();
-    return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+    final String day = d.day.toString().padLeft(2, '0');
+    final String month = d.month.toString().padLeft(2, '0');
+    final String hour = d.hour.toString().padLeft(2, '0');
+    final String minute = d.minute.toString().padLeft(2, '0');
+    return '$day/$month · $hour:$minute';
   }
 
   @override
   Widget build(BuildContext context) {
-    final Color color = step.active
+    final bool done = step.state == _ProgressState.done;
+    final bool current = step.state == _ProgressState.current;
+    final Color accent = done
         ? IzyTelColors.success
-        : IzyTelColors.textMuted;
-    return SizedBox(
-      width: 66,
-      child: Column(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: step.active
-                  ? IzyTelColors.success
-                  : IzyTelColors.surfaceMuted,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: step.active
-                    ? IzyTelColors.success
-                    : IzyTelColors.outlineStrong,
+        : (current ? IzyTelColors.primary : IzyTelColors.textMuted);
+    final Color fill = done
+        ? IzyTelColors.success
+        : (current ? IzyTelColors.primarySoft : IzyTelColors.surface);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: fill,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: done || current ? accent : IzyTelColors.outlineStrong,
+              width: 1.2,
+            ),
+          ),
+          child: Icon(
+            done
+                ? Symbols.check_rounded
+                : (current ? Symbols.hourglass_top_rounded : Symbols.check_rounded),
+            size: 17,
+            color: done ? Colors.white : accent,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              step.label,
+              maxLines: 1,
+              style: TextStyle(
+                color: step.state == _ProgressState.pending
+                    ? IzyTelColors.textSecondary
+                    : IzyTelColors.textPrimary,
+                fontSize: 11,
+                fontWeight: current ? FontWeight.w700 : FontWeight.w600,
               ),
             ),
-            child: Icon(
-              step.active ? Icons.check_rounded : Icons.circle_outlined,
-              size: 17,
-              color: step.active ? Colors.white : IzyTelColors.textMuted,
+          ),
+        ),
+        if (step.date != null) ...[
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              _dateTime(step.date),
+              maxLines: 1,
+              style: const TextStyle(
+                color: IzyTelColors.textMuted,
+                fontSize: 9,
+                fontWeight: FontWeight.w400,
+              ),
             ),
           ),
-          const SizedBox(height: 7),
-          Text(
-            step.label,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: step.active
-                  ? IzyTelColors.textPrimary
-                  : IzyTelColors.textMuted,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          if (step.date != null) ...[
-            const SizedBox(height: 2),
-            Text(
-              _time(step.date),
-              style: Theme.of(
-                context,
-              ).textTheme.labelMedium?.copyWith(color: color, fontSize: 10),
-            ),
-          ],
         ],
-      ),
+      ],
     );
   }
 }
@@ -660,7 +824,7 @@ class _OrderSupportRequests extends StatelessWidget {
           (BuildContext context, AsyncSnapshot<List<SupportRequest>> snapshot) {
             if (snapshot.hasError) {
               return const _SupportRequestInfo(
-                icon: Icons.error_outline_rounded,
+                icon: Symbols.error_rounded,
                 message: 'Impossible de charger les demandes client.',
                 color: IzyTelColors.error,
               );
@@ -806,49 +970,99 @@ class _DetailTopBar extends StatelessWidget {
   const _DetailTopBar({
     required this.onBack,
     required this.onRefresh,
+    required this.onCopyReference,
     required this.isRefreshing,
   });
 
   final VoidCallback onBack;
   final VoidCallback onRefresh;
+  final VoidCallback onCopyReference;
   final bool isRefreshing;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       color: IzyTelColors.surface,
-      padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
       child: Row(
         children: [
           IconButton(
             tooltip: 'Retour',
             onPressed: onBack,
-            icon: const Icon(Icons.arrow_back_rounded),
+            icon: const Icon(
+              Symbols.arrow_back_rounded,
+              size: IzyTelIconSize.action,
+            ),
           ),
           const SizedBox(width: 2),
           Expanded(
             child: Text(
-              'Détail de la commande',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              'Détail commande',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: IzyTelColors.textPrimary,
+                fontSize: IzyTelTypeScale.title3,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -.25,
+              ),
             ),
           ),
-          IconButton(
-            tooltip: 'Actualiser',
-            onPressed: isRefreshing ? null : onRefresh,
-            icon: isRefreshing
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.refresh_rounded),
-          ),
+          if (isRefreshing)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14),
+              child: SizedBox.square(
+                dimension: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else
+            PopupMenuButton<_DetailMenuAction>(
+              tooltip: 'Plus d’actions',
+              icon: const Icon(
+                Symbols.more_vert_rounded,
+                size: IzyTelIconSize.action,
+              ),
+              onSelected: (_DetailMenuAction action) {
+                switch (action) {
+                  case _DetailMenuAction.refresh:
+                    onRefresh();
+                    return;
+                  case _DetailMenuAction.copyReference:
+                    onCopyReference();
+                    return;
+                }
+              },
+              itemBuilder: (BuildContext context) => const [
+                PopupMenuItem<_DetailMenuAction>(
+                  value: _DetailMenuAction.refresh,
+                  child: Row(
+                    children: [
+                      Icon(Symbols.refresh_rounded, size: 20),
+                      SizedBox(width: 10),
+                      Text('Actualiser'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem<_DetailMenuAction>(
+                  value: _DetailMenuAction.copyReference,
+                  child: Row(
+                    children: [
+                      Icon(Symbols.receipt_long_rounded, size: 20),
+                      SizedBox(width: 10),
+                      Text('Copier la référence'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
   }
 }
+
+enum _DetailMenuAction { refresh, copyReference }
 
 class _OrderSummaryCard extends StatelessWidget {
   const _OrderSummaryCard({required this.order, required this.onCopy});
@@ -862,117 +1076,159 @@ class _OrderSummaryCard extends StatelessWidget {
     final Color status = orderStatusColor(order.status);
 
     return IzyTelSurface(
-      padding: const EdgeInsets.all(16),
+      radius: IzyTelRadii.card,
+      padding: const EdgeInsets.all(IzyTelSpacing.md),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                width: 48,
-                height: 48,
-                padding: const EdgeInsets.all(5),
+                width: 38,
+                height: 38,
+                padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
                   color: color.withAlpha(18),
-                  borderRadius: BorderRadius.circular(13),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Image.asset(
                   networkAsset(order.network),
                   fit: BoxFit.contain,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
+              const SizedBox(width: IzyTelSpacing.sm),
+              Flexible(
+                child: Text(
+                  networkLabel(order.network),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: IzyTelColors.textPrimary,
+                    fontSize: IzyTelTypeScale.text,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: IzyTelSpacing.sm),
+              _SmallStatusBadge(
+                label: orderStatusLabel(order.status),
+                color: status,
+              ),
+            ],
+          ),
+          const SizedBox(height: IzyTelSpacing.sm),
+          Text(
+            order.offerLabel,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: IzyTelColors.textPrimary,
+              fontSize: IzyTelTypeScale.cardTitle,
+              fontWeight: FontWeight.w700,
+              height: 1.25,
+            ),
+          ),
+          const SizedBox(height: IzyTelSpacing.md),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+                  const Icon(
+                    Symbols.phone_iphone_rounded,
+                    size: IzyTelIconSize.info,
+                    color: IzyTelColors.textMuted,
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(6),
+                      onTap: () => onCopy(
+                        order.beneficiaryPhone,
+                        'Numéro bénéficiaire',
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
                           child: Text(
-                            networkLabel(order.network),
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w800),
+                            formatIvorianPhone(order.beneficiaryPhone),
+                            maxLines: 1,
+                            style: const TextStyle(
+                              color: IzyTelColors.textPrimary,
+                              fontSize: IzyTelTypeScale.transactionNumber,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: .05,
+                            ),
                           ),
                         ),
-                        _SmallStatusBadge(
-                          label: orderStatusLabel(order.status),
-                          color: status,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: IzyTelSpacing.sm),
+                  Text(
+                    formatCfa(order.amount),
+                    maxLines: 1,
+                    style: const TextStyle(
+                      color: IzyTelColors.primaryStrong,
+                      fontSize: IzyTelTypeScale.money,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -.2,
+                    ),
+                  ),
+            ],
+          ),
+          const SizedBox(height: IzyTelSpacing.sm),
+          Row(
+            children: [
+              Flexible(
+                child: Text(
+                  'Créée ${formatOrderDateTime(order.createdAt)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: IzyTelColors.textMuted,
+                    fontSize: IzyTelTypeScale.micro,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ),
+              const SizedBox(width: IzyTelSpacing.sm),
+              Flexible(
+                child: InkWell(
+                  onTap: () => onCopy(order.reference, 'Référence'),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            order.reference,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: IzyTelColors.textSecondary,
+                              fontSize: IzyTelTypeScale.micro,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        const Icon(
+                          Symbols.receipt_long_rounded,
+                          size: 15,
+                          color: IzyTelColors.primary,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      order.offerLabel,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              const Icon(
-                Icons.phone_android_rounded,
-                size: 18,
-                color: IzyTelColors.textMuted,
-              ),
-              const SizedBox(width: 7),
-              Expanded(
-                child: Text(
-                  formatIvorianPhone(order.beneficiaryPhone),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
-                ),
-              ),
-              Text(
-                formatCfaFull(order.amount),
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: IzyTelColors.primaryStrong,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: IzyTelColors.surfaceMuted,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    order.reference,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: IzyTelColors.textSecondary,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Copier la référence',
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () => onCopy(order.reference, 'Référence'),
-                  icon: const Icon(
-                    Icons.content_copy_rounded,
-                    size: 17,
-                    color: IzyTelColors.primary,
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),
@@ -980,58 +1236,289 @@ class _OrderSummaryCard extends StatelessWidget {
   }
 }
 
-class _DetailSection extends StatelessWidget {
+class _DetailGroup extends StatelessWidget {
+  const _DetailGroup({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: IzyTelColors.surface,
+        borderRadius: BorderRadius.circular(IzyTelRadii.card),
+        border: Border.all(color: IzyTelColors.outline),
+        boxShadow: const [
+          BoxShadow(
+            color: IzyTelColors.shadow,
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (int index = 0; index < children.length; index++) ...[
+            children[index],
+            if (index != children.length - 1)
+              const Divider(height: 1, color: IzyTelColors.outline),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailSection extends StatefulWidget {
   const _DetailSection({
     required this.icon,
     required this.title,
     required this.child,
     this.trailing,
+    this.initiallyExpanded = false,
   });
 
   final IconData icon;
   final String title;
   final Widget child;
   final Widget? trailing;
+  final bool initiallyExpanded;
+
+  @override
+  State<_DetailSection> createState() => _DetailSectionState();
+}
+
+class _DetailSectionState extends State<_DetailSection> {
+  late bool _expanded;
+
+  @override
+  void initState() {
+    super.initState();
+    _expanded = widget.initiallyExpanded;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: IzyTelColors.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: IzyTelColors.outline),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: IzyTelColors.primarySoft,
-                  borderRadius: BorderRadius.circular(10),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: IzyTelSpacing.md,
+              vertical: 13,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  widget.icon,
+                  color: IzyTelColors.textPrimary,
+                  size: IzyTelIconSize.info,
                 ),
-                child: Icon(icon, color: IzyTelColors.primary, size: 19),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
+                const SizedBox(width: IzyTelSpacing.sm),
+                Flexible(
+                  fit: FlexFit.tight,
+                  child: Text(
+                    widget.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: IzyTelColors.textPrimary,
+                      fontSize: IzyTelTypeScale.text,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
+                if (widget.trailing != null) ...[
+                  const SizedBox(width: IzyTelSpacing.sm),
+                  widget.trailing!,
+                ],
+                const SizedBox(width: 6),
+                AnimatedRotation(
+                  duration: const Duration(milliseconds: 180),
+                  turns: _expanded ? .25 : 0,
+                  child: const Icon(
+                    Symbols.chevron_right_rounded,
+                    color: IzyTelColors.textMuted,
+                    size: IzyTelIconSize.info,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          child: _expanded
+              ? Container(
+                  color: IzyTelColors.surface,
+                  padding: const EdgeInsets.fromLTRB(
+                    IzyTelSpacing.md,
+                    0,
+                    IzyTelSpacing.md,
+                    IzyTelSpacing.md,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Divider(height: 1, color: IzyTelColors.outline),
+                      const SizedBox(height: IzyTelSpacing.sm),
+                      widget.child,
+                    ],
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProofSectionContent extends StatelessWidget {
+  const _ProofSectionContent({required this.proof, required this.isLoading});
+
+  final OrderProof? proof;
+  final bool isLoading;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: IzyTelSpacing.sm),
+        child: Center(
+          child: SizedBox.square(
+            dimension: 22,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    if (proof == null) {
+      return const _InlineInfo(
+        icon: Symbols.image_rounded,
+        text: 'Aucune preuve de transfert n’a encore été ajoutée.',
+        color: IzyTelColors.textSecondary,
+      );
+    }
+
+    final bool isImage = proof!.mimeType.startsWith('image/');
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 72,
+          height: 72,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: IzyTelColors.surfaceMuted,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: IzyTelColors.outline),
+          ),
+          child: isImage
+              ? Image.memory(proof!.bytes, fit: BoxFit.cover)
+              : const Icon(
+                  Symbols.receipt_long_rounded,
+                  color: IzyTelColors.primary,
+                ),
+        ),
+        const SizedBox(width: IzyTelSpacing.sm),
+        Flexible(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                proof!.fileName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: IzyTelColors.textPrimary,
+                  fontSize: IzyTelTypeScale.label,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-              ?trailing,
+              const SizedBox(height: 4),
+              Text(
+                'Ajoutée ${formatOrderDateTime(proof!.updatedAt)}',
+                style: const TextStyle(
+                  color: IzyTelColors.textMuted,
+                  fontSize: IzyTelTypeScale.micro,
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 14),
-          child,
-        ],
-      ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RefundSectionContent extends StatelessWidget {
+  const _RefundSectionContent({required this.order});
+
+  final QueueOrder order;
+
+  @override
+  Widget build(BuildContext context) {
+    if (order.status == QueueOrderStatus.refundPending) {
+      return const _InlineInfo(
+        icon: Symbols.hourglass_top_rounded,
+        text: 'Un remboursement est en attente de traitement.',
+        color: IzyTelColors.warning,
+      );
+    }
+    if (order.status == QueueOrderStatus.refunded) {
+      return const _InlineInfo(
+        icon: Symbols.check_circle_rounded,
+        text: 'Cette commande a été remboursée.',
+        color: IzyTelColors.success,
+      );
+    }
+    return const _InlineInfo(
+      icon: Symbols.payments_rounded,
+      text: 'Aucun remboursement enregistré pour cette commande.',
+      color: IzyTelColors.textSecondary,
+    );
+  }
+}
+
+class _InlineInfo extends StatelessWidget {
+  const _InlineInfo({
+    required this.icon,
+    required this.text,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: color, size: IzyTelIconSize.info),
+        const SizedBox(width: IzyTelSpacing.sm),
+        Flexible(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: IzyTelColors.textSecondary,
+              fontSize: IzyTelTypeScale.label,
+              fontWeight: FontWeight.w500,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1047,9 +1534,7 @@ class _ClientIdentityCard extends StatelessWidget {
         .split(RegExp(r'\s+'))
         .where((String value) => value.isNotEmpty)
         .toList();
-    if (parts.isEmpty) {
-      return '?';
-    }
+    if (parts.isEmpty) return '?';
     if (parts.length == 1) {
       return parts.first.substring(0, 1).toUpperCase();
     }
@@ -1060,58 +1545,63 @@ class _ClientIdentityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(13),
+      padding: const EdgeInsets.all(IzyTelSpacing.sm),
       decoration: BoxDecoration(
-        color: IzyTelColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(11),
+        color: IzyTelColors.primarySoft.withAlpha(125),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
           Container(
-            width: 46,
-            height: 46,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
-              color: IzyTelColors.primary.withAlpha(50),
-              borderRadius: BorderRadius.circular(10),
+              color: IzyTelColors.primary.withAlpha(42),
+              borderRadius: BorderRadius.circular(11),
             ),
             alignment: Alignment.center,
             child: Text(
               initials,
               style: const TextStyle(
-                color: IzyTelColors.primary,
-                fontSize: 17,
+                color: IzyTelColors.primaryStrong,
+                fontSize: IzyTelTypeScale.title3,
                 fontWeight: FontWeight.w700,
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
+          const SizedBox(width: IzyTelSpacing.sm),
+          Flexible(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   order.clientName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: IzyTelColors.textPrimary,
-                    fontSize: 14,
+                    fontSize: IzyTelTypeScale.text,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   formatIvorianPhone(order.clientWhatsappPhone),
+                  maxLines: 1,
                   style: const TextStyle(
                     color: IzyTelColors.textSecondary,
-                    fontSize: 11,
+                    fontSize: IzyTelTypeScale.label,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   orderSourceLabel(order.source),
                   style: const TextStyle(
-                    color: IzyTelColors.primary,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
+                    color: IzyTelColors.primaryStrong,
+                    fontSize: IzyTelTypeScale.micro,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
@@ -1142,56 +1632,110 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 112,
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    color: IzyTelColors.textSecondary,
-                    fontSize: 10,
-                  ),
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool stack = constraints.maxWidth < 320 || value.length > 28;
+        final Widget copyButton = canCopy
+            ? IconButton(
+                tooltip: 'Copier',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(
+                  width: 30,
+                  height: 30,
                 ),
-              ),
-              Expanded(
-                child: Text(
-                  value,
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    color: valueColor,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    height: 1.4,
-                  ),
+                onPressed: onCopy,
+                icon: const Icon(
+                  Symbols.receipt_long_rounded,
+                  size: 16,
+                  color: IzyTelColors.primary,
                 ),
-              ),
-              if (canCopy) ...[
-                const SizedBox(width: 5),
-                InkWell(
-                  onTap: onCopy,
-                  borderRadius: BorderRadius.circular(10),
-                  child: const Padding(
-                    padding: EdgeInsets.all(2),
-                    child: Icon(
-                      Icons.content_copy_rounded,
-                      size: 14,
-                      color: IzyTelColors.primary,
+              )
+            : const SizedBox.shrink();
+
+        final Widget content = stack
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: IzyTelColors.textSecondary,
+                      fontSize: IzyTelTypeScale.micro,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        if (showDivider)
-          Divider(height: 1, color: IzyTelColors.outline.withAlpha(50)),
-      ],
+                  const SizedBox(height: 5),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Flexible(
+                        fit: FlexFit.tight,
+                        child: Text(
+                          value,
+                          style: TextStyle(
+                            color: valueColor,
+                            fontSize: IzyTelTypeScale.label,
+                            fontWeight: FontWeight.w600,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                      if (canCopy) ...[
+                        const SizedBox(width: 5),
+                        copyButton,
+                      ],
+                    ],
+                  ),
+                ],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 112,
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        color: IzyTelColors.textSecondary,
+                        fontSize: IzyTelTypeScale.micro,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Flexible(
+                    fit: FlexFit.tight,
+                    child: Text(
+                      value,
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        color: valueColor,
+                        fontSize: IzyTelTypeScale.label,
+                        fontWeight: FontWeight.w600,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                  if (canCopy) ...[
+                    const SizedBox(width: 5),
+                    copyButton,
+                  ],
+                ],
+              );
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: content,
+            ),
+            if (showDivider)
+              Divider(height: 1, color: IzyTelColors.outline.withAlpha(90)),
+          ],
+        );
+      },
     );
   }
 }
@@ -1205,18 +1749,19 @@ class _SmallStatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withAlpha(22),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withAlpha(100)),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: color,
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
+          fontSize: IzyTelTypeScale.micro,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -1241,7 +1786,7 @@ class _OrderAuditTimeline extends StatelessWidget {
       builder: (BuildContext context, AsyncSnapshot<List<OrderAuditEntry>> snapshot) {
         if (snapshot.hasError) {
           return const _SupportRequestInfo(
-            icon: Icons.error_outline_rounded,
+            icon: Symbols.error_rounded,
             message: 'Impossible de charger le journal d’activité.',
             color: IzyTelColors.error,
           );

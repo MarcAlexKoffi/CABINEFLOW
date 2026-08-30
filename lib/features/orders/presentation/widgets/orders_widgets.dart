@@ -27,47 +27,37 @@ class OrdersTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Commandes',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontSize: IzyTelTypeScale.title2,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              if (subtitle?.trim().isNotEmpty == true) ...[
-                const SizedBox(height: 2),
-                Text(
-                  subtitle!,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontSize: IzyTelTypeScale.label,
-                    fontWeight: FontWeight.w500,
-                    color: IzyTelColors.textSecondary,
-                  ),
-                ),
-              ],
-            ],
+        Flexible(
+          child: Text(
+            'Commandes',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              color: IzyTelColors.textPrimary,
+              fontSize: IzyTelTypeScale.title2,
+              height: 1.08,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -.35,
+            ),
           ),
         ),
+        const SizedBox(width: 12),
         if (onSearchPressed != null)
           IconButton(
             tooltip: 'Rechercher',
             onPressed: onSearchPressed,
             visualDensity: VisualDensity.compact,
-            icon: const Icon(
-              Symbols.search_rounded,
-              size: IzyTelIconSize.action,
-            ),
+            color: IzyTelColors.textPrimary,
+            icon: const Icon(Symbols.search_rounded, size: IzyTelIconSize.action),
           ),
         if (onFiltersPressed != null)
           IconButton(
             tooltip: 'Filtres',
             onPressed: onFiltersPressed,
             visualDensity: VisualDensity.compact,
+            color: IzyTelColors.textPrimary,
             icon: const Icon(Symbols.tune_rounded, size: IzyTelIconSize.action),
           ),
       ],
@@ -93,36 +83,38 @@ class OrdersTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _TabChip(
-            label: 'À traiter',
-            count: todoCount,
-            selected: activeTabIndex == 0,
-            onTap: () => onTabChanged(0),
-          ),
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _TabChip(
+              label: 'À traiter',
+              count: todoCount,
+              selected: activeTabIndex == 0,
+              onTap: () => onTabChanged(0),
+            ),
+            const SizedBox(width: 8),
+            _TabChip(
+              label: 'En cours',
+              count: inProgressCount,
+              selected: activeTabIndex == 1,
+              onTap: () => onTabChanged(1),
+            ),
+            const SizedBox(width: 8),
+            _TabChip(
+              label: 'Terminées',
+              count: completedCount,
+              showCount: false,
+              selected: activeTabIndex == 2,
+              onTap: () => onTabChanged(2),
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _TabChip(
-            label: 'En cours',
-            count: inProgressCount,
-            selected: activeTabIndex == 1,
-            onTap: () => onTabChanged(1),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _TabChip(
-            label: 'Terminées',
-            count: completedCount,
-            showCount: false,
-            selected: activeTabIndex == 2,
-            onTap: () => onTabChanged(2),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
@@ -146,32 +138,30 @@ class _TabChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: selected ? IzyTelColors.primary : IzyTelColors.surfaceMuted,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
           height: 34,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           alignment: Alignment.center,
           child: Row(
             mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: selected ? Colors.white : IzyTelColors.textSecondary,
-                    fontSize: IzyTelTypeScale.label,
-                    fontWeight: FontWeight.w600,
-                  ),
+              Text(
+                label,
+                maxLines: 1,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: selected
+                      ? IzyTelColors.surface
+                      : IzyTelColors.textPrimary,
+                  fontSize: IzyTelTypeScale.micro,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               if (showCount) ...[
-                const SizedBox(width: 5),
+                const SizedBox(width: 6),
                 Container(
                   constraints: const BoxConstraints(minWidth: 18),
                   height: 18,
@@ -179,7 +169,7 @@ class _TabChip extends StatelessWidget {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: selected
-                        ? Colors.white.withAlpha(38)
+                        ? IzyTelColors.surface.withAlpha(36)
                         : IzyTelColors.surface,
                     borderRadius: BorderRadius.circular(99),
                   ),
@@ -187,7 +177,7 @@ class _TabChip extends StatelessWidget {
                     '$count',
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: selected
-                          ? Colors.white
+                          ? IzyTelColors.surface
                           : IzyTelColors.textSecondary,
                       fontSize: IzyTelTypeScale.micro,
                       fontWeight: FontWeight.w600,
@@ -269,7 +259,7 @@ class QueueFilterButton extends StatelessWidget {
       case 'orange':
         return IzyTelColors.orange;
       case 'mtn':
-        return const Color(0xFFC39400);
+        return IzyTelColors.mtnText;
       case 'moov':
         return IzyTelColors.moov;
       default:
@@ -277,43 +267,50 @@ class QueueFilterButton extends StatelessWidget {
     }
   }
 
+  Color get _softBackground {
+    switch (label.toLowerCase()) {
+      case 'orange':
+        return IzyTelColors.orangeSoft;
+      case 'mtn':
+        return IzyTelColors.mtnSoft;
+      case 'moov':
+        return IzyTelColors.moovSoft;
+      default:
+        return IzyTelColors.surfaceMuted;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final bool isAll = label.toLowerCase() == 'tous';
+    final Color background = isAll && isSelected
+        ? IzyTelColors.primary
+        : _softBackground;
+    final Color foreground = isAll && isSelected
+        ? IzyTelColors.surface
+        : isAll
+            ? IzyTelColors.textPrimary
+            : _accent;
+    final Color borderColor = isSelected && !isAll
+        ? _accent.withAlpha(115)
+        : Colors.transparent;
+
     return Material(
-      color: isSelected ? IzyTelColors.primary : IzyTelColors.surface,
-      shape: StadiumBorder(
-        side: BorderSide(
-          color: isSelected ? IzyTelColors.primary : IzyTelColors.outline,
-        ),
-      ),
+      color: background,
+      shape: StadiumBorder(side: BorderSide(color: borderColor)),
       child: InkWell(
         onTap: onPressed,
         customBorder: const StadiumBorder(),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (label != 'Tous') ...[
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: _accent,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 5),
-              ],
-              Text(
-                label,
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: isSelected ? Colors.white : IzyTelColors.textSecondary,
-                  fontSize: IzyTelTypeScale.label,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+          child: Text(
+            label,
+            maxLines: 1,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: foreground,
+              fontSize: IzyTelTypeScale.micro,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ),
@@ -347,73 +344,103 @@ class QueueOrderCard extends StatelessWidget {
 
   String get _stateLabel {
     if (order.manualAssignmentRequired) return 'En attente d’affectation';
-    if (order.isAssignedToAgent) return 'Affectée';
     if (order.paymentStatus == OrderPaymentStatus.confirmed) {
       return 'Paiement confirmé';
     }
+    if (order.isAssignedToAgent) return 'Affectée';
     return orderStatusLabel(order.status);
   }
 
   Color get _stateColor {
-    if (order.manualAssignmentRequired || order.isAssignedToAgent) {
-      return IzyTelColors.warning;
-    }
+    if (order.manualAssignmentRequired) return IzyTelColors.warning;
     if (order.paymentStatus == OrderPaymentStatus.confirmed) {
       return IzyTelColors.success;
     }
-    return orderStatusColor(order.status);
+    if (order.isAssignedToAgent) return IzyTelColors.warning;
+    return switch (order.status) {
+      QueueOrderStatus.completed || QueueOrderStatus.refunded =>
+        IzyTelColors.success,
+      QueueOrderStatus.failed || QueueOrderStatus.cancelled =>
+        IzyTelColors.error,
+      QueueOrderStatus.expired || QueueOrderStatus.refundPending =>
+        IzyTelColors.warning,
+      _ => IzyTelColors.primary,
+    };
+  }
+
+  Color get _networkColor => switch (order.network) {
+    MobileNetwork.orange => IzyTelColors.orange,
+    MobileNetwork.mtn => IzyTelColors.mtn,
+    MobileNetwork.moov => IzyTelColors.moov,
+  };
+
+  Color get _networkSoft => switch (order.network) {
+    MobileNetwork.orange => IzyTelColors.orangeSoft,
+    MobileNetwork.mtn => IzyTelColors.mtnSoft,
+    MobileNetwork.moov => IzyTelColors.moovSoft,
+  };
+
+  String get _waitingLabel {
+    if (waitingMinutes <= 0) return 'À l’instant';
+    if (waitingMinutes >= 60) {
+      final int hours = waitingMinutes ~/ 60;
+      final int minutes = waitingMinutes.remainder(60);
+      return minutes == 0
+          ? 'Il y a $hours h'
+          : 'Il y a $hours h $minutes min';
+    }
+    return 'Il y a $waitingMinutes min';
   }
 
   @override
   Widget build(BuildContext context) {
-    final Color accent = networkColor(order.network);
     final bool enabled = isActionEnabled && !isProcessing;
+    final Color networkAccent = _networkColor;
+    final Color stateAccent = _stateColor;
 
-    // La maquette utilise des cartes denses de taille stable. Il ne faut pas
-    // agrandir toute la carte en fonction de la largeur de l'écran : c'était
-    // la cause principale de l'écart observé sur le téléphone.
-    return SizedBox(
-      height: 114,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: enabled ? onTakeCharge : null,
-          borderRadius: BorderRadius.circular(12),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: enabled ? onTakeCharge : null,
+        borderRadius: BorderRadius.circular(13),
+        child: CustomPaint(
+          foregroundPainter: _QueueOrderAccentPainter(
+            networkColor: networkAccent,
+            stateColor: stateAccent,
+          ),
           child: Container(
+            padding: const EdgeInsets.fromLTRB(14, 10, 11, 9),
             decoration: BoxDecoration(
               color: IzyTelColors.surface,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(13),
               border: Border.all(color: IzyTelColors.outline),
-            ),
-            child: Stack(
-              children: [
-                Positioned(
-                  left: 0,
-                  top: 8,
-                  bottom: 8,
-                  child: Container(
-                    width: 3,
-                    decoration: BoxDecoration(
-                      color: accent,
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                  ),
+              boxShadow: const [
+                BoxShadow(
+                  color: IzyTelColors.shadow,
+                  blurRadius: 10,
+                  offset: Offset(0, 3),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 9, 10, 9),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Flexible(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Container(
-                            width: 22,
-                            height: 22,
-                            padding: const EdgeInsets.all(2),
+                            width: 24,
+                            height: 24,
+                            padding: const EdgeInsets.all(2.5),
                             decoration: BoxDecoration(
-                              color: accent.withAlpha(14),
-                              borderRadius: BorderRadius.circular(5),
+                              color: _networkSoft,
+                              borderRadius: BorderRadius.circular(6),
                             ),
                             child: Image.asset(
                               networkAsset(order.network),
@@ -421,117 +448,127 @@ class QueueOrderCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 7),
-                          Expanded(
+                          Flexible(
                             child: Text(
                               networkLabel(order.network),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.labelLarge
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelLarge
                                   ?.copyWith(
                                     color: IzyTelColors.textPrimary,
                                     fontSize: IzyTelTypeScale.label,
-                                    fontWeight: FontWeight.w600,
+                                    fontWeight: FontWeight.w700,
                                   ),
                             ),
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            waitingMinutes <= 0
-                                ? 'À l’instant'
-                                : 'Il y a $waitingMinutes min',
-                            style: Theme.of(context).textTheme.labelMedium
-                                ?.copyWith(
-                                  color: IzyTelColors.error,
-                                  fontSize: IzyTelTypeScale.micro,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                          ),
                         ],
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        order.offerLabel,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _waitingLabel,
+                      maxLines: 1,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: isUrgent
+                            ? IzyTelColors.error
+                            : IzyTelColors.warning,
+                        fontSize: IzyTelTypeScale.micro,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  order.offerLabel,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: IzyTelColors.textPrimary,
+                    fontSize: IzyTelTypeScale.text,
+                    height: 1.2,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        formatIvorianPhone(order.beneficiaryPhone),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              color: IzyTelColors.textPrimary,
-                              fontSize: IzyTelTypeScale.cardTitle,
-                              height: 1.15,
-                              fontWeight: FontWeight.w700,
-                            ),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: IzyTelColors.textPrimary,
+                          fontSize: IzyTelTypeScale.text,
+                          height: 1.15,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: .04,
+                        ),
                       ),
-                      const Spacer(),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              order.beneficiaryPhone,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(
-                                    color: IzyTelColors.textPrimary,
-                                    fontSize: IzyTelTypeScale.transactionNumber,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: .05,
-                                  ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            formatCfa(order.amount),
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  color: IzyTelColors.primaryStrong,
-                                  fontSize: IzyTelTypeScale.money,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: -.2,
-                                ),
-                          ),
-                        ],
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      formatCfa(order.amount),
+                      maxLines: 1,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: IzyTelColors.primaryStrong,
+                        fontSize: IzyTelTypeScale.money,
+                        height: 1.05,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -.2,
                       ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          IzyTelStatusPill(
-                            label: _stateLabel,
-                            color: _stateColor,
-                          ),
-                          const Spacer(),
-                          Flexible(
-                            child: Text(
-                              order.reference,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.end,
-                              style: Theme.of(context).textTheme.labelMedium
-                                  ?.copyWith(
-                                    color: IzyTelColors.textMuted,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w400,
-                                  ),
-                            ),
-                          ),
-                          const SizedBox(width: 3),
-                          if (isProcessing)
-                            const SizedBox.square(
-                              dimension: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 1.7,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Flexible(
+                      flex: 3,
+                      child: IzyTelStatusPill(
+                        label: _stateLabel,
+                        color: stateAccent,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      flex: 2,
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          order.reference,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.end,
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelMedium
+                              ?.copyWith(
+                                color: IzyTelColors.textMuted,
+                                fontSize: IzyTelTypeScale.micro,
+                                fontWeight: FontWeight.w400,
                               ),
-                            )
-                          else
-                            const Icon(
-                              Symbols.chevron_right_rounded,
-                              size: 17,
-                              color: IzyTelColors.textMuted,
-                            ),
-                        ],
+                        ),
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 4),
+                    if (isProcessing)
+                      const SizedBox.square(
+                        dimension: 14,
+                        child: CircularProgressIndicator(strokeWidth: 1.7),
+                      )
+                    else
+                      const Icon(
+                        Symbols.chevron_right_rounded,
+                        size: IzyTelIconSize.info,
+                        color: IzyTelColors.textSecondary,
+                      ),
+                  ],
                 ),
               ],
             ),
@@ -539,6 +576,43 @@ class QueueOrderCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _QueueOrderAccentPainter extends CustomPainter {
+  const _QueueOrderAccentPainter({
+    required this.networkColor,
+    required this.stateColor,
+  });
+
+  final Color networkColor;
+  final Color stateColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const double x = 1.5;
+    const double top = 12;
+    final double bottom = size.height - 12;
+    if (bottom <= top) return;
+
+    final double split = top + ((bottom - top) * .56);
+    final Paint networkPaint = Paint()
+      ..color = networkColor
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+    final Paint statePaint = Paint()
+      ..color = stateColor
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawLine(Offset(x, top), Offset(x, split - 1), networkPaint);
+    canvas.drawLine(Offset(x, split + 1), Offset(x, bottom), statePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _QueueOrderAccentPainter oldDelegate) {
+    return oldDelegate.networkColor != networkColor ||
+        oldDelegate.stateColor != stateColor;
   }
 }
 

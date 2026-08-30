@@ -19,7 +19,9 @@ void main() {
     OrdersRepository? ordersRepository,
   }) async {
     await configureMobileScreen(tester);
-    await tester.pumpWidget(CabineFlowApp(ordersRepository: ordersRepository));
+    await tester.pumpWidget(
+      CabineFlowApp(ordersRepository: ordersRepository),
+    );
     await tester.pump();
 
     expect(find.text('Bienvenue'), findsOneWidget);
@@ -105,13 +107,17 @@ void main() {
 
     expect(find.text('Activité du jour'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey<String>('admin-nav-commandes')));
+    await tester.tap(
+      find.byKey(const ValueKey<String>('admin-nav-commandes')),
+    );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('À traiter'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey<String>('admin-nav-accueil')));
+    await tester.tap(
+      find.byKey(const ValueKey<String>('admin-nav-accueil')),
+    );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
@@ -131,7 +137,10 @@ void main() {
       assignedByUserId: 'ADMIN-001',
     );
 
-    await openLoginPage(tester, ordersRepository: ordersRepository);
+    await openLoginPage(
+      tester,
+      ordersRepository: ordersRepository,
+    );
 
     final Finder fields = find.byType(TextFormField);
     await tester.enterText(fields.at(0), 'agent@cabineflow.app');
@@ -146,7 +155,9 @@ void main() {
     expect(find.text('Accepter'), findsWidgets);
     expect(find.text('Mes commandes'), findsNothing);
 
-    await tester.tap(find.byKey(const ValueKey<String>('agent-nav-profil')));
+    await tester.tap(
+      find.byKey(const ValueKey<String>('agent-nav-profil')),
+    );
     await tester.pump(const Duration(milliseconds: 900));
     await tester.pumpAndSettle();
 

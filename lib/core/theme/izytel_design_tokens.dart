@@ -26,7 +26,7 @@ class IzyTelTypeScale {
 
   // Informations transactionnelles : elles restent dans la grille typographique
   // mais reçoivent un poids plus fort dans les composants métier.
-  static const double transactionNumber = text;
+  static const double transactionNumber = cardTitle;
   static const double money = title3;
 }
 

@@ -1,4 +1,5 @@
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
@@ -9,6 +10,7 @@ import 'package:cabine_flow/features/orders/presentation/view_models/agent_order
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 class AgentHistoryPage extends StatefulWidget {
   const AgentHistoryPage({
@@ -76,25 +78,31 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
 
             return RefreshIndicator(
               onRefresh: _viewModel.start,
+              color: IzyTelColors.primary,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(18, 16, 18, 26),
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
                 children: [
                   Text(
                     'Historique',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontSize: 20,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontSize: IzyTelTypeScale.title2,
+                      height: 1.15,
                       fontWeight: FontWeight.w800,
+                      letterSpacing: -.25,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 5),
                   Text(
                     'Retrouve tes commandes en cours et terminées.',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(fontSize: 11),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: IzyTelColors.textSecondary,
+                      fontSize: IzyTelTypeScale.label,
+                      height: 1.35,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 18),
                   Row(
                     children: [
                       Expanded(
@@ -105,7 +113,7 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
                           onTap: () => setState(() => _tab = 0),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: _HistoryTab(
                           label: 'Terminées',
@@ -116,7 +124,7 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 18),
                   if (_viewModel.isLoading && orders.isEmpty)
                     const SizedBox(
                       height: 260,
@@ -124,7 +132,7 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
                     )
                   else if (orders.isEmpty)
                     IzyTelSurface(
-                      radius: 14,
+                      radius: IzyTelRadii.card,
                       child: Text(
                         _tab == 0
                             ? 'Aucune commande en cours.'
@@ -135,70 +143,12 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
                   else
                     ...orders.map(
                       (QueueOrder order) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: IzyTelSurface(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _HistoryOrderCard(
+                          order: order,
+                          isCompleted: _tab == 1,
                           onTap: () =>
                               setState(() => _openedOrderId = order.id),
-                          radius: 14,
-                          padding: const EdgeInsets.all(12),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 32,
-                                height: 32,
-                                padding: const EdgeInsets.all(3),
-                                decoration: BoxDecoration(
-                                  color: networkColor(
-                                    order.network,
-                                  ).withAlpha(16),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Image.asset(
-                                  networkAsset(order.network),
-                                  fit: BoxFit.contain,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      order.offerLabel,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelLarge
-                                          ?.copyWith(fontSize: 11),
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      order.beneficiaryPhone,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelMedium
-                                          ?.copyWith(fontSize: 9.5),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                formatCfa(order.amount),
-                                style: Theme.of(context).textTheme.labelLarge
-                                    ?.copyWith(
-                                      color: IzyTelColors.primaryStrong,
-                                      fontSize: 10.5,
-                                    ),
-                              ),
-                              const SizedBox(width: 4),
-                              const Icon(
-                                Icons.chevron_right_rounded,
-                                color: IzyTelColors.textMuted,
-                              ),
-                            ],
-                          ),
                         ),
                       ),
                     ),
@@ -234,7 +184,7 @@ class _HistoryTab extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          height: 38,
+          height: 48,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
@@ -244,13 +194,150 @@ class _HistoryTab extends StatelessWidget {
           ),
           child: Text(
             '$label  $count',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: selected ? Colors.white : IzyTelColors.textSecondary,
-              fontSize: 10.5,
-              fontWeight: FontWeight.w800,
+            maxLines: 1,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: selected ? IzyTelColors.surface : IzyTelColors.textSecondary,
+              fontSize: IzyTelTypeScale.label,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _HistoryOrderCard extends StatelessWidget {
+  const _HistoryOrderCard({
+    required this.order,
+    required this.isCompleted,
+    required this.onTap,
+  });
+
+  final QueueOrder order;
+  final bool isCompleted;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color accent = switch (order.network) {
+      MobileNetwork.orange => IzyTelColors.orange,
+      MobileNetwork.mtn => IzyTelColors.mtn,
+      MobileNetwork.moov => IzyTelColors.moov,
+    };
+    final (String statusLabel, Color statusColor) = isCompleted
+        ? (
+            order.status == QueueOrderStatus.refunded ? 'Remboursée' : 'Terminée',
+            IzyTelColors.success,
+          )
+        : switch (order.status) {
+            QueueOrderStatus.onHold => ('En attente', IzyTelColors.warning),
+            QueueOrderStatus.awaitingCustomerConfirmation => (
+                'À confirmer',
+                IzyTelColors.primary,
+              ),
+            _ => ('En traitement', IzyTelColors.primary),
+          };
+
+    return IzyTelSurface(
+      onTap: onTap,
+      radius: 16,
+      padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: accent.withAlpha(16),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Image.asset(
+                  networkAsset(order.network),
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  networkLabel(order.network),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: IzyTelColors.textSecondary,
+                    fontSize: IzyTelTypeScale.label,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              IzyTelStatusPill(label: statusLabel, color: statusColor),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            order.offerLabel,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: IzyTelColors.textPrimary,
+              fontSize: IzyTelTypeScale.title3,
+              height: 1.2,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            decoration: BoxDecoration(
+              color: IzyTelColors.primarySoft.withAlpha(120),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Symbols.phone_iphone_rounded,
+                  size: IzyTelIconSize.info,
+                  color: IzyTelColors.textSecondary,
+                ),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Text(
+                    formatIvorianPhone(order.beneficiaryPhone),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: IzyTelColors.textPrimary,
+                      fontSize: IzyTelTypeScale.cardTitle,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: .15,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  formatCfa(order.amount),
+                  maxLines: 1,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: IzyTelColors.primaryStrong,
+                    fontSize: IzyTelTypeScale.cardTitle,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                const Icon(
+                  Symbols.chevron_right_rounded,
+                  size: IzyTelIconSize.action,
+                  color: IzyTelColors.textMuted,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

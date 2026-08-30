@@ -33,8 +33,8 @@ class IzyTelSurface extends StatelessWidget {
         boxShadow: const [
           BoxShadow(
             color: IzyTelColors.shadow,
-            blurRadius: 24,
-            offset: Offset(0, 8),
+            blurRadius: 18,
+            offset: Offset(0, 6),
           ),
         ],
       ),
@@ -203,9 +203,7 @@ Future<void> showIzyTelAccountSheet({
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 22),
         decoration: const BoxDecoration(
           color: IzyTelColors.surface,
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(IzyTelRadii.sheet),
-          ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(IzyTelRadii.sheet)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,

@@ -33,8 +33,12 @@ class IzyTelColors {
   static const Color errorSoft = Color(0xFFFFECEC);
 
   static const Color orange = Color(0xFFFF7900);
+  static const Color orangeSoft = Color(0xFFFFF1E8);
   static const Color mtn = Color(0xFFFFCC00);
+  static const Color mtnText = Color(0xFFB77900);
+  static const Color mtnSoft = Color(0xFFFFF8D9);
   static const Color moov = Color(0xFF0055A5);
+  static const Color moovSoft = Color(0xFFEAF3FB);
   static const Color wave = Color(0xFF17C8EE);
 
   static const Color shadow = Color(0x140F172A);

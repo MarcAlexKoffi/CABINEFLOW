@@ -22,6 +22,7 @@ class DashboardPage extends StatefulWidget {
     required this.user,
     required this.dashboardRepository,
     this.onOpenOrders,
+    this.onOpenPayments,
     this.onOpenMore,
     this.onLogout,
   });
@@ -29,6 +30,7 @@ class DashboardPage extends StatefulWidget {
   final AppUser user;
   final DashboardRepository dashboardRepository;
   final VoidCallback? onOpenOrders;
+  final VoidCallback? onOpenPayments;
   final VoidCallback? onOpenMore;
   final VoidCallback? onLogout;
 
@@ -187,7 +189,7 @@ class _DashboardPageState extends State<DashboardPage> {
                             iconColor: IzyTelColors.warning,
                             title:
                                 '${data.statistics.paymentsToVerify} paiements à vérifier',
-                            onTap: widget.onOpenOrders,
+                            onTap: widget.onOpenPayments ?? widget.onOpenOrders,
                           ),
                           const Divider(),
                           _ActionRow(
@@ -217,6 +219,7 @@ class _DashboardPageState extends State<DashboardPage> {
                             label: 'Payées',
                             value: data.statistics.newRequests.toString(),
                             color: IzyTelColors.success,
+                            icon: Symbols.receipt_long_rounded,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -225,6 +228,7 @@ class _DashboardPageState extends State<DashboardPage> {
                             label: 'En cours',
                             value: data.statistics.inProgress.toString(),
                             color: IzyTelColors.warning,
+                            icon: Symbols.autorenew_rounded,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -233,6 +237,7 @@ class _DashboardPageState extends State<DashboardPage> {
                             label: 'Terminées',
                             value: data.statistics.completed.toString(),
                             color: IzyTelColors.primary,
+                            icon: Symbols.check_circle_rounded,
                           ),
                         ),
                       ],
@@ -392,14 +397,14 @@ class _RevenueHero extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF2E72EE), Color(0xFF1565E8)],
+          colors: [IzyTelColors.primary, IzyTelColors.primaryStrong],
         ),
         borderRadius: BorderRadius.circular(17),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Color(0x242563EB),
+            color: IzyTelColors.primary.withAlpha(36),
             blurRadius: 22,
-            offset: Offset(0, 9),
+            offset: const Offset(0, 9),
           ),
         ],
       ),
@@ -412,7 +417,7 @@ class _RevenueHero extends StatelessWidget {
                 Text(
                   'Encaissements aujourd’hui',
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: Colors.white,
+                    color: IzyTelColors.surface,
                     fontSize: IzyTelTypeScale.label,
                     fontWeight: FontWeight.w500,
                   ),
@@ -421,9 +426,9 @@ class _RevenueHero extends StatelessWidget {
                 Text(
                   formatCfaFull(amount),
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: Colors.white,
+                    color: IzyTelColors.surface,
                     fontSize: IzyTelTypeScale.title1,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
                 if (change != null) ...[
@@ -435,14 +440,14 @@ class _RevenueHero extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: positive
-                          ? const Color(0xFF16A34A)
-                          : const Color(0xFFDC2626),
+                          ? IzyTelColors.success
+                          : IzyTelColors.error,
                       borderRadius: BorderRadius.circular(99),
                     ),
                     child: Text(
                       '${positive ? '+' : ''}${change.toStringAsFixed(1)}%  vs hier',
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: Colors.white,
+                        color: IzyTelColors.surface,
                         fontSize: IzyTelTypeScale.micro,
                         fontWeight: FontWeight.w600,
                       ),
@@ -456,12 +461,12 @@ class _RevenueHero extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: Colors.white.withAlpha(25),
+              color: IzyTelColors.surface.withAlpha(26),
               borderRadius: BorderRadius.circular(13),
             ),
             child: const Icon(
               Symbols.wallet_rounded,
-              color: Colors.white,
+              color: IzyTelColors.surface,
               size: IzyTelIconSize.navigation,
             ),
           ),
@@ -503,7 +508,7 @@ class _ActionRow extends StatelessWidget {
               child: Icon(icon, color: iconColor, size: IzyTelIconSize.action),
             ),
             const SizedBox(width: 10),
-            Expanded(
+            Flexible(
               child: Text(
                 title,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -530,36 +535,63 @@ class _MetricCard extends StatelessWidget {
     required this.label,
     required this.value,
     required this.color,
+    required this.icon,
   });
 
   final String label;
   final String value;
   final Color color;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     return IzyTelSurface(
       radius: 15,
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+      padding: const EdgeInsets.fromLTRB(12, 11, 12, 10),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
               fontSize: IzyTelTypeScale.label,
               fontWeight: FontWeight.w500,
+              color: IzyTelColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontSize: IzyTelTypeScale.title2,
-              fontWeight: FontWeight.w700,
-            ),
+          const SizedBox(height: 5),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontSize: IzyTelTypeScale.title2,
+                    fontWeight: FontWeight.w800,
+                    color: IzyTelColors.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 5),
+              Container(
+                width: 23,
+                height: 23,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: color.withAlpha(18),
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                child: Icon(icon, color: color, size: 15),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 7),
           Container(
             width: 32,
             height: 3,
@@ -605,6 +637,7 @@ class _NetworkCard extends StatelessWidget {
       radius: 15,
       padding: const EdgeInsets.all(11),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
@@ -622,7 +655,9 @@ class _NetworkCard extends StatelessWidget {
             name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            style: Theme.of(
+              context,
+            ).textTheme.labelLarge?.copyWith(
               fontSize: IzyTelTypeScale.label,
               fontWeight: FontWeight.w600,
             ),
@@ -673,8 +708,9 @@ class _RecentActivityRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Expanded(
+          Flexible(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -704,9 +740,9 @@ class _RecentActivityRow extends StatelessWidget {
           Text(
             confirmed ? '+${formatCfa(order.amount)}' : order.actionLabel,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: confirmed ? IzyTelColors.success : IzyTelColors.textMuted,
+              color: confirmed ? IzyTelColors.primaryStrong : IzyTelColors.textMuted,
               fontWeight: FontWeight.w700,
-              fontSize: IzyTelTypeScale.micro,
+              fontSize: IzyTelTypeScale.label,
             ),
           ),
         ],

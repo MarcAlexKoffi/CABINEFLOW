@@ -462,8 +462,14 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
                       child: _InfoSheetRows(
                         rows: <MapEntry<String, String>>[
                           MapEntry('Nom', order.clientName),
-                          MapEntry('WhatsApp', order.clientWhatsappPhone),
-                          MapEntry('Bénéficiaire', order.beneficiaryPhone),
+                          MapEntry(
+                            'WhatsApp',
+                            formatIvorianPhone(order.clientWhatsappPhone),
+                          ),
+                          MapEntry(
+                            'Bénéficiaire',
+                            formatIvorianPhone(order.beneficiaryPhone),
+                          ),
                         ],
                       ),
                     ),
@@ -511,7 +517,10 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
                           MapEntry('Réseau', networkLabel(order.network)),
                           MapEntry('Offre', order.offerLabel),
                           MapEntry('Montant', formatCfaFull(order.amount)),
-                          MapEntry('Bénéficiaire', order.beneficiaryPhone),
+                          MapEntry(
+                            'Bénéficiaire',
+                            formatIvorianPhone(order.beneficiaryPhone),
+                          ),
                         ],
                       ),
                     ),
@@ -627,10 +636,7 @@ class _ReferenceDetailTopBar extends StatelessWidget {
             tooltip: 'Retour',
             onPressed: onBack,
             visualDensity: VisualDensity.compact,
-            icon: const Icon(
-              Symbols.arrow_back_rounded,
-              size: IzyTelIconSize.action,
-            ),
+            icon: const Icon(Symbols.arrow_back_rounded, size: IzyTelIconSize.action),
           ),
           Expanded(
             child: Text(
@@ -669,10 +675,8 @@ class _ReferenceOrderSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color accent = networkColor(order.network);
     final Color statusColor = _agentStatusColor(order);
-    final double scale = (MediaQuery.sizeOf(context).width / 290).clamp(
-      .95,
-      1.35,
-    );
+    final double scale = (MediaQuery.sizeOf(context).width / 290)
+        .clamp(.95, 1.35);
 
     return SizedBox(
       height: 132 * scale,
@@ -738,13 +742,14 @@ class _ReferenceOrderSummary extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    order.beneficiaryPhone,
+                    formatIvorianPhone(order.beneficiaryPhone),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: IzyTelColors.textPrimary,
-                      fontSize: IzyTelTypeScale.transactionNumber,
+                      fontSize: IzyTelTypeScale.title3,
                       fontWeight: FontWeight.w700,
+                      letterSpacing: .15,
                     ),
                   ),
                 ),
@@ -753,7 +758,7 @@ class _ReferenceOrderSummary extends StatelessWidget {
                   formatCfa(order.amount),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: IzyTelColors.primaryStrong,
-                    fontSize: IzyTelTypeScale.money,
+                    fontSize: IzyTelTypeScale.title2,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -843,10 +848,8 @@ class _ReferenceProgress extends StatelessWidget {
       'En traitement',
       'Terminée',
     ];
-    final double scale = (MediaQuery.sizeOf(context).width / 290).clamp(
-      .95,
-      1.35,
-    );
+    final double scale = (MediaQuery.sizeOf(context).width / 290)
+        .clamp(.95, 1.35);
     return SizedBox(
       height: 54 * scale,
       child: Padding(
@@ -951,31 +954,43 @@ class _ReferenceProgressStep extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 3),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: state == _ReferenceStepState.pending
-                ? IzyTelColors.textSecondary
-                : IzyTelColors.textPrimary,
-            fontSize: IzyTelTypeScale.micro,
-            fontWeight: state == _ReferenceStepState.active
-                ? FontWeight.w600
-                : FontWeight.w500,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              softWrap: false,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: state == _ReferenceStepState.pending
+                    ? IzyTelColors.textSecondary
+                    : IzyTelColors.textPrimary,
+                fontSize: IzyTelTypeScale.micro,
+                fontWeight: state == _ReferenceStepState.active
+                    ? FontWeight.w600
+                    : FontWeight.w500,
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 2),
-        Text(
-          date,
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: IzyTelColors.textMuted,
-            fontSize: IzyTelTypeScale.micro,
-            fontWeight: FontWeight.w400,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              date,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              softWrap: false,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: IzyTelColors.textMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
           ),
         ),
       ],
@@ -1004,10 +1019,8 @@ class _DetailMenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double scale = (MediaQuery.sizeOf(context).width / 290).clamp(
-      .95,
-      1.35,
-    );
+    final double scale = (MediaQuery.sizeOf(context).width / 290)
+        .clamp(.95, 1.35);
     final double rowHeight = 41 * scale;
 
     return Container(
@@ -1178,10 +1191,12 @@ class _InfoSheetRows extends StatelessWidget {
                     child: Text(
                       row.value,
                       textAlign: TextAlign.right,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        fontSize: IzyTelTypeScale.text,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyLarge?.copyWith(
+                            fontSize: IzyTelTypeScale.text,
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
                   ),
                 ],
@@ -1227,7 +1242,9 @@ class _ActivitySheet extends StatelessWidget {
                   Expanded(
                     child: Text(
                       entry.key,
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelLarge?.copyWith(
                         fontSize: IzyTelTypeScale.label,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1235,7 +1252,9 @@ class _ActivitySheet extends StatelessWidget {
                   ),
                   Text(
                     _formatDateTime(entry.value!),
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelMedium?.copyWith(
                       fontSize: IzyTelTypeScale.micro,
                     ),
                   ),
@@ -1272,49 +1291,83 @@ class _ProcessingBottomActions extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
+              flex: 4,
               child: SizedBox(
                 height: 50,
-                child: OutlinedButton.icon(
+                child: OutlinedButton(
                   onPressed: isBusy ? null : onHold,
-                  icon: const Icon(
-                    Symbols.pause_rounded,
-                    size: IzyTelIconSize.info,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
                   ),
-                  label: const Text(
-                    'Mettre en attente',
-                    style: TextStyle(
-                      fontSize: IzyTelTypeScale.label,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Symbols.pause_rounded,
+                        size: IzyTelIconSize.info,
+                      ),
+                      SizedBox(width: 6),
+                      Expanded(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'Mettre en attente',
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(
+                              fontSize: IzyTelTypeScale.label,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
-              flex: 2,
+              flex: 6,
               child: SizedBox(
                 height: 50,
-                child: FilledButton.icon(
+                child: FilledButton(
                   onPressed: isBusy ? null : onSuccess,
-                  icon: isBusy
-                      ? const SizedBox.square(
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (isBusy)
+                        const SizedBox.square(
                           dimension: 15,
                           child: CircularProgressIndicator(
                             strokeWidth: 1.8,
                             color: Colors.white,
                           ),
                         )
-                      : const Icon(
+                      else
+                        const Icon(
                           Symbols.check_circle_rounded,
                           size: IzyTelIconSize.info,
                         ),
-                  label: const Text(
-                    'Marquer comme réussie',
-                    style: TextStyle(
-                      fontSize: IzyTelTypeScale.label,
-                      fontWeight: FontWeight.w700,
-                    ),
+                      const SizedBox(width: 6),
+                      const Expanded(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'Marquer comme réussie',
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(
+                              fontSize: IzyTelTypeScale.label,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

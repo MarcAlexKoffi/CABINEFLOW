@@ -466,11 +466,9 @@ class _OrdersPageState extends State<OrdersPage> {
             children: [
               Container(
                 color: IzyTelColors.background,
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
                 child: OrdersTopBar(
                   user: widget.user,
-                  subtitle:
-                      '${_viewModel.allReadyOrders.length} à traiter aujourd’hui',
                   onSearchPressed: () {
                     _openHistory();
                   },
@@ -510,55 +508,64 @@ class _OrdersPageState extends State<OrdersPage> {
                       ),
                       const SizedBox(height: 10),
                       Padding(
-                        padding: const EdgeInsets.only(left: 2),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              ...QueueFilter.values.map((QueueFilter filter) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: QueueFilterButton(
-                                    label: _filterLabel(filter),
-                                    count: _viewModel.countForFilter(filter),
-                                    isSelected:
-                                        _viewModel.selectedFilter == filter,
-                                    onPressed: () {
-                                      _viewModel.selectFilter(filter);
-                                    },
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ...QueueFilter.values.map((QueueFilter filter) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 6),
+                                    child: QueueFilterButton(
+                                      label: _filterLabel(filter),
+                                      count: _viewModel.countForFilter(filter),
+                                      isSelected:
+                                          _viewModel.selectedFilter == filter,
+                                      onPressed: () {
+                                        _viewModel.selectFilter(filter);
+                                      },
+                                    ),
+                                  );
+                                }),
+                                OutlinedButton.icon(
+                                  onPressed: () {
+                                    _openHistory(openFiltersOnStart: true);
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: IzyTelColors.textPrimary,
+                                    backgroundColor: IzyTelColors.surface,
+                                    minimumSize: const Size(0, 30),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 9,
+                                      vertical: 6,
+                                    ),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    shape: const StadiumBorder(),
+                                    side: const BorderSide(
+                                      color: IzyTelColors.outline,
+                                    ),
                                   ),
-                                );
-                              }),
-                              OutlinedButton.icon(
-                                onPressed: () {
-                                  _openHistory(openFiltersOnStart: true);
-                                },
-                                style: OutlinedButton.styleFrom(
-                                  minimumSize: const Size(0, 32),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
+                                  icon: const Icon(
+                                    Symbols.tune_rounded,
+                                    size: IzyTelIconSize.info,
+                                    color: IzyTelColors.textSecondary,
                                   ),
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                  shape: const StadiumBorder(),
-                                  side: const BorderSide(
-                                    color: IzyTelColors.outline,
+                                  label: const Text(
+                                    'Filtres',
+                                    style: TextStyle(
+                                      color: IzyTelColors.textPrimary,
+                                      fontSize: IzyTelTypeScale.micro,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
-                                icon: const Icon(
-                                  Symbols.tune_rounded,
-                                  size: IzyTelIconSize.info,
-                                ),
-                                label: const Text(
-                                  'Filtres',
-                                  style: TextStyle(
-                                    fontSize: IzyTelTypeScale.label,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),

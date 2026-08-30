@@ -1,61 +1,126 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
-class PaymentsHeader extends StatelessWidget {
-  const PaymentsHeader({
+class PaymentsTopBar extends StatelessWidget {
+  const PaymentsTopBar({
     super.key,
-    required this.userName,
-    required this.onNotificationsPressed,
+    required this.onRefreshPressed,
   });
 
-  final String userName;
-  final VoidCallback onNotificationsPressed;
-
-  String get initial {
-    final String trimmedName = userName.trim();
-
-    if (trimmedName.isEmpty) {
-      return '?';
-    }
-
-    return trimmedName.substring(0, 1).toUpperCase();
-  }
+  final VoidCallback onRefreshPressed;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        CircleAvatar(
-          radius: 19,
-          backgroundColor: AppColors.surfaceContainerHighest,
-          foregroundColor: AppColors.primary,
+        Expanded(
           child: Text(
-            initial,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-        ),
-        const SizedBox(width: 10),
-        const Expanded(
-          child: Text(
-            'CabineFlow',
-            style: TextStyle(
-              color: AppColors.primary,
-              fontSize: 19,
+            'Paiements',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              color: IzyTelColors.textPrimary,
+              fontSize: IzyTelTypeScale.title2,
+              height: 1.08,
               fontWeight: FontWeight.w700,
+              letterSpacing: -.35,
             ),
           ),
         ),
         IconButton(
-          tooltip: 'Notifications',
-          onPressed: onNotificationsPressed,
-          style: IconButton.styleFrom(
-            backgroundColor: AppColors.surfaceContainerHigh,
+          tooltip: 'Actualiser',
+          onPressed: onRefreshPressed,
+          visualDensity: VisualDensity.compact,
+          color: IzyTelColors.textPrimary,
+          icon: const Icon(
+            Symbols.refresh_rounded,
+            size: IzyTelIconSize.action,
           ),
-          icon: const Icon(Icons.notifications_none_rounded),
         ),
       ],
+    );
+  }
+}
+
+class PaymentAttentionSummary extends StatelessWidget {
+  const PaymentAttentionSummary({
+    super.key,
+    required this.count,
+    required this.amount,
+  });
+
+  final int count;
+  final int amount;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool hasPending = count > 0;
+    final Color accent = hasPending ? IzyTelColors.warning : IzyTelColors.success;
+    final Color soft = hasPending
+        ? IzyTelColors.warningSoft
+        : IzyTelColors.successSoft;
+
+    return IzyTelSurface(
+      radius: 16,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      backgroundColor: IzyTelColors.surface,
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: soft,
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(
+              hasPending
+                  ? Symbols.fact_check_rounded
+                  : Symbols.check_circle_rounded,
+              color: accent,
+              size: IzyTelIconSize.action,
+            ),
+          ),
+          const SizedBox(width: 11),
+          Flexible(
+            fit: FlexFit.loose,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasPending
+                      ? '$count paiement${count > 1 ? 's' : ''} à vérifier'
+                      : 'Aucun paiement à vérifier',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: IzyTelColors.textPrimary,
+                    fontSize: IzyTelTypeScale.cardTitle,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  hasPending
+                      ? '${formatCfaFull(amount)} à contrôler'
+                      : 'La file de vérification est à jour.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: IzyTelColors.textSecondary,
+                    fontSize: IzyTelTypeScale.micro,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -67,36 +132,81 @@ class PaymentFilterPill extends StatelessWidget {
     required this.count,
     required this.isSelected,
     required this.onPressed,
+    this.emphasis,
   });
 
   final String label;
   final int count;
   final bool isSelected;
   final VoidCallback onPressed;
+  final Color? emphasis;
 
   @override
   Widget build(BuildContext context) {
+    final Color accent = emphasis ?? IzyTelColors.primary;
+    final Color foreground = isSelected
+        ? IzyTelColors.surface
+        : emphasis ?? IzyTelColors.textPrimary;
+    final Color background = isSelected
+        ? accent
+        : emphasis == null
+            ? IzyTelColors.surfaceMuted
+            : accent.withAlpha(20);
+
     return Material(
-      color: isSelected ? AppColors.primary : AppColors.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(24),
+      color: background,
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: isSelected
+              ? accent
+              : emphasis == null
+                  ? IzyTelColors.outline
+                  : accent.withAlpha(50),
+        ),
+      ),
       child: InkWell(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(24),
+        customBorder: const StadiumBorder(),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: isSelected ? AppColors.primary : AppColors.outlineVariant,
-            ),
-          ),
-          child: Text(
-            count > 0 ? '$label ($count)' : label,
-            style: TextStyle(
-              color: isSelected ? AppColors.onPrimary : AppColors.onSurface,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
+          height: 34,
+          padding: const EdgeInsets.symmetric(horizontal: 11),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                maxLines: 1,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: foreground,
+                  fontSize: IzyTelTypeScale.micro,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (count > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  constraints: const BoxConstraints(minWidth: 18),
+                  height: 18,
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? IzyTelColors.surface.withAlpha(34)
+                        : IzyTelColors.surface,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: isSelected ? IzyTelColors.surface : accent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),
@@ -115,13 +225,8 @@ class PaymentTrackingCard extends StatelessWidget {
 
   final QueueOrder order;
   final bool isProcessing;
-
   final VoidCallback onConfirmPayment;
   final VoidCallback onOpenOrders;
-
-  static const Color _successColor = Color(0xFF22C55E);
-  static const Color _warningColor = Color(0xFFF59E0B);
-  static const Color _waitingColor = Color(0xFF60A5FA);
 
   bool get isConfirmed {
     return order.paymentStatus == OrderPaymentStatus.confirmed &&
@@ -139,330 +244,47 @@ class PaymentTrackingCard extends StatelessWidget {
     return order.hasPaymentToReviewAfterExpiration;
   }
 
-  String get networkLabel {
-    switch (order.network) {
-      case MobileNetwork.orange:
-        return 'Orange';
+  String get _networkName => networkLabel(order.network);
 
-      case MobileNetwork.mtn:
-        return 'MTN';
+  Color get _statusColor {
+    if (isConfirmed) return IzyTelColors.success;
+    if (isPaymentToReviewAfterExpiration) return IzyTelColors.error;
+    if (isCustomerPaymentDeclared) return IzyTelColors.warning;
+    return IzyTelColors.primary;
+  }
 
-      case MobileNetwork.moov:
-        return 'Moov';
+  String get _statusLabel {
+    if (isConfirmed) return 'Paiement confirmé';
+    if (isPaymentToReviewAfterExpiration) return 'Après expiration';
+    if (isCustomerPaymentDeclared) return 'À vérifier';
+    return 'En attente';
+  }
+
+  IconData get _statusIcon {
+    if (isConfirmed) return Symbols.check_circle_rounded;
+    if (isPaymentToReviewAfterExpiration) return Symbols.timer_off_rounded;
+    if (isCustomerPaymentDeclared) return Symbols.fact_check_rounded;
+    return Symbols.schedule_rounded;
+  }
+
+  DateTime get _referenceDate {
+    return order.paymentDeclaredAt ??
+        order.paidAt ??
+        order.paymentRequestSentAt ??
+        order.createdAt;
+  }
+
+  String get _relativeTime {
+    final Duration difference = DateTime.now().difference(_referenceDate);
+    if (difference.isNegative || difference.inMinutes <= 0) return 'À l’instant';
+    if (difference.inMinutes < 60) return 'Il y a ${difference.inMinutes} min';
+    if (difference.inHours < 24) {
+      final int minutes = difference.inMinutes.remainder(60);
+      return minutes == 0
+          ? 'Il y a ${difference.inHours} h'
+          : 'Il y a ${difference.inHours} h $minutes min';
     }
-  }
-
-  Color get networkColor {
-    switch (order.network) {
-      case MobileNetwork.orange:
-        return const Color(0xFFFF7900);
-
-      case MobileNetwork.mtn:
-        return const Color(0xFFFFCC00);
-
-      case MobileNetwork.moov:
-        return const Color(0xFF0066CC);
-    }
-  }
-
-  Color get networkTextColor {
-    if (order.network == MobileNetwork.mtn) {
-      return Colors.black;
-    }
-
-    return Colors.white;
-  }
-
-  String _formatDate(DateTime date) {
-    final DateTime now = DateTime.now();
-    final DateTime today = DateTime(now.year, now.month, now.day);
-    final DateTime dateOnly = DateTime(date.year, date.month, date.day);
-
-    final String time =
-        '${date.hour.toString().padLeft(2, '0')}:'
-        '${date.minute.toString().padLeft(2, '0')}';
-
-    if (dateOnly == today) {
-      return 'Aujourd’hui à $time';
-    }
-
-    if (dateOnly == today.subtract(const Duration(days: 1))) {
-      return 'Hier à $time';
-    }
-
-    return '${date.day.toString().padLeft(2, '0')}/'
-        '${date.month.toString().padLeft(2, '0')}/'
-        '${date.year} à $time';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outlineVariant.withAlpha(90)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildMainInformation(),
-          const SizedBox(height: 13),
-          Divider(height: 1, color: AppColors.outlineVariant.withAlpha(70)),
-          const SizedBox(height: 13),
-          _buildOperationInformation(),
-          const SizedBox(height: 14),
-          _buildPaymentStatus(),
-          if (isCustomerPaymentDeclared && _hasDeclaredPaymentDetails) ...[
-            const SizedBox(height: 10),
-            _buildDeclaredPaymentDetails(),
-          ],
-          const SizedBox(height: 13),
-          _buildActions(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMainInformation() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Icon(
-          Icons.account_circle_outlined,
-          color: AppColors.primary,
-          size: 21,
-        ),
-        const SizedBox(width: 7),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                order.clientName,
-                style: const TextStyle(
-                  color: AppColors.onSurface,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '#${order.reference}',
-                style: const TextStyle(
-                  color: AppColors.onSurfaceVariant,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          '${formatCfa(order.amount)} CFA',
-          style: const TextStyle(
-            color: AppColors.primary,
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildOperationInformation() {
-    return Row(
-      children: [
-        Container(
-          width: 26,
-          height: 26,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: networkColor,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Text(
-            networkLabel.substring(0, 1),
-            style: TextStyle(
-              color: networkTextColor,
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '$networkLabel • ${order.beneficiaryPhone}',
-                style: const TextStyle(
-                  color: AppColors.onSurface,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                order.offerLabel,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.onSurfaceVariant,
-                  fontSize: 11,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPaymentStatus() {
-    late final Color color;
-    late final IconData icon;
-    late final String title;
-    late final String subtitle;
-
-    if (isConfirmed) {
-      color = _successColor;
-      icon = Icons.check_circle_rounded;
-      title = 'Paiement confirmé';
-      subtitle =
-          'Réf. ${order.paymentReference} • ${_formatDate(order.paidAt!)}';
-    } else if (isPaymentToReviewAfterExpiration) {
-      color = const Color(0xFFDC2626);
-      icon = Icons.timer_off_outlined;
-      title = 'Paiement déclaré après expiration';
-      subtitle = order.paymentDeclaredAt == null
-          ? 'Examen manuel obligatoire.'
-          : 'Déclaré ${_formatDate(order.paymentDeclaredAt!)}';
-    } else if (isCustomerPaymentDeclared) {
-      color = _warningColor;
-      icon = Icons.manage_search_rounded;
-      title = 'Paiement déclaré — à vérifier';
-      subtitle = order.paymentDeclaredAt == null
-          ? 'Déclaration reçue depuis l’espace client.'
-          : 'Déclaré ${_formatDate(order.paymentDeclaredAt!)}';
-    } else {
-      color = _waitingColor;
-      icon = Icons.hourglass_top_rounded;
-      title = 'Paiement en attente';
-      subtitle = 'Aucune déclaration de paiement à vérifier.';
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(11),
-      decoration: BoxDecoration(
-        color: color.withAlpha(22),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withAlpha(85)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    color: AppColors.onSurfaceVariant,
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  bool get _hasDeclaredPaymentDetails {
-    return order.paymentPayerName != null ||
-        order.paymentPayerPhone != null ||
-        order.paymentApproximateTime != null ||
-        order.paymentDeclaredReference != null;
-  }
-
-  Widget _buildDeclaredPaymentDetails() {
-    final List<Widget> rows = <Widget>[
-      if (order.paymentPayerName != null)
-        _DeclaredPaymentRow(label: 'Nom Wave', value: order.paymentPayerName!),
-      if (order.paymentPayerPhone != null)
-        _DeclaredPaymentRow(
-          label: 'Numéro payeur',
-          value: _formatIvorianPhone(order.paymentPayerPhone!),
-        ),
-      if (order.paymentApproximateTime != null)
-        _DeclaredPaymentRow(
-          label: 'Heure annoncée',
-          value: order.paymentApproximateTime!,
-        ),
-      if (order.paymentDeclaredReference != null)
-        _DeclaredPaymentRow(
-          label: 'Référence déclarée',
-          value: order.paymentDeclaredReference!,
-          isLast: true,
-        ),
-    ];
-
-    if (rows.isNotEmpty && rows.last is _DeclaredPaymentRow) {
-      final _DeclaredPaymentRow last = rows.removeLast() as _DeclaredPaymentRow;
-      rows.add(
-        _DeclaredPaymentRow(label: last.label, value: last.value, isLast: true),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.outlineVariant.withAlpha(80)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Row(
-            children: [
-              Icon(
-                Icons.receipt_long_outlined,
-                color: AppColors.primary,
-                size: 17,
-              ),
-              SizedBox(width: 7),
-              Text(
-                'Informations déclarées par le client',
-                style: TextStyle(
-                  color: AppColors.onSurface,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 7),
-          ...rows,
-        ],
-      ),
-    );
+    return 'Il y a ${difference.inDays} j';
   }
 
   String _formatIvorianPhone(String value) {
@@ -470,111 +292,271 @@ class PaymentTrackingCard extends StatelessWidget {
     final String localDigits = digits.startsWith('225')
         ? digits.substring(3)
         : digits;
-
-    if (localDigits.length != 10) {
-      return value;
-    }
-
-    final List<String> groups = <String>[
+    if (localDigits.length != 10) return value;
+    return '+225 ${<String>[
       localDigits.substring(0, 2),
       localDigits.substring(2, 4),
       localDigits.substring(4, 6),
       localDigits.substring(6, 8),
       localDigits.substring(8, 10),
-    ];
-
-    return '+225 ${groups.join(' ')}';
+    ].join(' ')}';
   }
-
-  Widget _buildActions() {
-    if (isConfirmed) {
-      return OutlinedButton.icon(
-        onPressed: onOpenOrders,
-        icon: const Icon(Icons.receipt_long_outlined, size: 18),
-        label: const Text('Voir dans les commandes'),
-      );
-    }
-
-    if (isCustomerPaymentDeclared) {
-      return FilledButton.icon(
-        onPressed: isProcessing ? null : onConfirmPayment,
-        icon: isProcessing
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColors.onPrimary,
-                ),
-              )
-            : const Icon(Icons.verified_rounded, size: 19),
-        label: Text(
-          isPaymentToReviewAfterExpiration
-              ? 'Examiner et confirmer'
-              : 'Vérifier et confirmer',
-        ),
-      );
-    }
-
-    return OutlinedButton.icon(
-      onPressed: onOpenOrders,
-      icon: const Icon(Icons.receipt_long_outlined, size: 18),
-      label: const Text('Voir la commande'),
-    );
-  }
-}
-
-class _DeclaredPaymentRow extends StatelessWidget {
-  const _DeclaredPaymentRow({
-    required this.label,
-    required this.value,
-    this.isLast = false,
-  });
-
-  final String label;
-  final String value;
-  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      decoration: BoxDecoration(
-        border: isLast
-            ? null
-            : Border(
-                bottom: BorderSide(
-                  color: AppColors.outlineVariant.withAlpha(45),
+    final Color statusColor = _statusColor;
+
+    return IzyTelSurface(
+      radius: 14,
+      padding: const EdgeInsets.fromLTRB(13, 11, 13, 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              _NetworkLogo(network: order.network),
+              const SizedBox(width: 9),
+              Flexible(
+                fit: FlexFit.loose,
+                child: Text(
+                  _networkName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: IzyTelColors.textPrimary,
+                    fontSize: IzyTelTypeScale.label,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 112,
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: AppColors.onSurfaceVariant,
-                fontSize: 10,
+              const SizedBox(width: 8),
+              Text(
+                _relativeTime,
+                maxLines: 1,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: isPaymentToReviewAfterExpiration
+                      ? IzyTelColors.error
+                      : IzyTelColors.textMuted,
+                  fontSize: IzyTelTypeScale.micro,
+                  fontWeight: isPaymentToReviewAfterExpiration
+                      ? FontWeight.w600
+                      : FontWeight.w500,
+                ),
               ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Text(
+            order.offerLabel,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: IzyTelColors.textPrimary,
+              fontSize: IzyTelTypeScale.cardTitle,
+              height: 1.22,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.end,
-              style: const TextStyle(
-                color: AppColors.onSurface,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
+          const SizedBox(height: 9),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Flexible(
+                fit: FlexFit.loose,
+                child: Text(
+                  _formatIvorianPhone(order.beneficiaryPhone),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: IzyTelColors.textPrimary,
+                    fontSize: IzyTelTypeScale.transactionNumber,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: .05,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 10),
+              Text(
+                formatCfa(order.amount),
+                maxLines: 1,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: IzyTelColors.primaryStrong,
+                  fontSize: IzyTelTypeScale.money,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -.25,
+                ),
+              ),
+            ],
           ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Flexible(
+                fit: FlexFit.loose,
+                child: Text(
+                  'Client · ${order.clientName}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: IzyTelColors.textSecondary,
+                    fontSize: IzyTelTypeScale.micro,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                order.reference,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: IzyTelColors.textMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              IzyTelStatusPill(
+                label: _statusLabel,
+                color: statusColor,
+                icon: _statusIcon,
+              ),
+              if (isCustomerPaymentDeclared && order.paymentPayerName != null)
+                Text(
+                  'Payeur · ${order.paymentPayerName}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: IzyTelColors.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 11),
+          _buildAction(context),
         ],
       ),
     );
   }
+
+  Widget _buildAction(BuildContext context) {
+    if (isCustomerPaymentDeclared) {
+      return SizedBox(
+        height: 44,
+        child: FilledButton.icon(
+          onPressed: isProcessing ? null : onConfirmPayment,
+          style: FilledButton.styleFrom(
+            backgroundColor: IzyTelColors.primary,
+            foregroundColor: IzyTelColors.surface,
+            disabledBackgroundColor: IzyTelColors.surfaceMuted,
+            disabledForegroundColor: IzyTelColors.textMuted,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(IzyTelRadii.button),
+            ),
+          ),
+          icon: isProcessing
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: IzyTelColors.surface,
+                  ),
+                )
+              : Icon(
+                  isPaymentToReviewAfterExpiration
+                      ? Symbols.search_rounded
+                      : Symbols.verified_rounded,
+                  size: IzyTelIconSize.info,
+                ),
+          label: Text(
+            isPaymentToReviewAfterExpiration
+                ? 'Examiner le paiement'
+                : 'Vérifier le paiement',
+            style: const TextStyle(
+              fontSize: IzyTelTypeScale.label,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 42,
+      child: OutlinedButton.icon(
+        onPressed: onOpenOrders,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: IzyTelColors.primary,
+          side: const BorderSide(color: IzyTelColors.outlineStrong),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(IzyTelRadii.button),
+          ),
+        ),
+        icon: const Icon(
+          Symbols.receipt_long_rounded,
+          size: IzyTelIconSize.info,
+        ),
+        label: Text(
+          isConfirmed ? 'Voir la commande' : 'Ouvrir la commande',
+          style: const TextStyle(
+            fontSize: IzyTelTypeScale.label,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NetworkLogo extends StatelessWidget {
+  const _NetworkLogo({required this.network});
+
+  final MobileNetwork network;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color soft = switch (network) {
+      MobileNetwork.orange => IzyTelColors.orangeSoft,
+      MobileNetwork.mtn => IzyTelColors.mtnSoft,
+      MobileNetwork.moov => IzyTelColors.moovSoft,
+    };
+
+    return Container(
+      width: 34,
+      height: 34,
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        color: soft,
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Image.asset(
+        networkAsset(network),
+        fit: BoxFit.contain,
+        errorBuilder: (BuildContext context, Object error, StackTrace? stack) {
+          return Icon(
+            Symbols.sim_card_rounded,
+            size: 18,
+            color: _fallbackColor,
+          );
+        },
+      ),
+    );
+  }
+
+  Color get _fallbackColor => switch (network) {
+    MobileNetwork.orange => IzyTelColors.orange,
+    MobileNetwork.mtn => IzyTelColors.mtnText,
+    MobileNetwork.moov => IzyTelColors.moov,
+  };
 }

@@ -6,9 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('Flux de paiement manuel', () {
     test('une commande confirmée devient paidReady', () async {
-      final FakeOrdersRepository repository = FakeOrdersRepository(
-        isTest: true,
-      );
+      final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
 
       final QueueOrder createdOrder = await repository.createOrder(
         request: const CreateOrderRequest(
@@ -46,9 +44,7 @@ void main() {
     test(
       'génère une référence manuelle quand aucune référence Wave n’est saisie',
       () async {
-        final FakeOrdersRepository repository = FakeOrdersRepository(
-          isTest: true,
-        );
+        final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
 
         final QueueOrder createdOrder = await repository.createOrder(
           request: const CreateOrderRequest(

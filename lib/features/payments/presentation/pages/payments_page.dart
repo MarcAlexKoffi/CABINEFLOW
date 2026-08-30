@@ -1,11 +1,14 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/features/payments/presentation/view_models/payments_view_model.dart';
 import 'package:cabine_flow/features/payments/presentation/widgets/payments_widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 class PaymentsPage extends StatefulWidget {
   const PaymentsPage({
@@ -22,9 +25,7 @@ class PaymentsPage extends StatefulWidget {
   final VoidCallback onOpenOrders;
 
   @override
-  State<PaymentsPage> createState() {
-    return _PaymentsPageState();
-  }
+  State<PaymentsPage> createState() => _PaymentsPageState();
 }
 
 class _PaymentsPageState extends State<PaymentsPage> {
@@ -33,9 +34,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
   @override
   void initState() {
     super.initState();
-
     _viewModel = PaymentsViewModel(ordersRepository: widget.ordersRepository);
-
     _viewModel.startRealtime();
   }
 
@@ -46,23 +45,51 @@ class _PaymentsPageState extends State<PaymentsPage> {
   }
 
   String _filterLabel(PaymentOrderFilter filter) {
-    switch (filter) {
-      case PaymentOrderFilter.all:
-        return 'Tous';
-
-      case PaymentOrderFilter.linkToSend:
-        return 'Liens à envoyer';
-
-      case PaymentOrderFilter.awaitingPayment:
-        return 'À vérifier';
-
-      case PaymentOrderFilter.afterExpiration:
-        return 'Après expiration';
-
-      case PaymentOrderFilter.confirmed:
-        return 'Confirmés';
-    }
+    return switch (filter) {
+      PaymentOrderFilter.all => 'Tous',
+      PaymentOrderFilter.linkToSend => 'Liens',
+      PaymentOrderFilter.awaitingPayment => 'À vérifier',
+      PaymentOrderFilter.afterExpiration => 'Expirés',
+      PaymentOrderFilter.confirmed => 'Confirmés',
+    };
   }
+
+  Color? _filterEmphasis(PaymentOrderFilter filter) {
+    return switch (filter) {
+      PaymentOrderFilter.awaitingPayment => IzyTelColors.warning,
+      PaymentOrderFilter.afterExpiration => IzyTelColors.error,
+      PaymentOrderFilter.confirmed => IzyTelColors.success,
+      _ => null,
+    };
+  }
+
+  List<PaymentOrderFilter> get _visibleFilters {
+    final List<PaymentOrderFilter> filters = <PaymentOrderFilter>[
+      PaymentOrderFilter.all,
+      PaymentOrderFilter.awaitingPayment,
+      PaymentOrderFilter.afterExpiration,
+      PaymentOrderFilter.confirmed,
+    ];
+    if (_viewModel.countForFilter(PaymentOrderFilter.linkToSend) > 0) {
+      filters.insert(1, PaymentOrderFilter.linkToSend);
+    }
+    return filters;
+  }
+
+  bool _requiresManualVerification(QueueOrder order) {
+    return order.hasPaymentToReviewAfterExpiration ||
+        (order.source == OrderSource.customerWeb &&
+            order.paymentStatus == OrderPaymentStatus.declared &&
+            (order.status == QueueOrderStatus.paymentToVerify ||
+                order.status == QueueOrderStatus.awaitingPayment));
+  }
+
+  int get _verificationAmount => _viewModel.allOrders
+      .where(_requiresManualVerification)
+      .fold<int>(0, (int total, QueueOrder order) => total + order.amount);
+
+  int get _verificationCount =>
+      _viewModel.allOrders.where(_requiresManualVerification).length;
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(context)
@@ -75,12 +102,14 @@ class _PaymentsPageState extends State<PaymentsPage> {
     final String localDigits = digits.startsWith('225')
         ? digits.substring(3)
         : digits;
-
-    if (localDigits.length != 10) {
-      return value;
-    }
-
-    return '+225 ${<String>[localDigits.substring(0, 2), localDigits.substring(2, 4), localDigits.substring(4, 6), localDigits.substring(6, 8), localDigits.substring(8, 10)].join(' ')}';
+    if (localDigits.length != 10) return value;
+    return '+225 ${<String>[
+      localDigits.substring(0, 2),
+      localDigits.substring(2, 4),
+      localDigits.substring(4, 6),
+      localDigits.substring(6, 8),
+      localDigits.substring(8, 10),
+    ].join(' ')}';
   }
 
   Future<void> _openPaymentConfirmation(QueueOrder order) async {
@@ -89,300 +118,296 @@ class _PaymentsPageState extends State<PaymentsPage> {
 
     final String? paymentReference = await showModalBottomSheet<String>(
       context: context,
+      useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (BuildContext sheetContext) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setSheetState) {
-            // Using sheetContext for MediaQuery prevents dependent unmount crashes during pop
-            final double keyboardHeight = MediaQuery.viewInsetsOf(
-              sheetContext,
-            ).bottom;
+            final double keyboardHeight = MediaQuery.viewInsetsOf(sheetContext).bottom;
 
             return Padding(
               padding: EdgeInsets.only(bottom: keyboardHeight),
               child: Container(
-                decoration: const BoxDecoration(
-                  color: AppColors.surfaceContainer,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(sheetContext).height * .90,
                 ),
-                child: SafeArea(
-                  top: false,
-                  child: SingleChildScrollView(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Align(
-                            alignment: Alignment.center,
-                            child: Container(
-                              width: 46,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: AppColors.outlineVariant,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
+                decoration: const BoxDecoration(
+                  color: IzyTelColors.surface,
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(IzyTelRadii.sheet),
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 22),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Align(
+                        alignment: Alignment.center,
+                        child: Container(
+                          width: 42,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: IzyTelColors.outlineStrong,
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        order.hasPaymentToReviewAfterExpiration
+                            ? 'Examiner le paiement'
+                            : 'Vérifier le paiement',
+                        style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
+                          color: IzyTelColors.textPrimary,
+                          fontSize: IzyTelTypeScale.title2,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -.35,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        order.reference,
+                        style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                          color: IzyTelColors.textMuted,
+                          fontSize: IzyTelTypeScale.micro,
+                        ),
+                      ),
+                      if (order.hasPaymentToReviewAfterExpiration) ...[
+                        const SizedBox(height: 14),
+                        _PaymentWarning(
+                          icon: Symbols.timer_off_rounded,
+                          title: 'Paiement déclaré après expiration',
+                          message:
+                              'Vérifie attentivement la transaction dans Wave avant toute confirmation.',
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      _PaymentSheetSummary(
+                        order: order,
+                        formattedPhone: _formatIvorianPhone(order.beneficiaryPhone),
+                      ),
+                      if (_hasDeclaredPaymentDetails(order)) ...[
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(13, 12, 13, 10),
+                          decoration: BoxDecoration(
+                            color: IzyTelColors.warningSoft,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: IzyTelColors.warning.withAlpha(70),
                             ),
                           ),
-                          const SizedBox(height: 18),
-                          const Text(
-                            'Confirmer le paiement',
-                            style: TextStyle(
-                              color: AppColors.onSurface,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 7),
-                          Text(
-                            'Commande ${order.reference}',
-                            style: const TextStyle(
-                              color: AppColors.onSurfaceVariant,
-                            ),
-                          ),
-                          if (order.hasPaymentToReviewAfterExpiration) ...[
-                            const SizedBox(height: 14),
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: AppColors.error.withAlpha(20),
-                                borderRadius: BorderRadius.circular(11),
-                                border: Border.all(
-                                  color: AppColors.error.withAlpha(90),
-                                ),
-                              ),
-                              child: const Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Row(
                                 children: [
                                   Icon(
-                                    Icons.timer_off_outlined,
-                                    color: AppColors.error,
-                                    size: 20,
+                                    Symbols.receipt_long_rounded,
+                                    color: IzyTelColors.warning,
+                                    size: IzyTelIconSize.info,
                                   ),
-                                  SizedBox(width: 9),
-                                  Expanded(
-                                    child: Text(
-                                      'Ce paiement a été déclaré après l’expiration de la commande. Vérifiez-le attentivement avant toute confirmation.',
-                                      style: TextStyle(
-                                        color: AppColors.error,
-                                        fontSize: 11,
-                                        height: 1.4,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 18),
-                          Container(
-                            padding: const EdgeInsets.all(13),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceContainerLowest,
-                              borderRadius: BorderRadius.circular(11),
-                              border: Border.all(
-                                color: AppColors.outlineVariant,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.payments_outlined,
-                                  color: AppColors.primary,
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    order.clientName,
-                                    style: const TextStyle(
-                                      color: AppColors.onSurface,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                                Text(
-                                  '${formatCfa(order.amount)} CFA',
-                                  style: const TextStyle(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (order.paymentPayerName != null ||
-                              order.paymentPayerPhone != null ||
-                              order.paymentApproximateTime != null ||
-                              order.paymentDeclaredReference != null) ...[
-                            const SizedBox(height: 14),
-                            Container(
-                              padding: const EdgeInsets.all(13),
-                              decoration: BoxDecoration(
-                                color: AppColors.warning.withAlpha(20),
-                                borderRadius: BorderRadius.circular(11),
-                                border: Border.all(
-                                  color: AppColors.warning.withAlpha(100),
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  const Text(
+                                  SizedBox(width: 7),
+                                  Text(
                                     'Déclaration du client',
                                     style: TextStyle(
-                                      color: AppColors.warning,
-                                      fontSize: 12,
+                                      color: IzyTelColors.textPrimary,
+                                      fontSize: IzyTelTypeScale.label,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
-                                  const SizedBox(height: 8),
-                                  if (order.paymentPayerName != null)
-                                    _PaymentDeclarationCheckRow(
-                                      label: 'Nom Wave',
-                                      value: order.paymentPayerName!,
-                                    ),
-                                  if (order.paymentPayerPhone != null)
-                                    _PaymentDeclarationCheckRow(
-                                      label: 'Numéro',
-                                      value: _formatIvorianPhone(
-                                        order.paymentPayerPhone!,
-                                      ),
-                                    ),
-                                  if (order.paymentApproximateTime != null)
-                                    _PaymentDeclarationCheckRow(
-                                      label: 'Heure annoncée',
-                                      value: order.paymentApproximateTime!,
-                                    ),
-                                  if (order.paymentDeclaredReference != null)
-                                    _PaymentDeclarationCheckRow(
-                                      label: 'Référence déclarée',
-                                      value: order.paymentDeclaredReference!,
-                                    ),
                                 ],
                               ),
-                            ),
-                          ],
-                          const SizedBox(height: 18),
-                          const Text(
-                            'Référence Wave',
-                            style: TextStyle(
-                              color: AppColors.onSurfaceVariant,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 7),
-                          TextField(
-                            controller: referenceController,
-                            textCapitalization: TextCapitalization.characters,
-                            style: const TextStyle(color: AppColors.onSurface),
-                            decoration: InputDecoration(
-                              hintText: 'Facultatif — Ex. W-8942AB',
-                              hintStyle: const TextStyle(
-                                color: AppColors.onSurfaceVariant,
-                              ),
-                              prefixIcon: const Icon(
-                                Icons.tag_rounded,
-                                color: AppColors.onSurfaceVariant,
-                              ),
-                              filled: true,
-                              fillColor: AppColors.surfaceContainerLowest,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: AppColors.outlineVariant,
+                              const SizedBox(height: 8),
+                              if (order.paymentPayerName != null)
+                                _PaymentDeclarationCheckRow(
+                                  label: 'Nom Wave',
+                                  value: order.paymentPayerName!,
                                 ),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: AppColors.outlineVariant,
+                              if (order.paymentPayerPhone != null)
+                                _PaymentDeclarationCheckRow(
+                                  label: 'Numéro payeur',
+                                  value: _formatIvorianPhone(
+                                    order.paymentPayerPhone!,
+                                  ),
                                 ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: AppColors.primary,
+                              if (order.paymentApproximateTime != null)
+                                _PaymentDeclarationCheckRow(
+                                  label: 'Heure annoncée',
+                                  value: order.paymentApproximateTime!,
                                 ),
-                              ),
-                            ),
+                              if (order.paymentDeclaredReference != null)
+                                _PaymentDeclarationCheckRow(
+                                  label: 'Référence déclarée',
+                                  value: order.paymentDeclaredReference!,
+                                  isLast: true,
+                                ),
+                            ],
                           ),
-                          const SizedBox(height: 7),
-                          const Text(
-                            'Sans référence, CabineFlow générera une référence MAN-...',
-                            style: TextStyle(
-                              color: AppColors.onSurfaceVariant,
-                              fontSize: 10,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          CheckboxListTile(
-                            value: paymentWasChecked,
-                            contentPadding: EdgeInsets.zero,
-                            controlAffinity: ListTileControlAffinity.leading,
-                            checkColor: AppColors.onPrimary,
-                            activeColor: AppColors.primary,
-                            side: const BorderSide(
-                              color: AppColors.outlineVariant,
-                              width: 2,
-                            ),
-                            title: const Text(
-                              'J’ai vérifié ce paiement dans mon compte Wave.',
-                              style: TextStyle(
-                                color: AppColors.onSurface,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            subtitle: const Text(
-                              'Cette action enverra la commande dans la file à traiter.',
-                              style: TextStyle(
-                                color: AppColors.onSurfaceVariant,
-                                fontSize: 10,
-                              ),
-                            ),
-                            onChanged: (bool? value) {
-                              setSheetState(() {
-                                paymentWasChecked = value ?? false;
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 14),
-                          FilledButton.icon(
-                            onPressed: paymentWasChecked
-                                ? () {
-                                    Navigator.of(
-                                      sheetContext,
-                                    ).pop(referenceController.text.trim());
-                                  }
-                                : null,
-                            icon: const Icon(Icons.verified_rounded),
-                            label: const Text('Confirmer le paiement'),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: AppColors.onPrimary,
-                              disabledBackgroundColor:
-                                  AppColors.surfaceContainerLowest,
-                              disabledForegroundColor:
-                                  AppColors.onSurfaceVariant,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.of(sheetContext).pop();
-                            },
-                            style: TextButton.styleFrom(
-                              foregroundColor: AppColors.onSurfaceVariant,
-                            ),
-                            child: const Text('Annuler'),
-                          ),
-                        ],
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Référence Wave',
+                        style: TextStyle(
+                          color: IzyTelColors.textPrimary,
+                          fontSize: IzyTelTypeScale.label,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 7),
+                      TextField(
+                        controller: referenceController,
+                        textCapitalization: TextCapitalization.characters,
+                        style: const TextStyle(
+                          color: IzyTelColors.textPrimary,
+                          fontSize: IzyTelTypeScale.text,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Facultatif — Ex. W-8942AB',
+                          prefixIcon: const Icon(
+                            Symbols.tag_rounded,
+                            color: IzyTelColors.textSecondary,
+                            size: IzyTelIconSize.info,
+                          ),
+                          filled: true,
+                          fillColor: IzyTelColors.surfaceMuted,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(IzyTelRadii.input),
+                            borderSide: const BorderSide(
+                              color: IzyTelColors.outline,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(IzyTelRadii.input),
+                            borderSide: const BorderSide(
+                              color: IzyTelColors.outline,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(IzyTelRadii.input),
+                            borderSide: const BorderSide(
+                              color: IzyTelColors.primary,
+                              width: 1.4,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Si elle est vide, une référence MAN-… sera générée automatiquement.',
+                        style: TextStyle(
+                          color: IzyTelColors.textMuted,
+                          fontSize: IzyTelTypeScale.micro,
+                          height: 1.3,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () {
+                          setSheetState(() {
+                            paymentWasChecked = !paymentWasChecked;
+                          });
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 5),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Checkbox(
+                                value: paymentWasChecked,
+                                onChanged: (bool? value) {
+                                  setSheetState(() {
+                                    paymentWasChecked = value ?? false;
+                                  });
+                                },
+                                activeColor: IzyTelColors.primary,
+                                checkColor: IzyTelColors.surface,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              const SizedBox(width: 7),
+                              const Flexible(
+                                fit: FlexFit.loose,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'J’ai vérifié ce paiement dans Wave.',
+                                      style: TextStyle(
+                                        color: IzyTelColors.textPrimary,
+                                        fontSize: IzyTelTypeScale.label,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    SizedBox(height: 2),
+                                    Text(
+                                      'La commande sera envoyée dans la file à traiter après confirmation.',
+                                      style: TextStyle(
+                                        color: IzyTelColors.textSecondary,
+                                        fontSize: IzyTelTypeScale.micro,
+                                        height: 1.3,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        height: 48,
+                        child: FilledButton.icon(
+                          onPressed: paymentWasChecked
+                              ? () {
+                                  Navigator.of(sheetContext).pop(
+                                    referenceController.text.trim(),
+                                  );
+                                }
+                              : null,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: IzyTelColors.primary,
+                            foregroundColor: IzyTelColors.surface,
+                            disabledBackgroundColor: IzyTelColors.surfaceMuted,
+                            disabledForegroundColor: IzyTelColors.textMuted,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                IzyTelRadii.button,
+                              ),
+                            ),
+                          ),
+                          icon: const Icon(
+                            Symbols.verified_rounded,
+                            size: IzyTelIconSize.info,
+                          ),
+                          label: const Text(
+                            'Confirmer le paiement',
+                            style: TextStyle(
+                              fontSize: IzyTelTypeScale.label,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      TextButton(
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        style: TextButton.styleFrom(
+                          foregroundColor: IzyTelColors.textSecondary,
+                        ),
+                        child: const Text('Annuler'),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -393,10 +418,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
     );
 
     referenceController.dispose();
-
-    if (paymentReference == null || !mounted) {
-      return;
-    }
+    if (paymentReference == null || !mounted) return;
 
     final bool successful = await _viewModel.confirmPayment(
       order: order,
@@ -405,23 +427,25 @@ class _PaymentsPageState extends State<PaymentsPage> {
           : paymentReference,
     );
 
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
     if (!successful) {
       _showMessage(
         _viewModel.errorMessage ?? 'Impossible de confirmer ce paiement.',
       );
-
       return;
     }
 
     widget.onPaymentConfirmed();
-
     _showMessage(
       'Paiement confirmé. La commande ${order.reference} est maintenant prête à traiter.',
     );
+  }
+
+  bool _hasDeclaredPaymentDetails(QueueOrder order) {
+    return order.paymentPayerName != null ||
+        order.paymentPayerPhone != null ||
+        order.paymentApproximateTime != null ||
+        order.paymentDeclaredReference != null;
   }
 
   @override
@@ -436,66 +460,62 @@ class _PaymentsPageState extends State<PaymentsPage> {
           child: Column(
             children: [
               Container(
-                color: AppColors.background,
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
-                child: PaymentsHeader(
-                  userName: widget.user.name,
-                  onNotificationsPressed: () {
-                    _showMessage(
-                      'Les notifications seront ajoutées ultérieurement.',
-                    );
-                  },
+                color: IzyTelColors.background,
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                child: PaymentsTopBar(
+                  onRefreshPressed: _viewModel.loadPayments,
                 ),
               ),
-              Divider(height: 1, color: AppColors.outlineVariant.withAlpha(70)),
+              const Divider(height: 1, color: IzyTelColors.outline),
               Expanded(
                 child: RefreshIndicator(
                   onRefresh: _viewModel.loadPayments,
+                  color: IzyTelColors.primary,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
                     children: [
-                      Text(
-                        'Suivi des paiements',
-                        style: Theme.of(context).textTheme.headlineLarge
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 5),
-                      const Text(
-                        'Vérification manuelle des paiements Wave',
-                        style: TextStyle(color: AppColors.onSurfaceVariant),
-                      ),
-                      const SizedBox(height: 16),
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children:
-                              const <PaymentOrderFilter>[
-                                PaymentOrderFilter.all,
-                                PaymentOrderFilter.awaitingPayment,
-                                PaymentOrderFilter.afterExpiration,
-                                PaymentOrderFilter.confirmed,
-                              ].map((PaymentOrderFilter filter) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: PaymentFilterPill(
-                                    label: _filterLabel(filter),
-                                    count: _viewModel.countForFilter(filter),
-                                    isSelected:
-                                        _viewModel.selectedFilter == filter,
-                                    onPressed: () {
-                                      _viewModel.selectFilter(filter);
-                                    },
-                                  ),
-                                );
-                              }).toList(),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: PaymentAttentionSummary(
+                          count: _verificationCount,
+                          amount: _verificationAmount,
                         ),
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 36,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _visibleFilters.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 7),
+                          itemBuilder: (BuildContext context, int index) {
+                            final PaymentOrderFilter filter =
+                                _visibleFilters[index];
+                            return PaymentFilterPill(
+                              label: _filterLabel(filter),
+                              count: _viewModel.countForFilter(filter),
+                              isSelected: _viewModel.selectedFilter == filter,
+                              emphasis: _filterEmphasis(filter),
+                              onPressed: () => _viewModel.selectFilter(filter),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (_viewModel.errorMessage != null &&
+                          _viewModel.allOrders.isNotEmpty) ...[
+                        _PaymentsInlineError(message: _viewModel.errorMessage!),
+                        const SizedBox(height: 12),
+                      ],
                       if (_viewModel.isLoading && _viewModel.allOrders.isEmpty)
                         const SizedBox(
                           height: 300,
-                          child: Center(child: CircularProgressIndicator()),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: IzyTelColors.primary,
+                            ),
+                          ),
                         )
                       else if (_viewModel.errorMessage != null &&
                           _viewModel.allOrders.isEmpty)
@@ -504,11 +524,13 @@ class _PaymentsPageState extends State<PaymentsPage> {
                           onRetry: _viewModel.loadPayments,
                         )
                       else if (visibleOrders.isEmpty)
-                        const _PaymentsEmptyState()
+                        _PaymentsEmptyState(
+                          filter: _viewModel.selectedFilter,
+                        )
                       else
-                        ...visibleOrders.map((QueueOrder order) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
+                        ...visibleOrders.map(
+                          (QueueOrder order) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
                             child: PaymentTrackingCard(
                               order: order,
                               isProcessing: _viewModel.isProcessing(order.id),
@@ -517,8 +539,8 @@ class _PaymentsPageState extends State<PaymentsPage> {
                               },
                               onOpenOrders: widget.onOpenOrders,
                             ),
-                          );
-                        }),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -531,55 +553,152 @@ class _PaymentsPageState extends State<PaymentsPage> {
   }
 }
 
-class _PaymentsErrorState extends StatelessWidget {
-  const _PaymentsErrorState({required this.message, required this.onRetry});
+class _PaymentWarning extends StatelessWidget {
+  const _PaymentWarning({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
 
+  final IconData icon;
+  final String title;
   final String message;
-  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(26),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(15),
+        color: IzyTelColors.errorSoft,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: IzyTelColors.error.withAlpha(70)),
       ),
-      child: Column(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.cloud_off_rounded, size: 46, color: AppColors.error),
-          const SizedBox(height: 12),
-          Text(message, textAlign: TextAlign.center),
-          const SizedBox(height: 14),
-          FilledButton(onPressed: onRetry, child: const Text('Réessayer')),
+          Icon(icon, color: IzyTelColors.error, size: IzyTelIconSize.action),
+          const SizedBox(width: 9),
+          Flexible(
+            fit: FlexFit.loose,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: IzyTelColors.error,
+                    fontSize: IzyTelTypeScale.label,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  message,
+                  style: const TextStyle(
+                    color: IzyTelColors.textSecondary,
+                    fontSize: IzyTelTypeScale.micro,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _PaymentsEmptyState extends StatelessWidget {
-  const _PaymentsEmptyState();
+class _PaymentSheetSummary extends StatelessWidget {
+  const _PaymentSheetSummary({
+    required this.order,
+    required this.formattedPhone,
+  });
+
+  final QueueOrder order;
+  final String formattedPhone;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: AppColors.outlineVariant.withAlpha(70)),
+        color: IzyTelColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: IzyTelColors.outline),
       ),
-      child: const Column(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(Icons.payments_outlined, size: 46, color: AppColors.primary),
-          SizedBox(height: 12),
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: switch (order.network) {
+                    MobileNetwork.orange => IzyTelColors.orangeSoft,
+                    MobileNetwork.mtn => IzyTelColors.mtnSoft,
+                    MobileNetwork.moov => IzyTelColors.moovSoft,
+                  },
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Image.asset(
+                  networkAsset(order.network),
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(width: 9),
+              Flexible(
+                fit: FlexFit.loose,
+                child: Text(
+                  order.offerLabel,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: IzyTelColors.textPrimary,
+                    fontSize: IzyTelTypeScale.cardTitle,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 11),
+          Wrap(
+            spacing: 10,
+            runSpacing: 6,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                formattedPhone,
+                style: const TextStyle(
+                  color: IzyTelColors.textPrimary,
+                  fontSize: IzyTelTypeScale.transactionNumber,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                formatCfaFull(order.amount),
+                style: const TextStyle(
+                  color: IzyTelColors.primaryStrong,
+                  fontSize: IzyTelTypeScale.money,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
           Text(
-            'Aucun paiement dans cette catégorie.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.onSurface,
-              fontWeight: FontWeight.w600,
+            'Client · ${order.clientName}',
+            style: const TextStyle(
+              color: IzyTelColors.textSecondary,
+              fontSize: IzyTelTypeScale.micro,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -589,38 +708,196 @@ class _PaymentsEmptyState extends StatelessWidget {
 }
 
 class _PaymentDeclarationCheckRow extends StatelessWidget {
-  const _PaymentDeclarationCheckRow({required this.label, required this.value});
+  const _PaymentDeclarationCheckRow({
+    required this.label,
+    required this.value,
+    this.isLast = false,
+  });
 
   final String label;
   final String value;
+  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+        border: isLast
+            ? null
+            : const Border(
+                bottom: BorderSide(color: IzyTelColors.outline),
+              ),
+      ),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 3,
+        alignment: WrapAlignment.spaceBetween,
         children: [
-          SizedBox(
-            width: 115,
+          Text(
+            label,
+            style: const TextStyle(
+              color: IzyTelColors.textSecondary,
+              fontSize: IzyTelTypeScale.micro,
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: IzyTelColors.textPrimary,
+              fontSize: IzyTelTypeScale.micro,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentsInlineError extends StatelessWidget {
+  const _PaymentsInlineError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: IzyTelColors.errorSoft,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: IzyTelColors.error.withAlpha(60)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Symbols.error_rounded,
+            color: IzyTelColors.error,
+            size: IzyTelIconSize.info,
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            fit: FlexFit.loose,
             child: Text(
-              label,
+              message,
               style: const TextStyle(
-                color: AppColors.onSurfaceVariant,
-                fontSize: 11,
+                color: IzyTelColors.error,
+                fontSize: IzyTelTypeScale.label,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.end,
-              style: const TextStyle(
-                color: AppColors.onSurface,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentsErrorState extends StatelessWidget {
+  const _PaymentsErrorState({
+    required this.message,
+    required this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 34),
+      decoration: BoxDecoration(
+        color: IzyTelColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: IzyTelColors.outline),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Symbols.error_rounded,
+            color: IzyTelColors.error,
+            size: 36,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: IzyTelColors.textPrimary,
+              fontSize: IzyTelTypeScale.text,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 14),
+          OutlinedButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Symbols.refresh_rounded),
+            label: const Text('Réessayer'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentsEmptyState extends StatelessWidget {
+  const _PaymentsEmptyState({required this.filter});
+
+  final PaymentOrderFilter filter;
+
+  String get _title => switch (filter) {
+    PaymentOrderFilter.awaitingPayment => 'Aucun paiement à vérifier',
+    PaymentOrderFilter.afterExpiration => 'Aucun paiement expiré',
+    PaymentOrderFilter.confirmed => 'Aucun paiement confirmé',
+    PaymentOrderFilter.linkToSend => 'Aucun lien à envoyer',
+    PaymentOrderFilter.all => 'Aucun paiement à afficher',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 38),
+      decoration: BoxDecoration(
+        color: IzyTelColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: IzyTelColors.outline),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: IzyTelColors.primarySoft,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Symbols.wallet_rounded,
+              color: IzyTelColors.primary,
+              size: 26,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: IzyTelColors.textPrimary,
+              fontSize: IzyTelTypeScale.cardTitle,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'La liste se met à jour automatiquement.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: IzyTelColors.textSecondary,
+              fontSize: IzyTelTypeScale.micro,
             ),
           ),
         ],

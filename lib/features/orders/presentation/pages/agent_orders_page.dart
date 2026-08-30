@@ -173,22 +173,25 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
                 leading: const Icon(Symbols.inbox_rounded),
                 title: const Text('À accepter'),
                 trailing: Text('${_viewModel.toAcceptCount}'),
-                onTap: () =>
-                    Navigator.of(sheetContext).pop(AgentOrdersTab.toAccept),
+                onTap: () => Navigator.of(sheetContext).pop(
+                  AgentOrdersTab.toAccept,
+                ),
               ),
               ListTile(
                 leading: const Icon(Symbols.autorenew_rounded),
                 title: const Text('En cours'),
                 trailing: Text('${_viewModel.inProgressCount}'),
-                onTap: () =>
-                    Navigator.of(sheetContext).pop(AgentOrdersTab.inProgress),
+                onTap: () => Navigator.of(sheetContext).pop(
+                  AgentOrdersTab.inProgress,
+                ),
               ),
               ListTile(
                 leading: const Icon(Symbols.check_circle_rounded),
                 title: const Text('Terminées'),
                 trailing: Text('${_viewModel.completedCount}'),
-                onTap: () =>
-                    Navigator.of(sheetContext).pop(AgentOrdersTab.completed),
+                onTap: () => Navigator.of(sheetContext).pop(
+                  AgentOrdersTab.completed,
+                ),
               ),
               const SizedBox(height: 8),
             ],
@@ -266,7 +269,7 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
                                 ?.copyWith(
                                   fontSize: IzyTelTypeScale.title2,
                                   height: 1.18,
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: FontWeight.w800,
                                   letterSpacing: -.25,
                                 ),
                           ),
@@ -275,10 +278,7 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
                           tooltip: 'Afficher une autre file',
                           onPressed: _openQueueModeMenu,
                           visualDensity: VisualDensity.compact,
-                          icon: const Icon(
-                            Symbols.tune_rounded,
-                            size: IzyTelIconSize.action,
-                          ),
+                          icon: const Icon(Symbols.tune_rounded, size: IzyTelIconSize.action),
                         ),
                       ],
                     ),
@@ -476,206 +476,225 @@ class _PremiumAgentOrderCard extends StatelessWidget {
     return 'Depuis ${wait.inMinutes} min';
   }
 
+  Color get _priorityColor {
+    return switch (queuePosition ?? 3) {
+      1 => IzyTelColors.error,
+      2 => IzyTelColors.warning,
+      _ => IzyTelColors.primary,
+    };
+  }
+
+  Color get _networkColor => switch (order.network) {
+    MobileNetwork.orange => IzyTelColors.orange,
+    MobileNetwork.mtn => IzyTelColors.mtn,
+    MobileNetwork.moov => IzyTelColors.moov,
+  };
+
   @override
   Widget build(BuildContext context) {
-    final Color network = networkColor(order.network);
-    final bool first = queuePosition == 1;
-    final Color priorityColor = first
-        ? IzyTelColors.error
-        : IzyTelColors.warning;
-    final double scale = (MediaQuery.sizeOf(context).width / 300).clamp(
-      1.0,
-      1.35,
-    );
+    final Color priorityColor = _priorityColor;
+    final bool isCritical = queuePosition == 1;
 
-    return SizedBox(
-      height: 185 * scale,
-      child: Material(
-        color: IzyTelColors.surface,
-        borderRadius: BorderRadius.circular(13 * scale),
-        child: InkWell(
-          onTap: onOpen,
-          borderRadius: BorderRadius.circular(13 * scale),
-          child: Container(
-            padding: EdgeInsets.fromLTRB(
-              12 * scale,
-              11 * scale,
-              12 * scale,
-              10 * scale,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(13),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+          decoration: BoxDecoration(
+            color: IzyTelColors.surface,
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(
+              color: priorityColor.withAlpha(isCritical ? 125 : 70),
             ),
-            decoration: BoxDecoration(
-              color: IzyTelColors.surface,
-              borderRadius: BorderRadius.circular(13 * scale),
-              border: Border.all(
-                color: first
-                    ? IzyTelColors.error.withAlpha(115)
-                    : IzyTelColors.outline,
+            boxShadow: const [
+              BoxShadow(
+                color: IzyTelColors.shadow,
+                blurRadius: 14,
+                offset: Offset(0, 5),
               ),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x0F0F172A),
-                  blurRadius: 16,
-                  offset: Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    if (queuePosition != null)
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 8 * scale,
-                          vertical: 4 * scale,
-                        ),
-                        decoration: BoxDecoration(
-                          color: priorityColor.withAlpha(18),
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                        child: Text(
-                          'PRIORITÉ $queuePosition',
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(
-                                color: priorityColor,
-                                fontSize: IzyTelTypeScale.micro,
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                      ),
-                    const Spacer(),
-                    Text(
-                      _waitingLabel,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: first
-                            ? IzyTelColors.error
-                            : IzyTelColors.textMuted,
-                        fontSize: IzyTelTypeScale.micro,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  if (queuePosition != null)
                     Container(
-                      width: 25 * scale,
-                      height: 25 * scale,
-                      padding: EdgeInsets.all(2.2 * scale),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: network.withAlpha(16),
-                        borderRadius: BorderRadius.circular(6 * scale),
+                        color: priorityColor.withAlpha(20),
+                        borderRadius: BorderRadius.circular(999),
                       ),
-                      child: Image.asset(
-                        networkAsset(order.network),
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    SizedBox(width: 8 * scale),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            networkLabel(order.network),
-                            style: Theme.of(context).textTheme.labelMedium
-                                ?.copyWith(
-                                  color: IzyTelColors.textPrimary,
-                                  fontSize: IzyTelTypeScale.label,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          ),
-                          SizedBox(height: 4 * scale),
-                          Text(
-                            order.offerLabel,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  fontSize: IzyTelTypeScale.title3,
-                                  height: 1.2,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Expanded(
                       child: Text(
-                        order.beneficiaryPhone,
+                        'PRIORITÉ $queuePosition',
                         maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(
-                              color: IzyTelColors.textPrimary,
-                              fontSize: IzyTelTypeScale.transactionNumber,
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                    ),
-                    SizedBox(width: 8 * scale),
-                    Text(
-                      formatCfa(order.amount),
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: IzyTelColors.primaryStrong,
-                        fontSize: IzyTelTypeScale.money,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: IzyTelStatusPill(
-                    label: order.paymentStatus == OrderPaymentStatus.confirmed
-                        ? 'Paiement confirmé'
-                        : orderStatusLabel(order.status),
-                    color: order.paymentStatus == OrderPaymentStatus.confirmed
-                        ? IzyTelColors.success
-                        : orderStatusColor(order.status),
-                  ),
-                ),
-                if (showDecisionActions)
-                  SizedBox(
-                    height: 28 * scale,
-                    child: FilledButton.icon(
-                      onPressed: isBusy ? null : onAccept,
-                      style: FilledButton.styleFrom(
-                        padding: EdgeInsets.symmetric(horizontal: 12 * scale),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6 * scale),
-                        ),
-                      ),
-                      icon: isBusy
-                          ? const SizedBox.square(
-                              dimension: 15,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 1.8,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(
-                              Symbols.check_rounded,
-                              size: IzyTelIconSize.info,
-                            ),
-                      label: Text(
-                        isBusy ? 'Traitement...' : 'Accepter',
-                        style: const TextStyle(
-                          fontSize: IzyTelTypeScale.label,
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: priorityColor,
+                          fontSize: IzyTelTypeScale.micro,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        _waitingLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: isCritical
+                              ? IzyTelColors.error
+                              : IzyTelColors.textMuted,
+                          fontSize: IzyTelTypeScale.micro,
+                          fontWeight: isCritical
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: _networkColor.withAlpha(18),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Image.asset(
+                      networkAsset(order.network),
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  Flexible(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          networkLabel(order.network),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            color: IzyTelColors.textPrimary,
+                            fontSize: IzyTelTypeScale.label,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          order.offerLabel,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: IzyTelColors.textPrimary,
+                            fontSize: IzyTelTypeScale.cardTitle,
+                            height: 1.20,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Flexible(
+                    child: Text(
+                      formatIvorianPhone(order.beneficiaryPhone),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: IzyTelColors.textPrimary,
+                        fontSize: IzyTelTypeScale.transactionNumber,
+                        height: 1.15,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: .08,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    formatCfa(order.amount),
+                    maxLines: 1,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: IzyTelColors.primaryStrong,
+                      fontSize: IzyTelTypeScale.money,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -.25,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 9),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IzyTelStatusPill(
+                  label: order.paymentStatus == OrderPaymentStatus.confirmed
+                      ? 'Paiement confirmé'
+                      : orderStatusLabel(order.status),
+                  color: order.paymentStatus == OrderPaymentStatus.confirmed
+                      ? IzyTelColors.success
+                      : switch (order.status) {
+                          QueueOrderStatus.completed ||
+                          QueueOrderStatus.refunded => IzyTelColors.success,
+                          QueueOrderStatus.failed ||
+                          QueueOrderStatus.cancelled => IzyTelColors.error,
+                          QueueOrderStatus.onHold ||
+                          QueueOrderStatus.refundPending => IzyTelColors.warning,
+                          _ => IzyTelColors.primary,
+                        },
+                ),
+              ),
+              if (showDecisionActions) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 46,
+                  child: FilledButton.icon(
+                    onPressed: isBusy ? null : onAccept,
+                    icon: isBusy
+                        ? const SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.8,
+                              color: IzyTelColors.surface,
+                            ),
+                          )
+                        : const Icon(
+                            Symbols.check_rounded,
+                            size: IzyTelIconSize.info,
+                          ),
+                    label: Text(
+                      isBusy ? 'Traitement...' : 'Accepter',
+                      style: const TextStyle(
+                        fontSize: IzyTelTypeScale.label,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
               ],
-            ),
+            ],
           ),
         ),
       ),
@@ -691,54 +710,120 @@ class _AgentInProgressTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final Color accent = switch (order.network) {
+      MobileNetwork.orange => IzyTelColors.orange,
+      MobileNetwork.mtn => IzyTelColors.mtn,
+      MobileNetwork.moov => IzyTelColors.moov,
+    };
+    final (String statusLabel, Color statusColor) = switch (order.status) {
+      QueueOrderStatus.completed => ('Terminée', IzyTelColors.success),
+      QueueOrderStatus.failed => ('Échouée', IzyTelColors.error),
+      QueueOrderStatus.refunded => ('Remboursée', IzyTelColors.success),
+      QueueOrderStatus.onHold => ('En attente', IzyTelColors.warning),
+      QueueOrderStatus.awaitingCustomerConfirmation => (
+          'À confirmer',
+          IzyTelColors.primary,
+        ),
+      _ => ('En traitement', IzyTelColors.primary),
+    };
+
     return IzyTelSurface(
       onTap: onTap,
-      radius: 14,
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-      child: Row(
+      radius: 16,
+      padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            width: 30,
-            height: 30,
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              color: networkColor(order.network).withAlpha(16),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Image.asset(
-              networkAsset(order.network),
-              fit: BoxFit.contain,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  order.offerLabel,
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: accent.withAlpha(16),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Image.asset(
+                  networkAsset(order.network),
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  networkLabel(order.network),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontSize: IzyTelTypeScale.cardTitle,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: IzyTelColors.textSecondary,
+                    fontSize: IzyTelTypeScale.label,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 2),
+              ),
+              IzyTelStatusPill(label: statusLabel, color: statusColor),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            order.offerLabel,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: IzyTelColors.textPrimary,
+              fontSize: IzyTelTypeScale.title3,
+              height: 1.18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            decoration: BoxDecoration(
+              color: IzyTelColors.primarySoft.withAlpha(120),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Symbols.phone_iphone_rounded,
+                  size: IzyTelIconSize.info,
+                  color: IzyTelColors.textSecondary,
+                ),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Text(
+                    formatIvorianPhone(order.beneficiaryPhone),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: IzyTelColors.textPrimary,
+                      fontSize: IzyTelTypeScale.title3,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: .15,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Text(
-                  order.beneficiaryPhone,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontSize: IzyTelTypeScale.text,
+                  formatCfa(order.amount),
+                  maxLines: 1,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: IzyTelColors.primaryStrong,
+                    fontSize: IzyTelTypeScale.cardTitle,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
+                const SizedBox(width: 3),
+                const Icon(
+                  Symbols.chevron_right_rounded,
+                  size: IzyTelIconSize.action,
+                  color: IzyTelColors.textMuted,
+                ),
               ],
             ),
-          ),
-          const Icon(
-            Symbols.chevron_right_rounded,
-            size: IzyTelIconSize.action,
-            color: IzyTelColors.textMuted,
           ),
         ],
       ),

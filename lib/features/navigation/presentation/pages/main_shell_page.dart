@@ -70,8 +70,9 @@ class _MainShellPageState extends State<MainShellPage> {
   final List<GlobalKey<NavigatorState>> _tabNavigatorKeys =
       List<GlobalKey<NavigatorState>>.generate(
         5,
-        (int index) =>
-            GlobalKey<NavigatorState>(debugLabel: 'admin-tab-$index'),
+        (int index) => GlobalKey<NavigatorState>(
+          debugLabel: 'admin-tab-$index',
+        ),
       );
 
   @override
@@ -153,6 +154,10 @@ class _MainShellPageState extends State<MainShellPage> {
 
   void _openOrdersTab() {
     _selectDestination(1);
+  }
+
+  void _openPaymentsTab() {
+    _selectDestination(2);
   }
 
   void _openMoreTab() {
@@ -263,6 +268,7 @@ class _MainShellPageState extends State<MainShellPage> {
         user: widget.user,
         dashboardRepository: widget.dashboardRepository,
         onOpenOrders: _openOrdersTab,
+        onOpenPayments: _openPaymentsTab,
         onOpenMore: _openMoreTab,
         onLogout: _logoutAdmin,
       ),
@@ -336,8 +342,9 @@ class _AgentShellState extends State<_AgentShell> {
   final List<GlobalKey<NavigatorState>> _tabNavigatorKeys =
       List<GlobalKey<NavigatorState>>.generate(
         3,
-        (int index) =>
-            GlobalKey<NavigatorState>(debugLabel: 'agent-tab-$index'),
+        (int index) => GlobalKey<NavigatorState>(
+          debugLabel: 'agent-tab-$index',
+        ),
       );
 
   Future<void> _logout() async {

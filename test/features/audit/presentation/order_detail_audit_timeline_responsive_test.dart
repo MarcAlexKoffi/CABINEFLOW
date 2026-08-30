@@ -9,10 +9,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('le journal 11C reste exploitable sur 360 px', (
+  testWidgets('le détail commande reste exploitable sur 320 px', (
     WidgetTester tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(360, 800));
+    await tester.binding.setSurfaceSize(const Size(320, 640));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     final FakeOrdersRepository orders = FakeOrdersRepository(isTest: true);
@@ -75,6 +75,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('Détail commande'), findsOneWidget);
+    expect(find.text('Détails de l’offre'), findsOneWidget);
+    expect(find.text('Preuve'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
     await tester.scrollUntilVisible(
       find.text('Journal d’activité'),
       350,
@@ -83,6 +88,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Journal d’activité'), findsOneWidget);
+    await tester.tap(find.text('Journal d’activité'));
+    await tester.pumpAndSettle();
+
     expect(find.textContaining('Remboursement effectué'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

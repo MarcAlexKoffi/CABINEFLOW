@@ -112,347 +112,398 @@ class _LoginPageState extends State<LoginPage> {
       listenable: _viewModel,
       builder: (BuildContext context, Widget? child) {
         return Scaffold(
-          // La maquette est un écran fixe. Le clavier ne doit donc ni réduire
-          // les champs ni recalculer toute la composition pendant la saisie.
-          resizeToAvoidBottomInset: false,
-          backgroundColor: const Color(0xFFF1F7FF),
+          backgroundColor: IzyTelColors.surfaceMuted,
           body: SafeArea(
             bottom: false,
             child: LayoutBuilder(
               builder: (BuildContext context, BoxConstraints constraints) {
                 final double availableHeight = constraints.maxHeight;
                 final double availableWidth = constraints.maxWidth;
-                final bool compactHeight = availableHeight < 760;
-
-                // La référence comporte une zone de marque importante, mais
-                // elle ne doit jamais pousser le formulaire hors écran.
-                final double heroHeight = (availableHeight * .325).clamp(
-                  compactHeight ? 224.0 : 238.0,
-                  272.0,
+                final bool compactHeight = availableHeight < 720;
+                final bool compactWidth = availableWidth < 360;
+                final double contentHorizontal = compactWidth ? 22 : 28;
+                final double heroHeight = (availableWidth * .80).clamp(
+                  compactHeight ? 220.0 : 236.0,
+                  292.0,
                 );
-                final double contentHorizontal = availableWidth < 390
-                    ? 28.0
-                    : 32.0;
-                final double brandSize = availableWidth < 390 ? 86.0 : 92.0;
-                final double contentTop = compactHeight ? 14.0 : 18.0;
-                final double fieldGap = compactHeight ? 10.0 : 12.0;
+                final double brandSize = compactWidth ? 78 : 86;
 
-                return Column(
-                  children: [
-                    SizedBox(
-                      height: heroHeight,
-                      width: double.infinity,
-                      child: ClipPath(
-                        clipper: const _LoginHeroClipper(),
-                        child: Container(
-                          color: Colors.white,
-                          padding: EdgeInsets.only(
-                            top: compactHeight ? 22 : 28,
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IzyTelBrandMark(size: brandSize),
-                              const SizedBox(height: 6),
-                              const IzyTelWordmark(
-                                fontSize: 36,
-                                showTagline: true,
-                                centered: true,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                // Structure volontairement robuste face au clavier :
+                // ScrollView > ConstrainedBox > IntrinsicHeight. Sans Expanded
+                // ni Spacer vertical, le formulaire garde ses dimensions et
+                // devient simplement défilable lorsque le clavier réduit la vue.
+                return SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  physics: const ClampingScrollPhysics(),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
                     ),
-                    Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          contentHorizontal,
-                          contentTop,
-                          contentHorizontal,
-                          10,
-                        ),
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 420),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Text(
-                                  'Bienvenue',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineMedium
-                                      ?.copyWith(
-                                        fontSize: IzyTelTypeScale.title2,
-                                        height: 1.12,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: -.35,
-                                      ),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          SizedBox(
+                            height: heroHeight,
+                            width: double.infinity,
+                            child: ClipPath(
+                              clipper: const _LoginHeroClipper(),
+                              child: Container(
+                                color: IzyTelColors.surface,
+                                padding: EdgeInsets.only(
+                                  top: compactHeight ? 18 : 24,
                                 ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  'Connectez-vous à votre espace\npour continuer',
-                                  style: Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(
-                                        color: IzyTelColors.textPrimary,
-                                        fontSize: IzyTelTypeScale.text,
-                                        height: 1.32,
-                                        fontWeight: FontWeight.w500,
-                                      ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IzyTelBrandMark(size: brandSize),
+                                    const SizedBox(height: 6),
+                                    const IzyTelWordmark(
+                                      fontSize: 34,
+                                      showTagline: true,
+                                      centered: true,
+                                    ),
+                                  ],
                                 ),
-                                SizedBox(height: compactHeight ? 10 : 14),
-                                if (_viewModel.errorMessage != null) ...[
-                                  _ErrorBanner(
-                                    message: _viewModel.errorMessage!,
-                                  ),
-                                  const SizedBox(height: 8),
-                                ],
-                                Form(
-                                  key: _formKey,
-                                  autovalidateMode: AutovalidateMode.onUnfocus,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      const _FieldLabel('Email'),
-                                      const SizedBox(height: 6),
-                                      TextFormField(
-                                        controller: _identifierController,
-                                        keyboardType:
-                                            TextInputType.emailAddress,
-                                        textInputAction: TextInputAction.next,
-                                        autofillHints: const [
-                                          AutofillHints.email,
-                                        ],
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyLarge
-                                            ?.copyWith(
-                                              color: IzyTelColors.textPrimary,
-                                              fontSize: IzyTelTypeScale.text,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                        decoration: const InputDecoration(
-                                          hintText: 'exemple@email.com',
-                                          contentPadding: EdgeInsets.symmetric(
-                                            horizontal: 14,
-                                            vertical: 13,
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              contentHorizontal,
+                              compactHeight ? 14 : 18,
+                              contentHorizontal,
+                              12,
+                            ),
+                            child: Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 420),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text(
+                                      'Bienvenue',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .headlineMedium
+                                          ?.copyWith(
+                                            fontSize: IzyTelTypeScale.title2,
+                                            height: 1.10,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: -.45,
+                                            color: IzyTelColors.textPrimary,
                                           ),
-                                          prefixIcon: Icon(
-                                            Symbols.mail_rounded,
-                                            size: IzyTelIconSize.info,
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      'Connectez-vous à votre espace\npour continuer',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            color: IzyTelColors.textPrimary,
+                                            fontSize: IzyTelTypeScale.label,
+                                            height: 1.32,
+                                            fontWeight: FontWeight.w500,
                                           ),
-                                        ),
-                                        validator: _validateIdentifier,
-                                        onChanged: (_) =>
-                                            _viewModel.clearError(),
+                                    ),
+                                    SizedBox(height: compactHeight ? 10 : 14),
+                                    if (_viewModel.errorMessage != null) ...[
+                                      _ErrorBanner(
+                                        message: _viewModel.errorMessage!,
                                       ),
-                                      SizedBox(height: fieldGap),
-                                      const _FieldLabel('Mot de passe'),
-                                      const SizedBox(height: 6),
-                                      TextFormField(
-                                        controller: _passwordController,
-                                        obscureText: _obscurePassword,
-                                        enableSuggestions: false,
-                                        autocorrect: false,
-                                        textInputAction: TextInputAction.done,
-                                        autofillHints: const [
-                                          AutofillHints.password,
-                                        ],
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyLarge
-                                            ?.copyWith(
-                                              color: IzyTelColors.textPrimary,
-                                              fontSize: IzyTelTypeScale.text,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                        decoration: InputDecoration(
-                                          hintText: '••••••••',
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                                horizontal: 14,
-                                                vertical: 13,
-                                              ),
-                                          prefixIcon: const Icon(
-                                            Symbols.lock_rounded,
-                                            size: IzyTelIconSize.info,
-                                          ),
-                                          suffixIcon: IconButton(
-                                            tooltip: _obscurePassword
-                                                ? 'Afficher le mot de passe'
-                                                : 'Masquer le mot de passe',
-                                            onPressed: () => setState(
-                                              () => _obscurePassword =
-                                                  !_obscurePassword,
-                                            ),
-                                            icon: Icon(
-                                              _obscurePassword
-                                                  ? Symbols
-                                                        .visibility_off_rounded
-                                                  : Symbols.visibility_rounded,
-                                              size: IzyTelIconSize.info,
-                                            ),
-                                          ),
-                                        ),
-                                        validator: _validatePassword,
-                                        onChanged: (_) =>
-                                            _viewModel.clearError(),
-                                        onFieldSubmitted: (_) => _submitForm(),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Row(
+                                      const SizedBox(height: 8),
+                                    ],
+                                    Form(
+                                      key: _formKey,
+                                      autovalidateMode:
+                                          AutovalidateMode.onUnfocus,
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
                                         children: [
-                                          SizedBox(
-                                            width: 23,
-                                            height: 23,
-                                            child: Checkbox(
-                                              value: _rememberMe,
-                                              onChanged: (bool? value) =>
-                                                  setState(
-                                                    () => _rememberMe =
-                                                        value ?? false,
-                                                  ),
-                                              materialTapTargetSize:
-                                                  MaterialTapTargetSize
-                                                      .shrinkWrap,
-                                              visualDensity:
-                                                  VisualDensity.compact,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            'Se souvenir de moi',
-                                            maxLines: 1,
-                                            softWrap: false,
-                                            overflow: TextOverflow.visible,
+                                          const _FieldLabel('Email'),
+                                          const SizedBox(height: 6),
+                                          TextFormField(
+                                            controller: _identifierController,
+                                            keyboardType:
+                                                TextInputType.emailAddress,
+                                            textInputAction: TextInputAction.next,
+                                            autofillHints: const [
+                                              AutofillHints.email,
+                                            ],
                                             style: Theme.of(context)
                                                 .textTheme
-                                                .labelMedium
+                                                .bodyLarge
                                                 ?.copyWith(
                                                   color:
                                                       IzyTelColors.textPrimary,
                                                   fontSize:
-                                                      IzyTelTypeScale.label,
+                                                      IzyTelTypeScale.text,
                                                   fontWeight: FontWeight.w500,
                                                 ),
-                                          ),
-                                          const Spacer(),
-                                          TextButton(
-                                            onPressed:
-                                                _showForgotPasswordMessage,
-                                            style: TextButton.styleFrom(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 0,
-                                                    vertical: 2,
+                                            decoration: const InputDecoration(
+                                              hintText: 'exemple@email.com',
+                                              contentPadding:
+                                                  EdgeInsets.symmetric(
+                                                    horizontal: 14,
+                                                    vertical: 13,
                                                   ),
-                                              minimumSize: Size.zero,
-                                              tapTargetSize:
-                                                  MaterialTapTargetSize
-                                                      .shrinkWrap,
-                                            ),
-                                            child: const Text(
-                                              'Mot de passe oublié ?',
-                                              maxLines: 1,
-                                              softWrap: false,
-                                              style: TextStyle(
-                                                fontSize: IzyTelTypeScale.label,
-                                                fontWeight: FontWeight.w600,
+                                              prefixIcon: Icon(
+                                                Symbols.mail_rounded,
+                                                size: IzyTelIconSize.info,
                                               ),
+                                            ),
+                                            validator: _validateIdentifier,
+                                            onChanged: (_) =>
+                                                _viewModel.clearError(),
+                                          ),
+                                          const SizedBox(height: 10),
+                                          const _FieldLabel('Mot de passe'),
+                                          const SizedBox(height: 6),
+                                          TextFormField(
+                                            controller: _passwordController,
+                                            obscureText: _obscurePassword,
+                                            enableSuggestions: false,
+                                            autocorrect: false,
+                                            textInputAction: TextInputAction.done,
+                                            autofillHints: const [
+                                              AutofillHints.password,
+                                            ],
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyLarge
+                                                ?.copyWith(
+                                                  color:
+                                                      IzyTelColors.textPrimary,
+                                                  fontSize:
+                                                      IzyTelTypeScale.text,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                            decoration: InputDecoration(
+                                              hintText: '••••••••',
+                                              contentPadding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 14,
+                                                    vertical: 13,
+                                                  ),
+                                              prefixIcon: const Icon(
+                                                Symbols.lock_rounded,
+                                                size: IzyTelIconSize.info,
+                                              ),
+                                              suffixIcon: IconButton(
+                                                tooltip: _obscurePassword
+                                                    ? 'Afficher le mot de passe'
+                                                    : 'Masquer le mot de passe',
+                                                onPressed: () => setState(
+                                                  () => _obscurePassword =
+                                                      !_obscurePassword,
+                                                ),
+                                                icon: Icon(
+                                                  _obscurePassword
+                                                      ? Symbols
+                                                          .visibility_off_rounded
+                                                      : Symbols
+                                                          .visibility_rounded,
+                                                  size: IzyTelIconSize.info,
+                                                ),
+                                              ),
+                                            ),
+                                            validator: _validatePassword,
+                                            onChanged: (_) =>
+                                                _viewModel.clearError(),
+                                            onFieldSubmitted: (_) =>
+                                                _submitForm(),
+                                          ),
+                                          const SizedBox(height: 7),
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Flexible(
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    SizedBox(
+                                                      width: 22,
+                                                      height: 22,
+                                                      child: Checkbox(
+                                                        value: _rememberMe,
+                                                        onChanged:
+                                                            (bool? value) =>
+                                                                setState(
+                                                                  () =>
+                                                                      _rememberMe =
+                                                                          value ??
+                                                                          false,
+                                                                ),
+                                                        materialTapTargetSize:
+                                                            MaterialTapTargetSize
+                                                                .shrinkWrap,
+                                                        visualDensity:
+                                                            VisualDensity.compact,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    const Flexible(
+                                                      child: FittedBox(
+                                                        fit: BoxFit.scaleDown,
+                                                        alignment:
+                                                            Alignment.centerLeft,
+                                                        child: Text(
+                                                          'Se souvenir de moi',
+                                                          maxLines: 1,
+                                                          softWrap: false,
+                                                          style: TextStyle(
+                                                            color: IzyTelColors
+                                                                .textPrimary,
+                                                            fontSize:
+                                                                IzyTelTypeScale
+                                                                    .label,
+                                                            fontWeight:
+                                                                FontWeight.w500,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Flexible(
+                                                child: TextButton(
+                                                  onPressed:
+                                                      _showForgotPasswordMessage,
+                                                  style: TextButton.styleFrom(
+                                                    padding: EdgeInsets.zero,
+                                                    minimumSize: Size.zero,
+                                                    tapTargetSize:
+                                                        MaterialTapTargetSize
+                                                            .shrinkWrap,
+                                                  ),
+                                                  child: const FittedBox(
+                                                    fit: BoxFit.scaleDown,
+                                                    alignment:
+                                                        Alignment.centerRight,
+                                                    child: Text(
+                                                      'Mot de passe oublié ?',
+                                                      maxLines: 1,
+                                                      softWrap: false,
+                                                      style: TextStyle(
+                                                        fontSize:
+                                                            IzyTelTypeScale.label,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 10),
+                                          SizedBox(
+                                            height: 48,
+                                            child: FilledButton(
+                                              onPressed: _viewModel.isLoading
+                                                  ? null
+                                                  : _submitForm,
+                                              child: _viewModel.isLoading
+                                                  ? const SizedBox.square(
+                                                      dimension: 20,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                            color: IzyTelColors.surface,
+                                                          ),
+                                                    )
+                                                  : const Text(
+                                                      'Se connecter',
+                                                      style: TextStyle(
+                                                        fontSize:
+                                                            IzyTelTypeScale.label,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
+                                                    ),
                                             ),
                                           ),
                                         ],
                                       ),
-                                      SizedBox(height: compactHeight ? 8 : 10),
-                                      SizedBox(
-                                        height: 48,
-                                        child: FilledButton(
-                                          onPressed: _viewModel.isLoading
-                                              ? null
-                                              : _submitForm,
-                                          style: FilledButton.styleFrom(
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    const _OrDivider(),
+                                    const SizedBox(height: 10),
+                                    SizedBox(
+                                      height: 46,
+                                      child: OutlinedButton(
+                                        onPressed: _showGoogleMessage,
+                                        style: OutlinedButton.styleFrom(
+                                          backgroundColor: IzyTelColors.surface,
+                                          foregroundColor:
+                                              IzyTelColors.textPrimary,
+                                          side: const BorderSide(
+                                            color: IzyTelColors.outlineStrong,
                                           ),
-                                          child: _viewModel.isLoading
-                                              ? const SizedBox.square(
-                                                  dimension: 20,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                        color: Colors.white,
-                                                      ),
-                                                )
-                                              : const Text(
-                                                  'Se connecter',
+                                        ),
+                                        child: const Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            IzyTelGoogleMark(size: 18),
+                                            SizedBox(width: 9),
+                                            Flexible(
+                                              child: FittedBox(
+                                                fit: BoxFit.scaleDown,
+                                                child: Text(
+                                                  'Continuer avec Google',
+                                                  maxLines: 1,
                                                   style: TextStyle(
                                                     fontSize:
                                                         IzyTelTypeScale.label,
-                                                    fontWeight: FontWeight.w700,
+                                                    fontWeight: FontWeight.w600,
                                                   ),
                                                 ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                ),
-                                SizedBox(height: compactHeight ? 8 : 11),
-                                const _OrDivider(),
-                                SizedBox(height: compactHeight ? 8 : 10),
-                                SizedBox(
-                                  height: 46,
-                                  child: OutlinedButton(
-                                    onPressed: _showGoogleMessage,
-                                    style: OutlinedButton.styleFrom(
-                                      backgroundColor: Colors.white,
-                                      foregroundColor: IzyTelColors.textPrimary,
-                                      side: const BorderSide(
-                                        color: IzyTelColors.outlineStrong,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
                                     ),
-                                    child: const Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        IzyTelGoogleMark(size: 18),
-                                        SizedBox(width: 9),
-                                        Text(
-                                          'Continuer avec Google',
-                                          style: TextStyle(
-                                            fontSize: IzyTelTypeScale.label,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
+                                  ],
                                 ),
-                                const Spacer(),
-                                Text(
-                                  '© 2025 IzyTel. Tous droits réservés.',
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  style: Theme.of(context).textTheme.labelMedium
-                                      ?.copyWith(
-                                        color: IzyTelColors.textMuted,
-                                        fontSize: IzyTelTypeScale.micro,
-                                        fontWeight: FontWeight.w400,
-                                      ),
-                                ),
-                              ],
+                              ),
                             ),
                           ),
-                        ),
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              contentHorizontal,
+                              compactHeight ? 8 : 12,
+                              contentHorizontal,
+                              12,
+                            ),
+                            child: Text(
+                              '© 2025 IzyTel. Tous droits réservés.',
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelMedium
+                                  ?.copyWith(
+                                    color: IzyTelColors.textMuted,
+                                    fontSize: IzyTelTypeScale.micro,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 );
               },
             ),
@@ -461,6 +512,7 @@ class _LoginPageState extends State<LoginPage> {
       },
     );
   }
+
 }
 
 class _FieldLabel extends StatelessWidget {
@@ -487,7 +539,7 @@ class _OrDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Expanded(child: Divider()),
+        const Flexible(child: Divider()),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Text(
@@ -499,7 +551,7 @@ class _OrDivider extends StatelessWidget {
             ),
           ),
         ),
-        const Expanded(child: Divider()),
+        const Flexible(child: Divider()),
       ],
     );
   }
@@ -525,7 +577,7 @@ class _ErrorBanner extends StatelessWidget {
             size: IzyTelIconSize.info,
           ),
           const SizedBox(width: 8),
-          Expanded(
+          Flexible(
             child: Text(
               message,
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
