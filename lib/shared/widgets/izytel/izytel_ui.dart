@@ -291,3 +291,373 @@ class IzyTelAccountAction {
   final VoidCallback onTap;
   final bool destructive;
 }
+
+class IzyTelPageHeader extends StatelessWidget {
+  const IzyTelPageHeader({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.leading,
+    this.actions = const <Widget>[],
+  });
+
+  final String title;
+  final String? subtitle;
+  final Widget? leading;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (leading != null) ...[
+          leading!,
+          const SizedBox(width: IzyTelSpacing.sm),
+        ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -.35,
+                  color: IzyTelColors.textPrimary,
+                ),
+              ),
+              if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  subtitle!,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: IzyTelColors.textSecondary,
+                    fontSize: IzyTelTypeScale.label,
+                    fontWeight: FontWeight.w500,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (actions.isNotEmpty) ...[
+          const SizedBox(width: IzyTelSpacing.sm),
+          Row(mainAxisSize: MainAxisSize.min, children: actions),
+        ],
+      ],
+    );
+  }
+}
+
+class IzyTelSearchField extends StatelessWidget {
+  const IzyTelSearchField({
+    super.key,
+    required this.controller,
+    required this.hintText,
+    required this.onChanged,
+    this.onClear,
+  });
+
+  final TextEditingController controller;
+  final String hintText;
+  final ValueChanged<String> onChanged;
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      textInputAction: TextInputAction.search,
+      style: Theme.of(context).textTheme.bodyLarge,
+      decoration: InputDecoration(
+        hintText: hintText,
+        prefixIcon: const Icon(
+          Symbols.search_rounded,
+          size: IzyTelIconSize.action,
+        ),
+        suffixIcon: controller.text.trim().isEmpty
+            ? null
+            : IconButton(
+                tooltip: 'Effacer',
+                onPressed: () {
+                  controller.clear();
+                  onChanged('');
+                  onClear?.call();
+                },
+                icon: const Icon(
+                  Symbols.close_rounded,
+                  size: IzyTelIconSize.action,
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+class IzyTelFilterPill extends StatelessWidget {
+  const IzyTelFilterPill({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.icon,
+    this.count,
+    this.selectedColor = IzyTelColors.primary,
+    this.softColor = IzyTelColors.primarySoft,
+    this.tintedWhenIdle = false,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final IconData? icon;
+  final int? count;
+  final Color selectedColor;
+  final Color softColor;
+  final bool tintedWhenIdle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected
+          ? selectedColor
+          : tintedWhenIdle
+          ? softColor
+          : IzyTelColors.surface,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 38),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected
+                  ? selectedColor
+                  : tintedWhenIdle
+                  ? selectedColor.withAlpha(48)
+                  : IzyTelColors.outline,
+            ),
+            boxShadow: selected
+                ? const <BoxShadow>[]
+                : const <BoxShadow>[
+                    BoxShadow(
+                      color: IzyTelColors.shadow,
+                      blurRadius: 10,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(
+                  icon,
+                  size: IzyTelIconSize.info,
+                  color: selected ? Colors.white : selectedColor,
+                ),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: selected ? Colors.white : IzyTelColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (count != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: selected ? Colors.white.withAlpha(42) : softColor,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: selected ? Colors.white : selectedColor,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class IzyTelEmptyState extends StatelessWidget {
+  const IzyTelEmptyState({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: IzyTelSpacing.xl,
+        vertical: IzyTelSpacing.xxl,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 58,
+            height: 58,
+            decoration: const BoxDecoration(
+              color: IzyTelColors.primarySoft,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: IzyTelColors.primary, size: 28),
+          ),
+          const SizedBox(height: IzyTelSpacing.md),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: IzyTelColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: IzyTelColors.textSecondary,
+              fontSize: IzyTelTypeScale.label,
+              height: 1.4,
+            ),
+          ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: IzyTelSpacing.md),
+            OutlinedButton(onPressed: onAction, child: Text(actionLabel!)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class IzyTelMenuRow extends StatelessWidget {
+  const IzyTelMenuRow({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.badge,
+    this.iconColor = IzyTelColors.primary,
+    this.destructive = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final String? badge;
+  final Color iconColor;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color effectiveColor = destructive ? IzyTelColors.error : iconColor;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: effectiveColor.withAlpha(22),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: effectiveColor, size: 21),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: destructive
+                            ? IzyTelColors.error
+                            : IzyTelColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: IzyTelColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (badge != null && badge!.trim().isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: IzyTelColors.warningSoft,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    badge!,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: IzyTelColors.warning,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+              if (!destructive) ...[
+                const SizedBox(width: 8),
+                const Icon(
+                  Symbols.chevron_right_rounded,
+                  color: IzyTelColors.textMuted,
+                  size: 21,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

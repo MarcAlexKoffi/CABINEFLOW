@@ -1,8 +1,9 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/agents/presentation/view_models/agent_detail_view_model.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 class AgentDetailPage extends StatefulWidget {
   const AgentDetailPage({
@@ -106,11 +107,11 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surfaceContainerHighest,
+        backgroundColor: IzyTelColors.surfaceMuted,
         surfaceTintColor: Colors.transparent,
         title: const Text(
           'Créer une zone',
-          style: TextStyle(color: AppColors.onBackground),
+          style: TextStyle(color: IzyTelColors.textPrimary),
         ),
         content: SingleChildScrollView(
           child: Column(
@@ -119,30 +120,30 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
               TextField(
                 controller: name,
                 style: const TextStyle(
-                  color: AppColors.onBackground,
+                  color: IzyTelColors.textPrimary,
                   fontWeight: FontWeight.w600,
                 ),
-                cursorColor: AppColors.primaryContainer,
+                cursorColor: IzyTelColors.primary,
                 decoration: _darkInputDecoration('Nom de la zone'),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: city,
                 style: const TextStyle(
-                  color: AppColors.onBackground,
+                  color: IzyTelColors.textPrimary,
                   fontWeight: FontWeight.w600,
                 ),
-                cursorColor: AppColors.primaryContainer,
+                cursorColor: IzyTelColors.primary,
                 decoration: _darkInputDecoration('Ville'),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: region,
                 style: const TextStyle(
-                  color: AppColors.onBackground,
+                  color: IzyTelColors.textPrimary,
                   fontWeight: FontWeight.w600,
                 ),
-                cursorColor: AppColors.primaryContainer,
+                cursorColor: IzyTelColors.primary,
                 decoration: _darkInputDecoration('Région'),
               ),
             ],
@@ -192,7 +193,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
   Widget build(BuildContext context) {
     final AgentProfile? profile = widget.agent.profile;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: IzyTelColors.background,
       appBar: AppBar(title: const Text('Profil Agent')),
       body: SafeArea(
         top: false,
@@ -209,16 +210,16 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                 const SizedBox(height: 16),
                 _SectionCard(
                   title: 'Identité',
-                  icon: Icons.person_outline_rounded,
+                  icon: Symbols.person_rounded,
                   child: Column(
                     children: [
                       TextField(
                         controller: _nameController,
                         style: const TextStyle(
-                          color: AppColors.onBackground,
+                          color: IzyTelColors.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),
-                        cursorColor: AppColors.primaryContainer,
+                        cursorColor: IzyTelColors.primary,
                         decoration: _darkInputDecoration('Nom complet'),
                       ),
                       const SizedBox(height: 10),
@@ -226,10 +227,10 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                         controller: _phoneController,
                         keyboardType: TextInputType.phone,
                         style: const TextStyle(
-                          color: AppColors.onBackground,
+                          color: IzyTelColors.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),
-                        cursorColor: AppColors.primaryContainer,
+                        cursorColor: IzyTelColors.primary,
                         decoration: _darkInputDecoration('Téléphone'),
                       ),
                       const SizedBox(height: 10),
@@ -245,16 +246,16 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                 const SizedBox(height: 16),
                 _SectionCard(
                   title: 'Zones assignées',
-                  icon: Icons.location_on_outlined,
+                  icon: Symbols.location_on_rounded,
                   trailing: TextButton.icon(
                     onPressed: _createZone,
-                    icon: const Icon(Icons.add_rounded, size: 18),
+                    icon: const Icon(Symbols.add_rounded, size: 18),
                     label: const Text('Créer'),
                   ),
                   child: widget.zones.isEmpty
                       ? const Text(
                           'Aucune zone n’existe encore. Crée la première zone puis assigne-la à l’agent.',
-                          style: TextStyle(color: AppColors.onSurfaceVariant),
+                          style: TextStyle(color: IzyTelColors.textSecondary),
                         )
                       : Wrap(
                           spacing: 8,
@@ -269,13 +270,13 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                                   selected: selected,
                                   onSelected: (_) =>
                                       _viewModel.toggleZone(zone.id),
-                                  selectedColor: AppColors.primary.withAlpha(
+                                  selectedColor: IzyTelColors.primary.withAlpha(
                                     55,
                                   ),
                                   side: BorderSide(
                                     color: selected
-                                        ? AppColors.primary
-                                        : AppColors.outlineVariant,
+                                        ? IzyTelColors.primary
+                                        : IzyTelColors.outline,
                                   ),
                                 );
                               })
@@ -285,17 +286,17 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                 const SizedBox(height: 16),
                 _SectionCard(
                   title: 'Capacités & limites',
-                  icon: Icons.tune_rounded,
+                  icon: Symbols.tune_rounded,
                   child: Column(
                     children: [
                       TextField(
                         controller: _dailyLimitController,
                         keyboardType: TextInputType.number,
                         style: const TextStyle(
-                          color: AppColors.onBackground,
+                          color: IzyTelColors.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),
-                        cursorColor: AppColors.primaryContainer,
+                        cursorColor: IzyTelColors.primary,
                         decoration: _darkInputDecoration(
                           'Limite transactions / jour (FCFA)',
                         ),
@@ -305,10 +306,10 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                         controller: _maxTransactionsController,
                         keyboardType: TextInputType.number,
                         style: const TextStyle(
-                          color: AppColors.onBackground,
+                          color: IzyTelColors.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),
-                        cursorColor: AppColors.primaryContainer,
+                        cursorColor: IzyTelColors.primary,
                         decoration: _darkInputDecoration(
                           'Nombre max de transactions / jour',
                         ),
@@ -321,14 +322,14 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                             controller: _capacityControllers[network],
                             keyboardType: TextInputType.number,
                             style: const TextStyle(
-                              color: AppColors.onBackground,
+                              color: IzyTelColors.textPrimary,
                               fontWeight: FontWeight.w600,
                             ),
-                            cursorColor: AppColors.primaryContainer,
+                            cursorColor: IzyTelColors.primary,
                             decoration: _darkInputDecoration(
                               'Capacité ${network.label} (FCFA)',
                               prefixIcon: Icon(
-                                Icons.account_balance_wallet_outlined,
+                                Symbols.account_balance_wallet_rounded,
                                 color: _networkColor(network),
                               ),
                             ),
@@ -341,7 +342,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                 const SizedBox(height: 16),
                 _SectionCard(
                   title: 'Réseaux autorisés',
-                  icon: Icons.hub_outlined,
+                  icon: Symbols.hub_rounded,
                   child: Column(
                     children: AgentNetwork.values
                         .map((network) {
@@ -354,10 +355,10 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                               vertical: 8,
                             ),
                             decoration: BoxDecoration(
-                              color: AppColors.surfaceContainerHigh,
+                              color: IzyTelColors.surfaceMuted,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: AppColors.outlineVariant,
+                                color: IzyTelColors.outline,
                               ),
                             ),
                             child: Row(
@@ -379,14 +380,14 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                                       Text(
                                         network.label,
                                         style: const TextStyle(
-                                          color: AppColors.onBackground,
+                                          color: IzyTelColors.textPrimary,
                                           fontWeight: FontWeight.w700,
                                         ),
                                       ),
                                       Text(
                                         enabled ? 'Autorisé' : 'Non autorisé',
                                         style: const TextStyle(
-                                          color: AppColors.onSurfaceVariant,
+                                          color: IzyTelColors.textSecondary,
                                           fontSize: 11,
                                         ),
                                       ),
@@ -408,11 +409,11 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                 const SizedBox(height: 16),
                 _SectionCard(
                   title: 'Activité récente',
-                  icon: Icons.history_rounded,
+                  icon: Symbols.history_rounded,
                   child: Column(
                     children: [
                       _ActivityLine(
-                        color: AppColors.primaryContainer,
+                        color: IzyTelColors.primary,
                         title: 'Dernière activité',
                         value: profile?.lastSeenAt == null
                             ? 'Aucune donnée'
@@ -420,7 +421,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                       ),
                       const SizedBox(height: 10),
                       _ActivityLine(
-                        color: AppColors.success,
+                        color: IzyTelColors.success,
                         title: 'Dernière déclaration de capacité',
                         value: profile?.lastCapacityUpdateAt == null
                             ? 'Aucune donnée'
@@ -438,7 +439,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.save_outlined),
+                      : const Icon(Symbols.save_rounded),
                   label: const Text('Enregistrer les modifications'),
                 ),
                 const SizedBox(height: 10),
@@ -446,8 +447,8 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                   onPressed: () => _viewModel.setActive(!_viewModel.isActive),
                   icon: Icon(
                     _viewModel.isActive
-                        ? Icons.block_rounded
-                        : Icons.check_circle_outline_rounded,
+                        ? Symbols.block_rounded
+                        : Symbols.check_circle_rounded,
                   ),
                   label: Text(
                     _viewModel.isActive
@@ -456,8 +457,8 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                   ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: _viewModel.isActive
-                        ? AppColors.error
-                        : AppColors.success,
+                        ? IzyTelColors.error
+                        : IzyTelColors.success,
                   ),
                 ),
                 if (_viewModel.errorMessage != null) ...[
@@ -465,7 +466,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                   Text(
                     _viewModel.errorMessage!,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: AppColors.error),
+                    style: const TextStyle(color: IzyTelColors.error),
                   ),
                 ],
               ],
@@ -486,9 +487,9 @@ class _ProfileHeader extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
-      color: AppColors.surfaceContainer,
+      color: IzyTelColors.surface,
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: AppColors.outlineVariant),
+      border: Border.all(color: IzyTelColors.outline),
     ),
     child: Column(
       children: [
@@ -497,11 +498,11 @@ class _ProfileHeader extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 44,
-              backgroundColor: AppColors.primary.withAlpha(35),
+              backgroundColor: IzyTelColors.primary.withAlpha(35),
               child: Text(
                 _initials(agent.name),
                 style: const TextStyle(
-                  color: AppColors.primaryContainer,
+                  color: IzyTelColors.primary,
                   fontSize: 23,
                   fontWeight: FontWeight.w900,
                 ),
@@ -514,10 +515,10 @@ class _ProfileHeader extends StatelessWidget {
                 width: 15,
                 height: 15,
                 decoration: BoxDecoration(
-                  color: isActive ? AppColors.success : AppColors.error,
+                  color: isActive ? IzyTelColors.success : IzyTelColors.error,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: AppColors.surfaceContainer,
+                    color: IzyTelColors.surface,
                     width: 2,
                   ),
                 ),
@@ -530,7 +531,7 @@ class _ProfileHeader extends StatelessWidget {
           agent.name,
           textAlign: TextAlign.center,
           style: const TextStyle(
-            color: AppColors.onBackground,
+            color: IzyTelColors.textPrimary,
             fontSize: 23,
             fontWeight: FontWeight.w900,
           ),
@@ -538,13 +539,13 @@ class _ProfileHeader extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           agent.agentCode,
-          style: const TextStyle(color: AppColors.onSurfaceVariant),
+          style: const TextStyle(color: IzyTelColors.textSecondary),
         ),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
-            color: (isActive ? AppColors.success : AppColors.error).withAlpha(
+            color: (isActive ? IzyTelColors.success : IzyTelColors.error).withAlpha(
               28,
             ),
             borderRadius: BorderRadius.circular(999),
@@ -552,7 +553,7 @@ class _ProfileHeader extends StatelessWidget {
           child: Text(
             isActive ? 'Actif' : 'Suspendu',
             style: TextStyle(
-              color: isActive ? AppColors.success : AppColors.error,
+              color: isActive ? IzyTelColors.success : IzyTelColors.error,
               fontSize: 11,
               fontWeight: FontWeight.w800,
             ),
@@ -579,22 +580,22 @@ class _SectionCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: AppColors.surfaceContainer,
+      color: IzyTelColors.surface,
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: AppColors.outlineVariant),
+      border: Border.all(color: IzyTelColors.outline),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(icon, color: AppColors.primaryContainer, size: 20),
+            Icon(icon, color: IzyTelColors.primary, size: 20),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 title,
                 style: const TextStyle(
-                  color: AppColors.onBackground,
+                  color: IzyTelColors.textPrimary,
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
                 ),
@@ -619,9 +620,9 @@ class _ReadOnlyLine extends StatelessWidget {
     width: double.infinity,
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
-      color: AppColors.surfaceContainerHigh,
+      color: IzyTelColors.surfaceMuted,
       borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: AppColors.outlineVariant),
+      border: Border.all(color: IzyTelColors.outline),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -629,7 +630,7 @@ class _ReadOnlyLine extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            color: AppColors.onSurfaceVariant,
+            color: IzyTelColors.textSecondary,
             fontSize: 11,
           ),
         ),
@@ -637,7 +638,7 @@ class _ReadOnlyLine extends StatelessWidget {
         Text(
           value,
           style: const TextStyle(
-            color: AppColors.onBackground,
+            color: IzyTelColors.textPrimary,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -673,14 +674,14 @@ class _ActivityLine extends StatelessWidget {
             Text(
               title,
               style: const TextStyle(
-                color: AppColors.onBackground,
+                color: IzyTelColors.textPrimary,
                 fontWeight: FontWeight.w700,
               ),
             ),
             Text(
               value,
               style: const TextStyle(
-                color: AppColors.onSurfaceVariant,
+                color: IzyTelColors.textSecondary,
                 fontSize: 11,
               ),
             ),
@@ -701,31 +702,31 @@ InputDecoration _darkInputDecoration(
     hintText: hintText,
     prefixIcon: prefixIcon,
     filled: true,
-    fillColor: AppColors.surfaceContainerHigh,
+    fillColor: IzyTelColors.surfaceMuted,
     labelStyle: const TextStyle(
-      color: AppColors.onSurfaceVariant,
+      color: IzyTelColors.textSecondary,
       fontWeight: FontWeight.w600,
     ),
     floatingLabelStyle: const TextStyle(
-      color: AppColors.primaryContainer,
+      color: IzyTelColors.primary,
       fontWeight: FontWeight.w700,
     ),
-    hintStyle: const TextStyle(color: AppColors.onSurfaceVariant),
+    hintStyle: const TextStyle(color: IzyTelColors.textSecondary),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: AppColors.outlineVariant),
+      borderSide: const BorderSide(color: IzyTelColors.outline),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+      borderSide: const BorderSide(color: IzyTelColors.primary, width: 1.5),
     ),
     errorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: AppColors.error),
+      borderSide: const BorderSide(color: IzyTelColors.error),
     ),
     focusedErrorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+      borderSide: const BorderSide(color: IzyTelColors.error, width: 1.5),
     ),
   );
 }
@@ -750,10 +751,10 @@ String _formatDate(DateTime value) {
 Color _networkColor(AgentNetwork network) {
   switch (network) {
     case AgentNetwork.orange:
-      return AppColors.orange;
+      return IzyTelColors.orange;
     case AgentNetwork.mtn:
-      return AppColors.mtn;
+      return IzyTelColors.mtnText;
     case AgentNetwork.moov:
-      return AppColors.primaryContainer;
+      return IzyTelColors.primary;
   }
 }

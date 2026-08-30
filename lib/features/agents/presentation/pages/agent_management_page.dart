@@ -1,10 +1,13 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_detail_page.dart';
 import 'package:cabine_flow/features/agents/presentation/view_models/agent_management_view_model.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 class AgentManagementPage extends StatefulWidget {
   const AgentManagementPage({
@@ -70,7 +73,7 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
     final StaffAccountSummary?
     selected = await showModalBottomSheet<StaffAccountSummary>(
       context: context,
-      backgroundColor: AppColors.surfaceContainer,
+      backgroundColor: IzyTelColors.surface,
       showDragHandle: true,
       isScrollControlled: true,
       builder: (context) {
@@ -84,15 +87,15 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                 const Text(
                   'Activer un nouvel agent',
                   style: TextStyle(
-                    color: AppColors.onBackground,
+                    color: IzyTelColors.textPrimary,
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Choisis un compte CabineFlow qui attend encore son activation.',
-                  style: TextStyle(color: AppColors.onSurfaceVariant),
+                  'Choisis un compte IzyTel qui attend encore son activation.',
+                  style: TextStyle(color: IzyTelColors.textSecondary),
                 ),
                 const SizedBox(height: 16),
                 ConstrainedBox(
@@ -104,19 +107,19 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                     itemBuilder: (_, index) {
                       final StaffAccountSummary account = pending[index];
                       return ListTile(
-                        tileColor: AppColors.surfaceContainerHigh,
+                        tileColor: IzyTelColors.surfaceMuted,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                           side: const BorderSide(
-                            color: AppColors.outlineVariant,
+                            color: IzyTelColors.outline,
                           ),
                         ),
                         leading: CircleAvatar(
-                          backgroundColor: AppColors.primary.withAlpha(35),
+                          backgroundColor: IzyTelColors.primary.withAlpha(35),
                           child: Text(
                             _initial(account.name),
                             style: const TextStyle(
-                              color: AppColors.primaryContainer,
+                              color: IzyTelColors.primary,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -124,19 +127,19 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                         title: Text(
                           account.name,
                           style: const TextStyle(
-                            color: AppColors.onBackground,
+                            color: IzyTelColors.textPrimary,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
                         subtitle: Text(
                           account.email,
                           style: const TextStyle(
-                            color: AppColors.onSurfaceVariant,
+                            color: IzyTelColors.textSecondary,
                           ),
                         ),
                         trailing: const Icon(
-                          Icons.chevron_right_rounded,
-                          color: AppColors.primaryContainer,
+                          Symbols.chevron_right_rounded,
+                          color: IzyTelColors.primary,
                         ),
                         onTap: () => Navigator.of(context).pop(account),
                       );
@@ -195,7 +198,7 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
   Future<void> _showFilters() async {
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppColors.surfaceContainer,
+      backgroundColor: IzyTelColors.surface,
       showDragHandle: true,
       isScrollControlled: true,
       builder: (context) {
@@ -212,7 +215,7 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                     const Text(
                       'Filtres agents',
                       style: TextStyle(
-                        color: AppColors.onBackground,
+                        color: IzyTelColors.textPrimary,
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
                       ),
@@ -284,7 +287,7 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                         key: ValueKey<String?>(_viewModel.zoneFilter),
                         initialValue: _viewModel.zoneFilter,
                         isExpanded: true,
-                        dropdownColor: AppColors.surfaceContainerHigh,
+                        dropdownColor: IzyTelColors.surfaceMuted,
                         items: [
                           const DropdownMenuItem<String?>(
                             value: null,
@@ -336,7 +339,7 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
     child: Text(
       title,
       style: const TextStyle(
-        color: AppColors.onSurfaceVariant,
+        color: IzyTelColors.textSecondary,
         fontWeight: FontWeight.w700,
       ),
     ),
@@ -347,10 +350,10 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
       label: Text(label),
       selected: selected,
       onSelected: (_) => onTap(),
-      selectedColor: AppColors.primary.withAlpha(55),
-      backgroundColor: AppColors.surfaceContainerHigh,
+      selectedColor: IzyTelColors.primary.withAlpha(55),
+      backgroundColor: IzyTelColors.surfaceMuted,
       side: BorderSide(
-        color: selected ? AppColors.primary : AppColors.outlineVariant,
+        color: selected ? IzyTelColors.primary : IzyTelColors.outline,
       ),
     );
   }
@@ -358,134 +361,176 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: IzyTelColors.background,
       appBar: AppBar(
-        title: const Text('Gestion des agents'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 14),
-            child: CircleAvatar(
-              radius: 17,
-              backgroundColor: AppColors.primary.withAlpha(35),
-              child: Text(
-                _initial(widget.user.name),
-                style: const TextStyle(
-                  color: AppColors.primaryContainer,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addAgent,
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.onPrimary,
-        child: const Icon(Icons.person_add_alt_1_rounded),
+        toolbarHeight: 46,
+        backgroundColor: IzyTelColors.background,
+        title: const SizedBox.shrink(),
       ),
       body: SafeArea(
-        top: false,
+        bottom: false,
         child: ListenableBuilder(
           listenable: _viewModel,
           builder: (_, _) {
             final List<AgentDirectoryEntry> agents = _viewModel.filteredAgents;
+            final int activeFilters = <Object?>[
+              _viewModel.availabilityFilter,
+              _viewModel.networkFilter,
+              _viewModel.zoneFilter,
+              _viewModel.activeFilter,
+            ].where((Object? value) => value != null).length;
+
             return RefreshIndicator(
               onRefresh: _viewModel.start,
+              color: IzyTelColors.primary,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 90),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                 children: [
-                  const Text(
-                    'Gestion des Agents',
-                    style: TextStyle(
-                      color: AppColors.onBackground,
-                      fontSize: 27,
-                      fontWeight: FontWeight.w900,
-                    ),
+                  IzyTelPageHeader(
+                    title: 'Agents & zones',
+                    subtitle:
+                        'Pilote la disponibilité, les réseaux et les capacités de l’équipe.',
+                    actions: [
+                      IzyTelAvatar(name: widget.user.name, size: 42),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Surveille la disponibilité, les zones et les réseaux autorisés.',
-                    style: TextStyle(color: AppColors.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: IzyTelSpacing.lg),
                   Row(
                     children: [
                       Expanded(
                         child: _MetricCard(
                           value: '${_viewModel.agents.length}',
                           label: 'Agents',
-                          color: AppColors.primaryContainer,
+                          color: IzyTelColors.primary,
+                          softColor: IzyTelColors.primarySoft,
+                          icon: Symbols.groups_rounded,
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: _MetricCard(
                           value: '${_viewModel.availableCount}',
                           label: 'Disponibles',
-                          color: AppColors.success,
+                          color: IzyTelColors.success,
+                          softColor: IzyTelColors.successSoft,
+                          icon: Symbols.check_circle_rounded,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _MetricCard(
+                          value: '${_viewModel.openIssueCount}',
+                          label: 'Incidents',
+                          color: IzyTelColors.warning,
+                          softColor: IzyTelColors.warningSoft,
+                          icon: Symbols.warning_rounded,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: IzyTelSpacing.md),
+                  SizedBox(
+                    height: 48,
+                    child: FilledButton.icon(
+                      onPressed: _addAgent,
+                      icon: const Icon(Symbols.person_add_rounded, size: 20),
+                      label: const Text('Ajouter un agent'),
+                    ),
+                  ),
+                  const SizedBox(height: IzyTelSpacing.md),
+                  IzyTelSearchField(
+                    controller: _searchController,
+                    hintText: 'Nom, code agent, téléphone…',
+                    onChanged: _viewModel.updateSearch,
+                  ),
+                  const SizedBox(height: IzyTelSpacing.sm),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        IzyTelFilterPill(
+                          label: 'Tous',
+                          selected: _viewModel.availabilityFilter == null,
+                          onTap: () => _viewModel.setAvailability(null),
+                        ),
+                        const SizedBox(width: 8),
+                        IzyTelFilterPill(
+                          label: 'Disponibles',
+                          selected: _viewModel.availabilityFilter ==
+                              AgentAvailability.available,
+                          selectedColor: IzyTelColors.success,
+                          softColor: IzyTelColors.successSoft,
+                          onTap: () => _viewModel.setAvailability(
+                            _viewModel.availabilityFilter ==
+                                    AgentAvailability.available
+                                ? null
+                                : AgentAvailability.available,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IzyTelFilterPill(
+                          label: 'Indisponibles',
+                          selected: _viewModel.availabilityFilter ==
+                              AgentAvailability.unavailable,
+                          selectedColor: IzyTelColors.warning,
+                          softColor: IzyTelColors.warningSoft,
+                          onTap: () => _viewModel.setAvailability(
+                            _viewModel.availabilityFilter ==
+                                    AgentAvailability.unavailable
+                                ? null
+                                : AgentAvailability.unavailable,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IzyTelFilterPill(
+                          label: activeFilters > 0
+                              ? 'Filtres ($activeFilters)'
+                              : 'Filtres',
+                          icon: Symbols.tune_rounded,
+                          selected: activeFilters > 0,
+                          onTap: _showFilters,
+                        ),
+                      ],
+                    ),
+                  ),
                   if (_viewModel.recentIssues.isNotEmpty) ...[
+                    const SizedBox(height: IzyTelSpacing.lg),
                     _AgentIssuesPanel(
                       issues: _viewModel.recentIssues,
                       openCount: _viewModel.openIssueCount,
                       agentNameFor: _viewModel.agentNameFor,
                     ),
-                    const SizedBox(height: 16),
                   ],
-                  TextField(
-                    controller: _searchController,
-                    onChanged: _viewModel.updateSearch,
-                    decoration: const InputDecoration(
-                      hintText: 'Rechercher un agent…',
-                      prefixIcon: Icon(Icons.search_rounded),
-                    ),
+                  const SizedBox(height: IzyTelSpacing.lg),
+                  IzyTelSectionHeader(
+                    title: 'Équipe',
+                    actionLabel: activeFilters > 0 ? 'Réinitialiser' : null,
+                    onAction: activeFilters > 0 ? _viewModel.clearFilters : null,
                   ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 44,
-                    child: OutlinedButton.icon(
-                      onPressed: _showFilters,
-                      icon: const Icon(Icons.tune_rounded),
-                      label: const Text('Filtres'),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   if (_viewModel.isLoading && _viewModel.agents.isEmpty)
                     const SizedBox(
-                      height: 300,
+                      height: 280,
                       child: Center(child: CircularProgressIndicator()),
                     )
                   else if (_viewModel.errorMessage != null &&
                       _viewModel.agents.isEmpty)
                     _MessageCard(
-                      icon: Icons.cloud_off_rounded,
+                      icon: Symbols.cloud_off_rounded,
                       title: 'Agents indisponibles',
                       message: _viewModel.errorMessage!,
                     )
                   else if (agents.isEmpty)
                     const _MessageCard(
-                      icon: Icons.groups_2_outlined,
+                      icon: Symbols.groups_rounded,
                       title: 'Aucun agent',
                       message: 'Aucun agent ne correspond aux filtres actuels.',
                     )
-                  else ...[
-                    Text(
-                      '${agents.length} agent${agents.length > 1 ? 's' : ''}',
-                      style: const TextStyle(
-                        color: AppColors.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
+                  else
                     ...agents.map(
-                      (agent) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
+                      (AgentDirectoryEntry agent) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
                         child: _AgentCard(
                           agent: agent,
                           zones: _viewModel.zones,
@@ -493,7 +538,6 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                         ),
                       ),
                     ),
-                  ],
                 ],
               ),
             );
@@ -517,114 +561,112 @@ class _AgentIssuesPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.warning.withAlpha(105)),
-      ),
+    return IzyTelSurface(
+      radius: IzyTelRadii.card,
+      borderColor: IzyTelColors.warning.withAlpha(70),
+      backgroundColor: IzyTelColors.warningSoft,
+      padding: const EdgeInsets.all(14),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
               const Icon(
-                Icons.report_problem_outlined,
-                color: AppColors.warning,
+                Symbols.warning_rounded,
+                color: IzyTelColors.warning,
                 size: 21,
               ),
               const SizedBox(width: 8),
-              const Expanded(
+              Expanded(
                 child: Text(
                   'Signalements agents',
-                  style: TextStyle(
-                    color: AppColors.onBackground,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: IzyTelColors.textPrimary,
                   ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.warning.withAlpha(28),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: AppColors.warning.withAlpha(95)),
-                ),
-                child: Text(
-                  '$openCount ouvert${openCount > 1 ? 's' : ''}',
-                  style: const TextStyle(
-                    color: AppColors.warning,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+              IzyTelStatusPill(
+                label: '$openCount ouvert${openCount > 1 ? 's' : ''}',
+                color: IzyTelColors.warning,
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'Les derniers incidents transmis par les agents apparaissent ici en temps réel.',
-            style: TextStyle(
-              color: AppColors.onSurfaceVariant,
-              fontSize: 11,
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: 12),
-          ...issues.map((issue) {
+          const SizedBox(height: 10),
+          ...issues.take(3).map((AgentIssue issue) {
             final String agentName = agentNameFor(issue.agentId);
-            final String network = issue.network?.label ?? 'Tous réseaux';
             final Color statusColor = _issueStatusColor(issue.status);
-
             return Container(
-              margin: const EdgeInsets.only(bottom: 8),
+              margin: const EdgeInsets.only(bottom: 7),
               padding: const EdgeInsets.all(11),
               decoration: BoxDecoration(
-                color: AppColors.surfaceContainerHigh,
+                color: IzyTelColors.surface,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.outlineVariant),
+                border: Border.all(color: IzyTelColors.outline),
               ),
-              child: Column(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '$agentName • ${_issueTypeLabel(issue.type)}',
-                          style: const TextStyle(
-                            color: AppColors.onBackground,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                      _StatusBadge(
-                        label: _issueStatusLabel(issue.status),
-                        color: statusColor,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    issue.description,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.onSurfaceVariant,
-                      fontSize: 11,
-                      height: 1.35,
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: statusColor.withAlpha(20),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Symbols.report_problem_rounded,
+                      color: statusColor,
+                      size: 18,
                     ),
                   ),
-                  const SizedBox(height: 7),
-                  Text(
-                    '$network • ${_relative(issue.createdAt)}',
-                    style: const TextStyle(
-                      color: AppColors.primaryContainer,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '$agentName · ${_issueTypeLabel(issue.type)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelMedium
+                                    ?.copyWith(
+                                      color: IzyTelColors.textPrimary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            _StatusBadge(
+                              label: _issueStatusLabel(issue.status),
+                              color: statusColor,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          issue.description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: IzyTelColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          '${issue.network?.label ?? 'Tous réseaux'} · ${_relative(issue.createdAt)}',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: IzyTelColors.textMuted,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -654,141 +696,191 @@ class _AgentCard extends StatelessWidget {
     final String zoneLabel = _zoneLabel(profile, zones);
     final bool available =
         agent.isActive && agent.availability == AgentAvailability.available;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceContainer,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.outlineVariant),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final int totalCapacity = profile == null
+        ? 0
+        : profile.orangeCapacity + profile.mtnCapacity + profile.moovCapacity;
+
+    return IzyTelSurface(
+      onTap: onTap,
+      radius: IzyTelRadii.card,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 22,
-                    backgroundColor: AppColors.primary.withAlpha(35),
-                    child: Text(
-                      _initial(agent.name),
-                      style: const TextStyle(
-                        color: AppColors.primaryContainer,
-                        fontWeight: FontWeight.w800,
+              IzyTelAvatar(name: agent.name, size: 44),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      agent.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: IzyTelColors.textPrimary,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          agent.name,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.onBackground,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          agent.agentCode,
-                          style: const TextStyle(
-                            color: AppColors.onSurfaceVariant,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: 2),
+                    Text(
+                      agent.agentCode,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: IzyTelColors.textMuted,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                  _StatusBadge(
-                    label: !agent.isActive
-                        ? 'Suspendu'
-                        : available
-                        ? 'Disponible'
-                        : 'Indisponible',
-                    color: !agent.isActive
-                        ? AppColors.error
-                        : available
-                        ? AppColors.success
-                        : AppColors.warning,
-                  ),
-                ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 14),
-              _line(Icons.location_on_outlined, zoneLabel),
-              const SizedBox(height: 7),
-              _line(
-                Icons.schedule_rounded,
-                profile?.lastSeenAt == null
-                    ? 'Aucune activité récente'
-                    : 'Dernière activité : ${_relative(profile!.lastSeenAt!)}',
+              const SizedBox(width: 8),
+              _StatusBadge(
+                label: !agent.isActive
+                    ? 'Suspendu'
+                    : available
+                    ? 'Disponible'
+                    : 'Indisponible',
+                color: !agent.isActive
+                    ? IzyTelColors.error
+                    : available
+                    ? IzyTelColors.success
+                    : IzyTelColors.warning,
               ),
-              if (profile != null && profile.authorizedNetworks.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: profile.authorizedNetworks
-                      .map((network) => _NetworkBadge(network: network))
-                      .toList(growable: false),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Symbols.location_on_rounded,
+                size: 18,
+                color: IzyTelColors.textMuted,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  zoneLabel,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: IzyTelColors.textSecondary,
+                  ),
+                ),
+              ),
+              if (totalCapacity > 0) ...[
+                const SizedBox(width: 8),
+                Text(
+                  _formatCapacity(totalCapacity),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: IzyTelColors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ],
           ),
-        ),
+          if (profile != null && profile.authorizedNetworks.isNotEmpty) ...[
+            const SizedBox(height: 11),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: profile.authorizedNetworks
+                  .map((AgentNetwork network) => _NetworkBadge(network: network))
+                  .toList(growable: false),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Icon(
+                Symbols.schedule_rounded,
+                size: 17,
+                color: IzyTelColors.textMuted,
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  profile?.lastSeenAt == null
+                      ? 'Aucune activité récente'
+                      : 'Dernière activité · ${_relative(profile!.lastSeenAt!)}',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: IzyTelColors.textMuted,
+                  ),
+                ),
+              ),
+              const Icon(
+                Symbols.chevron_right_rounded,
+                color: IzyTelColors.textMuted,
+                size: 21,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
-
-  Widget _line(IconData icon, String text) => Row(
-    children: [
-      Icon(icon, size: 16, color: AppColors.primaryContainer),
-      const SizedBox(width: 6),
-      Expanded(
-        child: Text(
-          text,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: AppColors.onSurfaceVariant,
-            fontSize: 12,
-          ),
-        ),
-      ),
-    ],
-  );
 }
 
 class _NetworkBadge extends StatelessWidget {
   const _NetworkBadge({required this.network});
+
   final AgentNetwork network;
 
   @override
   Widget build(BuildContext context) {
     final Color color = _networkColor(network);
+    final Color background = switch (network) {
+      AgentNetwork.orange => IzyTelColors.orangeSoft,
+      AgentNetwork.mtn => IzyTelColors.mtnSoft,
+      AgentNetwork.moov => IzyTelColors.moovSoft,
+    };
+    final String asset = switch (network) {
+      AgentNetwork.orange => 'assets/brands/operators/orange_ci.png',
+      AgentNetwork.mtn => 'assets/brands/operators/mtn_ci.png',
+      AgentNetwork.moov => 'assets/brands/operators/moov_africa_ci.png',
+    };
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withAlpha(28),
-        borderRadius: BorderRadius.circular(7),
-        border: Border.all(color: color.withAlpha(100)),
+        color: background,
+        borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(
-        network.label,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox.square(
+            dimension: 16,
+            child: Image.asset(asset, fit: BoxFit.contain),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            network.label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+String _formatCapacity(int amount) {
+  final String value = amount.toString();
+  final StringBuffer out = StringBuffer();
+  for (int i = 0; i < value.length; i++) {
+    if (i > 0 && (value.length - i) % 3 == 0) out.write(' ');
+    out.write(value[i]);
+  }
+  return '${out.toString()} F';
 }
 
 class _StatusBadge extends StatelessWidget {
@@ -816,40 +908,65 @@ class _MetricCard extends StatelessWidget {
     required this.value,
     required this.label,
     required this.color,
+    required this.softColor,
+    required this.icon,
   });
+
   final String value;
   final String label;
   final Color color;
+  final Color softColor;
+  final IconData icon;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: AppColors.surfaceContainer,
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: AppColors.outlineVariant),
-    ),
-    child: Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            color: color,
-            fontSize: 22,
-            fontWeight: FontWeight.w900,
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(
+        color: IzyTelColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: IzyTelColors.outline),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: IzyTelColors.shadow,
+            blurRadius: 12,
+            offset: Offset(0, 4),
           ),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.onSurfaceVariant,
-            fontSize: 11,
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(color: softColor, shape: BoxShape.circle),
+            child: Icon(icon, color: color, size: 17),
           ),
-        ),
-      ],
-    ),
-  );
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 1),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              maxLines: 1,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: IzyTelColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _MessageCard extends StatelessWidget {
@@ -858,38 +975,17 @@ class _MessageCard extends StatelessWidget {
     required this.title,
     required this.message,
   });
+
   final IconData icon;
   final String title;
   final String message;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(24),
-    decoration: BoxDecoration(
-      color: AppColors.surfaceContainer,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: AppColors.outlineVariant),
-    ),
-    child: Column(
-      children: [
-        Icon(icon, color: AppColors.onSurfaceVariant, size: 34),
-        const SizedBox(height: 10),
-        Text(
-          title,
-          style: const TextStyle(
-            color: AppColors.onBackground,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 5),
-        Text(
-          message,
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: AppColors.onSurfaceVariant),
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    return IzyTelSurface(
+      child: IzyTelEmptyState(icon: icon, title: title, message: message),
+    );
+  }
 }
 
 String _issueTypeLabel(String value) {
@@ -925,14 +1021,14 @@ String _issueStatusLabel(String value) {
 Color _issueStatusColor(String value) {
   switch (value) {
     case 'resolved':
-      return AppColors.success;
+      return IzyTelColors.success;
     case 'cancelled':
-      return AppColors.onSurfaceVariant;
+      return IzyTelColors.textSecondary;
     case 'acknowledged':
-      return AppColors.primaryContainer;
+      return IzyTelColors.primary;
     case 'open':
     default:
-      return AppColors.warning;
+      return IzyTelColors.warning;
   }
 }
 
@@ -963,10 +1059,10 @@ String _initial(String value) {
 Color _networkColor(AgentNetwork network) {
   switch (network) {
     case AgentNetwork.orange:
-      return AppColors.orange;
+      return IzyTelColors.orange;
     case AgentNetwork.mtn:
-      return AppColors.mtn;
+      return IzyTelColors.mtnText;
     case AgentNetwork.moov:
-      return AppColors.primaryContainer;
+      return IzyTelColors.moov;
   }
 }

@@ -12,6 +12,16 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/agent_orders_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/orders_page.dart';
 import 'package:cabine_flow/features/payments/presentation/pages/payments_page.dart';
+import 'package:cabine_flow/features/agents/presentation/pages/agent_management_page.dart';
+import 'package:cabine_flow/features/auth/data/repositories/fake_auth_repository.dart';
+import 'package:cabine_flow/features/more/presentation/pages/admin_activity_journal_page.dart';
+import 'package:cabine_flow/features/more/presentation/pages/more_page.dart';
+import 'package:cabine_flow/features/offers/data/repositories/fake_admin_offer_repository.dart';
+import 'package:cabine_flow/features/offers/domain/models/admin_offer.dart';
+import 'package:cabine_flow/features/offers/presentation/pages/offer_management_page.dart';
+import 'package:cabine_flow/features/support/data/repositories/fake_support_request_repository.dart';
+import 'package:cabine_flow/features/support/domain/models/support_request.dart';
+import 'package:cabine_flow/features/support/presentation/pages/support_request_center_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -237,4 +247,176 @@ void main() {
     expect(find.text('Accepter'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('demandes clients restent rendables sur petit écran', (
+    WidgetTester tester,
+  ) async {
+    await useCompactPhone(tester);
+    final FakeSupportRequestRepository supportRepository =
+        FakeSupportRequestRepository();
+    addTearDown(supportRepository.dispose);
+    final FakeRefundRepository refundRepository = FakeRefundRepository();
+    addTearDown(refundRepository.dispose);
+    final FakeOrdersRepository ordersRepository = FakeOrdersRepository(
+      isTest: true,
+    );
+    final QueueOrder order = (await ordersRepository.fetchPaidQueue()).first;
+    await supportRepository.create(
+      orderId: order.id,
+      orderReference: order.reference,
+      type: SupportRequestType.paymentNotRecognized,
+      description: 'Paiement effectué mais non reconnu.',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: SupportRequestCenterPage(
+          user: const AppUser(
+            id: 'ADMIN-001',
+            name: 'Marc Alex',
+            phoneNumber: '0700000000',
+            role: UserRole.administrator,
+          ),
+          repository: supportRepository,
+          refundRepository: refundRepository,
+          orderHistoryRepository: ordersRepository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Centre d’assistance'), findsOneWidget);
+    expect(find.text('À traiter'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('gestion agents reste rendable sur petit écran', (
+    WidgetTester tester,
+  ) async {
+    await useCompactPhone(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: AgentManagementPage(
+          user: const AppUser(
+            id: 'ADMIN-001',
+            name: 'Marc Alex',
+            phoneNumber: '0700000000',
+            role: UserRole.administrator,
+          ),
+          repository: FakeAgentRepository(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Agents & zones'), findsOneWidget);
+    expect(find.text('Ajouter un agent'), findsOneWidget);
+    expect(find.text('Koffi Kouassi'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('catalogue offres reste rendable sur petit écran', (
+    WidgetTester tester,
+  ) async {
+    await useCompactPhone(tester);
+    final FakeAdminOfferRepository repository = FakeAdminOfferRepository(
+      initialOffers: <AdminOffer>[
+        const AdminOffer(
+          id: 'orange-1',
+          network: MobileNetwork.orange,
+          service: OfferService.internet,
+          operationType: OrderOperationType.internetSubscription,
+          title: 'Internet Orange 4 Go',
+          catalogLabel: 'Internet Orange 4 Go',
+          sellingPrice: 1000,
+          details: <String>['4 Go'],
+          category: 'internet',
+          isActive: true,
+          displayOrder: 1,
+          volume: '4 Go',
+          validity: '7 jours',
+        ),
+      ],
+    );
+    addTearDown(repository.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: OfferManagementPage(
+          user: const AppUser(
+            id: 'ADMIN-001',
+            name: 'Marc Alex',
+            phoneNumber: '0700000000',
+            role: UserRole.administrator,
+          ),
+          repository: repository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Offres'), findsOneWidget);
+    expect(find.text('Internet Orange 4 Go'), findsOneWidget);
+    expect(find.text('1 000 F'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('page Plus administration reste rendable sur petit écran', (
+    WidgetTester tester,
+  ) async {
+    await useCompactPhone(tester);
+    final FakeAdminOfferRepository offerRepository =
+        FakeAdminOfferRepository();
+    addTearDown(offerRepository.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: MorePage(
+          user: const AppUser(
+            id: 'ADMIN-001',
+            name: 'Marc Alex',
+            phoneNumber: '0700000000',
+            role: UserRole.administrator,
+          ),
+          authRepository: FakeAuthRepository(),
+          adminOfferRepository: offerRepository,
+          agentRepository: FakeAgentRepository(),
+          ordersRepository: FakeOrdersRepository(isTest: true),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Administration'), findsOneWidget);
+    expect(find.text('Demandes clients'), findsOneWidget);
+    expect(find.text('Journal d’activité'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('journal administration reste rendable sur petit écran', (
+    WidgetTester tester,
+  ) async {
+    await useCompactPhone(tester);
+    final FakeSupportRequestRepository supportRepository =
+        FakeSupportRequestRepository();
+    addTearDown(supportRepository.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: AdminActivityJournalPage(
+          orderHistoryRepository: FakeOrdersRepository(isTest: true),
+          supportRequestRepository: supportRepository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Journal d’activité'), findsOneWidget);
+    expect(find.text('Activité récente'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
 }

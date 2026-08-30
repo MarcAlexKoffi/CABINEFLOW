@@ -1,4 +1,4 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/features/offers/domain/models/admin_offer.dart';
 import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
 import 'package:cabine_flow/features/offers/presentation/view_models/offer_editor_view_model.dart';
@@ -69,24 +69,24 @@ class _OfferEditorPageState extends State<OfferEditorPage> {
   InputDecoration _inputDecoration({String? hintText}) {
     final OutlineInputBorder border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(10),
-      borderSide: BorderSide(color: AppColors.outlineVariant.withAlpha(80)),
+      borderSide: BorderSide(color: IzyTelColors.outline.withAlpha(80)),
     );
 
     return InputDecoration(
       hintText: hintText,
       filled: true,
-      fillColor: AppColors.surfaceContainerHigh,
+      fillColor: IzyTelColors.surface,
       contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 13),
       border: border,
       enabledBorder: border,
       focusedBorder: border.copyWith(
-        borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
+        borderSide: const BorderSide(color: IzyTelColors.primary, width: 1.4),
       ),
       errorBorder: border.copyWith(
-        borderSide: const BorderSide(color: AppColors.error),
+        borderSide: const BorderSide(color: IzyTelColors.error),
       ),
       focusedErrorBorder: border.copyWith(
-        borderSide: const BorderSide(color: AppColors.error, width: 1.4),
+        borderSide: const BorderSide(color: IzyTelColors.error, width: 1.4),
       ),
     );
   }
@@ -127,10 +127,10 @@ class _OfferEditorPageState extends State<OfferEditorPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: IzyTelColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.onBackground,
+        backgroundColor: IzyTelColors.background,
+        foregroundColor: IzyTelColors.textPrimary,
         elevation: 0,
         title: Text(
           widget.offer == null ? 'Ajouter une offre' : 'Modifier l’offre',
@@ -153,7 +153,7 @@ class _OfferEditorPageState extends State<OfferEditorPage> {
                       DropdownButtonFormField<MobileNetwork>(
                         initialValue: _viewModel.network,
                         decoration: _inputDecoration(),
-                        dropdownColor: AppColors.surfaceContainerHigh,
+                        dropdownColor: IzyTelColors.surface,
                         items: MobileNetwork.values
                             .map(
                               (MobileNetwork network) => DropdownMenuItem(
@@ -173,7 +173,7 @@ class _OfferEditorPageState extends State<OfferEditorPage> {
                       DropdownButtonFormField<OfferService>(
                         initialValue: _viewModel.service,
                         decoration: _inputDecoration(),
-                        dropdownColor: AppColors.surfaceContainerHigh,
+                        dropdownColor: IzyTelColors.surface,
                         items: OfferService.values
                             .map(
                               (OfferService service) => DropdownMenuItem(
@@ -198,7 +198,7 @@ class _OfferEditorPageState extends State<OfferEditorPage> {
                               ? OrderOperationType.mixedBundle
                               : OrderOperationType.callBundle,
                           decoration: _inputDecoration(),
-                          dropdownColor: AppColors.surfaceContainerHigh,
+                          dropdownColor: IzyTelColors.surface,
                           items: const [
                             DropdownMenuItem(
                               value: OrderOperationType.callBundle,
@@ -334,13 +334,13 @@ class _OfferEditorPageState extends State<OfferEditorPage> {
                       SwitchListTile.adaptive(
                         contentPadding: EdgeInsets.zero,
                         value: _viewModel.isActive,
-                        activeThumbColor: AppColors.success,
+                        activeThumbColor: IzyTelColors.success,
                         title: Text(
                           _viewModel.isActive
                               ? 'Offre active'
                               : 'Offre suspendue',
                           style: const TextStyle(
-                            color: AppColors.onBackground,
+                            color: IzyTelColors.textPrimary,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -349,7 +349,7 @@ class _OfferEditorPageState extends State<OfferEditorPage> {
                               ? 'Visible pour les nouvelles commandes.'
                               : 'Masquée pour les nouvelles commandes.',
                           style: const TextStyle(
-                            color: AppColors.onSurfaceVariant,
+                            color: IzyTelColors.textSecondary,
                           ),
                         ),
                         onChanged: _viewModel.isSaving
@@ -369,8 +369,8 @@ class _OfferEditorPageState extends State<OfferEditorPage> {
         child: Container(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
           decoration: BoxDecoration(
-            color: AppColors.surfaceContainerLowest,
-            border: Border(top: BorderSide(color: AppColors.outlineVariant)),
+            color: IzyTelColors.background,
+            border: Border(top: BorderSide(color: IzyTelColors.outline)),
           ),
           child: Row(
             children: [
@@ -392,7 +392,7 @@ class _OfferEditorPageState extends State<OfferEditorPage> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: AppColors.onPrimary,
+                            color: Colors.white,
                           ),
                         )
                       : const Text('Enregistrer'),
@@ -417,9 +417,9 @@ class _SectionCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
+        color: IzyTelColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.outlineVariant),
+        border: Border.all(color: IzyTelColors.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -427,13 +427,13 @@ class _SectionCard extends StatelessWidget {
           Text(
             title,
             style: const TextStyle(
-              color: AppColors.onBackground,
+              color: IzyTelColors.textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 10),
-          Divider(color: AppColors.outlineVariant.withAlpha(90)),
+          Divider(color: IzyTelColors.outline.withAlpha(90)),
           const SizedBox(height: 12),
           ...children,
         ],
@@ -453,7 +453,7 @@ class _FieldLabel extends StatelessWidget {
       child: Text(
         text,
         style: const TextStyle(
-          color: AppColors.onSurfaceVariant,
+          color: IzyTelColors.textSecondary,
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),

@@ -110,13 +110,13 @@ class _DashboardPageState extends State<DashboardPage> {
       if (widget.onOpenMore != null)
         IzyTelAccountAction(
           icon: Symbols.person_rounded,
-          label: 'Mon espace administrateur',
+          label: 'Administration',
           onTap: widget.onOpenMore!,
         ),
       if (widget.onOpenMore != null)
         IzyTelAccountAction(
-          icon: Symbols.settings_rounded,
-          label: 'Paramètres et administration',
+          icon: Symbols.notifications_rounded,
+          label: 'Demandes & notifications',
           onTap: widget.onOpenMore!,
         ),
       if (widget.onLogout != null)

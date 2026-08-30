@@ -1,9 +1,11 @@
 import 'package:cabine_flow/app/app_routes.dart';
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_management_page.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
+import 'package:cabine_flow/features/more/presentation/pages/admin_activity_journal_page.dart';
 import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
 import 'package:cabine_flow/features/offers/presentation/pages/offer_management_page.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
@@ -17,8 +19,10 @@ import 'package:cabine_flow/features/support/domain/models/support_request.dart'
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:cabine_flow/features/support/presentation/pages/support_request_center_page.dart';
 import 'package:cabine_flow/shared/widgets/feature_placeholder_page.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 class MorePage extends StatelessWidget {
   const MorePage({
@@ -41,7 +45,6 @@ class MorePage extends StatelessWidget {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          backgroundColor: AppColors.surfaceContainerHighest,
           title: const Text('Se déconnecter ?'),
           content: const Text(
             'Tu devras te reconnecter pour accéder de nouveau à l’espace Administration.',
@@ -53,7 +56,7 @@ class MorePage extends StatelessWidget {
             ),
             FilledButton.icon(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              icon: const Icon(Icons.logout_rounded),
+              icon: const Icon(Symbols.logout_rounded),
               label: const Text('Se déconnecter'),
             ),
           ],
@@ -89,7 +92,7 @@ class MorePage extends StatelessWidget {
         description: 'Accède aux autres fonctions de IzyTel.',
         message:
             'Le profil, les paramètres et les fonctions autorisées pour ton rôle seront placés ici.',
-        icon: Icons.apps_rounded,
+        icon: Symbols.apps_rounded,
       );
     }
 
@@ -104,339 +107,361 @@ class MorePage extends StatelessWidget {
         ? ordersRepository as OrderHistoryRepository
         : null;
 
-    return SafeArea(
-      bottom: false,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 30),
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Administration',
-                      style: TextStyle(
-                        color: AppColors.onBackground,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Connecté en tant que ${user.name}',
-                      style: const TextStyle(
-                        color: AppColors.onSurfaceVariant,
-                        fontSize: 13,
-                      ),
+    return Scaffold(
+      backgroundColor: IzyTelColors.background,
+      body: SafeArea(
+        bottom: false,
+        child: StreamBuilder<List<SupportRequest>>(
+          stream: supportRepository.watchAllRequests(),
+          builder: (
+            BuildContext context,
+            AsyncSnapshot<List<SupportRequest>> snapshot,
+          ) {
+            final List<SupportRequest> requests =
+                snapshot.data ?? const <SupportRequest>[];
+            final int activeRequests = requests
+                .where((SupportRequest request) => request.isActive)
+                .length;
+
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+              children: [
+                IzyTelPageHeader(
+                  title: 'Administration',
+                  subtitle: 'Paramètres, catalogue, équipe et contrôle.',
+                  actions: [
+                    IzyTelAvatar(
+                      name: user.name,
+                      size: 42,
+                      onTap: () {
+                        showIzyTelAccountSheet(
+                          context: context,
+                          name: user.name,
+                          role: user.roleLabel,
+                          actions: <IzyTelAccountAction>[
+                            IzyTelAccountAction(
+                              icon: Symbols.support_agent_rounded,
+                              label: 'Demandes clients',
+                              onTap: historyRepository == null
+                                  ? () => _historyUnavailable(context)
+                                  : () {
+                                      Navigator.of(context).push<void>(
+                                        MaterialPageRoute<void>(
+                                          builder: (BuildContext context) {
+                                            return SupportRequestCenterPage(
+                                              user: user,
+                                              repository: supportRepository,
+                                              refundRepository: refundRepository,
+                                              orderHistoryRepository:
+                                                  historyRepository!,
+                                            );
+                                          },
+                                        ),
+                                      );
+                                    },
+                            ),
+                            IzyTelAccountAction(
+                              icon: Symbols.groups_rounded,
+                              label: 'Agents et zones',
+                              onTap: () {
+                                Navigator.of(context).push<void>(
+                                  MaterialPageRoute<void>(
+                                    builder: (BuildContext context) {
+                                      return AgentManagementPage(
+                                        user: user,
+                                        repository: agentRepository,
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                            IzyTelAccountAction(
+                              icon: Symbols.local_offer_rounded,
+                              label: 'Offres',
+                              onTap: () {
+                                Navigator.of(context).push<void>(
+                                  MaterialPageRoute<void>(
+                                    builder: (BuildContext context) {
+                                      return OfferManagementPage(
+                                        user: user,
+                                        repository: adminOfferRepository,
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                            IzyTelAccountAction(
+                              icon: Symbols.logout_rounded,
+                              label: 'Se déconnecter',
+                              destructive: true,
+                              onTap: () => _logout(context),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ],
                 ),
-              ),
-              CircleAvatar(
-                radius: 22,
-                backgroundColor: AppColors.primary.withAlpha(35),
-                child: Text(
-                  _initial(user.name),
-                  style: const TextStyle(
-                    color: AppColors.primaryContainer,
-                    fontSize: 17,
+                const SizedBox(height: IzyTelSpacing.lg),
+                _AdminIdentityCard(user: user),
+                const SizedBox(height: IzyTelSpacing.xl),
+                const _SectionLabel('Clients & assistance'),
+                const SizedBox(height: 6),
+                IzyTelSurface(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IzyTelMenuRow(
+                        icon: Symbols.support_agent_rounded,
+                        title: 'Demandes clients',
+                        subtitle:
+                            'Vérifications, incidents, suivi et résolution des demandes.',
+                        badge: activeRequests > 0 ? '$activeRequests' : null,
+                        iconColor: IzyTelColors.warning,
+                        onTap: historyRepository == null
+                            ? () => _historyUnavailable(context)
+                            : () {
+                                Navigator.of(context).push<void>(
+                                  MaterialPageRoute<void>(
+                                    builder: (BuildContext context) {
+                                      return SupportRequestCenterPage(
+                                        user: user,
+                                        repository: supportRepository,
+                                        refundRepository: refundRepository,
+                                        orderHistoryRepository:
+                                            historyRepository!,
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: IzyTelSpacing.lg),
+                const _SectionLabel('Catalogue'),
+                const SizedBox(height: 6),
+                IzyTelSurface(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: IzyTelMenuRow(
+                    icon: Symbols.local_offer_rounded,
+                    title: 'Offres',
+                    subtitle:
+                        'Créer, tarifer, suspendre et organiser le catalogue IzyTel.',
+                    iconColor: IzyTelColors.primary,
+                    onTap: () {
+                      Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (BuildContext context) {
+                            return OfferManagementPage(
+                              user: user,
+                              repository: adminOfferRepository,
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: IzyTelSpacing.lg),
+                const _SectionLabel('Équipe'),
+                const SizedBox(height: 6),
+                IzyTelSurface(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: IzyTelMenuRow(
+                    icon: Symbols.groups_rounded,
+                    title: 'Agents et zones',
+                    subtitle:
+                        'Disponibilité, capacités, réseaux, zones et incidents agents.',
+                    iconColor: IzyTelColors.moov,
+                    onTap: () {
+                      Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (BuildContext context) {
+                            return AgentManagementPage(
+                              user: user,
+                              repository: agentRepository,
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: IzyTelSpacing.lg),
+                const _SectionLabel('Contrôle'),
+                const SizedBox(height: 6),
+                IzyTelSurface(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IzyTelMenuRow(
+                        icon: Symbols.history_rounded,
+                        title: 'Journal d’activité',
+                        subtitle:
+                            'Retrouver les évolutions récentes des commandes et demandes.',
+                        iconColor: IzyTelColors.success,
+                        onTap: historyRepository == null
+                            ? () => _historyUnavailable(context)
+                            : () {
+                                Navigator.of(context).push<void>(
+                                  MaterialPageRoute<void>(
+                                    builder: (BuildContext context) {
+                                      return AdminActivityJournalPage(
+                                        orderHistoryRepository:
+                                            historyRepository!,
+                                        supportRequestRepository:
+                                            supportRepository,
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: IzyTelSpacing.lg),
+                const _SectionLabel('Compte'),
+                const SizedBox(height: 6),
+                IzyTelSurface(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: IzyTelMenuRow(
+                    icon: Symbols.logout_rounded,
+                    title: 'Se déconnecter',
+                    subtitle: 'Fermer la session Administration sur cet appareil.',
+                    destructive: true,
+                    onTap: () => _logout(context),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _historyUnavailable(BuildContext context) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text(
+            'L’historique n’est pas disponible avec ce dépôt de données.',
+          ),
+        ),
+      );
+  }
+}
+
+class _AdminIdentityCard extends StatelessWidget {
+  const _AdminIdentityCard({required this.user});
+
+  final AppUser user;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(IzyTelSpacing.md),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[IzyTelColors.primary, IzyTelColors.primaryStrong],
+        ),
+        borderRadius: BorderRadius.circular(IzyTelRadii.largeCard),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x282E63EB),
+            blurRadius: 20,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          IzyTelAvatar(
+            name: user.name,
+            size: 52,
+            initialsOverride: _initials(user.name),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  user.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.white,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          StreamBuilder<List<SupportRequest>>(
-            stream: supportRepository.watchAllRequests(),
-            builder:
-                (
-                  BuildContext context,
-                  AsyncSnapshot<List<SupportRequest>> snapshot,
-                ) {
-                  final List<SupportRequest> requests =
-                      snapshot.data ?? const <SupportRequest>[];
-                  final int activeCount = requests
-                      .where((SupportRequest request) => request.isActive)
-                      .length;
-                  return _AdminFeatureCard(
-                    icon: Icons.support_agent_rounded,
-                    title: 'Demandes clients',
-                    description:
-                        'Traiter les vérifications, répondre au client et conserver tout l’historique.',
-                    enabled: historyRepository != null,
-                    badgeCount: activeCount,
-                    onTap: historyRepository == null
-                        ? null
-                        : () {
-                            Navigator.of(context).push<void>(
-                              MaterialPageRoute<void>(
-                                builder: (BuildContext context) {
-                                  return SupportRequestCenterPage(
-                                    user: user,
-                                    repository: supportRepository,
-                                    refundRepository: refundRepository,
-                                    orderHistoryRepository: historyRepository,
-                                  );
-                                },
-                              ),
-                            );
-                          },
-                  );
-                },
-          ),
-          const SizedBox(height: 12),
-          // Remboursements et commissions ont été déplacés dans l’onglet Finances.
-          _AdminFeatureCard(
-            icon: Icons.local_offer_rounded,
-            title: 'Gestion des offres',
-            description:
-                'Créer, modifier, tarifer, suspendre ou réactiver les offres proposées aux clients.',
-            enabled: true,
-            onTap: () {
-              Navigator.of(context).push<void>(
-                MaterialPageRoute<void>(
-                  builder: (BuildContext context) {
-                    return OfferManagementPage(
-                      user: user,
-                      repository: adminOfferRepository,
-                    );
-                  },
+                const SizedBox(height: 3),
+                Text(
+                  user.roleLabel,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: Colors.white.withAlpha(220),
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              );
-            },
+                if (user.phoneNumber.trim().isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    user.phoneNumber,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Colors.white.withAlpha(190),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
-          _AdminFeatureCard(
-            icon: Icons.groups_2_outlined,
-            title: 'Agents et zones',
-            description:
-                'Disponibilités, réseaux, zones, capacités et signalements opérationnels.',
-            enabled: true,
-            onTap: () {
-              Navigator.of(context).push<void>(
-                MaterialPageRoute<void>(
-                  builder: (BuildContext context) {
-                    return AgentManagementPage(
-                      user: user,
-                      repository: agentRepository,
-                    );
-                  },
-                ),
-              );
-            },
+          const Icon(
+            Symbols.verified_user_rounded,
+            color: Colors.white,
+            size: 24,
           ),
-          const SizedBox(height: 12),
-          const _AdminFeatureCard(
-            icon: Icons.rule_folder_outlined,
-            title: 'Supervision et incidents',
-            description:
-                'Anomalies, alertes opérationnelles et contrôles d’audit.',
-          ),
-          const SizedBox(height: 22),
-          _AdminLogoutCard(onTap: () => _logout(context)),
         ],
       ),
     );
   }
 }
 
-class _AdminLogoutCard extends StatelessWidget {
-  const _AdminLogoutCard({required this.onTap});
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.label);
 
-  final VoidCallback onTap;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceContainer,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.error.withAlpha(90)),
-          ),
-          child: const Row(
-            children: [
-              Icon(Icons.logout_rounded, color: AppColors.error),
-              SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Se déconnecter',
-                      style: TextStyle(
-                        color: AppColors.onBackground,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    SizedBox(height: 3),
-                    Text(
-                      'Fermer la session Administration sur cet appareil.',
-                      style: TextStyle(
-                        color: AppColors.onSurfaceVariant,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right_rounded, color: AppColors.error),
-            ],
-          ),
-        ),
+    return Text(
+      label,
+      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+        color: IzyTelColors.textSecondary,
+        fontWeight: FontWeight.w700,
+        letterSpacing: .2,
       ),
     );
   }
 }
 
-class _AdminFeatureCard extends StatelessWidget {
-  const _AdminFeatureCard({
-    required this.icon,
-    required this.title,
-    required this.description,
-    this.enabled = false,
-    this.onTap,
-    this.badgeCount = 0,
-  });
-
-  final IconData icon;
-  final String title;
-  final String description;
-  final bool enabled;
-  final VoidCallback? onTap;
-  final int badgeCount;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(17),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceContainer,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: enabled
-                  ? AppColors.primary.withAlpha(90)
-                  : AppColors.outlineVariant,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: enabled
-                      ? AppColors.primary.withAlpha(35)
-                      : AppColors.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Icon(
-                  icon,
-                  color: enabled
-                      ? AppColors.primaryContainer
-                      : AppColors.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: const TextStyle(
-                              color: AppColors.onBackground,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        if (badgeCount > 0)
-                          Container(
-                            margin: const EdgeInsets.only(left: 8),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.warning.withAlpha(35),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              '$badgeCount',
-                              style: const TextStyle(
-                                color: AppColors.warning,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          )
-                        else if (!enabled)
-                          Container(
-                            margin: const EdgeInsets.only(left: 8),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 7,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: const Text(
-                              'Bientôt',
-                              style: TextStyle(
-                                color: AppColors.onSurfaceVariant,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      description,
-                      style: const TextStyle(
-                        color: AppColors.onSurfaceVariant,
-                        fontSize: 12,
-                        height: 1.35,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (enabled) ...[
-                const SizedBox(width: 8),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  color: AppColors.primaryContainer,
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-String _initial(String value) {
-  final String cleaned = value.trim();
-  return cleaned.isEmpty ? '?' : cleaned.substring(0, 1).toUpperCase();
+String _initials(String value) {
+  final List<String> parts = value
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((String part) => part.isNotEmpty)
+      .toList(growable: false);
+  if (parts.isEmpty) return '?';
+  if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+  return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
 }

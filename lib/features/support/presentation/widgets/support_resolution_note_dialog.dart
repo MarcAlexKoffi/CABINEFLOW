@@ -1,5 +1,6 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 /// Formulaire mobile-first utilisé pour saisir la note de résolution d'une
 /// demande client.
@@ -55,7 +56,7 @@ class _SupportResolutionNoteDialogState
       child: SafeArea(
         top: false,
         child: Material(
-          color: AppColors.surfaceContainerHigh,
+          color: IzyTelColors.surface,
           elevation: 18,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           clipBehavior: Clip.antiAlias,
@@ -71,7 +72,7 @@ class _SupportResolutionNoteDialogState
                     width: 42,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: AppColors.outline.withAlpha(90),
+                      color: IzyTelColors.outlineStrong.withAlpha(90),
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
@@ -87,7 +88,7 @@ class _SupportResolutionNoteDialogState
                           Text(
                             'Résoudre la demande',
                             style: TextStyle(
-                              color: AppColors.onBackground,
+                              color: IzyTelColors.textPrimary,
                               fontSize: 21,
                               fontWeight: FontWeight.w800,
                             ),
@@ -96,7 +97,7 @@ class _SupportResolutionNoteDialogState
                           Text(
                             'Indiquez brièvement ce qui a été vérifié ou corrigé. Cette note restera dans l’historique.',
                             style: TextStyle(
-                              color: AppColors.onSurfaceVariant,
+                              color: IzyTelColors.textSecondary,
                               fontSize: 12,
                               height: 1.35,
                             ),
@@ -108,8 +109,8 @@ class _SupportResolutionNoteDialogState
                     IconButton(
                       tooltip: 'Fermer',
                       onPressed: _cancel,
-                      icon: const Icon(Icons.close_rounded),
-                      color: AppColors.onSurfaceVariant,
+                      icon: const Icon(Symbols.close_rounded),
+                      color: IzyTelColors.textSecondary,
                       visualDensity: VisualDensity.compact,
                     ),
                   ],
@@ -118,7 +119,7 @@ class _SupportResolutionNoteDialogState
                 const Text(
                   'Note de résolution',
                   style: TextStyle(
-                    color: AppColors.onBackground,
+                    color: IzyTelColors.textPrimary,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                   ),
@@ -133,16 +134,16 @@ class _SupportResolutionNoteDialogState
                   textInputAction: TextInputAction.newline,
                   keyboardType: TextInputType.multiline,
                   style: const TextStyle(
-                    color: AppColors.inputText,
+                    color: IzyTelColors.textPrimary,
                     fontSize: 15,
                     height: 1.35,
                   ),
-                  cursorColor: AppColors.primary,
+                  cursorColor: IzyTelColors.primary,
                   decoration: InputDecoration(
                     hintText:
                         'Ex. : Paiement retrouvé et commande régularisée.',
                     hintStyle: const TextStyle(
-                      color: AppColors.inputHint,
+                      color: IzyTelColors.textMuted,
                       fontSize: 14,
                       height: 1.35,
                     ),
@@ -165,7 +166,7 @@ class _SupportResolutionNoteDialogState
                   child: Text(
                     '${_controller.text.length}/1000',
                     style: const TextStyle(
-                      color: AppColors.onSurfaceVariant,
+                      color: IzyTelColors.textSecondary,
                       fontSize: 11,
                     ),
                   ),
@@ -197,9 +198,9 @@ class _SupportResolutionNoteDialogState
                             onPressed: _cancel,
                             style: OutlinedButton.styleFrom(
                               minimumSize: const Size.fromHeight(50),
-                              foregroundColor: AppColors.onSurfaceVariant,
+                              foregroundColor: IzyTelColors.textSecondary,
                               side: BorderSide(
-                                color: AppColors.outline.withAlpha(110),
+                                color: IzyTelColors.outlineStrong.withAlpha(110),
                               ),
                             ),
                             child: const Text('Annuler'),
