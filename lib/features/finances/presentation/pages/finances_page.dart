@@ -184,27 +184,6 @@ class _FinancesPageState extends State<FinancesPage> {
         );
   }
 
-  int _reconciliationAttentionCount(
-    List<QueueOrder> orders,
-    List<RefundCase> refunds,
-  ) {
-    final Set<String> reconciledRefundOrders = refunds
-        .where((RefundCase refund) => refund.status == RefundStatus.reconciled)
-        .map((RefundCase refund) => refund.orderId)
-        .toSet();
-
-    return orders.where((QueueOrder order) {
-      if (order.paymentStatus == OrderPaymentStatus.declared) return true;
-      if (!_isConfirmed(order)) return false;
-      if (order.status == QueueOrderStatus.failed ||
-          order.status == QueueOrderStatus.refundPending ||
-          order.status == QueueOrderStatus.refunded) {
-        return !reconciledRefundOrders.contains(order.id);
-      }
-      return false;
-    }).length;
-  }
-
   void _openRefunds() {
     final OrderHistoryRepository? history = _historyRepository;
     if (history == null) {
@@ -482,11 +461,6 @@ class _FinancesPageState extends State<FinancesPage> {
                                             .clamp(0, account.earnedTotal)
                                             .toInt(),
                                   );
-                              final int attentionCount =
-                                  _reconciliationAttentionCount(
-                                    orders,
-                                    refunds,
-                                  );
 
                               return ListView(
                                 padding: const EdgeInsets.fromLTRB(
@@ -684,13 +658,9 @@ class _FinancesPageState extends State<FinancesPage> {
                                     icon: Symbols.rule_rounded,
                                     title: 'Rapprochements',
                                     subtitle:
-                                        'Contrôler la cohérence commandes, paiements et remboursements.',
-                                    accent: attentionCount > 0
-                                        ? IzyTelColors.warning
-                                        : IzyTelColors.primary,
-                                    badge: attentionCount > 0
-                                        ? '$attentionCount à vérifier'
-                                        : 'À jour',
+                                        'Contrôler toute la chaîne paiement, traitement et finance.',
+                                    accent: IzyTelColors.primary,
+                                    badge: 'Contrôle 14A',
                                     onTap: _openReconciliation,
                                   ),
                                   const SizedBox(height: 8),
