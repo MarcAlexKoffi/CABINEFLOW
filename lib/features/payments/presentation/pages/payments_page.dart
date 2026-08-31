@@ -20,12 +20,14 @@ class PaymentsPage extends StatefulWidget {
     required this.ordersRepository,
     required this.onPaymentConfirmed,
     required this.onOpenOrders,
+    this.onOpenOrder,
   });
 
   final AppUser user;
   final OrdersRepository ordersRepository;
   final VoidCallback onPaymentConfirmed;
   final VoidCallback onOpenOrders;
+  final ValueChanged<QueueOrder>? onOpenOrder;
 
   @override
   State<PaymentsPage> createState() => _PaymentsPageState();
@@ -109,7 +111,13 @@ class _PaymentsPageState extends State<PaymentsPage> {
         ? digits.substring(3)
         : digits;
     if (localDigits.length != 10) return value;
-    return '+225 ${<String>[localDigits.substring(0, 2), localDigits.substring(2, 4), localDigits.substring(4, 6), localDigits.substring(6, 8), localDigits.substring(8, 10)].join(' ')}';
+    return '+225 ${<String>[
+      localDigits.substring(0, 2),
+      localDigits.substring(2, 4),
+      localDigits.substring(4, 6),
+      localDigits.substring(6, 8),
+      localDigits.substring(8, 10),
+    ].join(' ')}';
   }
 
   Future<void> _openPaymentConfirmation(QueueOrder order) async {
@@ -124,9 +132,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
       builder: (BuildContext sheetContext) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setSheetState) {
-            final double keyboardHeight = MediaQuery.viewInsetsOf(
-              sheetContext,
-            ).bottom;
+            final double keyboardHeight = MediaQuery.viewInsetsOf(sheetContext).bottom;
 
             return Padding(
               padding: EdgeInsets.only(bottom: keyboardHeight),
@@ -162,22 +168,20 @@ class _PaymentsPageState extends State<PaymentsPage> {
                         order.hasPaymentToReviewAfterExpiration
                             ? 'Examiner le paiement'
                             : 'Vérifier le paiement',
-                        style: Theme.of(sheetContext).textTheme.titleLarge
-                            ?.copyWith(
-                              color: IzyTelColors.textPrimary,
-                              fontSize: IzyTelTypeScale.title2,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -.35,
-                            ),
+                        style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
+                          color: IzyTelColors.textPrimary,
+                          fontSize: IzyTelTypeScale.title2,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -.35,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         order.reference,
-                        style: Theme.of(sheetContext).textTheme.bodySmall
-                            ?.copyWith(
-                              color: IzyTelColors.textMuted,
-                              fontSize: IzyTelTypeScale.micro,
-                            ),
+                        style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                          color: IzyTelColors.textMuted,
+                          fontSize: IzyTelTypeScale.micro,
+                        ),
                       ),
                       if (order.hasPaymentToReviewAfterExpiration) ...[
                         const SizedBox(height: 14),
@@ -191,9 +195,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                       const SizedBox(height: 16),
                       _PaymentSheetSummary(
                         order: order,
-                        formattedPhone: _formatIvorianPhone(
-                          order.beneficiaryPhone,
-                        ),
+                        formattedPhone: _formatIvorianPhone(order.beneficiaryPhone),
                       ),
                       if (_hasDeclaredPaymentDetails(order)) ...[
                         const SizedBox(height: 14),
@@ -284,25 +286,19 @@ class _PaymentsPageState extends State<PaymentsPage> {
                           filled: true,
                           fillColor: IzyTelColors.surfaceMuted,
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                              IzyTelRadii.input,
-                            ),
+                            borderRadius: BorderRadius.circular(IzyTelRadii.input),
                             borderSide: const BorderSide(
                               color: IzyTelColors.outline,
                             ),
                           ),
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                              IzyTelRadii.input,
-                            ),
+                            borderRadius: BorderRadius.circular(IzyTelRadii.input),
                             borderSide: const BorderSide(
                               color: IzyTelColors.outline,
                             ),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                              IzyTelRadii.input,
-                            ),
+                            borderRadius: BorderRadius.circular(IzyTelRadii.input),
                             borderSide: const BorderSide(
                               color: IzyTelColors.primary,
                               width: 1.4,
@@ -382,9 +378,9 @@ class _PaymentsPageState extends State<PaymentsPage> {
                         child: FilledButton.icon(
                           onPressed: paymentWasChecked
                               ? () {
-                                  Navigator.of(
-                                    sheetContext,
-                                  ).pop(referenceController.text.trim());
+                                  Navigator.of(sheetContext).pop(
+                                    referenceController.text.trim(),
+                                  );
                                 }
                               : null,
                           style: FilledButton.styleFrom(
@@ -536,7 +532,9 @@ class _PaymentsPageState extends State<PaymentsPage> {
                           onRetry: _viewModel.loadPayments,
                         )
                       else if (visibleOrders.isEmpty)
-                        _PaymentsEmptyState(filter: _viewModel.selectedFilter)
+                        _PaymentsEmptyState(
+                          filter: _viewModel.selectedFilter,
+                        )
                       else
                         ...visibleOrders.map(
                           (QueueOrder order) => Padding(
@@ -547,7 +545,15 @@ class _PaymentsPageState extends State<PaymentsPage> {
                               onConfirmPayment: () {
                                 _openPaymentConfirmation(order);
                               },
-                              onOpenOrders: widget.onOpenOrders,
+                              onOpenOrders: () {
+                                final ValueChanged<QueueOrder>? openOrder =
+                                    widget.onOpenOrder;
+                                if (openOrder != null) {
+                                  openOrder(order);
+                                } else {
+                                  widget.onOpenOrders();
+                                }
+                              },
                             ),
                           ),
                         ),
@@ -735,7 +741,9 @@ class _PaymentDeclarationCheckRow extends StatelessWidget {
       decoration: BoxDecoration(
         border: isLast
             ? null
-            : const Border(bottom: BorderSide(color: IzyTelColors.outline)),
+            : const Border(
+                bottom: BorderSide(color: IzyTelColors.outline),
+              ),
       ),
       child: Wrap(
         spacing: 10,
@@ -803,7 +811,10 @@ class _PaymentsInlineError extends StatelessWidget {
 }
 
 class _PaymentsErrorState extends StatelessWidget {
-  const _PaymentsErrorState({required this.message, required this.onRetry});
+  const _PaymentsErrorState({
+    required this.message,
+    required this.onRetry,
+  });
 
   final String message;
   final VoidCallback onRetry;

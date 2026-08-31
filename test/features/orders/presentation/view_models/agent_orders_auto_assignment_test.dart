@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
-    'une commande en attente est affectée dès que l’agent devient disponible',
+    'un agent ne prend plus lui-même une commande de la file automatique',
     () async {
       final FakeOrdersRepository orders = FakeOrdersRepository(isTest: true);
       final FakeAgentRepository agents = FakeAgentRepository();
@@ -16,7 +16,7 @@ void main() {
       await agents.updateOwnOperations(
         agentId: 'AGENT-001',
         update: const AgentOperationalUpdate(
-          availability: AgentAvailability.unavailable,
+          availability: AgentAvailability.available,
           activeNetworks: <AgentNetwork>[AgentNetwork.orange, AgentNetwork.mtn],
           orangeCapacity: 35000,
           mtnCapacity: 18000,
@@ -47,26 +47,12 @@ void main() {
         agentRepository: agents,
       );
       await viewModel.start();
-      await Future<void>.delayed(const Duration(milliseconds: 180));
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+
+      // Le round-robin est désormais décidé par le moteur staff unique.
+      // L'application Agent ne concurrence plus cette décision.
       expect(viewModel.toAcceptOrders, isEmpty);
-
-      await agents.updateOwnOperations(
-        agentId: 'AGENT-001',
-        update: const AgentOperationalUpdate(
-          availability: AgentAvailability.available,
-          activeNetworks: <AgentNetwork>[AgentNetwork.orange, AgentNetwork.mtn],
-          orangeCapacity: 35000,
-          mtnCapacity: 18000,
-          moovCapacity: 0,
-        ),
-      );
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-
-      expect(viewModel.toAcceptOrders, hasLength(1));
-      expect(
-        viewModel.toAcceptOrders.single.assignmentMode,
-        OrderAssignmentMode.automatic,
-      );
+      expect(await orders.watchAutomaticAssignmentQueue().first, isNotEmpty);
 
       viewModel.dispose();
     },

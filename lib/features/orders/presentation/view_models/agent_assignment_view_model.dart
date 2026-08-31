@@ -47,9 +47,11 @@ class AgentAssignmentViewModel extends ChangeNotifier {
   List<AgentDirectoryEntry> _agents = const <AgentDirectoryEntry>[];
   List<AgentZone> _zones = const <AgentZone>[];
   Map<String, int> _activeAssignmentCounts = const <String, int>{};
+  Map<String, int> _reservedAmounts = const <String, int>{};
   String? _assigningAgentId;
   String? _errorMessage;
   bool _isLoading = true;
+  bool _isDisposed = false;
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
@@ -66,7 +68,11 @@ class AgentAssignmentViewModel extends ChangeNotifier {
         continue;
       }
 
-      final int capacity = profile.capacityFor(requiredNetwork);
+      final int declaredCapacity = profile.capacityFor(requiredNetwork);
+      final int reserved = _reservedAmounts[agent.userId] ?? 0;
+      final int capacity = (declaredCapacity - reserved)
+          .clamp(0, declaredCapacity)
+          .toInt();
       final bool isCurrent =
           order.assignedAgentId == agent.userId &&
           order.assignmentStatus == OrderAssignmentStatus.assigned;
@@ -132,6 +138,7 @@ class AgentAssignmentViewModel extends ChangeNotifier {
         _agents = agents;
         _isLoading = false;
         notifyListeners();
+        unawaited(_refreshReservedAmounts());
       },
       onError: (_) {
         _errorMessage = 'Impossible de charger les agents.';
@@ -165,6 +172,36 @@ class AgentAssignmentViewModel extends ChangeNotifier {
             notifyListeners();
           },
         );
+  }
+
+  Future<void> _refreshReservedAmounts() async {
+    final MobileNetwork network = order.network;
+    final List<AgentDirectoryEntry> currentAgents = List<AgentDirectoryEntry>.from(
+      _agents,
+    );
+    if (currentAgents.isEmpty) {
+      _reservedAmounts = const <String, int>{};
+      return;
+    }
+
+    final List<MapEntry<String, int>> entries = await Future.wait(
+      currentAgents.map((AgentDirectoryEntry agent) async {
+        try {
+          final int amount = await ordersRepository.fetchActiveReservedAmount(
+            agentId: agent.userId,
+            network: network,
+          );
+          return MapEntry<String, int>(agent.userId, amount);
+        } catch (_) {
+          return MapEntry<String, int>(agent.userId, 0);
+        }
+      }),
+    );
+    if (_isDisposed) return;
+    _reservedAmounts = <String, int>{
+      for (final MapEntry<String, int> entry in entries) entry.key: entry.value,
+    };
+    notifyListeners();
   }
 
   Future<bool> assign(AgentAssignmentCandidate candidate) async {
@@ -238,6 +275,7 @@ class AgentAssignmentViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _agentsSubscription?.cancel();
     _zonesSubscription?.cancel();
     _assignmentCountsSubscription?.cancel();

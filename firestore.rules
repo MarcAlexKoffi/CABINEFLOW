@@ -675,7 +675,13 @@ service cloud.firestore {
     }
 
     function isValidAdminFailedOrderRequeue(orderId) {
-      return isAdmin()
+      // REAFFECTATION COMPAT V7 - validation locale uniquement.
+      // Le document orderEvents/REASSIGNMENT_REQUESTED est valide par sa
+      // propre regle a partir de l'etat AVANT de la commande. La mise a jour
+      // orders ne relit donc plus l'evenement futur : aucune boucle getAfter.
+      return orderId is string
+        && orderId.size() >= 1
+        && isAdmin()
         && resource.data.status == 'failed'
         && paymentStatusAllowsProcessing(resource.data.paymentStatus)
         && request.resource.data.status == 'paidReady'
@@ -693,6 +699,11 @@ service cloud.firestore {
         && request.resource.data.get('failureReason', null) == null
         && request.resource.data.get('observation', null) == null
         && request.resource.data.get('autoAssignmentRefusedAgentIds', []).size() == 0
+        && request.resource.data.get('lastEventId', null) is string
+        && request.resource.data.get('lastEventId', '').size() >= 8
+        && request.resource.data.get('lastEventId', '').size() <= 120
+        && request.resource.data.get('lastEventType', null) == 'REASSIGNMENT_REQUESTED'
+        && request.resource.data.get('lastEventAt', null) == request.time
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status',
           'takenByUserId',
@@ -720,8 +731,7 @@ service cloud.firestore {
           'lastEventAt'
         ])
         && immutableCoreOrderFieldsAreUnchanged()
-        && request.resource.data.updatedAt == request.time
-        && hasMatchingOrderEvent(orderId, 'REASSIGNMENT_REQUESTED');
+        && request.resource.data.updatedAt == request.time;
     }
 
     function isValidStaffOrderUpdate(orderId) {
@@ -799,10 +809,13 @@ service cloud.firestore {
       let network = request.resource.data.network;
       let amount = request.resource.data.amount;
 
-      // Une affectation ne doit pas revalider tout le schéma historique de la
-      // commande. On valide uniquement la transition et on interdit toute
-      // modification des champs métier grâce à affectedKeys + immutableCore.
-      return agentId is string
+      // Affectation manuelle compatible avec le code Flutter deja installe.
+      // La commande valide uniquement sa propre transition et l'agent cible.
+      // orderAssignments et orderEvents valident chacun leur document sans
+      // que /orders ait besoin de relire ces ecritures futures.
+      return orderId is string
+        && orderId.size() >= 1
+        && agentId is string
         && resource.data.status == 'paidReady'
         && paymentStatusAllowsProcessing(resource.data.paymentStatus)
         && resource.data.get('assignedAgentId', null) == null
@@ -819,6 +832,8 @@ service cloud.firestore {
         && request.resource.data.get('assignmentStatus', 'unassigned') == 'assigned'
         && request.resource.data.get('manualAssignmentRequired', false) == false
         && request.resource.data.get('lastEventId', null) is string
+        && request.resource.data.get('lastEventId', '').size() >= 8
+        && request.resource.data.get('lastEventId', '').size() <= 120
         && request.resource.data.get('lastEventType', null) == 'ASSIGNED'
         && request.resource.data.get('lastEventAt', null) == request.time
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -834,7 +849,9 @@ service cloud.firestore {
           'lastEventType',
           'lastEventAt'
         ])
-        && immutableCoreOrderFieldsAreUnchanged()
+        // Compatibilite commandes historiques : les champs modifiables sont deja
+        // strictement limites par diff(). Certaines anciennes commandes peuvent ne
+        // pas posseder tous les champs optionnels ajoutes dans les phases ulterieures.
         && request.resource.data.updatedAt == request.time
         && isAdmin()
         && agentUserExists
@@ -848,8 +865,7 @@ service cloud.firestore {
           (network == 'orange' && agentProfile.orangeCapacity >= amount)
           || (network == 'mtn' && agentProfile.mtnCapacity >= amount)
           || (network == 'moov' && agentProfile.moovCapacity >= amount)
-        )
-        && hasMatchingOrderEvent(orderId, 'ASSIGNED');
+        );
     }
 
     function automaticAssignmentTargetIsEligible(agentId) {
@@ -1086,7 +1102,7 @@ service cloud.firestore {
     }
 
     function isValidAgentProcessingHold() {
-      // La mise en attente est volontairement validée sans getAfter().
+      // La mise en attente est volontairement validée sans lecture croisée future.
       // La transaction de l'application écrit toujours l'événement d'audit,
       // mais l'autorisation de la commande ne dépend plus d'une lecture croisée
       // du document orderEvents. Cela évite les permission-denied observés sur
@@ -1871,13 +1887,17 @@ service cloud.firestore {
     function isValidManualAssignmentEventCreation() {
       let orderId = request.resource.data.orderId;
       let agentId = request.resource.data.agentId;
-      let orderAfter = getAfter(
+      let orderBefore = get(
         /databases/$(database)/documents/orders/$(orderId)
       ).data;
 
+      // Validation unidirectionnelle sur l'etat AVANT affectation.
+      // Le document /orders valide separement la transition vers l'agent.
       return request.resource.data.schemaVersion == 1
         && orderId is string
+        && orderId.size() >= 1
         && agentId is string
+        && agentId.size() >= 1
         && request.resource.data.orderReference is string
         && request.resource.data.agentName is string
         && request.resource.data.agentName.size() >= 2
@@ -1893,13 +1913,11 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time
         && hasValidOrderAssignmentEventKeys()
         && isAdmin()
-        && orderAfter.assignedAgentId == agentId
-        && orderAfter.assignedAgentName == request.resource.data.agentName
-        && orderAfter.reference == request.resource.data.orderReference
-        && orderAfter.assignmentStatus == 'assigned'
-        && orderAfter.get('assignedAt', null) == request.time
-        && orderAfter.get('lastEventType', null) == 'ASSIGNED'
-        && orderAfter.get('lastEventAt', null) == request.time;
+        && orderBefore.reference == request.resource.data.orderReference
+        && orderBefore.status == 'paidReady'
+        && paymentStatusAllowsProcessing(orderBefore.paymentStatus)
+        && orderBefore.get('assignedAgentId', null) == null
+        && orderBefore.get('assignmentStatus', 'unassigned') == 'unassigned';
     }
 
     function isValidAutomaticAssignmentEventCreation() {

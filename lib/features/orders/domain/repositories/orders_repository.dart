@@ -43,6 +43,11 @@ abstract class OrdersRepository {
 
   Stream<Map<String, int>> watchActiveAssignmentCounts();
 
+  Future<int> fetchActiveReservedAmount({
+    required String agentId,
+    required MobileNetwork network,
+  });
+
   Stream<List<QueueOrder>> watchAssignedOrders({required String agentId});
 
   Future<QueueOrder> acceptAgentAssignment({

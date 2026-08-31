@@ -19,8 +19,10 @@ import 'package:cabine_flow/features/finances/presentation/pages/finances_page.d
 import 'package:cabine_flow/features/more/presentation/pages/more_page.dart';
 import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/automatic_assignment.dart';
+import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/agent_history_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/orders_page.dart';
+import 'package:cabine_flow/features/orders/presentation/pages/order_detail_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/agent_orders_page.dart';
 import 'package:cabine_flow/features/payments/presentation/pages/payments_page.dart';
 import 'package:cabine_flow/features/payments/domain/repositories/payment_link_repository.dart';
@@ -161,6 +163,43 @@ class _MainShellPageState extends State<MainShellPage> {
     _selectDestination(1);
   }
 
+  Future<void> _openSpecificOrder(QueueOrder order) async {
+    final OrdersRepository rawRepository = widget.ordersRepository;
+    if (rawRepository is! OrderHistoryRepository) {
+      _openOrdersTab();
+      return;
+    }
+    final OrderHistoryRepository repository =
+        rawRepository as OrderHistoryRepository;
+
+    QueueOrder latest = order;
+    try {
+      latest = await repository.fetchOrderById(orderId: order.id);
+    } catch (_) {
+      // Le détail peut tout de même s'ouvrir avec le snapshot déjà affiché.
+    }
+    if (!mounted) return;
+
+    _selectDestination(1);
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) return;
+
+    final NavigatorState? navigator = _tabNavigatorKeys[1].currentState;
+    if (navigator == null) return;
+
+    await navigator.push<void>(
+      MaterialPageRoute<void>(
+        builder: (BuildContext detailContext) => OrderDetailPage(
+          user: widget.user,
+          initialOrder: latest,
+          ordersRepository: repository,
+          onBack: () => Navigator.of(detailContext).pop(),
+          onOpenCustomerHistory: (_) {},
+        ),
+      ),
+    );
+  }
+
   void _openPaymentsTab() {
     _selectDestination(2);
   }
@@ -214,10 +253,7 @@ class _MainShellPageState extends State<MainShellPage> {
       setState(() {
         _isLoggingOut = false;
       });
-      IzyTelFeedback.error(
-        context,
-        'Impossible de se déconnecter pour le moment.',
-      );
+      IzyTelFeedback.error(context, 'Impossible de se déconnecter pour le moment.');
     }
   }
 
@@ -238,14 +274,10 @@ class _MainShellPageState extends State<MainShellPage> {
 
     final DateTime now = DateTime.now();
     final DateTime? previous = _lastBackPressAt;
-    if (previous == null ||
-        now.difference(previous) > const Duration(seconds: 2)) {
+    if (previous == null || now.difference(previous) > const Duration(seconds: 2)) {
       _lastBackPressAt = now;
       if (mounted) {
-        IzyTelFeedback.show(
-          context,
-          'Appuie encore une fois pour quitter IzyTel.',
-        );
+        IzyTelFeedback.show(context, 'Appuie encore une fois pour quitter IzyTel.');
       }
       return;
     }
@@ -307,6 +339,7 @@ class _MainShellPageState extends State<MainShellPage> {
         ordersRepository: widget.ordersRepository,
         onPaymentConfirmed: _handlePaymentConfirmed,
         onOpenOrders: _openOrdersTab,
+        onOpenOrder: (QueueOrder order) => unawaited(_openSpecificOrder(order)),
       ),
       FinancesPage(
         user: widget.user,
@@ -422,10 +455,7 @@ class _AgentShellState extends State<_AgentShell> {
       setState(() {
         _isLoggingOut = false;
       });
-      IzyTelFeedback.error(
-        context,
-        'Impossible de se déconnecter pour le moment.',
-      );
+      IzyTelFeedback.error(context, 'Impossible de se déconnecter pour le moment.');
     }
   }
 
@@ -446,14 +476,10 @@ class _AgentShellState extends State<_AgentShell> {
 
     final DateTime now = DateTime.now();
     final DateTime? previous = _lastBackPressAt;
-    if (previous == null ||
-        now.difference(previous) > const Duration(seconds: 2)) {
+    if (previous == null || now.difference(previous) > const Duration(seconds: 2)) {
       _lastBackPressAt = now;
       if (mounted) {
-        IzyTelFeedback.show(
-          context,
-          'Appuie encore une fois pour quitter IzyTel.',
-        );
+        IzyTelFeedback.show(context, 'Appuie encore une fois pour quitter IzyTel.');
       }
       return;
     }

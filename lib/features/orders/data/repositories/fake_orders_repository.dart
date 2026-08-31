@@ -370,6 +370,30 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
   }
 
   @override
+  Future<int> fetchActiveReservedAmount({
+    required String agentId,
+    required MobileNetwork network,
+  }) async {
+    _orders ??= _createInitialOrders();
+    int reserved = 0;
+    for (final QueueOrder order in _orders!) {
+      final bool activeAssignment =
+          order.assignedAgentId == agentId &&
+          (order.assignmentStatus == OrderAssignmentStatus.assigned ||
+              order.assignmentStatus == OrderAssignmentStatus.accepted) &&
+          order.status != QueueOrderStatus.completed &&
+          order.status != QueueOrderStatus.awaitingCustomerConfirmation &&
+          order.status != QueueOrderStatus.failed &&
+          order.status != QueueOrderStatus.cancelled &&
+          order.status != QueueOrderStatus.refunded;
+      if (activeAssignment && order.network == network) {
+        reserved += order.amount;
+      }
+    }
+    return reserved;
+  }
+
+  @override
   Stream<List<QueueOrder>> watchAssignedOrders({
     required String agentId,
   }) async* {

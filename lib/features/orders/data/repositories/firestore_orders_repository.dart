@@ -726,6 +726,10 @@ class FirestoreOrdersRepository
       );
     }
 
+    // La réaffectation manuelle respecte la même capacité réellement
+    // disponible que 9E : capacité déclarée - commandes déjà réservées.
+    final _AutomaticAssignmentUsage currentUsage = await _loadAgentUsage(agentId);
+
     final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
         .doc(orderId);
     final DocumentReference<Map<String, dynamic>> userRef = _usersCollection
@@ -807,8 +811,16 @@ class FirestoreOrdersRepository
       }
 
       final int capacity = _agentCapacityForNetwork(profileData, order.network);
-      if (capacity < order.amount) {
-        throw StateError('La capacité déclarée de cet agent est insuffisante.');
+      final int reserved = switch (order.network) {
+        MobileNetwork.orange => currentUsage.orangeReservedAmount,
+        MobileNetwork.mtn => currentUsage.mtnReservedAmount,
+        MobileNetwork.moov => currentUsage.moovReservedAmount,
+      };
+      final int availableCapacity = capacity - reserved;
+      if (availableCapacity < order.amount) {
+        throw StateError(
+          'La capacité réellement disponible de cet agent est insuffisante.',
+        );
       }
 
       debugPrint(
@@ -823,7 +835,8 @@ class FirestoreOrdersRepository
         'agentId=$agentId role=${userData['role']} active=${userData['isActive']} '
         'availability=${profileData['availability']} '
         'authorized=${profileData['authorizedNetworks']} '
-        'activeNetworks=${profileData['activeNetworks']} capacity=$capacity',
+        'activeNetworks=${profileData['activeNetworks']} capacity=$capacity '
+        'reserved=$reserved availableCapacity=$availableCapacity',
       );
 
       final String agentName = _stringValue(
@@ -903,6 +916,28 @@ class FirestoreOrdersRepository
               .toList();
           return _buildActiveAssignmentCounts(orders);
         });
+  }
+
+  @override
+  Future<int> fetchActiveReservedAmount({
+    required String agentId,
+    required MobileNetwork network,
+  }) async {
+    final String cleanedAgentId = agentId.trim();
+    if (cleanedAgentId.isEmpty) return 0;
+
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _ordersCollection
+        .where('assignedAgentId', isEqualTo: cleanedAgentId)
+        .limit(500)
+        .get();
+    int reserved = 0;
+    for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in snapshot.docs) {
+      final QueueOrder order = _mapDocument(doc);
+      if (_isActiveAssignedOrder(order) && order.network == network) {
+        reserved += order.amount;
+      }
+    }
+    return reserved;
   }
 
   @override
@@ -1785,17 +1820,15 @@ class FirestoreOrdersRepository
       throw StateError('Seul un administrateur peut réaffecter un échec.');
     }
 
-    final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
-        .doc(orderId.trim());
-    final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
-        .doc();
+    final DocumentReference<Map<String, dynamic>> orderRef =
+        _ordersCollection.doc(orderId.trim());
+    final DocumentReference<Map<String, dynamic>> eventRef =
+        _eventsCollection.doc();
     final OrderEventType eventType = OrderEventType.reassignmentRequested;
 
-    return _firestore.runTransaction<QueueOrder>((
-      Transaction transaction,
-    ) async {
-      final DocumentSnapshot<Map<String, dynamic>> snapshot = await transaction
-          .get(orderRef);
+    return _firestore.runTransaction<QueueOrder>((Transaction transaction) async {
+      final DocumentSnapshot<Map<String, dynamic>> snapshot =
+          await transaction.get(orderRef);
       final Map<String, dynamic>? data = snapshot.data();
       if (!snapshot.exists || data == null) {
         throw StateError('La commande est introuvable.');
@@ -2619,6 +2652,7 @@ class FirestoreOrdersRepository
       return false;
     }
     return order.status != QueueOrderStatus.completed &&
+        order.status != QueueOrderStatus.awaitingCustomerConfirmation &&
         order.status != QueueOrderStatus.failed &&
         order.status != QueueOrderStatus.cancelled &&
         order.status != QueueOrderStatus.refunded;
@@ -2827,6 +2861,7 @@ class FirestoreOrdersRepository
         continue;
       }
       if (order.status == QueueOrderStatus.completed ||
+          order.status == QueueOrderStatus.awaitingCustomerConfirmation ||
           order.status == QueueOrderStatus.failed ||
           order.status == QueueOrderStatus.cancelled ||
           order.status == QueueOrderStatus.refunded) {
