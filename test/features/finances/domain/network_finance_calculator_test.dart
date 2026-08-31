@@ -105,6 +105,56 @@ void main() {
     expect(result[AgentNetwork.mtn]!.totalOutgoing, 3000);
   });
 
+  test('une vente à crédit affectée est comptée comme montant réseau engagé', () {
+    final DateTime now = DateTime(2026, 8, 30, 20);
+    final AgentDirectoryEntry agent = AgentDirectoryEntry(
+      userId: 'agent-credit',
+      name: 'Agent Crédit',
+      email: 'credit@example.test',
+      phoneNumber: '+2250100000000',
+      isActive: true,
+      profile: const AgentProfile(
+        userId: 'agent-credit',
+        agentCode: 'AG-CREDIT',
+        availability: AgentAvailability.available,
+        zoneIds: <String>[],
+        authorizedNetworks: <AgentNetwork>[AgentNetwork.orange],
+        activeNetworks: <AgentNetwork>[AgentNetwork.orange],
+        orangeCapacity: 20000,
+        mtnCapacity: 0,
+        moovCapacity: 0,
+        dailyTransactionLimit: 500000,
+        maxTransactionsPerDay: 150,
+      ),
+    );
+    final QueueOrder creditOrder = QueueOrder(
+      id: 'credit-order',
+      reference: 'IZY-CREDIT',
+      clientName: 'Client Crédit',
+      clientWhatsappPhone: '+2250700000000',
+      network: MobileNetwork.orange,
+      beneficiaryPhone: '+2250700000001',
+      operationType: OrderOperationType.unitTransfer,
+      offerLabel: 'Transfert',
+      amount: 4000,
+      createdAt: now,
+      status: QueueOrderStatus.inProgress,
+      paymentStatus: OrderPaymentStatus.credit,
+      assignedAgentId: 'agent-credit',
+      assignedAgentName: 'Agent Crédit',
+      assignmentStatus: OrderAssignmentStatus.accepted,
+    );
+
+    final Map<AgentNetwork, NetworkFundSnapshot> result =
+        NetworkFinanceCalculator.calculate(
+          agents: <AgentDirectoryEntry>[agent],
+          orders: <QueueOrder>[creditOrder],
+          transactions: const <NetworkTransaction>[],
+        );
+
+    expect(result[AgentNetwork.orange]!.committed, 4000);
+  });
+
   test('ignore les capacités des agents désactivés', () {
     final AgentDirectoryEntry inactive = AgentDirectoryEntry(
       userId: 'agent-off',

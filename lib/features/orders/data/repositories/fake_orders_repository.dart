@@ -263,7 +263,7 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     for (final QueueOrder order in _orders!) {
       final bool waiting =
           order.status == QueueOrderStatus.paidReady &&
-          order.paymentStatus == OrderPaymentStatus.confirmed &&
+          order.isFundedForProcessing &&
           order.assignedAgentId == null &&
           order.assignmentStatus == OrderAssignmentStatus.unassigned &&
           !order.manualAssignmentRequired;
@@ -303,7 +303,7 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     final int index = _findOrderIndex(item.orderId);
     final QueueOrder currentOrder = _orders![index];
     if (currentOrder.status != QueueOrderStatus.paidReady ||
-        currentOrder.paymentStatus != OrderPaymentStatus.confirmed ||
+        !currentOrder.isFundedForProcessing ||
         currentOrder.assignedAgentId != null ||
         currentOrder.assignmentStatus != OrderAssignmentStatus.unassigned) {
       _automaticQueue.remove(item.orderId);
@@ -343,7 +343,7 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     final QueueOrder currentOrder = _orders![index];
 
     if (currentOrder.status != QueueOrderStatus.paidReady ||
-        currentOrder.paymentStatus != OrderPaymentStatus.confirmed) {
+        !currentOrder.isFundedForProcessing) {
       throw StateError('Seule une commande payée et prête peut être affectée.');
     }
 
@@ -704,8 +704,8 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
         order.assignmentStatus != OrderAssignmentStatus.accepted) {
       throw StateError('Cette commande ne t’est plus affectée.');
     }
-    if (order.paymentStatus != OrderPaymentStatus.confirmed) {
-      throw StateError('Le paiement de cette commande n’est pas confirmé.');
+    if (!order.isFundedForProcessing) {
+      throw StateError('Cette commande n’est ni payée ni autorisée à crédit.');
     }
   }
 
@@ -715,7 +715,7 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
       throw StateError('Cette commande ne t’est plus affectée.');
     }
     if (order.status != QueueOrderStatus.paidReady ||
-        order.paymentStatus != OrderPaymentStatus.confirmed) {
+        !order.isFundedForProcessing) {
       throw StateError('Cette commande n’est plus disponible à l’acceptation.');
     }
   }

@@ -26,7 +26,7 @@ void main() {
     expect(assignmentRule, contains("resource.data.status == 'paidReady'"));
     expect(
       assignmentRule,
-      contains("resource.data.paymentStatus == 'confirmed'"),
+      contains('paymentStatusAllowsProcessing(resource.data.paymentStatus)'),
     );
     expect(assignmentRule, contains(".availability == 'available'"));
     expect(assignmentRule, contains('affectedKeys().hasOnly'));

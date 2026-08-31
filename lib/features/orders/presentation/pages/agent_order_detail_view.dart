@@ -477,11 +477,12 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
                   _DetailMenuRowData(
                     icon: Symbols.wallet_rounded,
                     label: 'Paiement',
-                    trailing:
-                        order.paymentStatus == OrderPaymentStatus.confirmed
-                        ? const _TinyStateBadge(
-                            label: 'Confirmé',
-                            color: IzyTelColors.success,
+                    trailing: order.isFundedForProcessing
+                        ? _TinyStateBadge(
+                            label: order.isCreditSale ? 'Crédit' : 'Confirmé',
+                            color: order.isCreditSale
+                                ? IzyTelColors.warning
+                                : IzyTelColors.success,
                           )
                         : null,
                     onTap: () => _showInfoSheet(
@@ -497,12 +498,7 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
                             'Référence',
                             order.paymentReference ?? 'Non renseignée',
                           ),
-                          MapEntry(
-                            'Statut',
-                            order.paymentStatus == OrderPaymentStatus.confirmed
-                                ? 'Confirmé'
-                                : 'En attente',
-                          ),
+                          MapEntry('Statut', paymentStatusLabel(order.paymentStatus)),
                         ],
                       ),
                     ),
@@ -817,7 +813,7 @@ class _ReferenceProgress extends StatelessWidget {
 
   _ReferenceStepState _state(int index) {
     if (index == 0) {
-      return order.paymentStatus == OrderPaymentStatus.confirmed
+      return order.isFundedForProcessing
           ? _ReferenceStepState.done
           : _ReferenceStepState.active;
     }

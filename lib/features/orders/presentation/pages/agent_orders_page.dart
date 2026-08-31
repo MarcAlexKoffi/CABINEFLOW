@@ -664,12 +664,16 @@ class _PremiumAgentOrderCard extends StatelessWidget {
               Align(
                 alignment: Alignment.centerLeft,
                 child: IzyTelStatusPill(
-                  label: order.paymentStatus == OrderPaymentStatus.confirmed
-                      ? 'Paiement confirmé'
-                      : orderStatusLabel(order.status),
-                  color: order.paymentStatus == OrderPaymentStatus.confirmed
-                      ? IzyTelColors.success
-                      : switch (order.status) {
+                  label: order.isCreditSale
+                      ? 'Crédit autorisé'
+                      : (order.paymentStatus == OrderPaymentStatus.confirmed
+                            ? 'Paiement confirmé'
+                            : orderStatusLabel(order.status)),
+                  color: order.isCreditSale
+                      ? IzyTelColors.warning
+                      : (order.paymentStatus == OrderPaymentStatus.confirmed
+                            ? IzyTelColors.success
+                            : switch (order.status) {
                           QueueOrderStatus.completed ||
                           QueueOrderStatus.refunded => IzyTelColors.success,
                           QueueOrderStatus.failed ||
@@ -678,7 +682,7 @@ class _PremiumAgentOrderCard extends StatelessWidget {
                           QueueOrderStatus.refundPending =>
                             IzyTelColors.warning,
                           _ => IzyTelColors.primary,
-                        },
+                        }),
                 ),
               ),
               if (showDecisionActions) ...[

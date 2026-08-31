@@ -193,6 +193,7 @@ service cloud.firestore {
             'ORDER_CREATED',
             'PAYMENT_DECLARED',
             'PAYMENT_CONFIRMED',
+            'CREDIT_AUTHORIZED',
             'ASSIGNED',
             'ASSIGNMENT_ACCEPTED',
             'ASSIGNMENT_REFUSED',
@@ -272,6 +273,7 @@ service cloud.firestore {
           'pending',
           'declared',
           'confirmed',
+          'credit',
           'rejected',
           'expired'
         ]
@@ -280,6 +282,10 @@ service cloud.firestore {
           'sent',
           'skipped'
         ];
+    }
+
+    function paymentStatusAllowsProcessing(value) {
+      return value in ['confirmed', 'credit'];
     }
 
     function hasMatchingOrderEvent(orderId, eventType) {
@@ -360,7 +366,7 @@ service cloud.firestore {
     // ORDER_CREATED écrit dans le même batch possède sa propre règle stricte.
     // Cela évite qu'une création de commande dépende de l'autorisation d'une
     // autre création pendant l'évaluation du même batch.
-    function isValidCustomerOrderCreation(orderId) {
+    function isValidCustomerOrderCreation() {
       return isSignedIn()
         && request.resource.data.keys().hasOnly([
           'schemaVersion',
@@ -611,9 +617,59 @@ service cloud.firestore {
         && hasMatchingOrderEvent(orderId, 'PAYMENT_CONFIRMED');
     }
 
+    // PHASE 13D - vente à crédit : l'Admin autorise la livraison sans
+    // fabriquer un paiement Wave. Le crédit, la commande, l'événement d'audit
+    // et l'entrée de file 9E sont écrits dans la même transaction.
+    function isValidAdminCreditAuthorization(orderId) {
+      let credit = getAfter(
+        /databases/$(database)/documents/customerCredits/$(orderId)
+      ).data;
+      let queue = getAfter(
+        /databases/$(database)/documents/autoAssignmentQueue/$(orderId)
+      ).data;
+
+      return isAdmin()
+        && resource.data.status in ['awaitingPayment', 'paymentToVerify', 'expired']
+        && !(resource.data.paymentStatus in ['confirmed', 'credit'])
+        && request.resource.data.status == 'paidReady'
+        && request.resource.data.paymentStatus == 'credit'
+        && request.resource.data.get('paidAt', null) == resource.data.get('paidAt', null)
+        && request.resource.data.get('paymentConfirmedAt', null)
+          == resource.data.get('paymentConfirmedAt', null)
+        && request.resource.data.get('paymentReference', null)
+          == resource.data.get('paymentReference', null)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'paymentStatus',
+          'updatedAt',
+          'lastEventId',
+          'lastEventType',
+          'lastEventAt'
+        ])
+        && immutableCoreOrderFieldsAreUnchanged()
+        && request.resource.data.updatedAt == request.time
+        && credit.orderId == orderId
+        && credit.orderReference == resource.data.reference
+        && credit.clientName == resource.data.clientName
+        && credit.clientWhatsappPhone == resource.data.clientWhatsappPhone
+        && credit.amount == resource.data.amount
+        && credit.paidAmount == 0
+        && credit.status == 'open'
+        && credit.createdBy == request.auth.uid
+        && credit.createdAt == request.time
+        && queue.orderId == orderId
+        && queue.orderReference == resource.data.reference
+        && queue.network == resource.data.network
+        && queue.amount == resource.data.amount
+        && queue.createdAt == request.time
+        && queue.updatedAt == request.time
+        && hasMatchingOrderEvent(orderId, 'CREDIT_AUTHORIZED');
+    }
+
     function isValidStaffOrderUpdate(orderId) {
       return isStaff()
         && hasValidCommonOrderValues()
+        && request.resource.data.paymentStatus == resource.data.paymentStatus
         && immutableCoreOrderFieldsAreUnchanged()
         && onlyStaffMutableFieldsChanged()
         && request.resource.data.updatedAt == request.time
@@ -630,7 +686,7 @@ service cloud.firestore {
     function isValidStaffManualAssignmentFallback() {
       return isStaff()
         && resource.data.status == 'paidReady'
-        && resource.data.paymentStatus == 'confirmed'
+        && paymentStatusAllowsProcessing(resource.data.paymentStatus)
         && resource.data.get('assignedAgentId', null) == null
         && resource.data.get('assignmentStatus', 'unassigned') == 'unassigned'
         && resource.data.get('manualAssignmentRequired', false) == false
@@ -648,42 +704,13 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
     }
 
-    function targetAgentProfile(agentId) {
-      return get(
-        /databases/$(database)/documents/agentProfiles/$(agentId)
-      ).data;
-    }
-
-    function targetAgentUser(agentId) {
-      return get(
-        /databases/$(database)/documents/users/$(agentId)
-      ).data;
-    }
-
-    function targetAgentHasEnoughCapacity(agentId) {
-      let profile = targetAgentProfile(agentId);
-      let network = request.resource.data.network;
-      let amount = request.resource.data.amount;
-
-      return (
-          network == 'orange'
-          && profile.orangeCapacity >= amount
-        ) || (
-          network == 'mtn'
-          && profile.mtnCapacity >= amount
-        ) || (
-          network == 'moov'
-          && profile.moovCapacity >= amount
-        );
-    }
-
     // Garde-fous sans lecture Firestore pour distinguer les deux
     // chemins d'affectation avant d'executer leurs validations couteuses.
     // Cela evite de consommer des get()/exists()/getAfter() du chemin manuel
     // pendant une affectation automatique (et inversement).
     function isManualAssignmentTransitionRequest() {
       return resource.data.status == 'paidReady'
-        && resource.data.paymentStatus == 'confirmed'
+        && paymentStatusAllowsProcessing(resource.data.paymentStatus)
         && resource.data.get('assignmentStatus', 'unassigned') == 'unassigned'
         && request.resource.data.get('assignmentStatus', 'unassigned') == 'assigned'
         && request.resource.data.get('assignmentMode', null) == 'manual';
@@ -691,7 +718,7 @@ service cloud.firestore {
 
     function isAutomaticAssignmentTransitionRequest() {
       return resource.data.status == 'paidReady'
-        && resource.data.paymentStatus == 'confirmed'
+        && paymentStatusAllowsProcessing(resource.data.paymentStatus)
         && resource.data.get('assignmentStatus', 'unassigned') == 'unassigned'
         && request.resource.data.get('assignmentStatus', 'unassigned') == 'assigned'
         && request.resource.data.get('assignmentMode', null) == 'automatic';
@@ -719,7 +746,7 @@ service cloud.firestore {
       // modification des champs métier grâce à affectedKeys + immutableCore.
       return agentId is string
         && resource.data.status == 'paidReady'
-        && resource.data.paymentStatus == 'confirmed'
+        && paymentStatusAllowsProcessing(resource.data.paymentStatus)
         && resource.data.get('assignedAgentId', null) == null
         && resource.data.get('assignmentStatus', 'unassigned') == 'unassigned'
         && request.resource.data.status == resource.data.status
@@ -825,7 +852,7 @@ service cloud.firestore {
     function hasValidAutomaticAssignmentTransition(orderId, agentId) {
       return agentId is string
         && resource.data.status == 'paidReady'
-        && resource.data.paymentStatus == 'confirmed'
+        && paymentStatusAllowsProcessing(resource.data.paymentStatus)
         && resource.data.get('assignedAgentId', null) == null
         && resource.data.get('assignmentStatus', 'unassigned') == 'unassigned'
         && resource.data.get('manualAssignmentRequired', false) == false
@@ -879,7 +906,7 @@ service cloud.firestore {
     function isValidAgentAssignmentAcceptance(orderId) {
       return isCurrentAssignedAgent()
         && resource.data.status == 'paidReady'
-        && resource.data.paymentStatus == 'confirmed'
+        && paymentStatusAllowsProcessing(resource.data.paymentStatus)
         && resource.data.get('assignmentStatus', 'unassigned') == 'assigned'
         && request.resource.data.get('assignedAgentId', null) == request.auth.uid
         && request.resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
@@ -897,7 +924,7 @@ service cloud.firestore {
     function isValidAgentAssignmentRefusal(orderId) {
       return isCurrentAssignedAgent()
         && resource.data.status == 'paidReady'
-        && resource.data.paymentStatus == 'confirmed'
+        && paymentStatusAllowsProcessing(resource.data.paymentStatus)
         && resource.data.get('assignmentStatus', 'unassigned') == 'assigned'
         && request.resource.data.get('assignedAgentId', null) == null
         && request.resource.data.get('assignedAgentName', null) == null
@@ -953,7 +980,7 @@ service cloud.firestore {
       return isCurrentAssignedAgent()
         && resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
         && resource.data.status == 'paidReady'
-        && resource.data.paymentStatus == 'confirmed'
+        && paymentStatusAllowsProcessing(resource.data.paymentStatus)
         && request.resource.data.get('assignedAgentId', null) == request.auth.uid
         && request.resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
         && request.resource.data.status == 'inProgress'
@@ -976,7 +1003,7 @@ service cloud.firestore {
       return isCurrentAssignedAgent()
         && resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
         && resource.data.status == 'onHold'
-        && resource.data.paymentStatus == 'confirmed'
+        && paymentStatusAllowsProcessing(resource.data.paymentStatus)
         && resource.data.get('takenByUserId', null) == request.auth.uid
         && request.resource.data.status == 'inProgress'
         && request.resource.data.get('lastResumedAt', null) == request.time
@@ -996,7 +1023,7 @@ service cloud.firestore {
       return isCurrentAssignedAgent()
         && resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
         && resource.data.status == 'inProgress'
-        && resource.data.paymentStatus == 'confirmed'
+        && paymentStatusAllowsProcessing(resource.data.paymentStatus)
         && resource.data.get('takenByUserId', null) == request.auth.uid
         && request.resource.data.status == 'onHold'
         && request.resource.data.get('lastHoldReason', null) is string
@@ -1028,7 +1055,7 @@ service cloud.firestore {
     function isValidAgentProcessingSuccess(orderId) {
       return resource.data.status == 'inProgress'
         && request.resource.data.status == 'awaitingCustomerConfirmation'
-        && resource.data.paymentStatus == 'confirmed'
+        && paymentStatusAllowsProcessing(resource.data.paymentStatus)
         && resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
         && isCurrentAssignedAgent()
         && resource.data.get('takenByUserId', null) == request.auth.uid
@@ -1055,7 +1082,7 @@ service cloud.firestore {
     function isValidAgentProcessingFailure(orderId) {
       return resource.data.status == 'inProgress'
         && request.resource.data.status == 'failed'
-        && resource.data.paymentStatus == 'confirmed'
+        && paymentStatusAllowsProcessing(resource.data.paymentStatus)
         && resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
         && isCurrentAssignedAgent()
         && resource.data.get('takenByUserId', null) == request.auth.uid
@@ -1090,11 +1117,11 @@ service cloud.firestore {
         && hasMatchingOrderEvent(orderId, 'PROCESSING_FAILED');
     }
 
-    function isValidAgentProofAuditUpdate(orderId) {
+    function isValidAgentProofAuditUpdate() {
       return isCurrentAssignedAgent()
         && resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
         && resource.data.status in ['inProgress', 'onHold']
-        && resource.data.paymentStatus == 'confirmed'
+        && paymentStatusAllowsProcessing(resource.data.paymentStatus)
         && request.resource.data.status == resource.data.status
         && request.resource.data.paymentStatus == resource.data.paymentStatus
         && request.resource.data.get('assignedAgentId', null)
@@ -1366,6 +1393,9 @@ service cloud.firestore {
         'dailyTransactionLimit',
         'maxTransactionsPerDay',
         'lastCapacityUpdateAt',
+        'lastOrangeMovementId',
+        'lastMtnMovementId',
+        'lastMoovMovementId',
         'lastSeenAt',
         'createdAt',
         'updatedAt'
@@ -1422,11 +1452,112 @@ service cloud.firestore {
           || request.resource.data.lastCapacityUpdateAt is timestamp
         )
         && (
+          request.resource.data.get('lastOrangeMovementId', null) == null
+          || request.resource.data.get('lastOrangeMovementId', null) is string
+        )
+        && (
+          request.resource.data.get('lastMtnMovementId', null) == null
+          || request.resource.data.get('lastMtnMovementId', null) is string
+        )
+        && (
+          request.resource.data.get('lastMoovMovementId', null) == null
+          || request.resource.data.get('lastMoovMovementId', null) is string
+        )
+        && (
           request.resource.data.lastSeenAt == null
           || request.resource.data.lastSeenAt is timestamp
         )
         && request.resource.data.createdAt is timestamp
         && request.resource.data.updatedAt is timestamp;
+    }
+
+    function changedNetworkCapacityHasMovement(
+      agentId,
+      network,
+      capacityBefore,
+      capacityAfter,
+      movementId
+    ) {
+      let movement = getAfter(
+        /databases/$(database)/documents/networkTransactions/$(movementId)
+      ).data;
+      return movementId is string
+        && movementId.size() >= 1
+        && movement.agentId == agentId
+        && movement.network == network
+        && movement.capacityBefore == capacityBefore
+        && movement.capacityAfter == capacityAfter
+        && movement.amount > 0
+        && movement.createdAt == request.time;
+    }
+
+    function networkCapacityChangeIsTraced(
+      agentId,
+      network,
+      capacityBefore,
+      capacityAfter,
+      previousMovementId,
+      nextMovementId
+    ) {
+      return (
+          capacityBefore == capacityAfter
+          && nextMovementId == previousMovementId
+        ) || (
+          capacityBefore != capacityAfter
+          && nextMovementId != previousMovementId
+          && changedNetworkCapacityHasMovement(
+            agentId,
+            network,
+            capacityBefore,
+            capacityAfter,
+            nextMovementId
+          )
+        );
+    }
+
+    function allAgentCapacityChangesAreTraced(agentId) {
+      let orangeChanged = request.resource.data.orangeCapacity
+        != resource.data.orangeCapacity;
+      let mtnChanged = request.resource.data.mtnCapacity
+        != resource.data.mtnCapacity;
+      let moovChanged = request.resource.data.moovCapacity
+        != resource.data.moovCapacity;
+      return networkCapacityChangeIsTraced(
+          agentId,
+          'orange',
+          resource.data.orangeCapacity,
+          request.resource.data.orangeCapacity,
+          resource.data.get('lastOrangeMovementId', null),
+          request.resource.data.get('lastOrangeMovementId', null)
+        )
+        && networkCapacityChangeIsTraced(
+          agentId,
+          'mtn',
+          resource.data.mtnCapacity,
+          request.resource.data.mtnCapacity,
+          resource.data.get('lastMtnMovementId', null),
+          request.resource.data.get('lastMtnMovementId', null)
+        )
+        && networkCapacityChangeIsTraced(
+          agentId,
+          'moov',
+          resource.data.moovCapacity,
+          request.resource.data.moovCapacity,
+          resource.data.get('lastMoovMovementId', null),
+          request.resource.data.get('lastMoovMovementId', null)
+        )
+        && (
+          (
+            !orangeChanged
+            && !mtnChanged
+            && !moovChanged
+            && request.resource.data.get('lastCapacityUpdateAt', null)
+              == resource.data.get('lastCapacityUpdateAt', null)
+          ) || (
+            (orangeChanged || mtnChanged || moovChanged)
+            && request.resource.data.lastCapacityUpdateAt == request.time
+          )
+        );
     }
 
     function isValidAdminAgentProfileCreation(agentId) {
@@ -1438,6 +1569,12 @@ service cloud.firestore {
           /databases/$(database)/documents/users/$(agentId)
         ).data.isActive == true
         && hasValidAgentProfileValues(agentId)
+        && request.resource.data.orangeCapacity == 0
+        && request.resource.data.mtnCapacity == 0
+        && request.resource.data.moovCapacity == 0
+        && request.resource.data.get('lastOrangeMovementId', null) == null
+        && request.resource.data.get('lastMtnMovementId', null) == null
+        && request.resource.data.get('lastMoovMovementId', null) == null
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time;
     }
@@ -1448,6 +1585,7 @@ service cloud.firestore {
         && request.resource.data.userId == resource.data.userId
         && request.resource.data.agentCode == resource.data.agentCode
         && request.resource.data.createdAt == resource.data.createdAt
+        && allAgentCapacityChangesAreTraced(agentId)
         && request.resource.data.updatedAt == request.time;
     }
 
@@ -1469,9 +1607,13 @@ service cloud.firestore {
           'mtnCapacity',
           'moovCapacity',
           'lastCapacityUpdateAt',
+          'lastOrangeMovementId',
+          'lastMtnMovementId',
+          'lastMoovMovementId',
           'lastSeenAt',
           'updatedAt'
         ])
+        && allAgentCapacityChangesAreTraced(agentId)
         && request.resource.data.updatedAt == request.time;
     }
 
@@ -1858,7 +2000,7 @@ service cloud.firestore {
       return isAgent()
         && order.get('assignedAgentId', null) == request.auth.uid
         && order.get('assignmentStatus', 'unassigned') == 'accepted'
-        && order.paymentStatus == 'confirmed'
+        && paymentStatusAllowsProcessing(order.paymentStatus)
         && order.status in ['inProgress', 'onHold']
         && request.resource.data.orderId == orderId
         && request.resource.data.orderReference == order.reference
@@ -2001,6 +2143,7 @@ service cloud.firestore {
         'ORDER_CREATED',
         'PAYMENT_DECLARED',
         'PAYMENT_CONFIRMED',
+        'CREDIT_AUTHORIZED',
         'ASSIGNED',
         'ASSIGNMENT_ACCEPTED',
         'ASSIGNMENT_REFUSED',
@@ -2044,6 +2187,11 @@ service cloud.firestore {
           // même événement ASSIGNED.
           actorRole == 'admin'
           && eventType == 'ASSIGNED'
+          && isAdmin()
+          && request.resource.data.actorId == request.auth.uid
+        ) || (
+          actorRole == 'admin'
+          && eventType == 'CREDIT_AUTHORIZED'
           && isAdmin()
           && request.resource.data.actorId == request.auth.uid
         ) || (
@@ -2158,7 +2306,7 @@ service cloud.firestore {
         && order.reference == request.resource.data.orderReference
         && order.get('assignedAgentId', null) == request.auth.uid
         && order.get('assignmentStatus', 'unassigned') == 'accepted'
-        && order.paymentStatus == 'confirmed'
+        && paymentStatusAllowsProcessing(order.paymentStatus)
         && order.status in ['inProgress', 'onHold'];
     }
 
@@ -2306,7 +2454,7 @@ service cloud.firestore {
         && orderAfter.network == request.resource.data.network
         && orderAfter.amount == request.resource.data.amount
         && orderAfter.status == 'paidReady'
-        && orderAfter.paymentStatus == 'confirmed'
+        && paymentStatusAllowsProcessing(orderAfter.paymentStatus)
         && orderAfter.get('assignedAgentId', null) == null
         && orderAfter.get('assignmentStatus', 'unassigned') == 'unassigned'
         && orderAfter.get('lastAssignmentRefusedAgentId', null) == request.auth.uid
@@ -2606,7 +2754,7 @@ service cloud.firestore {
         );
     }
 
-    function isValidCustomerSupportRequestCreation(requestId) {
+    function isValidCustomerSupportRequestCreation() {
       let orderId = request.resource.data.orderId;
       let order = get(
         /databases/$(database)/documents/orders/$(orderId)
@@ -3005,28 +3153,6 @@ service cloud.firestore {
         && request.resource.data.get('reconciledByName', null) == null;
     }
 
-    function refundImmutableFieldsArePreserved() {
-      return request.resource.data.schemaVersion == resource.data.schemaVersion
-        && request.resource.data.orderId == resource.data.orderId
-        && request.resource.data.orderReference == resource.data.orderReference
-        && request.resource.data.supportRequestId == resource.data.supportRequestId
-        && request.resource.data.supportRequestType == resource.data.supportRequestType
-        && request.resource.data.supportRequestDescription == resource.data.supportRequestDescription
-        && request.resource.data.customerAuthUid == resource.data.customerAuthUid
-        && request.resource.data.clientName == resource.data.clientName
-        && request.resource.data.clientWhatsappPhone == resource.data.clientWhatsappPhone
-        && request.resource.data.originalAmount == resource.data.originalAmount
-        && request.resource.data.amount == resource.data.amount
-        && request.resource.data.reason == resource.data.reason
-        && request.resource.data.reasonNote == resource.data.reasonNote
-        && request.resource.data.paymentChannel == resource.data.paymentChannel
-        && request.resource.data.get('originalPaymentReference', null)
-          == resource.data.get('originalPaymentReference', null)
-        && request.resource.data.requestedAt == resource.data.requestedAt
-        && request.resource.data.requestedBy == resource.data.requestedBy
-        && request.resource.data.requestedByName == resource.data.requestedByName;
-    }
-
     function isValidRefundApproval() {
       return resource.data.status == 'pendingApproval'
         && request.resource.data.status == 'approved'
@@ -3204,7 +3330,7 @@ service cloud.firestore {
         && order.get('assignedAgentId', null) == request.auth.uid
         && order.get('assignedAgentName', null) == request.resource.data.agentName
         && order.get('assignmentStatus', 'unassigned') == 'accepted'
-        && order.paymentStatus == 'confirmed'
+        && paymentStatusAllowsProcessing(order.paymentStatus)
         && order.status == 'awaitingCustomerConfirmation'
         && order.amount == request.resource.data.orderAmount
         && order.network == request.resource.data.network
@@ -3326,6 +3452,9 @@ service cloud.firestore {
           'agentName',
           'orderId',
           'orderReference',
+          'supplierId',
+          'supplierName',
+          'supplierRechargeId',
           'createdBy',
           'createdByRole',
           'createdAt'
@@ -3367,6 +3496,22 @@ service cloud.firestore {
           request.resource.data.get('orderReference', null) == null
           || request.resource.data.get('orderReference', null) is string
         )
+        && (
+          request.resource.data.get('supplierId', null) == null
+          || request.resource.data.get('supplierId', null) is string
+        )
+        && (
+          request.resource.data.get('supplierName', null) == null
+          || (
+            request.resource.data.get('supplierName', null) is string
+            && request.resource.data.get('supplierName', '').size() >= 2
+            && request.resource.data.get('supplierName', '').size() <= 120
+          )
+        )
+        && (
+          request.resource.data.get('supplierRechargeId', null) == null
+          || request.resource.data.get('supplierRechargeId', null) is string
+        )
         && request.resource.data.createdBy is string
         && request.resource.data.createdBy.size() >= 1
         && request.resource.data.createdByRole in [
@@ -3392,6 +3537,9 @@ service cloud.firestore {
         && request.resource.data.agentId == request.auth.uid
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.createdByRole == 'agent'
+        && request.resource.data.get('supplierId', null) == null
+        && request.resource.data.get('supplierName', null) == null
+        && request.resource.data.get('supplierRechargeId', null) == null
         && request.resource.data.capacityBefore >= request.resource.data.amount
         && request.resource.data.capacityAfter
           == request.resource.data.capacityBefore - request.resource.data.amount
@@ -3400,13 +3548,868 @@ service cloud.firestore {
         && order.get('assignedAgentId', null) == request.auth.uid
         && order.get('assignedAgentName', null) == request.resource.data.agentName
         && order.get('assignmentStatus', 'unassigned') == 'accepted'
-        && order.paymentStatus == 'confirmed'
+        && paymentStatusAllowsProcessing(order.paymentStatus)
         && order.status == 'awaitingCustomerConfirmation'
         && order.amount == request.resource.data.amount
         && order.network == request.resource.data.network
         && order.get('completedAt', null) == request.time
         && order.get('lastEventType', null) == 'PROCESSING_SUCCEEDED'
         && order.get('lastEventAt', null) == request.time;
+    }
+
+
+    function profileReferencesNetworkMovement(
+      profile,
+      network,
+      transactionId
+    ) {
+      return (
+          network == 'orange'
+          && profile.get('lastOrangeMovementId', null) == transactionId
+        ) || (
+          network == 'mtn'
+          && profile.get('lastMtnMovementId', null) == transactionId
+        ) || (
+          network == 'moov'
+          && profile.get('lastMoovMovementId', null) == transactionId
+        );
+    }
+
+    function manualAdjustmentMatchesProfile(
+      profileBefore,
+      profileAfter,
+      network,
+      capacityBefore,
+      capacityAfter
+    ) {
+      return (
+          network == 'orange'
+          && profileBefore.orangeCapacity == capacityBefore
+          && profileAfter.orangeCapacity == capacityAfter
+        ) || (
+          network == 'mtn'
+          && profileBefore.mtnCapacity == capacityBefore
+          && profileAfter.mtnCapacity == capacityAfter
+        ) || (
+          network == 'moov'
+          && profileBefore.moovCapacity == capacityBefore
+          && profileAfter.moovCapacity == capacityAfter
+        );
+    }
+
+    function isValidManualNetworkAdjustmentCreation(transactionId) {
+      let agentId = request.resource.data.agentId;
+      let profileBefore = get(
+        /databases/$(database)/documents/agentProfiles/$(agentId)
+      ).data;
+      let profileAfter = getAfter(
+        /databases/$(database)/documents/agentProfiles/$(agentId)
+      ).data;
+      return (isAdmin() || (isAgent() && agentId == request.auth.uid))
+        && hasValidNetworkTransactionValues()
+        && request.resource.data.type == 'manualAdjustment'
+        && request.resource.data.get('orderId', null) == null
+        && request.resource.data.get('orderReference', null) == null
+        && request.resource.data.get('supplierId', null) == null
+        && request.resource.data.get('supplierName', null) == null
+        && request.resource.data.get('supplierRechargeId', null) == null
+        && request.resource.data.createdBy == request.auth.uid
+        && (
+          (isAdmin() && request.resource.data.createdByRole == 'admin')
+          || (isAgent() && request.resource.data.createdByRole == 'agent')
+        )
+        && request.resource.data.createdAt == request.time
+        && profileReferencesNetworkMovement(
+          profileAfter,
+          request.resource.data.network,
+          transactionId
+        )
+        && manualAdjustmentMatchesProfile(
+          profileBefore,
+          profileAfter,
+          request.resource.data.network,
+          request.resource.data.capacityBefore,
+          request.resource.data.capacityAfter
+        )
+        && (
+          (
+            request.resource.data.capacityAfter
+              > request.resource.data.capacityBefore
+            && request.resource.data.direction == 'incoming'
+            && request.resource.data.amount
+              == request.resource.data.capacityAfter
+                - request.resource.data.capacityBefore
+          ) || (
+            request.resource.data.capacityAfter
+              < request.resource.data.capacityBefore
+            && request.resource.data.direction == 'outgoing'
+            && request.resource.data.amount
+              == request.resource.data.capacityBefore
+                - request.resource.data.capacityAfter
+          )
+        );
+    }
+
+    function financeAmount(value) {
+      return value is int && value >= 0 && value <= 100000000;
+    }
+
+    function positiveFinanceAmount(value) {
+      return value is int && value > 0 && value <= 100000000;
+    }
+
+    function validFinancePaymentChannel(value) {
+      return value in ['wave', 'cash', 'bank', 'other'];
+    }
+
+    function supplierRechargeCapacityMatches(agentBefore, agentAfter) {
+      return (
+          request.resource.data.network == 'orange'
+          && agentBefore.orangeCapacity == request.resource.data.capacityBefore
+          && agentAfter.orangeCapacity == request.resource.data.capacityAfter
+          && agentAfter.mtnCapacity == agentBefore.mtnCapacity
+          && agentAfter.moovCapacity == agentBefore.moovCapacity
+        ) || (
+          request.resource.data.network == 'mtn'
+          && agentBefore.mtnCapacity == request.resource.data.capacityBefore
+          && agentAfter.mtnCapacity == request.resource.data.capacityAfter
+          && agentAfter.orangeCapacity == agentBefore.orangeCapacity
+          && agentAfter.moovCapacity == agentBefore.moovCapacity
+        ) || (
+          request.resource.data.network == 'moov'
+          && agentBefore.moovCapacity == request.resource.data.capacityBefore
+          && agentAfter.moovCapacity == request.resource.data.capacityAfter
+          && agentAfter.orangeCapacity == agentBefore.orangeCapacity
+          && agentAfter.mtnCapacity == agentBefore.mtnCapacity
+        );
+    }
+
+    function supplierExistsAndIsActive(supplierId) {
+      return exists(/databases/$(database)/documents/financeSuppliers/$(supplierId))
+        && get(/databases/$(database)/documents/financeSuppliers/$(supplierId)).data.isActive == true;
+    }
+
+    function hasValidFinanceSupplierValues() {
+      return request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'name',
+          'phoneNumber',
+          'isActive',
+          'note',
+          'createdAt',
+          'createdBy',
+          'createdByName',
+          'updatedAt',
+          'updatedBy',
+          'updatedByName'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.phoneNumber is string
+        && request.resource.data.phoneNumber.size() <= 30
+        && request.resource.data.isActive is bool
+        && (
+          request.resource.data.get('note', null) == null
+          || (
+            request.resource.data.get('note', null) is string
+            && request.resource.data.get('note', '').size() <= 500
+          )
+        )
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.createdBy is string
+        && request.resource.data.createdByName is string
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.updatedBy is string
+        && request.resource.data.updatedByName is string;
+    }
+
+    function isValidFinanceSupplierCreation() {
+      return isAdmin()
+        && hasValidFinanceSupplierValues()
+        && request.resource.data.isActive == true
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.updatedBy == request.auth.uid;
+    }
+
+    function isValidFinanceSupplierUpdate() {
+      return isAdmin()
+        && hasValidFinanceSupplierValues()
+        && request.resource.data.schemaVersion == resource.data.schemaVersion
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.phoneNumber == resource.data.phoneNumber
+        && request.resource.data.get('note', null) == resource.data.get('note', null)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdByName == resource.data.createdByName
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'isActive',
+          'updatedAt',
+          'updatedBy',
+          'updatedByName'
+        ]);
+    }
+
+    function hasValidSupplierRechargeValues() {
+      return request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'supplierId',
+          'supplierName',
+          'agentId',
+          'agentName',
+          'network',
+          'principalAmount',
+          'bonusAmount',
+          'receivedAmount',
+          'amountOwed',
+          'capacityBefore',
+          'capacityAfter',
+          'note',
+          'createdAt',
+          'createdBy',
+          'createdByName'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.supplierId is string
+        && request.resource.data.supplierId.size() >= 1
+        && request.resource.data.supplierName is string
+        && request.resource.data.supplierName.size() >= 2
+        && request.resource.data.supplierName.size() <= 120
+        && request.resource.data.agentId is string
+        && request.resource.data.agentId.size() >= 1
+        && request.resource.data.agentName is string
+        && request.resource.data.agentName.size() >= 2
+        && request.resource.data.agentName.size() <= 80
+        && request.resource.data.network in ['orange', 'mtn', 'moov']
+        && positiveFinanceAmount(request.resource.data.principalAmount)
+        && financeAmount(request.resource.data.bonusAmount)
+        && positiveFinanceAmount(request.resource.data.receivedAmount)
+        && request.resource.data.receivedAmount
+          == request.resource.data.principalAmount + request.resource.data.bonusAmount
+        && financeAmount(request.resource.data.amountOwed)
+        && request.resource.data.amountOwed == request.resource.data.principalAmount
+        && financeAmount(request.resource.data.capacityBefore)
+        && financeAmount(request.resource.data.capacityAfter)
+        && request.resource.data.capacityAfter
+          == request.resource.data.capacityBefore + request.resource.data.receivedAmount
+        && (
+          request.resource.data.get('note', null) == null
+          || (
+            request.resource.data.get('note', null) is string
+            && request.resource.data.get('note', '').size() <= 500
+          )
+        )
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdByName is string
+        && request.resource.data.createdByName.size() >= 2
+        && request.resource.data.createdByName.size() <= 80;
+    }
+
+    function isValidSupplierRechargeCreation(rechargeId) {
+      let supplier = get(
+        /databases/$(database)/documents/financeSuppliers/$(request.resource.data.supplierId)
+      ).data;
+      let agentBefore = get(
+        /databases/$(database)/documents/agentProfiles/$(request.resource.data.agentId)
+      ).data;
+      let agentAfter = getAfter(
+        /databases/$(database)/documents/agentProfiles/$(request.resource.data.agentId)
+      ).data;
+      let networkTransactionId = 'recharge_' + rechargeId;
+      let networkTransaction = getAfter(
+        /databases/$(database)/documents/networkTransactions/$(networkTransactionId)
+      ).data;
+      let accountAfter = getAfter(
+        /databases/$(database)/documents/supplierAccounts/$(request.resource.data.supplierId)
+      ).data;
+
+      return isAdmin()
+        && hasValidSupplierRechargeValues()
+        && supplierExistsAndIsActive(request.resource.data.supplierId)
+        && supplier.name == request.resource.data.supplierName
+        && agentBefore.userId == request.resource.data.agentId
+        && request.resource.data.network in agentBefore.authorizedNetworks
+        && supplierRechargeCapacityMatches(agentBefore, agentAfter)
+        && agentAfter.lastCapacityUpdateAt == request.time
+        && agentAfter.updatedAt == request.time
+        && networkTransaction.type == 'supplierRecharge'
+        && networkTransaction.direction == 'incoming'
+        && networkTransaction.supplierRechargeId == rechargeId
+        && networkTransaction.supplierId == request.resource.data.supplierId
+        && networkTransaction.agentId == request.resource.data.agentId
+        && networkTransaction.network == request.resource.data.network
+        && networkTransaction.amount == request.resource.data.receivedAmount
+        && networkTransaction.capacityBefore == request.resource.data.capacityBefore
+        && networkTransaction.capacityAfter == request.resource.data.capacityAfter
+        && accountAfter.lastRechargeId == rechargeId;
+    }
+
+    function hasValidSupplierAccountValues(accountId) {
+      return request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'supplierId',
+          'supplierName',
+          'totalOwed',
+          'totalPaid',
+          'totalRecharged',
+          'rechargeCount',
+          'lastRechargeId',
+          'lastPaymentId',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.supplierId == accountId
+        && request.resource.data.supplierName is string
+        && request.resource.data.supplierName.size() >= 2
+        && financeAmount(request.resource.data.totalOwed)
+        && financeAmount(request.resource.data.totalPaid)
+        && request.resource.data.totalPaid <= request.resource.data.totalOwed
+        && financeAmount(request.resource.data.totalRecharged)
+        && request.resource.data.rechargeCount is int
+        && request.resource.data.rechargeCount >= 0
+        && request.resource.data.rechargeCount <= 1000000
+        && (
+          request.resource.data.get('lastRechargeId', null) == null
+          || request.resource.data.get('lastRechargeId', null) is string
+        )
+        && (
+          request.resource.data.get('lastPaymentId', null) == null
+          || request.resource.data.get('lastPaymentId', null) is string
+        )
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function isValidSupplierAccountCreation(accountId) {
+      let rechargeId = request.resource.data.lastRechargeId;
+      let recharge = getAfter(
+        /databases/$(database)/documents/supplierRecharges/$(rechargeId)
+      ).data;
+      return isAdmin()
+        && hasValidSupplierAccountValues(accountId)
+        && recharge.supplierId == accountId
+        && request.resource.data.supplierName == recharge.supplierName
+        && request.resource.data.totalOwed == recharge.amountOwed
+        && request.resource.data.totalPaid == 0
+        && request.resource.data.totalRecharged == recharge.receivedAmount
+        && request.resource.data.rechargeCount == 1
+        && request.resource.data.get('lastPaymentId', null) == null
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidSupplierAccountRechargeUpdate(accountId) {
+      let rechargeId = request.resource.data.lastRechargeId;
+      let recharge = getAfter(
+        /databases/$(database)/documents/supplierRecharges/$(rechargeId)
+      ).data;
+      return isAdmin()
+        && hasValidSupplierAccountValues(accountId)
+        && request.resource.data.supplierId == resource.data.supplierId
+        && request.resource.data.supplierName == recharge.supplierName
+        && recharge.supplierId == accountId
+        && rechargeId != resource.data.get('lastRechargeId', null)
+        && request.resource.data.totalOwed == resource.data.totalOwed + recharge.amountOwed
+        && request.resource.data.totalPaid == resource.data.totalPaid
+        && request.resource.data.totalRecharged == resource.data.totalRecharged + recharge.receivedAmount
+        && request.resource.data.rechargeCount == resource.data.rechargeCount + 1
+        && request.resource.data.get('lastPaymentId', null) == resource.data.get('lastPaymentId', null)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'supplierName',
+          'totalOwed',
+          'totalRecharged',
+          'rechargeCount',
+          'lastRechargeId',
+          'updatedAt'
+        ]);
+    }
+
+    function hasValidSupplierPaymentValues() {
+      return request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'supplierId',
+          'supplierName',
+          'amount',
+          'paymentChannel',
+          'paymentReference',
+          'note',
+          'paidAt',
+          'createdBy',
+          'createdByName'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.supplierId is string
+        && request.resource.data.supplierName is string
+        && request.resource.data.supplierName.size() >= 2
+        && positiveFinanceAmount(request.resource.data.amount)
+        && validFinancePaymentChannel(request.resource.data.paymentChannel)
+        && request.resource.data.paymentReference is string
+        && request.resource.data.paymentReference.size() >= 3
+        && request.resource.data.paymentReference.size() <= 120
+        && (
+          request.resource.data.get('note', null) == null
+          || (
+            request.resource.data.get('note', null) is string
+            && request.resource.data.get('note', '').size() <= 500
+          )
+        )
+        && request.resource.data.paidAt == request.time
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdByName is string
+        && request.resource.data.createdByName.size() >= 2;
+    }
+
+    function isValidSupplierPaymentCreation(paymentId) {
+      let accountBefore = get(
+        /databases/$(database)/documents/supplierAccounts/$(request.resource.data.supplierId)
+      ).data;
+      let accountAfter = getAfter(
+        /databases/$(database)/documents/supplierAccounts/$(request.resource.data.supplierId)
+      ).data;
+      return isAdmin()
+        && hasValidSupplierPaymentValues()
+        && accountBefore.supplierName == request.resource.data.supplierName
+        && request.resource.data.amount <= accountBefore.totalOwed - accountBefore.totalPaid
+        && accountAfter.lastPaymentId == paymentId
+        && accountAfter.totalPaid == accountBefore.totalPaid + request.resource.data.amount;
+    }
+
+    function isValidSupplierAccountPaymentUpdate(accountId) {
+      let paymentId = request.resource.data.lastPaymentId;
+      let payment = getAfter(
+        /databases/$(database)/documents/supplierPayments/$(paymentId)
+      ).data;
+      return isAdmin()
+        && hasValidSupplierAccountValues(accountId)
+        && request.resource.data.supplierId == resource.data.supplierId
+        && request.resource.data.supplierName == resource.data.supplierName
+        && payment.supplierId == accountId
+        && paymentId != resource.data.get('lastPaymentId', null)
+        && request.resource.data.totalOwed == resource.data.totalOwed
+        && request.resource.data.totalPaid == resource.data.totalPaid + payment.amount
+        && request.resource.data.totalRecharged == resource.data.totalRecharged
+        && request.resource.data.rechargeCount == resource.data.rechargeCount
+        && request.resource.data.get('lastRechargeId', null) == resource.data.get('lastRechargeId', null)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'totalPaid',
+          'lastPaymentId',
+          'updatedAt'
+        ]);
+    }
+
+    function isValidAdminSupplierRechargeNetworkTransactionCreation(transactionId) {
+      let rechargeId = request.resource.data.supplierRechargeId;
+      let recharge = getAfter(
+        /databases/$(database)/documents/supplierRecharges/$(rechargeId)
+      ).data;
+      return isAdmin()
+        && hasValidNetworkTransactionValues()
+        && request.resource.data.type == 'supplierRecharge'
+        && request.resource.data.direction == 'incoming'
+        && transactionId == 'recharge_' + rechargeId
+        && request.resource.data.get('orderId', null) == null
+        && request.resource.data.get('orderReference', null) == null
+        && request.resource.data.supplierId == recharge.supplierId
+        && request.resource.data.supplierName == recharge.supplierName
+        && request.resource.data.agentId == recharge.agentId
+        && request.resource.data.agentName == recharge.agentName
+        && request.resource.data.network == recharge.network
+        && request.resource.data.amount == recharge.receivedAmount
+        && request.resource.data.capacityBefore == recharge.capacityBefore
+        && request.resource.data.capacityAfter == recharge.capacityAfter
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdByRole == 'admin'
+        && request.resource.data.createdAt == request.time;
+    }
+
+    function hasValidCustomerCreditValues(creditId) {
+      return request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'orderId',
+          'orderReference',
+          'clientName',
+          'clientWhatsappPhone',
+          'amount',
+          'paidAmount',
+          'status',
+          'note',
+          'createdAt',
+          'createdBy',
+          'createdByName',
+          'updatedAt',
+          'lastSettlementId',
+          'settledAt'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.orderId == creditId
+        && request.resource.data.orderReference is string
+        && request.resource.data.orderReference.size() >= 3
+        && request.resource.data.clientName is string
+        && request.resource.data.clientName.size() >= 2
+        && request.resource.data.clientWhatsappPhone is string
+        && positiveFinanceAmount(request.resource.data.amount)
+        && financeAmount(request.resource.data.paidAmount)
+        && request.resource.data.paidAmount <= request.resource.data.amount
+        && request.resource.data.status in ['open', 'partial', 'settled']
+        && (
+          request.resource.data.get('note', null) == null
+          || (
+            request.resource.data.get('note', null) is string
+            && request.resource.data.get('note', '').size() <= 500
+          )
+        )
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.createdBy is string
+        && request.resource.data.createdByName is string
+        && request.resource.data.updatedAt is timestamp
+        && (
+          request.resource.data.get('lastSettlementId', null) == null
+          || request.resource.data.get('lastSettlementId', null) is string
+        )
+        && (
+          request.resource.data.get('settledAt', null) == null
+          || request.resource.data.get('settledAt', null) is timestamp
+        );
+    }
+
+    function isValidCustomerCreditCreation(creditId) {
+      let orderBefore = get(
+        /databases/$(database)/documents/orders/$(creditId)
+      ).data;
+      let orderAfter = getAfter(
+        /databases/$(database)/documents/orders/$(creditId)
+      ).data;
+      return isAdmin()
+        && hasValidCustomerCreditValues(creditId)
+        && orderBefore.status in ['awaitingPayment', 'paymentToVerify', 'expired']
+        && !(orderBefore.paymentStatus in ['confirmed', 'credit'])
+        && orderAfter.status == 'paidReady'
+        && orderAfter.paymentStatus == 'credit'
+        && orderAfter.get('lastEventType', null) == 'CREDIT_AUTHORIZED'
+        && orderAfter.get('lastEventAt', null) == request.time
+        && request.resource.data.orderReference == orderBefore.reference
+        && request.resource.data.clientName == orderBefore.clientName
+        && request.resource.data.clientWhatsappPhone == orderBefore.clientWhatsappPhone
+        && request.resource.data.amount == orderBefore.amount
+        && request.resource.data.paidAmount == 0
+        && request.resource.data.status == 'open'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.get('lastSettlementId', null) == null
+        && request.resource.data.get('settledAt', null) == null;
+    }
+
+    function hasValidCustomerCreditSettlementValues() {
+      return request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'creditId',
+          'orderId',
+          'orderReference',
+          'clientName',
+          'amount',
+          'paymentChannel',
+          'paymentReference',
+          'note',
+          'paidAt',
+          'createdBy',
+          'createdByName'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.creditId is string
+        && request.resource.data.orderId is string
+        && request.resource.data.orderReference is string
+        && request.resource.data.clientName is string
+        && positiveFinanceAmount(request.resource.data.amount)
+        && validFinancePaymentChannel(request.resource.data.paymentChannel)
+        && request.resource.data.paymentReference is string
+        && request.resource.data.paymentReference.size() >= 3
+        && request.resource.data.paymentReference.size() <= 120
+        && (
+          request.resource.data.get('note', null) == null
+          || (
+            request.resource.data.get('note', null) is string
+            && request.resource.data.get('note', '').size() <= 500
+          )
+        )
+        && request.resource.data.paidAt == request.time
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdByName is string;
+    }
+
+    function isValidCustomerCreditSettlementCreation(settlementId) {
+      let creditBefore = get(
+        /databases/$(database)/documents/customerCredits/$(request.resource.data.creditId)
+      ).data;
+      let creditAfter = getAfter(
+        /databases/$(database)/documents/customerCredits/$(request.resource.data.creditId)
+      ).data;
+      return isAdmin()
+        && hasValidCustomerCreditSettlementValues()
+        && request.resource.data.orderId == creditBefore.orderId
+        && request.resource.data.orderReference == creditBefore.orderReference
+        && request.resource.data.clientName == creditBefore.clientName
+        && request.resource.data.amount <= creditBefore.amount - creditBefore.paidAmount
+        && creditAfter.lastSettlementId == settlementId
+        && creditAfter.paidAmount == creditBefore.paidAmount + request.resource.data.amount;
+    }
+
+    function isValidCustomerCreditSettlementUpdate(creditId) {
+      let settlementId = request.resource.data.lastSettlementId;
+      let settlement = getAfter(
+        /databases/$(database)/documents/customerCreditSettlements/$(settlementId)
+      ).data;
+      let nextPaid = resource.data.paidAmount + settlement.amount;
+      return isAdmin()
+        && hasValidCustomerCreditValues(creditId)
+        && request.resource.data.orderId == resource.data.orderId
+        && request.resource.data.orderReference == resource.data.orderReference
+        && request.resource.data.clientName == resource.data.clientName
+        && request.resource.data.clientWhatsappPhone == resource.data.clientWhatsappPhone
+        && request.resource.data.amount == resource.data.amount
+        && request.resource.data.get('note', null) == resource.data.get('note', null)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdByName == resource.data.createdByName
+        && settlement.creditId == creditId
+        && settlementId != resource.data.get('lastSettlementId', null)
+        && request.resource.data.paidAmount == nextPaid
+        && (
+          (
+            nextPaid == resource.data.amount
+            && request.resource.data.status == 'settled'
+            && request.resource.data.get('settledAt', null) == request.time
+          ) || (
+            nextPaid < resource.data.amount
+            && request.resource.data.status == 'partial'
+            && request.resource.data.get('settledAt', null) == null
+          )
+        )
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'paidAmount',
+          'status',
+          'updatedAt',
+          'lastSettlementId',
+          'settledAt'
+        ]);
+    }
+
+    function hasValidFinanceExpenseValues() {
+      return request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'category',
+          'amount',
+          'description',
+          'paymentChannel',
+          'paymentReference',
+          'spentAt',
+          'createdBy',
+          'createdByName'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.category in [
+          'transport', 'internet', 'electricity', 'maintenance', 'salary', 'communication', 'fees', 'marketing', 'office', 'other'
+        ]
+        && positiveFinanceAmount(request.resource.data.amount)
+        && request.resource.data.description is string
+        && request.resource.data.description.size() >= 3
+        && request.resource.data.description.size() <= 500
+        && validFinancePaymentChannel(request.resource.data.paymentChannel)
+        && (
+          (
+            request.resource.data.paymentChannel == 'wave'
+            && request.resource.data.get('paymentReference', null) is string
+            && request.resource.data.get('paymentReference', '').size() >= 3
+            && request.resource.data.get('paymentReference', '').size() <= 120
+          ) || (
+            request.resource.data.paymentChannel != 'wave'
+            && (
+              request.resource.data.get('paymentReference', null) == null
+              || (
+                request.resource.data.get('paymentReference', null) is string
+                && request.resource.data.get('paymentReference', '').size() <= 120
+              )
+            )
+          )
+        )
+        && request.resource.data.spentAt == request.time
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdByName is string;
+    }
+
+    function currentWaveOpeningBalance() {
+      let wavePath = /databases/$(database)/documents/financeSettings/wave;
+      return exists(wavePath) ? get(wavePath).data.openingBalance : 0;
+    }
+
+    function hasValidWaveBalanceAdjustmentValues(adjustmentId) {
+      let settingAfter = getAfter(
+        /databases/$(database)/documents/financeSettings/wave
+      ).data;
+      return isAdmin()
+        && request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'previousOpeningBalance',
+          'openingBalance',
+          'effectiveAt',
+          'note',
+          'createdBy',
+          'createdByName'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && financeAmount(request.resource.data.previousOpeningBalance)
+        && financeAmount(request.resource.data.openingBalance)
+        && request.resource.data.previousOpeningBalance == currentWaveOpeningBalance()
+        && request.resource.data.effectiveAt == request.time
+        && (
+          request.resource.data.get('note', null) == null
+          || (
+            request.resource.data.get('note', null) is string
+            && request.resource.data.get('note', '').size() <= 500
+          )
+        )
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdByName is string
+        && request.resource.data.createdByName.size() >= 2
+        && settingAfter.lastAdjustmentId == adjustmentId
+        && settingAfter.openingBalance == request.resource.data.openingBalance
+        && settingAfter.effectiveAt == request.time;
+    }
+
+    function hasValidWaveFinanceSettingValues(settingId) {
+      let adjustmentId = request.resource.data.lastAdjustmentId;
+      let adjustment = getAfter(
+        /databases/$(database)/documents/waveBalanceAdjustments/$(adjustmentId)
+      ).data;
+      return settingId == 'wave'
+        && request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'openingBalance',
+          'effectiveAt',
+          'note',
+          'lastAdjustmentId',
+          'updatedAt',
+          'updatedBy',
+          'updatedByName'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && financeAmount(request.resource.data.openingBalance)
+        && request.resource.data.effectiveAt == request.time
+        && request.resource.data.lastAdjustmentId is string
+        && request.resource.data.lastAdjustmentId.size() >= 1
+        && (
+          request.resource.data.get('note', null) == null
+          || (
+            request.resource.data.get('note', null) is string
+            && request.resource.data.get('note', '').size() <= 500
+          )
+        )
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.updatedByName is string
+        && adjustment.openingBalance == request.resource.data.openingBalance
+        && adjustment.effectiveAt == request.time
+        && adjustment.createdBy == request.auth.uid;
+    }
+
+    function hasValidDailyClosingValues(closingId) {
+      return request.resource.data.keys().hasOnly([
+          'schemaVersion',
+          'dateKey',
+          'clientReceipts',
+          'successfulOrdersCount',
+          'successfulOrdersAmount',
+          'supplierRechargePrincipal',
+          'supplierRechargeBonus',
+          'supplierRechargeReceived',
+          'supplierPayments',
+          'creditsCreated',
+          'creditSettlements',
+          'customerReceivables',
+          'expenses',
+          'refunds',
+          'commissionsEarned',
+          'commissionsPaid',
+          'orangeAvailable',
+          'orangeCommitted',
+          'mtnAvailable',
+          'mtnCommitted',
+          'moovAvailable',
+          'moovCommitted',
+          'supplierDebt',
+          'commissionDebt',
+          'waveTheoreticalBalance',
+          'waveActualBalance',
+          'waveDifference',
+          'waveDifferenceNote',
+          'estimatedProfit',
+          'closedAt',
+          'closedBy',
+          'closedByName'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.dateKey == closingId
+        && request.resource.data.dateKey is string
+        && request.resource.data.dateKey.size() == 8
+        && request.resource.data.clientReceipts is int
+        && request.resource.data.successfulOrdersCount is int
+        && request.resource.data.successfulOrdersCount >= 0
+        && request.resource.data.successfulOrdersAmount is int
+        && request.resource.data.supplierRechargePrincipal is int
+        && request.resource.data.supplierRechargeBonus is int
+        && request.resource.data.supplierRechargeReceived is int
+        && request.resource.data.supplierPayments is int
+        && request.resource.data.creditsCreated is int
+        && request.resource.data.creditSettlements is int
+        && request.resource.data.customerReceivables is int
+        && request.resource.data.expenses is int
+        && request.resource.data.refunds is int
+        && request.resource.data.commissionsEarned is int
+        && request.resource.data.commissionsPaid is int
+        && request.resource.data.orangeAvailable is int
+        && request.resource.data.orangeCommitted is int
+        && request.resource.data.mtnAvailable is int
+        && request.resource.data.mtnCommitted is int
+        && request.resource.data.moovAvailable is int
+        && request.resource.data.moovCommitted is int
+        && request.resource.data.supplierDebt is int
+        && request.resource.data.commissionDebt is int
+        && request.resource.data.waveTheoreticalBalance is int
+        && request.resource.data.waveActualBalance is int
+        && request.resource.data.waveActualBalance >= 0
+        && request.resource.data.waveDifference is int
+        && request.resource.data.waveDifference
+          == request.resource.data.waveActualBalance - request.resource.data.waveTheoreticalBalance
+        && (
+          (
+            request.resource.data.waveDifference == 0
+            && (
+              request.resource.data.get('waveDifferenceNote', null) == null
+              || request.resource.data.get('waveDifferenceNote', null) is string
+            )
+          ) || (
+            request.resource.data.waveDifference != 0
+            && request.resource.data.get('waveDifferenceNote', null) is string
+            && request.resource.data.get('waveDifferenceNote', '').size() >= 3
+            && request.resource.data.get('waveDifferenceNote', '').size() <= 500
+          )
+        )
+        && request.resource.data.estimatedProfit is int
+        && request.resource.data.closedAt == request.time
+        && request.resource.data.closedBy == request.auth.uid
+        && request.resource.data.closedByName is string;
     }
 
     function hasValidCommissionPayoutValues(payoutId) {
@@ -3538,9 +4541,77 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    match /financeSuppliers/{supplierId} {
+      allow get, list: if isAdmin();
+      allow create: if isValidFinanceSupplierCreation();
+      allow update: if isValidFinanceSupplierUpdate();
+      allow delete: if false;
+    }
+
+    match /supplierRecharges/{rechargeId} {
+      allow get, list: if isAdmin();
+      allow create: if isValidSupplierRechargeCreation(rechargeId);
+      allow update, delete: if false;
+    }
+
+    match /supplierAccounts/{accountId} {
+      allow get, list: if isAdmin();
+      allow create: if isValidSupplierAccountCreation(accountId);
+      allow update: if isValidSupplierAccountRechargeUpdate(accountId)
+        || isValidSupplierAccountPaymentUpdate(accountId);
+      allow delete: if false;
+    }
+
+    match /supplierPayments/{paymentId} {
+      allow get, list: if isAdmin();
+      allow create: if isValidSupplierPaymentCreation(paymentId);
+      allow update, delete: if false;
+    }
+
+    match /customerCredits/{creditId} {
+      allow get, list: if isAdmin();
+      allow create: if isValidCustomerCreditCreation(creditId);
+      allow update: if isValidCustomerCreditSettlementUpdate(creditId);
+      allow delete: if false;
+    }
+
+    match /customerCreditSettlements/{settlementId} {
+      allow get, list: if isAdmin();
+      allow create: if isValidCustomerCreditSettlementCreation(settlementId);
+      allow update, delete: if false;
+    }
+
+    match /financeExpenses/{expenseId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin() && hasValidFinanceExpenseValues();
+      allow update, delete: if false;
+    }
+
+    match /waveBalanceAdjustments/{adjustmentId} {
+      allow get, list: if isAdmin();
+      allow create: if hasValidWaveBalanceAdjustmentValues(adjustmentId);
+      allow update, delete: if false;
+    }
+
+    match /financeSettings/{settingId} {
+      allow get: if isAdmin();
+      allow list: if false;
+      allow create, update: if isAdmin()
+        && hasValidWaveFinanceSettingValues(settingId);
+      allow delete: if false;
+    }
+
+    match /dailyFinancialClosings/{closingId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin() && hasValidDailyClosingValues(closingId);
+      allow update, delete: if false;
+    }
+
     match /networkTransactions/{transactionId} {
       allow get, list: if isAdmin();
-      allow create: if isValidAgentOrderNetworkTransactionCreation(transactionId);
+      allow create: if isValidAgentOrderNetworkTransactionCreation(transactionId)
+        || isValidAdminSupplierRechargeNetworkTransactionCreation(transactionId)
+        || isValidManualNetworkAdjustmentCreation(transactionId);
       allow update, delete: if false;
     }
 
@@ -3558,13 +4629,13 @@ service cloud.firestore {
           && resource.data.customerAuthUid == request.auth.uid
         );
       allow list: if isStaff();
-      allow create: if isValidCustomerSupportRequestCreation(requestId);
+      allow create: if isValidCustomerSupportRequestCreation();
       allow update: if isValidAdminSupportRequestUpdate();
       allow delete: if false;
     }
 
     match /orders/{orderId} {
-      allow create: if isValidCustomerOrderCreation(orderId)
+      allow create: if isValidCustomerOrderCreation()
         || isValidStaffOrderCreation(orderId);
       allow get: if isOrderOwner()
         || hasRecoveredOrderAccess(orderId)
@@ -3603,6 +4674,7 @@ service cloud.firestore {
           && (
             isValidCustomerPaymentDeclaration(orderId)
             || isValidCustomerExpiration()
+            || isValidAdminCreditAuthorization(orderId)
             || isValidStaffPaymentConfirmation(orderId)
             || (
               isManualAssignmentTransitionRequest()
@@ -3610,7 +4682,7 @@ service cloud.firestore {
             )
             || isValidAgentProcessingSuccess(orderId)
             || isValidAgentProcessingFailure(orderId)
-            || isValidAgentProofAuditUpdate(orderId)
+            || isValidAgentProofAuditUpdate()
             || isValidAgentAssignmentAcceptance(orderId)
             || isValidAgentAssignmentRefusal(orderId)
             || isValidAgentProcessingStart(orderId)

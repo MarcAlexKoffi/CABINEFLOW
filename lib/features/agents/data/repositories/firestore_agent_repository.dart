@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class FirestoreAgentRepository implements AgentRepository {
   FirestoreAgentRepository({FirebaseFirestore? firestore})
@@ -18,6 +19,8 @@ class FirestoreAgentRepository implements AgentRepository {
       _firestore.collection('zones');
   CollectionReference<Map<String, dynamic>> get _issues =>
       _firestore.collection('agentIssues');
+  CollectionReference<Map<String, dynamic>> get _networkTransactions =>
+      _firestore.collection('networkTransactions');
 
   @override
   Stream<List<AgentDirectoryEntry>> watchAgents() {
@@ -190,6 +193,9 @@ class FirestoreAgentRepository implements AgentRepository {
       'dailyTransactionLimit': 500000,
       'maxTransactionsPerDay': 150,
       'lastCapacityUpdateAt': null,
+      'lastOrangeMovementId': null,
+      'lastMtnMovementId': null,
+      'lastMoovMovementId': null,
       'lastSeenAt': null,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -208,53 +214,107 @@ class FirestoreAgentRepository implements AgentRepository {
     final DocumentReference<Map<String, dynamic>> profileRef = _profiles.doc(
       agent.userId,
     );
-    final DocumentSnapshot<Map<String, dynamic>> currentProfile =
-        await profileRef.get();
+    final String actorId = (FirebaseAuth.instance.currentUser?.uid ?? '').trim();
+    if (actorId.isEmpty) {
+      throw StateError('Session administrateur introuvable.');
+    }
 
-    final AgentProfile profile = agent.profile ?? _defaultProfile(agent.userId);
-    final List<AgentNetwork> activeNetworks = profile.activeNetworks
-        .where(update.authorizedNetworks.contains)
-        .toList(growable: false);
-
-    final Map<String, dynamic> profileData = <String, dynamic>{
-      'schemaVersion': 1,
-      'userId': agent.userId,
-      'agentCode': profile.agentCode,
-      'availability': update.isActive
-          ? profile.availability.firestoreValue
-          : AgentAvailability.unavailable.firestoreValue,
-      'zoneIds': update.zoneIds,
-      'authorizedNetworks': update.authorizedNetworks
-          .map((network) => network.firestoreValue)
-          .toList(growable: false),
-      'activeNetworks': update.isActive
-          ? activeNetworks
-                .map((network) => network.firestoreValue)
-                .toList(growable: false)
-          : <String>[],
-      'orangeCapacity': update.orangeCapacity,
-      'mtnCapacity': update.mtnCapacity,
-      'moovCapacity': update.moovCapacity,
-      'dailyTransactionLimit': update.dailyTransactionLimit,
-      'maxTransactionsPerDay': update.maxTransactionsPerDay,
-      'lastCapacityUpdateAt': profile.lastCapacityUpdateAt,
-      'lastSeenAt': profile.lastSeenAt,
-      'createdAt': currentProfile.exists
-          ? (currentProfile.data()?['createdAt'] ??
-                FieldValue.serverTimestamp())
-          : FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
+    final Map<AgentNetwork, DocumentReference<Map<String, dynamic>>>
+    adjustmentRefs = <AgentNetwork, DocumentReference<Map<String, dynamic>>>{
+      for (final AgentNetwork network in AgentNetwork.values)
+        network: _networkTransactions.doc(),
     };
 
-    final WriteBatch batch = _firestore.batch();
-    batch.update(userRef, <String, dynamic>{
-      'name': update.name.trim(),
-      'phoneNumber': update.phoneNumber.trim(),
-      'isActive': update.isActive,
-      'updatedAt': FieldValue.serverTimestamp(),
+    await _firestore.runTransaction((Transaction transaction) async {
+      final DocumentSnapshot<Map<String, dynamic>> currentProfile =
+          await transaction.get(profileRef);
+      if (!currentProfile.exists || currentProfile.data() == null) {
+        throw StateError(
+          'Le profil opérationnel doit être créé avant de définir des capacités.',
+        );
+      }
+
+      final Map<String, dynamic> current = currentProfile.data()!;
+      final AgentProfile profile =
+          agent.profile ?? _defaultProfile(agent.userId);
+      final List<AgentNetwork> activeNetworks = profile.activeNetworks
+          .where(update.authorizedNetworks.contains)
+          .toList(growable: false);
+
+      final Map<AgentNetwork, int> before = <AgentNetwork, int>{
+        AgentNetwork.orange: _int(current['orangeCapacity']),
+        AgentNetwork.mtn: _int(current['mtnCapacity']),
+        AgentNetwork.moov: _int(current['moovCapacity']),
+      };
+      final Map<AgentNetwork, int> after = <AgentNetwork, int>{
+        AgentNetwork.orange: update.orangeCapacity,
+        AgentNetwork.mtn: update.mtnCapacity,
+        AgentNetwork.moov: update.moovCapacity,
+      };
+      final List<AgentNetwork> changed = AgentNetwork.values
+          .where((AgentNetwork network) => before[network] != after[network])
+          .toList(growable: false);
+
+      final Map<String, dynamic> profileData = <String, dynamic>{
+        'schemaVersion': 1,
+        'userId': agent.userId,
+        'agentCode': profile.agentCode,
+        'availability': update.isActive
+            ? profile.availability.firestoreValue
+            : AgentAvailability.unavailable.firestoreValue,
+        'zoneIds': update.zoneIds,
+        'authorizedNetworks': update.authorizedNetworks
+            .map((AgentNetwork network) => network.firestoreValue)
+            .toList(growable: false),
+        'activeNetworks': update.isActive
+            ? activeNetworks
+                  .map((AgentNetwork network) => network.firestoreValue)
+                  .toList(growable: false)
+            : <String>[],
+        'orangeCapacity': update.orangeCapacity,
+        'mtnCapacity': update.mtnCapacity,
+        'moovCapacity': update.moovCapacity,
+        'dailyTransactionLimit': update.dailyTransactionLimit,
+        'maxTransactionsPerDay': update.maxTransactionsPerDay,
+        'lastCapacityUpdateAt': changed.isEmpty
+            ? current['lastCapacityUpdateAt']
+            : FieldValue.serverTimestamp(),
+        'lastOrangeMovementId': current['lastOrangeMovementId'],
+        'lastMtnMovementId': current['lastMtnMovementId'],
+        'lastMoovMovementId': current['lastMoovMovementId'],
+        'lastSeenAt': current['lastSeenAt'],
+        'createdAt': current['createdAt'],
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      for (final AgentNetwork network in changed) {
+        final DocumentReference<Map<String, dynamic>> movementRef =
+            adjustmentRefs[network]!;
+        profileData[_movementMarkerField(network)] = movementRef.id;
+        final int capacityBefore = before[network]!;
+        final int capacityAfter = after[network]!;
+        transaction.set(
+          movementRef,
+          _manualCapacityMovementData(
+            network: network,
+            capacityBefore: capacityBefore,
+            capacityAfter: capacityAfter,
+            agentId: agent.userId,
+            agentName: update.name.trim(),
+            createdBy: actorId,
+            createdByRole: 'admin',
+          ),
+        );
+      }
+
+      transaction.update(userRef, <String, dynamic>{
+        'name': update.name.trim(),
+        'phoneNumber': update.phoneNumber.trim(),
+        'isActive': update.isActive,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      transaction.set(profileRef, profileData);
     });
-    batch.set(profileRef, profileData);
-    await batch.commit();
   }
 
   @override
@@ -263,9 +323,15 @@ class FirestoreAgentRepository implements AgentRepository {
     required AgentOperationalUpdate update,
   }) async {
     final DocumentReference<Map<String, dynamic>> ref = _profiles.doc(agentId);
-    await _firestore.runTransaction((transaction) async {
-      final DocumentSnapshot<Map<String, dynamic>> snapshot = await transaction
-          .get(ref);
+    final Map<AgentNetwork, DocumentReference<Map<String, dynamic>>>
+    adjustmentRefs = <AgentNetwork, DocumentReference<Map<String, dynamic>>>{
+      for (final AgentNetwork network in AgentNetwork.values)
+        network: _networkTransactions.doc(),
+    };
+
+    await _firestore.runTransaction((Transaction transaction) async {
+      final DocumentSnapshot<Map<String, dynamic>> snapshot =
+          await transaction.get(ref);
       if (!snapshot.exists || snapshot.data() == null) {
         throw StateError('Ton profil agent n’est pas encore configuré.');
       }
@@ -273,21 +339,57 @@ class FirestoreAgentRepository implements AgentRepository {
       if (profile == null) {
         throw StateError('Le profil agent est invalide.');
       }
+      final Map<String, dynamic> current = snapshot.data()!;
       final List<AgentNetwork> active = update.activeNetworks
           .where(profile.authorizedNetworks.contains)
           .toList(growable: false);
-      transaction.update(ref, <String, dynamic>{
+      final Map<AgentNetwork, int> before = <AgentNetwork, int>{
+        AgentNetwork.orange: profile.orangeCapacity,
+        AgentNetwork.mtn: profile.mtnCapacity,
+        AgentNetwork.moov: profile.moovCapacity,
+      };
+      final Map<AgentNetwork, int> after = <AgentNetwork, int>{
+        AgentNetwork.orange: update.orangeCapacity,
+        AgentNetwork.mtn: update.mtnCapacity,
+        AgentNetwork.moov: update.moovCapacity,
+      };
+      final List<AgentNetwork> changed = AgentNetwork.values
+          .where((AgentNetwork network) => before[network] != after[network])
+          .toList(growable: false);
+
+      final Map<String, dynamic> updates = <String, dynamic>{
         'availability': update.availability.firestoreValue,
         'activeNetworks': active
-            .map((network) => network.firestoreValue)
+            .map((AgentNetwork network) => network.firestoreValue)
             .toList(growable: false),
         'orangeCapacity': update.orangeCapacity,
         'mtnCapacity': update.mtnCapacity,
         'moovCapacity': update.moovCapacity,
-        'lastCapacityUpdateAt': FieldValue.serverTimestamp(),
+        'lastCapacityUpdateAt': changed.isEmpty
+            ? current['lastCapacityUpdateAt']
+            : FieldValue.serverTimestamp(),
         'lastSeenAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      };
+
+      for (final AgentNetwork network in changed) {
+        final DocumentReference<Map<String, dynamic>> movementRef =
+            adjustmentRefs[network]!;
+        updates[_movementMarkerField(network)] = movementRef.id;
+        transaction.set(
+          movementRef,
+          _manualCapacityMovementData(
+            network: network,
+            capacityBefore: before[network]!,
+            capacityAfter: after[network]!,
+            agentId: agentId,
+            agentName: null,
+            createdBy: agentId,
+            createdByRole: 'agent',
+          ),
+        );
+      }
+      transaction.update(ref, updates);
     });
   }
 
@@ -342,6 +444,51 @@ class FirestoreAgentRepository implements AgentRepository {
       'resolvedAt': marksAsResolved ? FieldValue.serverTimestamp() : null,
       'resolvedBy': marksAsResolved ? resolvedBy : null,
     });
+  }
+
+  String _movementMarkerField(AgentNetwork network) {
+    switch (network) {
+      case AgentNetwork.orange:
+        return 'lastOrangeMovementId';
+      case AgentNetwork.mtn:
+        return 'lastMtnMovementId';
+      case AgentNetwork.moov:
+        return 'lastMoovMovementId';
+    }
+  }
+
+  Map<String, dynamic> _manualCapacityMovementData({
+    required AgentNetwork network,
+    required int capacityBefore,
+    required int capacityAfter,
+    required String agentId,
+    required String? agentName,
+    required String createdBy,
+    required String createdByRole,
+  }) {
+    final int delta = capacityAfter - capacityBefore;
+    if (delta == 0) {
+      throw StateError('Un ajustement réseau doit modifier la capacité.');
+    }
+    return <String, dynamic>{
+      'schemaVersion': 1,
+      'network': network.firestoreValue,
+      'direction': delta > 0 ? 'incoming' : 'outgoing',
+      'type': 'manualAdjustment',
+      'amount': delta.abs(),
+      'capacityBefore': capacityBefore,
+      'capacityAfter': capacityAfter,
+      'agentId': agentId,
+      'agentName': agentName?.trim().isEmpty == true ? null : agentName?.trim(),
+      'orderId': null,
+      'orderReference': null,
+      'supplierId': null,
+      'supplierName': null,
+      'supplierRechargeId': null,
+      'createdBy': createdBy,
+      'createdByRole': createdByRole,
+      'createdAt': FieldValue.serverTimestamp(),
+    };
   }
 
   AgentProfile? _profileFromDocument(

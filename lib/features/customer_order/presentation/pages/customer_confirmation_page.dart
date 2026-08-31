@@ -529,6 +529,11 @@ class _TrackingCard extends StatelessWidget {
   bool get _paymentConfirmed =>
       receipt.paymentStatus == OrderPaymentStatus.confirmed;
 
+  bool get _creditAuthorized =>
+      receipt.paymentStatus == OrderPaymentStatus.credit;
+
+  bool get _fundingValidated => _paymentConfirmed || _creditAuthorized;
+
   bool get _processingStarted {
     return receipt.status == QueueOrderStatus.inProgress ||
         receipt.status == QueueOrderStatus.onHold ||
@@ -548,7 +553,7 @@ class _TrackingCard extends StatelessWidget {
   }
 
   _TrackingStepState get _verificationState {
-    if (_paymentConfirmed) {
+    if (_fundingValidated) {
       return _TrackingStepState.done;
     }
 
@@ -660,17 +665,23 @@ class _TrackingCard extends StatelessWidget {
           ],
           const SizedBox(height: 22),
           _TrackingStep(
-            title: 'Paiement déclaré',
-            subtitle: _formatDate(receipt.paymentDeclaredAt),
-            state: receipt.isPaymentDeclared
+            title: _creditAuthorized ? 'Vente à crédit' : 'Paiement déclaré',
+            subtitle: _creditAuthorized
+                ? 'Crédit autorisé par l’administrateur.'
+                : _formatDate(receipt.paymentDeclaredAt),
+            state: _creditAuthorized || receipt.isPaymentDeclared
                 ? _TrackingStepState.done
                 : _TrackingStepState.pending,
           ),
           _TrackingStep(
-            title: 'Vérification du paiement',
-            subtitle: _paymentConfirmed
-                ? _formatDate(receipt.paymentConfirmedAt)
-                : 'L’opérateur vérifie la transaction dans Wave.',
+            title: _creditAuthorized
+                ? 'Validation du crédit'
+                : 'Vérification du paiement',
+            subtitle: _creditAuthorized
+                ? 'La commande peut être traitée avant l’encaissement.'
+                : (_paymentConfirmed
+                      ? _formatDate(receipt.paymentConfirmedAt)
+                      : 'L’opérateur vérifie la transaction dans Wave.'),
             state: _verificationState,
           ),
           _TrackingStep(

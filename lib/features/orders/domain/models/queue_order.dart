@@ -15,6 +15,7 @@ enum OrderPaymentStatus {
   pending,
   declared,
   confirmed,
+  credit,
   rejected,
   expired,
 }
@@ -167,6 +168,16 @@ class QueueOrder {
         assignedAgentId!.trim().isNotEmpty &&
         assignmentStatus != OrderAssignmentStatus.unassigned;
   }
+
+  /// La commande peut entrer dans le moteur 9E soit après un paiement
+  /// confirmé, soit après une autorisation explicite de vente à crédit.
+  /// Le statut `credit` ne représente jamais une entrée Wave.
+  bool get isFundedForProcessing {
+    return paymentStatus == OrderPaymentStatus.confirmed ||
+        paymentStatus == OrderPaymentStatus.credit;
+  }
+
+  bool get isCreditSale => paymentStatus == OrderPaymentStatus.credit;
 
   bool get hasPaymentToReviewAfterExpiration {
     return status == QueueOrderStatus.expired &&

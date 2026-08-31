@@ -4,6 +4,7 @@ import 'package:cabine_flow/features/agents/data/repositories/fake_agent_reposit
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/commissions/data/repositories/fake_commission_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/fake_network_finance_repository.dart';
+import 'package:cabine_flow/features/finances/data/repositories/fake_finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/presentation/pages/finances_page.dart';
 import 'package:cabine_flow/features/finances/presentation/pages/financial_movements_page.dart';
 import 'package:cabine_flow/features/finances/presentation/pages/financial_reconciliation_page.dart';
@@ -255,8 +256,11 @@ void main() {
     final FakeRefundRepository refundRepository = FakeRefundRepository();
     final FakeNetworkFinanceRepository networkFinanceRepository =
         FakeNetworkFinanceRepository();
+    final FakeFinanceOperationsRepository financeRepository =
+        FakeFinanceOperationsRepository();
     addTearDown(refundRepository.dispose);
     addTearDown(networkFinanceRepository.dispose);
+    addTearDown(financeRepository.dispose);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -266,6 +270,7 @@ void main() {
           refundRepository: refundRepository,
           commissionRepository: FakeCommissionRepository(),
           networkFinanceRepository: networkFinanceRepository,
+          financeRepository: financeRepository,
         ),
       ),
     );

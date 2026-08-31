@@ -400,23 +400,33 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                               ),
                               _DetailRow(
                                 label: 'Montant reçu',
-                                value:
-                                    _order.paymentStatus ==
-                                        OrderPaymentStatus.confirmed
+                                value: _order.isCreditSale
+                                    ? 'Vente à crédit – suivi séparé'
+                                    : _order.paymentStatus ==
+                                          OrderPaymentStatus.confirmed
                                     ? formatCfa(_order.amount)
                                     : 'Non confirmé',
-                                valueColor:
-                                    _order.paymentStatus ==
-                                        OrderPaymentStatus.confirmed
+                                valueColor: _order.isCreditSale
+                                    ? IzyTelColors.warning
+                                    : _order.paymentStatus ==
+                                          OrderPaymentStatus.confirmed
                                     ? IzyTelColors.success
                                     : IzyTelColors.textPrimary,
                               ),
                               _DetailRow(
-                                label: 'Référence confirmée',
-                                value:
-                                    _order.paymentReference ?? 'Non renseignée',
-                                canCopy: _order.paymentReference != null,
-                                onCopy: _order.paymentReference == null
+                                label: _order.isCreditSale
+                                    ? 'Référence de paiement'
+                                    : 'Référence confirmée',
+                                value: _order.isCreditSale
+                                    ? 'Voir Crédits clients'
+                                    : _order.paymentReference ??
+                                          'Non renseignée',
+                                canCopy:
+                                    !_order.isCreditSale &&
+                                    _order.paymentReference != null,
+                                onCopy:
+                                    _order.isCreditSale ||
+                                        _order.paymentReference == null
                                     ? null
                                     : () => _copyValue(
                                         _order.paymentReference!,
@@ -424,8 +434,12 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                                       ),
                               ),
                               _DetailRow(
-                                label: 'Confirmation',
-                                value: _order.paymentConfirmedAt == null
+                                label: _order.isCreditSale
+                                    ? 'Financement'
+                                    : 'Confirmation',
+                                value: _order.isCreditSale
+                                    ? 'Crédit autorisé'
+                                    : _order.paymentConfirmedAt == null
                                     ? 'Non confirmée'
                                     : formatOrderDateTime(
                                         _order.paymentConfirmedAt!,
@@ -612,7 +626,7 @@ class _OrderProgressTimeline extends StatelessWidget {
 
   final QueueOrder order;
 
-  bool get _paid => order.paymentStatus == OrderPaymentStatus.confirmed;
+  bool get _funded => order.isFundedForProcessing;
   bool get _assigned => order.assignedAgentId?.trim().isNotEmpty == true;
   bool get _processing => const <QueueOrderStatus>{
     QueueOrderStatus.inProgress,
@@ -634,8 +648,8 @@ class _OrderProgressTimeline extends StatelessWidget {
     final bool currentProcessing = _processing && !_done;
     final List<_ProgressStepData> steps = <_ProgressStepData>[
       _ProgressStepData(
-        label: 'Payée',
-        state: _paid ? _ProgressState.done : _ProgressState.pending,
+        label: order.isCreditSale ? 'Crédit autorisé' : 'Payée',
+        state: _funded ? _ProgressState.done : _ProgressState.pending,
         date: order.paymentConfirmedAt,
       ),
       _ProgressStepData(

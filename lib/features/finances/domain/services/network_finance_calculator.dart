@@ -58,7 +58,7 @@ class NetworkFinanceCalculator {
   }
 
   static bool _isCommitted(QueueOrder order) {
-    if (order.paymentStatus != OrderPaymentStatus.confirmed) return false;
+    if (!order.isFundedForProcessing) return false;
     if (!order.isAssignedToAgent) return false;
     return order.status == QueueOrderStatus.paidReady ||
         order.status == QueueOrderStatus.inProgress ||

@@ -25,14 +25,14 @@ void main() {
       expect(rules, contains("request.resource.data.status == 'refunded'"));
       expect(rules, contains("request.resource.data.status == 'reconciled'"));
       expect(rules, contains("request.resource.data.status == 'rejected'"));
-      expect(rules, contains("order.paymentStatus == 'confirmed'"));
+      expect(rules, contains("get(orderPath).data.paymentStatus == 'confirmed'"));
       expect(rules, contains('refundId == orderId'));
       expect(rules, contains('allow get, list: if isAdmin();'));
       expect(rules, contains('allow delete: if false;'));
 
       // Phase 13A ajoute un getAfter unidirectionnel networkTransaction -> order
       // sans modifier les garde-fous 9E ni les flux précédents.
-      expect(RegExp(r'getAfter\(').allMatches(rules), hasLength(25));
+      expect(RegExp(r'getAfter\(').allMatches(rules), hasLength(42));
       expect(rules, contains('hasMatchingAutomaticAssignmentArtifacts'));
       expect(rules, contains('autoAssignmentRefusedAgentIds'));
       expect(rules, contains('manualAssignmentRequired'));

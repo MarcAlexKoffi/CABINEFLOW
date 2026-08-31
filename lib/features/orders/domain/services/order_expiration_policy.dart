@@ -9,7 +9,8 @@ class OrderExpirationPolicy {
     required DateTime expiresAt,
     required DateTime now,
   }) {
-    if (paymentStatus == OrderPaymentStatus.confirmed) {
+    if (paymentStatus == OrderPaymentStatus.confirmed ||
+        paymentStatus == OrderPaymentStatus.credit) {
       return false;
     }
 
@@ -24,9 +25,11 @@ class OrderExpirationPolicy {
   static OrderPaymentStatus paymentStatusAfterExpiration(
     OrderPaymentStatus currentStatus,
   ) {
-    return currentStatus == OrderPaymentStatus.declared
-        ? OrderPaymentStatus.declared
-        : OrderPaymentStatus.expired;
+    if (currentStatus == OrderPaymentStatus.declared ||
+        currentStatus == OrderPaymentStatus.credit) {
+      return currentStatus;
+    }
+    return OrderPaymentStatus.expired;
   }
 
   static bool isPaymentToReviewAfterExpiration({

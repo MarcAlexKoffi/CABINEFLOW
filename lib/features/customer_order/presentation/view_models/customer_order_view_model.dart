@@ -810,6 +810,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
 
     final bool canExpire =
         order.paymentStatus != OrderPaymentStatus.confirmed &&
+        order.paymentStatus != OrderPaymentStatus.credit &&
         (order.status == QueueOrderStatus.awaitingPayment ||
             order.status == QueueOrderStatus.paymentToVerify);
 

@@ -39,6 +39,23 @@ void main() {
       );
     });
 
+    test('n’expire jamais une vente à crédit autorisée', () {
+      final bool shouldExpire = OrderExpirationPolicy.shouldExpire(
+        status: QueueOrderStatus.paymentToVerify,
+        paymentStatus: OrderPaymentStatus.credit,
+        expiresAt: expiresAt,
+        now: expiresAt.add(const Duration(hours: 1)),
+      );
+
+      expect(shouldExpire, isFalse);
+      expect(
+        OrderExpirationPolicy.paymentStatusAfterExpiration(
+          OrderPaymentStatus.credit,
+        ),
+        OrderPaymentStatus.credit,
+      );
+    });
+
     test('n’expire jamais un paiement déjà confirmé', () {
       final bool shouldExpire = OrderExpirationPolicy.shouldExpire(
         status: QueueOrderStatus.paymentToVerify,

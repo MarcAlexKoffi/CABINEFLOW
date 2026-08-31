@@ -20,6 +20,9 @@ class NetworkTransaction {
     this.agentName,
     this.orderId,
     this.orderReference,
+    this.supplierId,
+    this.supplierName,
+    this.supplierRechargeId,
   });
 
   final String id;
@@ -33,6 +36,9 @@ class NetworkTransaction {
   final String? agentName;
   final String? orderId;
   final String? orderReference;
+  final String? supplierId;
+  final String? supplierName;
+  final String? supplierRechargeId;
   final String createdBy;
   final String createdByRole;
   final DateTime createdAt;

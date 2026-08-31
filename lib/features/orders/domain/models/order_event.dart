@@ -2,6 +2,7 @@ enum OrderEventType {
   orderCreated('ORDER_CREATED'),
   paymentDeclared('PAYMENT_DECLARED'),
   paymentConfirmed('PAYMENT_CONFIRMED'),
+  creditAuthorized('CREDIT_AUTHORIZED'),
   assigned('ASSIGNED'),
   assignmentAccepted('ASSIGNMENT_ACCEPTED'),
   assignmentRefused('ASSIGNMENT_REFUSED'),

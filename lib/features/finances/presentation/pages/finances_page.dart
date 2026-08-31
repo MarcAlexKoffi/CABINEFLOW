@@ -9,13 +9,23 @@ import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:cabine_flow/features/commissions/presentation/pages/commission_management_page.dart';
+import 'package:cabine_flow/features/finances/data/repositories/fake_finance_operations_repository.dart';
+import 'package:cabine_flow/features/finances/data/repositories/firestore_finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/fake_network_finance_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/firestore_network_finance_repository.dart';
+import 'package:cabine_flow/features/finances/domain/models/finance_operations_models.dart';
 import 'package:cabine_flow/features/finances/domain/models/network_finance_models.dart';
+import 'package:cabine_flow/features/finances/domain/repositories/finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/domain/repositories/network_finance_repository.dart';
 import 'package:cabine_flow/features/finances/domain/services/network_finance_calculator.dart';
+import 'package:cabine_flow/features/finances/presentation/pages/customer_credits_page.dart';
+import 'package:cabine_flow/features/finances/presentation/pages/daily_financial_closing_page.dart';
+import 'package:cabine_flow/features/finances/presentation/pages/finance_expenses_page.dart';
 import 'package:cabine_flow/features/finances/presentation/pages/financial_movements_page.dart';
 import 'package:cabine_flow/features/finances/presentation/pages/financial_reconciliation_page.dart';
+import 'package:cabine_flow/features/finances/presentation/pages/supplier_finance_page.dart';
+import 'package:cabine_flow/features/finances/presentation/pages/wave_cash_page.dart';
+import 'package:cabine_flow/features/finances/presentation/pages/working_capital_page.dart';
 import 'package:cabine_flow/features/finances/presentation/widgets/financial_ui.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
@@ -53,6 +63,7 @@ class FinancesPage extends StatefulWidget {
 class _FinancesPageState extends State<FinancesPage> {
   late final RefundRepository _refundRepository;
   late final NetworkFinanceRepository _networkFinanceRepository;
+  late final FinanceOperationsRepository _financeOperationsRepository;
 
   OrderHistoryRepository? get _historyRepository {
     final OrdersRepository repository = widget.ordersRepository;
@@ -77,6 +88,9 @@ class _FinancesPageState extends State<FinancesPage> {
     _networkFinanceRepository = Firebase.apps.isNotEmpty
         ? FirestoreNetworkFinanceRepository()
         : FakeNetworkFinanceRepository();
+    _financeOperationsRepository = Firebase.apps.isNotEmpty
+        ? FirestoreFinanceOperationsRepository()
+        : FakeFinanceOperationsRepository();
   }
 
   @override
@@ -89,6 +103,11 @@ class _FinancesPageState extends State<FinancesPage> {
         _networkFinanceRepository;
     if (networkRepository is FakeNetworkFinanceRepository) {
       unawaited(networkRepository.dispose());
+    }
+    final FinanceOperationsRepository financeRepository =
+        _financeOperationsRepository;
+    if (financeRepository is FakeFinanceOperationsRepository) {
+      unawaited(financeRepository.dispose());
     }
     super.dispose();
   }
@@ -130,6 +149,38 @@ class _FinancesPageState extends State<FinancesPage> {
         .fold<int>(
           0,
           (int total, CommissionPayout payout) => total + payout.amount,
+        );
+  }
+
+  int _creditSettlementsToday(
+    List<CustomerCreditSettlement> settlements, {
+    FinancePaymentChannel? channel,
+  }) {
+    return settlements.where((CustomerCreditSettlement settlement) {
+      return _isToday(settlement.paidAt) &&
+          (channel == null || settlement.channel == channel);
+    }).fold<int>(
+      0,
+      (int total, CustomerCreditSettlement settlement) =>
+          total + settlement.amount,
+    );
+  }
+
+  int _supplierPaymentsToday(List<SupplierPayment> payments) {
+    return payments
+        .where((SupplierPayment payment) => _isToday(payment.paidAt))
+        .fold<int>(
+          0,
+          (int total, SupplierPayment payment) => total + payment.amount,
+        );
+  }
+
+  int _expensesToday(List<FinanceExpense> expenses) {
+    return expenses
+        .where((FinanceExpense expense) => _isToday(expense.spentAt))
+        .fold<int>(
+          0,
+          (int total, FinanceExpense expense) => total + expense.amount,
         );
   }
 
@@ -205,6 +256,88 @@ class _FinancesPageState extends State<FinancesPage> {
           refundRepository: _refundRepository,
           commissionRepository: widget.commissionRepository,
           networkFinanceRepository: _networkFinanceRepository,
+          financeRepository: _financeOperationsRepository,
+        ),
+      ),
+    );
+  }
+
+
+  void _openSuppliers() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => SupplierFinancePage(
+          user: widget.user,
+          repository: _financeOperationsRepository,
+          agentRepository: widget.agentRepository,
+        ),
+      ),
+    );
+  }
+
+  void _openWaveCash() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => WaveCashPage(
+          user: widget.user,
+          ordersRepository: widget.ordersRepository,
+          refundRepository: _refundRepository,
+          commissionRepository: widget.commissionRepository,
+          financeRepository: _financeOperationsRepository,
+        ),
+      ),
+    );
+  }
+
+  void _openCustomerCredits() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => CustomerCreditsPage(
+          user: widget.user,
+          repository: _financeOperationsRepository,
+          ordersRepository: widget.ordersRepository,
+        ),
+      ),
+    );
+  }
+
+  void _openExpenses() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => FinanceExpensesPage(
+          user: widget.user,
+          repository: _financeOperationsRepository,
+        ),
+      ),
+    );
+  }
+
+  void _openWorkingCapital() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => WorkingCapitalPage(
+          ordersRepository: widget.ordersRepository,
+          refundRepository: _refundRepository,
+          commissionRepository: widget.commissionRepository,
+          agentRepository: widget.agentRepository,
+          networkFinanceRepository: _networkFinanceRepository,
+          financeRepository: _financeOperationsRepository,
+        ),
+      ),
+    );
+  }
+
+  void _openDailyClosing() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => DailyFinancialClosingPage(
+          user: widget.user,
+          ordersRepository: widget.ordersRepository,
+          refundRepository: _refundRepository,
+          commissionRepository: widget.commissionRepository,
+          agentRepository: widget.agentRepository,
+          networkFinanceRepository: _networkFinanceRepository,
+          financeRepository: _financeOperationsRepository,
         ),
       ),
     );
@@ -241,7 +374,28 @@ class _FinancesPageState extends State<FinancesPage> {
                               AsyncSnapshot<List<CommissionPayout>>
                               payoutSnapshot,
                             ) {
-                              return StreamBuilder<List<NetworkTransaction>>(
+                              return StreamBuilder<List<CustomerCreditSettlement>>(
+                                stream: _financeOperationsRepository.watchCustomerCreditSettlements(),
+                                builder:
+                                    (
+                                      BuildContext context,
+                                      AsyncSnapshot<List<CustomerCreditSettlement>> settlementSnapshot,
+                                    ) {
+                                  return StreamBuilder<List<SupplierPayment>>(
+                                    stream: _financeOperationsRepository.watchSupplierPayments(),
+                                    builder:
+                                        (
+                                          BuildContext context,
+                                          AsyncSnapshot<List<SupplierPayment>> supplierPaymentSnapshot,
+                                        ) {
+                                      return StreamBuilder<List<FinanceExpense>>(
+                                        stream: _financeOperationsRepository.watchExpenses(),
+                                        builder:
+                                            (
+                                              BuildContext context,
+                                              AsyncSnapshot<List<FinanceExpense>> expenseSnapshot,
+                                            ) {
+                                              return StreamBuilder<List<NetworkTransaction>>(
                                 stream: _networkFinanceRepository.watchTransactions(),
                                 builder:
                                     (
@@ -261,6 +415,15 @@ class _FinancesPageState extends State<FinancesPage> {
                               final List<NetworkTransaction> networkTransactions =
                                   networkSnapshot.data ??
                                   const <NetworkTransaction>[];
+                              final List<CustomerCreditSettlement> creditSettlements =
+                                  settlementSnapshot.data ??
+                                  const <CustomerCreditSettlement>[];
+                              final List<SupplierPayment> supplierPayments =
+                                  supplierPaymentSnapshot.data ??
+                                  const <SupplierPayment>[];
+                              final List<FinanceExpense> expenses =
+                                  expenseSnapshot.data ??
+                                  const <FinanceExpense>[];
 
                               final bool initialLoading =
                                   !orderSnapshot.hasData &&
@@ -273,16 +436,33 @@ class _FinancesPageState extends State<FinancesPage> {
                                 );
                               }
 
-                              final int incomeToday = _confirmedAmountToday(
-                                orders,
-                              );
+                              final int confirmedPaymentsToday =
+                                  _confirmedAmountToday(orders);
+                              final int creditSettlementsToday =
+                                  _creditSettlementsToday(creditSettlements);
+                              final int waveCreditSettlementsToday =
+                                  _creditSettlementsToday(
+                                    creditSettlements,
+                                    channel: FinancePaymentChannel.wave,
+                                  );
+                              final int incomeToday =
+                                  confirmedPaymentsToday + creditSettlementsToday;
+                              final int waveToday =
+                                  confirmedPaymentsToday + waveCreditSettlementsToday;
                               final int refundsToday = _refundsPaidToday(
                                 refunds,
                               );
                               final int commissionsToday =
                                   _commissionPayoutsToday(payouts);
+                              final int supplierPaymentsToday =
+                                  _supplierPaymentsToday(supplierPayments);
+                              final int expensesToday = _expensesToday(expenses);
                               final int netToday =
-                                  incomeToday - refundsToday - commissionsToday;
+                                  incomeToday -
+                                  refundsToday -
+                                  commissionsToday -
+                                  supplierPaymentsToday -
+                                  expensesToday;
                               final int refundPending = refunds
                                   .where((RefundCase value) => value.isActive)
                                   .fold<int>(
@@ -343,9 +523,12 @@ class _FinancesPageState extends State<FinancesPage> {
                                   const SizedBox(height: 18),
                                   _FinanceHero(
                                     incomeToday: incomeToday,
+                                    creditSettlementsToday: creditSettlementsToday,
                                     netToday: netToday,
                                     refundsToday: refundsToday,
                                     commissionsToday: commissionsToday,
+                                    supplierPaymentsToday: supplierPaymentsToday,
+                                    expensesToday: expensesToday,
                                   ),
                                   const SizedBox(height: 20),
                                   const IzyTelSectionHeader(
@@ -407,7 +590,7 @@ class _FinancesPageState extends State<FinancesPage> {
                                     agentRepository: widget.agentRepository,
                                     orders: orders,
                                     transactions: networkTransactions,
-                                    waveToday: incomeToday,
+                                    waveToday: waveToday,
                                   ),
                                   const SizedBox(height: 22),
                                   const IzyTelSectionHeader(
@@ -447,6 +630,57 @@ class _FinancesPageState extends State<FinancesPage> {
                                   ),
                                   const SizedBox(height: 8),
                                   FinanceActionTile(
+                                    icon: Symbols.inventory_2_rounded,
+                                    title: 'Fournisseurs',
+                                    subtitle:
+                                        'Enregistrer les recharges, bonus et règlements fournisseurs.',
+                                    onTap: _openSuppliers,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  FinanceActionTile(
+                                    icon: Symbols.account_balance_wallet_rounded,
+                                    title: 'Caisse Wave',
+                                    subtitle:
+                                        'Suivre le solde théorique et tous les flux Wave.',
+                                    accent: IzyTelColors.wave,
+                                    onTap: _openWaveCash,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  FinanceActionTile(
+                                    icon: Symbols.request_quote_rounded,
+                                    title: 'Crédits clients',
+                                    subtitle:
+                                        'Suivre les montants dus et les règlements ultérieurs.',
+                                    accent: IzyTelColors.warning,
+                                    onTap: _openCustomerCredits,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  FinanceActionTile(
+                                    icon: Symbols.receipt_long_rounded,
+                                    title: 'Dépenses',
+                                    subtitle:
+                                        'Tracer transport, internet et autres charges.',
+                                    accent: IzyTelColors.warning,
+                                    onTap: _openExpenses,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  FinanceActionTile(
+                                    icon: Symbols.savings_rounded,
+                                    title: 'Fonds de roulement',
+                                    subtitle:
+                                        'Mesurer les liquidités, engagements, dettes et créances.',
+                                    onTap: _openWorkingCapital,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  FinanceActionTile(
+                                    icon: Symbols.calendar_month_rounded,
+                                    title: 'Clôture journalière',
+                                    subtitle:
+                                        'Figer les chiffres du jour, le solde Wave et les écarts.',
+                                    onTap: _openDailyClosing,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  FinanceActionTile(
                                     icon: Symbols.rule_rounded,
                                     title: 'Rapprochements',
                                     subtitle:
@@ -471,6 +705,12 @@ class _FinancesPageState extends State<FinancesPage> {
                               );
                                     },
                               );
+                                            },
+                                      );
+                                        },
+                                  );
+                                    },
+                              );
                             },
                       );
                     },
@@ -486,15 +726,21 @@ class _FinancesPageState extends State<FinancesPage> {
 class _FinanceHero extends StatelessWidget {
   const _FinanceHero({
     required this.incomeToday,
+    required this.creditSettlementsToday,
     required this.netToday,
     required this.refundsToday,
     required this.commissionsToday,
+    required this.supplierPaymentsToday,
+    required this.expensesToday,
   });
 
   final int incomeToday;
+  final int creditSettlementsToday;
   final int netToday;
   final int refundsToday;
   final int commissionsToday;
+  final int supplierPaymentsToday;
+  final int expensesToday;
 
   @override
   Widget build(BuildContext context) {
@@ -568,6 +814,11 @@ class _FinanceHero extends StatelessWidget {
                     ? Symbols.trending_up_rounded
                     : Symbols.trending_down_rounded,
               ),
+              if (creditSettlementsToday > 0)
+                _HeroTag(
+                  label: '+ ${formatCfa(creditSettlementsToday)} crédits encaissés',
+                  icon: Symbols.savings_rounded,
+                ),
               if (refundsToday > 0)
                 _HeroTag(
                   label: '- ${formatCfa(refundsToday)} remboursés',
@@ -577,6 +828,16 @@ class _FinanceHero extends StatelessWidget {
                 _HeroTag(
                   label: '- ${formatCfa(commissionsToday)} commissions',
                   icon: Symbols.payments_rounded,
+                ),
+              if (supplierPaymentsToday > 0)
+                _HeroTag(
+                  label: '- ${formatCfa(supplierPaymentsToday)} fournisseurs',
+                  icon: Symbols.inventory_2_rounded,
+                ),
+              if (expensesToday > 0)
+                _HeroTag(
+                  label: '- ${formatCfa(expensesToday)} dépenses',
+                  icon: Symbols.receipt_long_rounded,
                 ),
             ],
           ),

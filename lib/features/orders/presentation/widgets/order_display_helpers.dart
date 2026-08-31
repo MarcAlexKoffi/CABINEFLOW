@@ -91,6 +91,8 @@ String paymentStatusLabel(OrderPaymentStatus status) {
       return 'Déclaré';
     case OrderPaymentStatus.confirmed:
       return 'Confirmé';
+    case OrderPaymentStatus.credit:
+      return 'Crédit autorisé';
     case OrderPaymentStatus.rejected:
       return 'Rejeté';
     case OrderPaymentStatus.expired:

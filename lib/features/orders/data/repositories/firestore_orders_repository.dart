@@ -776,7 +776,7 @@ class FirestoreOrdersRepository
       );
 
       if (order.status != QueueOrderStatus.paidReady ||
-          order.paymentStatus != OrderPaymentStatus.confirmed) {
+          !order.isFundedForProcessing) {
         throw StateError(
           'Seule une commande payée et prête peut être affectée.',
         );
@@ -1488,6 +1488,9 @@ class FirestoreOrdersRepository
         operationAmount: order.amount,
       );
       final String capacityField = _agentCapacityFieldForNetwork(order.network);
+      final String movementMarkerField = _agentMovementMarkerFieldForNetwork(
+        order.network,
+      );
 
       transaction.update(orderRef, <String, dynamic>{
         'status': QueueOrderStatus.awaitingCustomerConfirmation.name,
@@ -1504,6 +1507,7 @@ class FirestoreOrdersRepository
       });
       transaction.update(profileRef, <String, dynamic>{
         capacityField: remainingCapacity,
+        movementMarkerField: networkTransactionRef.id,
         'lastCapacityUpdateAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -1848,7 +1852,7 @@ class FirestoreOrdersRepository
       throw StateError('Cette commande ne t’est plus affectée.');
     }
     if (order.status != QueueOrderStatus.paidReady ||
-        order.paymentStatus != OrderPaymentStatus.confirmed) {
+        !order.isFundedForProcessing) {
       throw StateError('Cette commande n’est plus disponible à l’acceptation.');
     }
     if (assignmentData['agentId'] != agentId ||
@@ -1866,8 +1870,8 @@ class FirestoreOrdersRepository
         order.assignmentStatus != OrderAssignmentStatus.accepted) {
       throw StateError('Cette commande ne t’est plus affectée.');
     }
-    if (order.paymentStatus != OrderPaymentStatus.confirmed) {
-      throw StateError('Le paiement de cette commande n’est pas confirmé.');
+    if (!order.isFundedForProcessing) {
+      throw StateError('Cette commande n’est ni payée ni autorisée à crédit.');
     }
   }
 
@@ -2619,7 +2623,7 @@ class FirestoreOrdersRepository
 
   bool _isWaitingForAutomaticAssignment(QueueOrder order) {
     return order.status == QueueOrderStatus.paidReady &&
-        order.paymentStatus == OrderPaymentStatus.confirmed &&
+        order.isFundedForProcessing &&
         order.assignedAgentId == null &&
         order.assignmentStatus == OrderAssignmentStatus.unassigned &&
         !order.manualAssignmentRequired;
@@ -2808,6 +2812,17 @@ class FirestoreOrdersRepository
         return 'mtnCapacity';
       case MobileNetwork.moov:
         return 'moovCapacity';
+    }
+  }
+
+  String _agentMovementMarkerFieldForNetwork(MobileNetwork network) {
+    switch (network) {
+      case MobileNetwork.orange:
+        return 'lastOrangeMovementId';
+      case MobileNetwork.mtn:
+        return 'lastMtnMovementId';
+      case MobileNetwork.moov:
+        return 'lastMoovMovementId';
     }
   }
 
