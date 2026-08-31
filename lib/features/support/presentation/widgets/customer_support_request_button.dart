@@ -1,6 +1,7 @@
 import 'package:cabine_flow/core/theme/customer_app_colors.dart';
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 
 class CustomerSupportRequestButton extends StatefulWidget {
@@ -56,15 +57,10 @@ class _CustomerSupportRequestButtonState
         return;
       }
 
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              'Votre demande concernant ${widget.orderReference} a été envoyée.',
-            ),
-          ),
-        );
+      IzyTelFeedback.success(
+        context,
+        'Votre demande concernant ${widget.orderReference} a été envoyée.',
+      );
     } on Object catch (error) {
       if (!mounted) {
         return;
@@ -73,15 +69,10 @@ class _CustomerSupportRequestButtonState
       debugPrint(
         '[SupportRequest][customer] order=${widget.orderReference} ERROR $error',
       );
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Impossible d’envoyer la demande pour le moment. Réessayez.',
-            ),
-          ),
-        );
+      IzyTelFeedback.error(
+        context,
+        'Impossible d’envoyer la demande pour le moment. Réessayez.',
+      );
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);

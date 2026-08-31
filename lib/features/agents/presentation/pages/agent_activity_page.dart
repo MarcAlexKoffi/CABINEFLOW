@@ -10,6 +10,7 @@ import 'package:cabine_flow/features/commissions/domain/repositories/commission_
 import 'package:cabine_flow/features/commissions/presentation/pages/agent_commissions_page.dart';
 import 'package:cabine_flow/features/commissions/presentation/pages/agent_performance_page.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -177,9 +178,7 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    IzyTelFeedback.show(context, message);
   }
 
   @override

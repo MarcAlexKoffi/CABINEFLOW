@@ -3,6 +3,7 @@ import 'package:cabine_flow/core/theme/customer_app_colors.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_bottom_navigation.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_cards.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_shell.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 
 class CustomerHelpPage extends StatelessWidget {
@@ -26,13 +27,10 @@ class CustomerHelpPage extends StatelessWidget {
     if (!context.mounted || opened) {
       return;
     }
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text('Impossible d’ouvrir WhatsApp pour le moment.'),
-        ),
-      );
+    IzyTelFeedback.error(
+      context,
+      'Impossible d’ouvrir WhatsApp pour le moment.',
+    );
   }
 
   @override

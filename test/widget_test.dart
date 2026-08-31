@@ -3,10 +3,17 @@ import 'package:cabine_flow/features/orders/data/repositories/fake_orders_reposi
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   Future<void> configureMobileScreen(WidgetTester tester) async {
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('com.izytel/session_preferences'),
+      (MethodCall methodCall) async => null,
+    );
     tester.view.physicalSize = const Size(430, 932);
     tester.view.devicePixelRatio = 1.0;
 
@@ -19,18 +26,16 @@ void main() {
     OrdersRepository? ordersRepository,
   }) async {
     await configureMobileScreen(tester);
-    await tester.pumpWidget(
-      CabineFlowApp(ordersRepository: ordersRepository),
-    );
+    await tester.pumpWidget(CabineFlowApp(ordersRepository: ordersRepository));
     await tester.pump();
 
-    expect(find.text('Chargement de l’espace opérateur…'), findsOneWidget);
+    expect(find.text('Simple. Rapide. Izy.'), findsOneWidget);
 
-    await tester.pump(const Duration(milliseconds: 2200));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 2000));
+    await tester.pump(const Duration(milliseconds: 2000));
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Bienvenue'), findsOneWidget);
-    expect(find.text('Simple. Rapide. Fiable.'), findsOneWidget);
     expect(find.text('Se connecter'), findsOneWidget);
   }
 
@@ -112,17 +117,13 @@ void main() {
 
     expect(find.text('Activité du jour'), findsOneWidget);
 
-    await tester.tap(
-      find.byKey(const ValueKey<String>('admin-nav-commandes')),
-    );
+    await tester.tap(find.byKey(const ValueKey<String>('admin-nav-commandes')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('À traiter'), findsOneWidget);
 
-    await tester.tap(
-      find.byKey(const ValueKey<String>('admin-nav-accueil')),
-    );
+    await tester.tap(find.byKey(const ValueKey<String>('admin-nav-accueil')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
@@ -142,10 +143,7 @@ void main() {
       assignedByUserId: 'ADMIN-001',
     );
 
-    await openLoginPage(
-      tester,
-      ordersRepository: ordersRepository,
-    );
+    await openLoginPage(tester, ordersRepository: ordersRepository);
 
     final Finder fields = find.byType(TextFormField);
     await tester.enterText(fields.at(0), 'agent@cabineflow.app');
@@ -160,9 +158,7 @@ void main() {
     expect(find.text('Accepter'), findsWidgets);
     expect(find.text('Mes commandes'), findsNothing);
 
-    await tester.tap(
-      find.byKey(const ValueKey<String>('agent-nav-profil')),
-    );
+    await tester.tap(find.byKey(const ValueKey<String>('agent-nav-profil')));
     await tester.pump(const Duration(milliseconds: 900));
     await tester.pumpAndSettle();
 
@@ -183,7 +179,10 @@ void main() {
     await tester.drag(profileList, const Offset(0, -420));
     await tester.pumpAndSettle();
 
-    expect(find.text('Mon activité'.toUpperCase(), skipOffstage: false), findsOneWidget);
+    expect(
+      find.text('Mon activité'.toUpperCase(), skipOffstage: false),
+      findsOneWidget,
+    );
     expect(find.text('Mes performances', skipOffstage: false), findsOneWidget);
   });
 }

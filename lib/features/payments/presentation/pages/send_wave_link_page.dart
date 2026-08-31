@@ -4,6 +4,7 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/payments/domain/repositories/payment_link_repository.dart';
 import 'package:cabine_flow/features/payments/presentation/view_models/payment_request_view_model.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -164,9 +165,7 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    IzyTelFeedback.show(context, message);
   }
 
   @override

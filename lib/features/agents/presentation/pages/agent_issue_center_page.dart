@@ -4,6 +4,7 @@ import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -399,26 +400,18 @@ class _AgentIssueCenterPageState extends State<AgentIssueCenterPage> {
                     );
                     if (!mounted || !context.mounted) return;
                     Navigator.of(context).pop();
-                    ScaffoldMessenger.of(this.context)
-                      ..hideCurrentSnackBar()
-                      ..showSnackBar(
-                        SnackBar(
-                          content: Text(_successMessageForStatus(status)),
-                        ),
-                      );
+                    IzyTelFeedback.success(
+                      this.context,
+                      _successMessageForStatus(status),
+                    );
                     return;
                   } catch (_) {
                     if (!mounted || !context.mounted) return;
                     setModalState(() => _isUpdating = false);
-                    ScaffoldMessenger.of(this.context)
-                      ..hideCurrentSnackBar()
-                      ..showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Impossible de mettre à jour le signalement.',
-                          ),
-                        ),
-                      );
+                    IzyTelFeedback.error(
+                      this.context,
+                      'Impossible de mettre à jour le signalement.',
+                    );
                   }
                 }
 

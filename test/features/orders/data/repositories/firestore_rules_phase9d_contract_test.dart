@@ -7,7 +7,7 @@ void main() {
     final String rules = File('firestore.rules').readAsStringSync();
 
     expect(rules, contains('match /orderEvents/{eventId}'));
-    expect(rules, contains('isValidAgentProofAuditUpdate(orderId)'));
+    expect(rules, contains('function isValidAgentProofAuditUpdate()'));
     expect(
       rules,
       contains("hasMatchingOrderEvent(orderId, 'ASSIGNMENT_ACCEPTED')"),
@@ -37,8 +37,12 @@ void main() {
       rules,
       contains("hasMatchingOrderEvent(orderId, 'PAYMENT_CONFIRMED')"),
     );
-    expect(rules, contains('targetAgentUser('));
-    expect(rules, contains('targetAgentProfile('));
+    expect(
+      rules,
+      contains('function automaticAssignmentTargetIsEligible(agentId)'),
+    );
+    expect(rules, isNot(contains('targetAgentUser(')));
+    expect(rules, isNot(contains('targetAgentProfile(')));
     expect(rules, contains('getAfter('));
     expect(rules, contains("hasMatchingOrderEvent(orderId, 'ASSIGNED')"));
     expect(rules, contains("actorRole == 'customer'"));

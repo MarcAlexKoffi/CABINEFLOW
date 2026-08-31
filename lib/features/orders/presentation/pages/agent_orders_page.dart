@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
@@ -10,6 +12,7 @@ import 'package:cabine_flow/features/orders/presentation/pages/agent_order_detai
 import 'package:cabine_flow/features/orders/presentation/view_models/agent_orders_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -38,12 +41,16 @@ class AgentOrdersPage extends StatefulWidget {
 }
 
 class _AgentOrdersPageState extends State<AgentOrdersPage> {
+  Timer? _clockTimer;
   late final AgentOrdersViewModel _viewModel;
   String? _openedOrderId;
 
   @override
   void initState() {
     super.initState();
+    _clockTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted) setState(() {});
+    });
     _viewModel = AgentOrdersViewModel(
       agentId: widget.user.id,
       ordersRepository: widget.ordersRepository,
@@ -54,6 +61,7 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
 
   @override
   void dispose() {
+    _clockTimer?.cancel();
     _viewModel.dispose();
     super.dispose();
   }
@@ -119,9 +127,7 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    IzyTelFeedback.show(context, message);
   }
 
   void _openAccountMenu() {
@@ -674,15 +680,17 @@ class _PremiumAgentOrderCard extends StatelessWidget {
                       : (order.paymentStatus == OrderPaymentStatus.confirmed
                             ? IzyTelColors.success
                             : switch (order.status) {
-                          QueueOrderStatus.completed ||
-                          QueueOrderStatus.refunded => IzyTelColors.success,
-                          QueueOrderStatus.failed ||
-                          QueueOrderStatus.cancelled => IzyTelColors.error,
-                          QueueOrderStatus.onHold ||
-                          QueueOrderStatus.refundPending =>
-                            IzyTelColors.warning,
-                          _ => IzyTelColors.primary,
-                        }),
+                                QueueOrderStatus.completed ||
+                                QueueOrderStatus.refunded =>
+                                  IzyTelColors.success,
+                                QueueOrderStatus.failed ||
+                                QueueOrderStatus.cancelled =>
+                                  IzyTelColors.error,
+                                QueueOrderStatus.onHold ||
+                                QueueOrderStatus.refundPending =>
+                                  IzyTelColors.warning,
+                                _ => IzyTelColors.primary,
+                              }),
                 ),
               ),
               if (showDecisionActions) ...[

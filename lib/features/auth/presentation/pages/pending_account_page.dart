@@ -1,11 +1,11 @@
 import 'package:cabine_flow/app/app_routes.dart';
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:cabine_flow/features/auth/presentation/view_models/pending_account_view_model.dart';
-import 'package:cabine_flow/shared/widgets/app_logo.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 class PendingAccountPage extends StatefulWidget {
   const PendingAccountPage({
@@ -18,9 +18,7 @@ class PendingAccountPage extends StatefulWidget {
   final AuthLoginResult initialResult;
 
   @override
-  State<PendingAccountPage> createState() {
-    return _PendingAccountPageState();
-  }
+  State<PendingAccountPage> createState() => _PendingAccountPageState();
 }
 
 class _PendingAccountPageState extends State<PendingAccountPage> {
@@ -29,7 +27,6 @@ class _PendingAccountPageState extends State<PendingAccountPage> {
   @override
   void initState() {
     super.initState();
-
     _viewModel = PendingAccountViewModel(
       authRepository: widget.authRepository,
       initialResult: widget.initialResult,
@@ -44,11 +41,7 @@ class _PendingAccountPageState extends State<PendingAccountPage> {
 
   Future<void> _refreshAccess() async {
     final AppUser? user = await _viewModel.refreshAccess();
-
-    if (!mounted || user == null) {
-      return;
-    }
-
+    if (!mounted || user == null) return;
     Navigator.of(context).pushNamedAndRemoveUntil(
       AppRoutes.dashboard,
       (Route<dynamic> route) => false,
@@ -58,11 +51,7 @@ class _PendingAccountPageState extends State<PendingAccountPage> {
 
   Future<void> _logout() async {
     final bool didLogout = await _viewModel.logout();
-
-    if (!mounted || !didLogout) {
-      return;
-    }
-
+    if (!mounted || !didLogout) return;
     Navigator.of(
       context,
     ).pushNamedAndRemoveUntil(AppRoutes.login, (Route<dynamic> route) => false);
@@ -74,202 +63,231 @@ class _PendingAccountPageState extends State<PendingAccountPage> {
       listenable: _viewModel,
       builder: (BuildContext context, Widget? child) {
         final bool isInactive = _viewModel.isInactive;
-        final Color statusColor = isInactive
-            ? AppColors.error
-            : AppColors.warning;
+        final Color accent = isInactive
+            ? IzyTelColors.error
+            : IzyTelColors.warning;
+        final Color soft = isInactive
+            ? IzyTelColors.errorSoft
+            : IzyTelColors.warningSoft;
 
         return Scaffold(
-          body: Stack(
-            children: [
-              const Positioned.fill(
-                child: ColoredBox(color: AppColors.background),
-              ),
-              Positioned(
-                top: -180,
-                right: -150,
-                child: Container(
-                  width: 420,
-                  height: 420,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [statusColor.withAlpha(28), Colors.transparent],
-                    ),
-                  ),
-                ),
-              ),
-              SafeArea(
-                child: Center(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 32,
-                    ),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 460),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const AppLogo(
-                            size: 58,
-                            icon: Icons.water_drop_rounded,
-                            titleFontSize: 27,
-                            subtitle: 'Accès à l’espace opérateur',
-                          ),
-                          const SizedBox(height: 28),
-                          Container(
-                            padding: const EdgeInsets.all(22),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceContainerLow,
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(
-                                color: statusColor.withAlpha(100),
-                              ),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x55000000),
-                                  blurRadius: 24,
-                                  offset: Offset(0, 12),
-                                ),
-                              ],
+          backgroundColor: IzyTelColors.background,
+          body: SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(22, 28, 22, 32),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 460),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      Center(
+                        child: Image.asset(
+                          'assets/images/izyTel_logo.png',
+                          width: 76,
+                          height: 76,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'IzyTel',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: IzyTelColors.textPrimary,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.8,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      const Text(
+                        'Accès à votre espace professionnel',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: IzyTelColors.textSecondary,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 30),
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+                        decoration: BoxDecoration(
+                          color: IzyTelColors.surface,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: IzyTelColors.outline),
+                          boxShadow: const <BoxShadow>[
+                            BoxShadow(
+                              color: IzyTelColors.shadow,
+                              blurRadius: 24,
+                              offset: Offset(0, 10),
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Align(
-                                  alignment: Alignment.center,
-                                  child: Container(
-                                    width: 76,
-                                    height: 76,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: statusColor.withAlpha(25),
-                                      border: Border.all(
-                                        color: statusColor.withAlpha(95),
-                                      ),
-                                    ),
-                                    child: Icon(
-                                      isInactive
-                                          ? Icons.block_rounded
-                                          : Icons.hourglass_top_rounded,
-                                      size: 38,
-                                      color: statusColor,
-                                    ),
-                                  ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: <Widget>[
+                            Center(
+                              child: Container(
+                                width: 72,
+                                height: 72,
+                                decoration: BoxDecoration(
+                                  color: soft,
+                                  borderRadius: BorderRadius.circular(22),
                                 ),
-                                const SizedBox(height: 20),
-                                Text(
+                                child: Icon(
                                   isInactive
-                                      ? 'Compte inactif'
-                                      : 'Compte en attente',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: AppColors.onSurface,
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w800,
+                                      ? Symbols.person_cancel_rounded
+                                      : Symbols.hourglass_top_rounded,
+                                  color: accent,
+                                  size: 36,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            Text(
+                              isInactive
+                                  ? 'Compte suspendu'
+                                  : 'Compte en attente',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: IzyTelColors.textPrimary,
+                                fontSize: 23,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              isInactive
+                                  ? 'Votre accès IzyTel a été suspendu par un administrateur. Aucune donnée interne n’est accessible tant que le compte n’est pas réactivé.'
+                                  : 'Votre profil est enregistré. Un administrateur doit encore attribuer votre rôle et activer votre accès.',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: IzyTelColors.textSecondary,
+                                fontSize: 13,
+                                height: 1.45,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            Container(
+                              padding: const EdgeInsets.all(15),
+                              decoration: BoxDecoration(
+                                color: IzyTelColors.surfaceMuted,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Column(
+                                children: <Widget>[
+                                  _InfoLine(
+                                    icon: Symbols.person_rounded,
+                                    label: 'Profil',
+                                    value: _viewModel.profileName,
                                   ),
-                                ),
-                                const SizedBox(height: 9),
-                                Text(
-                                  isInactive
-                                      ? 'Ce compte a été désactivé. Contacte un administrateur avant de réessayer.'
-                                      : 'Ton profil a bien été créé. Un administrateur doit maintenant lui attribuer un rôle et l’activer.',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: AppColors.onSurfaceVariant,
-                                    fontSize: 14,
-                                    height: 1.45,
+                                  const Divider(
+                                    color: IzyTelColors.outline,
+                                    height: 22,
                                   ),
-                                ),
-                                const SizedBox(height: 20),
-                                _ProfileInformationCard(
-                                  name: _viewModel.profileName,
-                                  email: _viewModel.email,
-                                  statusLabel: isInactive
-                                      ? 'Désactivé'
-                                      : 'Activation requise',
-                                  statusColor: statusColor,
-                                ),
-                                if (_viewModel.feedbackMessage != null) ...[
-                                  const SizedBox(height: 14),
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.surfaceContainerHigh,
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: AppColors.outlineVariant,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      _viewModel.feedbackMessage!,
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        color: AppColors.onSurfaceVariant,
-                                        fontSize: 12,
-                                      ),
-                                    ),
+                                  _InfoLine(
+                                    icon: Symbols.mail_rounded,
+                                    label: 'E-mail',
+                                    value: _viewModel.email,
+                                  ),
+                                  const Divider(
+                                    color: IzyTelColors.outline,
+                                    height: 22,
+                                  ),
+                                  _InfoLine(
+                                    icon: Symbols.shield_rounded,
+                                    label: 'Statut',
+                                    value: isInactive
+                                        ? 'Suspendu'
+                                        : 'Activation requise',
+                                    valueColor: accent,
                                   ),
                                 ],
-                                const SizedBox(height: 20),
-                                FilledButton.icon(
-                                  onPressed: _viewModel.isBusy
-                                      ? null
-                                      : _refreshAccess,
-                                  icon: _viewModel.isRefreshing
-                                      ? const SizedBox(
-                                          width: 19,
-                                          height: 19,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2.2,
-                                            color: AppColors.onPrimary,
-                                          ),
-                                        )
-                                      : const Icon(Icons.refresh_rounded),
-                                  label: Text(
-                                    _viewModel.isRefreshing
-                                        ? 'Vérification...'
-                                        : 'Vérifier mon accès',
+                              ),
+                            ),
+                            if (_viewModel.feedbackMessage != null) ...<Widget>[
+                              const SizedBox(height: 14),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: IzyTelColors.primarySoft,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  _viewModel.feedbackMessage!,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: IzyTelColors.textSecondary,
+                                    fontSize: 12,
                                   ),
                                 ),
-                                const SizedBox(height: 9),
-                                OutlinedButton.icon(
-                                  onPressed: _viewModel.isBusy ? null : _logout,
-                                  icon: _viewModel.isSigningOut
-                                      ? const SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : const Icon(Icons.logout_rounded),
-                                  label: Text(
-                                    _viewModel.isSigningOut
-                                        ? 'Déconnexion...'
-                                        : 'Se déconnecter',
-                                  ),
+                              ),
+                            ],
+                            const SizedBox(height: 20),
+                            FilledButton.icon(
+                              onPressed: _viewModel.isBusy
+                                  ? null
+                                  : _refreshAccess,
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(50),
+                                backgroundColor: IzyTelColors.primary,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
                                 ),
-                              ],
+                              ),
+                              icon: _viewModel.isRefreshing
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(Symbols.refresh_rounded),
+                              label: Text(
+                                _viewModel.isRefreshing
+                                    ? 'Vérification...'
+                                    : 'Vérifier mon accès',
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Aucune commande ni donnée interne n’est accessible tant que le compte n’est pas activé.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: AppColors.onSurfaceVariant,
-                              fontSize: 11,
-                              height: 1.4,
+                            const SizedBox(height: 10),
+                            OutlinedButton.icon(
+                              onPressed: _viewModel.isBusy ? null : _logout,
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size.fromHeight(48),
+                                foregroundColor: IzyTelColors.primary,
+                                side: const BorderSide(
+                                  color: IzyTelColors.outlineStrong,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              icon: _viewModel.isSigningOut
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Symbols.logout_rounded),
+                              label: Text(
+                                _viewModel.isSigningOut
+                                    ? 'Déconnexion...'
+                                    : 'Se déconnecter',
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ),
-            ],
+            ),
           ),
         );
       },
@@ -277,113 +295,45 @@ class _PendingAccountPageState extends State<PendingAccountPage> {
   }
 }
 
-class _ProfileInformationCard extends StatelessWidget {
-  const _ProfileInformationCard({
-    required this.name,
-    required this.email,
-    required this.statusLabel,
-    required this.statusColor,
-  });
-
-  final String name;
-  final String email;
-  final String statusLabel;
-  final Color statusColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
-      child: Column(
-        children: [
-          _InformationRow(
-            icon: Icons.person_outline_rounded,
-            label: 'Profil',
-            value: name,
-          ),
-          const SizedBox(height: 11),
-          const Divider(height: 1, color: AppColors.outlineVariant),
-          const SizedBox(height: 11),
-          _InformationRow(
-            icon: Icons.mail_outline_rounded,
-            label: 'E-mail',
-            value: email.isEmpty ? 'Non disponible' : email,
-          ),
-          const SizedBox(height: 11),
-          const Divider(height: 1, color: AppColors.outlineVariant),
-          const SizedBox(height: 11),
-          Row(
-            children: [
-              Icon(Icons.shield_outlined, size: 19, color: statusColor),
-              const SizedBox(width: 10),
-              const Expanded(
-                child: Text(
-                  'Statut',
-                  style: TextStyle(
-                    color: AppColors.onSurfaceVariant,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-              Text(
-                statusLabel,
-                style: TextStyle(
-                  color: statusColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InformationRow extends StatelessWidget {
-  const _InformationRow({
+class _InfoLine extends StatelessWidget {
+  const _InfoLine({
     required this.icon,
     required this.label,
     required this.value,
+    this.valueColor,
   });
 
   final IconData icon;
   final String label;
   final String value;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: [
-        const SizedBox(width: 1),
-        Icon(icon, size: 19, color: AppColors.primary),
-        const SizedBox(width: 10),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Icon(icon, size: 20, color: IzyTelColors.primary),
+        const SizedBox(width: 11),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+            children: <Widget>[
               Text(
                 label,
                 style: const TextStyle(
-                  color: AppColors.onSurfaceVariant,
-                  fontSize: 10,
+                  color: IzyTelColors.textMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 value,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.onSurface,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+                style: TextStyle(
+                  color: valueColor ?? IzyTelColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],

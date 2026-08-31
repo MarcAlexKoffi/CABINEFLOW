@@ -7,6 +7,7 @@ import 'package:cabine_flow/features/customer_order/presentation/widgets/custome
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_order_labels.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_cards.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_operator_brand.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 
 class CustomerSummaryPage extends StatefulWidget {
@@ -29,16 +30,11 @@ class _CustomerSummaryPageState extends State<CustomerSummaryPage> {
       return;
     }
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            widget.viewModel.submissionErrorMessage ??
-                'Impossible de créer la commande.',
-          ),
-        ),
-      );
+    IzyTelFeedback.error(
+      context,
+      widget.viewModel.submissionErrorMessage ??
+          'Impossible de créer la commande.',
+    );
   }
 
   @override

@@ -4,15 +4,24 @@ import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/dashboard/domain/models/dashboard_data.dart';
 import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_repository.dart';
 import 'package:cabine_flow/features/dashboard/presentation/view_models/dashboard_view_model.dart';
+import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/features/orders/presentation/pages/failed_orders_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/order_detail_page.dart';
+import 'package:cabine_flow/features/refunds/data/repositories/fake_refund_repository.dart';
+import 'package:cabine_flow/features/refunds/data/repositories/firestore_refund_repository.dart';
+import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
+import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
 import 'package:cabine_flow/features/support/data/repositories/fake_support_request_repository.dart';
 import 'package:cabine_flow/features/support/data/repositories/firestore_support_request_repository.dart';
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -24,6 +33,8 @@ class DashboardPage extends StatefulWidget {
     required this.user,
     required this.dashboardRepository,
     this.orderHistoryRepository,
+    this.ordersRepository,
+    this.agentRepository,
     this.onOpenOrders,
     this.onOpenPayments,
     this.onOpenMore,
@@ -33,6 +44,8 @@ class DashboardPage extends StatefulWidget {
   final AppUser user;
   final DashboardRepository dashboardRepository;
   final OrderHistoryRepository? orderHistoryRepository;
+  final OrdersRepository? ordersRepository;
+  final AgentRepository? agentRepository;
   final VoidCallback? onOpenOrders;
   final VoidCallback? onOpenPayments;
   final VoidCallback? onOpenMore;
@@ -45,7 +58,15 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   late final DashboardViewModel _viewModel;
   late final SupportRequestRepository _supportRepository;
+  late final RefundRepository _refundRepository;
   StreamSubscription<List<SupportRequest>>? _supportSubscription;
+  StreamSubscription<List<RefundCase>>? _refundSubscription;
+  StreamSubscription<List<QueueOrder>>? _failedOrdersSubscription;
+  List<QueueOrder> _rawFailedOrders = const <QueueOrder>[];
+  List<QueueOrder> _failedOrders = const <QueueOrder>[];
+  Set<String> _handledFailureOrderIds = <String>{};
+  final Set<String> _seenFailedOrderIds = <String>{};
+  bool _hasReceivedFailureSnapshot = false;
   int _customerRequestsCount = 0;
 
   @override
@@ -65,11 +86,90 @@ class _DashboardPageState extends State<DashboardPage> {
       if (!mounted) return;
       setState(() => _customerRequestsCount = requests.length);
     }, onError: (_) {});
+
+    _refundRepository = Firebase.apps.isNotEmpty
+        ? FirestoreRefundRepository()
+        : FakeRefundRepository();
+    _refundSubscription = _refundRepository.watchAll().listen((
+      List<RefundCase> refunds,
+    ) {
+      if (!mounted) return;
+      _handledFailureOrderIds = refunds
+          .where(
+            (RefundCase refund) =>
+                refund.status == RefundStatus.refunded ||
+                refund.status == RefundStatus.reconciled,
+          )
+          .map((RefundCase refund) => refund.orderId)
+          .toSet();
+      _refreshVisibleFailedOrders(notifyNewFailures: false);
+    }, onError: (_) {});
+
+    final OrderHistoryRepository? history = widget.orderHistoryRepository;
+    if (history != null) {
+      _failedOrdersSubscription = history.watchOrderHistory().listen((
+        List<QueueOrder> orders,
+      ) {
+        if (!mounted) return;
+        _rawFailedOrders =
+            orders
+                .where(
+                  (QueueOrder order) => order.status == QueueOrderStatus.failed,
+                )
+                .toList(growable: false)
+              ..sort((QueueOrder first, QueueOrder second) {
+                final DateTime firstDate = first.completedAt ?? first.createdAt;
+                final DateTime secondDate =
+                    second.completedAt ?? second.createdAt;
+                return secondDate.compareTo(firstDate);
+              });
+        _refreshVisibleFailedOrders(notifyNewFailures: true);
+      }, onError: (_) {});
+    }
+  }
+
+  void _refreshVisibleFailedOrders({required bool notifyNewFailures}) {
+    if (!mounted) return;
+    final List<QueueOrder> visible = _rawFailedOrders
+        .where(
+          (QueueOrder order) => !_handledFailureOrderIds.contains(order.id),
+        )
+        .toList(growable: false);
+    final List<QueueOrder> newlyFailed =
+        notifyNewFailures && _hasReceivedFailureSnapshot
+        ? visible
+              .where(
+                (QueueOrder order) => !_seenFailedOrderIds.contains(order.id),
+              )
+              .toList(growable: false)
+        : const <QueueOrder>[];
+
+    _seenFailedOrderIds
+      ..clear()
+      ..addAll(visible.map((QueueOrder order) => order.id));
+    if (notifyNewFailures) {
+      _hasReceivedFailureSnapshot = true;
+    }
+    setState(() => _failedOrders = List<QueueOrder>.unmodifiable(visible));
+
+    if (newlyFailed.isNotEmpty) {
+      final QueueOrder newest = newlyFailed.first;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        IzyTelFeedback.show(
+          context,
+          'Commande ${newest.reference} échouée : intervention Admin requise.',
+          tone: IzyTelFeedbackTone.error,
+        );
+      });
+    }
   }
 
   @override
   void dispose() {
     _supportSubscription?.cancel();
+    _refundSubscription?.cancel();
+    _failedOrdersSubscription?.cancel();
     _viewModel.dispose();
     super.dispose();
   }
@@ -92,6 +192,24 @@ class _DashboardPageState extends State<DashboardPage> {
             onOpenCustomerHistory: (_) {},
           );
         },
+      ),
+    );
+  }
+
+  Future<void> _openFailedOrdersCenter() async {
+    final OrderHistoryRepository? history = widget.orderHistoryRepository;
+    final OrdersRepository? orders = widget.ordersRepository;
+    final AgentRepository? agents = widget.agentRepository;
+    if (history == null || orders == null || agents == null) return;
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => FailedOrdersPage(
+          user: widget.user,
+          ordersRepository: orders,
+          orderHistoryRepository: history,
+          agentRepository: agents,
+        ),
       ),
     );
   }
@@ -224,6 +342,17 @@ class _DashboardPageState extends State<DashboardPage> {
                             title:
                                 '${data.statistics.newRequests} commandes à affecter',
                             onTap: widget.onOpenOrders,
+                          ),
+                          const Divider(),
+                          _ActionRow(
+                            icon: Symbols.error_rounded,
+                            iconColor: _failedOrders.isEmpty
+                                ? IzyTelColors.textMuted
+                                : IzyTelColors.error,
+                            title: _failedOrders.isEmpty
+                                ? 'Commandes échouées'
+                                : '${_failedOrders.length} commande${_failedOrders.length > 1 ? 's' : ''} échouée${_failedOrders.length > 1 ? 's' : ''} à traiter',
+                            onTap: _openFailedOrdersCenter,
                           ),
                           const Divider(),
                           _ActionRow(

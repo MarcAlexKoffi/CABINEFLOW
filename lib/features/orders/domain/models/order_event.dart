@@ -12,6 +12,7 @@ enum OrderEventType {
   proofAdded('PROOF_ADDED'),
   processingSucceeded('PROCESSING_SUCCEEDED'),
   processingFailed('PROCESSING_FAILED'),
+  reassignmentRequested('REASSIGNMENT_REQUESTED'),
   customerContacted('CUSTOMER_CONTACTED');
 
   const OrderEventType(this.value);

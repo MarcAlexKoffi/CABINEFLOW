@@ -33,7 +33,7 @@ class PendingAccountViewModel extends ChangeNotifier {
 
   String get profileName {
     final String value = _result.profileName?.trim() ?? '';
-    return value.isEmpty ? 'Utilisateur CabineFlow' : value;
+    return value.isEmpty ? 'Utilisateur IzyTel' : value;
   }
 
   String get email {

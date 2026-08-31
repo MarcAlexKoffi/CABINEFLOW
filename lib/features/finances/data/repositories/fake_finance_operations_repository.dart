@@ -402,8 +402,22 @@ class FakeFinanceOperationsRepository implements FinanceOperationsRepository {
   }
 
   List<T> _sortedByDate<T>(List<T> source, DateTime Function(T value) date) {
-    final List<T> result = List<T>.from(source)..sort((T a, T b) => date(b).compareTo(date(a)));
-    return List<T>.unmodifiable(result);
+    final List<MapEntry<int, T>> indexed = source.asMap().entries.toList()
+      ..sort((MapEntry<int, T> a, MapEntry<int, T> b) {
+        final int byDate = date(b.value).compareTo(date(a.value));
+        if (byDate != 0) {
+          return byDate;
+        }
+
+        // Deux opérations du fake peuvent être créées dans la même microseconde.
+        // Dans ce cas, l'élément inséré le plus récemment doit rester le premier,
+        // comme le ferait une liste Firestore triée par événement le plus récent.
+        return b.key.compareTo(a.key);
+      });
+
+    return List<T>.unmodifiable(
+      indexed.map((MapEntry<int, T> entry) => entry.value),
+    );
   }
 
   String _id(String prefix) => '${prefix}_${++_sequence}';

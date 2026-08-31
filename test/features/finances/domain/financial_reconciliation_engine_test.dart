@@ -46,7 +46,8 @@ void main() {
     bool includeCommission = true,
     ReconciliationRefundEvidence? refund,
   }) {
-    final DateTime start = coverageStart ?? now.subtract(const Duration(days: 1));
+    final DateTime start =
+        coverageStart ?? now.subtract(const Duration(days: 1));
     return FinancialReconciliationEvidence(
       assignmentsByOrder: <String, List<ReconciliationAssignmentEvidence>>{
         orderId: <ReconciliationAssignmentEvidence>[
@@ -60,10 +61,7 @@ void main() {
       },
       agentUserIds: const <String>{'AGENT-001'},
       eventsByOrder: <String, Set<String>>{
-        orderId: const <String>{
-          'PROCESSING_STARTED',
-          'PROCESSING_SUCCEEDED',
-        },
+        orderId: const <String>{'PROCESSING_STARTED', 'PROCESSING_SUCCEEDED'},
       },
       proofOrderIds: <String>{orderId},
       networkMovementsByOrder: includeMovement
@@ -152,8 +150,7 @@ void main() {
         proofOrderIds: const <String>{},
         networkMovementsByOrder:
             const <String, ReconciliationNetworkMovementEvidence>{},
-        commissionsByOrder:
-            const <String, ReconciliationCommissionEvidence>{},
+        commissionsByOrder: const <String, ReconciliationCommissionEvidence>{},
         refundsByOrder: const <String, ReconciliationRefundEvidence>{},
         creditsByOrder: const <String, ReconciliationCreditEvidence>{
           'ORDER-CREDIT': ReconciliationCreditEvidence(
@@ -167,12 +164,16 @@ void main() {
       ),
     );
 
-    expect(results.single.state, FinancialReconciliationOverallState.inProgress);
-    expect(results.single.issues, isEmpty);
-    final FinancialReconciliationCheck payment = results.single.checks.firstWhere(
-      (FinancialReconciliationCheck check) =>
-          check.link == FinancialReconciliationLink.payment,
+    expect(
+      results.single.state,
+      FinancialReconciliationOverallState.inProgress,
     );
+    expect(results.single.issues, isEmpty);
+    final FinancialReconciliationCheck payment = results.single.checks
+        .firstWhere(
+          (FinancialReconciliationCheck check) =>
+              check.link == FinancialReconciliationLink.payment,
+        );
     expect(payment.state, FinancialReconciliationCheckState.coherent);
     expect(payment.detail, contains('crédit'));
   });
@@ -187,26 +188,28 @@ void main() {
     );
 
     final List<FinancialReconciliationResult> results = engine.reconcile(
-      orders: <QueueOrder>[
-        successfulOrder(completedAt: oldCompletion),
-      ],
+      orders: <QueueOrder>[successfulOrder(completedAt: oldCompletion)],
       evidence: evidence,
     );
 
     expect(results.single.state, FinancialReconciliationOverallState.coherent);
     expect(results.single.issues, isEmpty);
     expect(
-      results.single.checks.firstWhere(
-        (FinancialReconciliationCheck check) =>
-            check.link == FinancialReconciliationLink.networkMovement,
-      ).state,
+      results.single.checks
+          .firstWhere(
+            (FinancialReconciliationCheck check) =>
+                check.link == FinancialReconciliationLink.networkMovement,
+          )
+          .state,
       FinancialReconciliationCheckState.notApplicable,
     );
     expect(
-      results.single.checks.firstWhere(
-        (FinancialReconciliationCheck check) =>
-            check.link == FinancialReconciliationLink.commission,
-      ).state,
+      results.single.checks
+          .firstWhere(
+            (FinancialReconciliationCheck check) =>
+                check.link == FinancialReconciliationLink.commission,
+          )
+          .state,
       FinancialReconciliationCheckState.notApplicable,
     );
   });
@@ -221,9 +224,7 @@ void main() {
     );
 
     final List<FinancialReconciliationResult> results = engine.reconcile(
-      orders: <QueueOrder>[
-        successfulOrder(status: QueueOrderStatus.refunded),
-      ],
+      orders: <QueueOrder>[successfulOrder(status: QueueOrderStatus.refunded)],
       evidence: coherentEvidence(refund: refund),
     );
 

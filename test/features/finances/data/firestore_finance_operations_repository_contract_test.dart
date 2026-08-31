@@ -37,7 +37,14 @@ void main() {
     final String block = source.substring(start, end);
 
     expect(block, contains('runTransaction'));
-    expect(block, contains("_networkTransactions.doc('recharge_\${rechargeRef.id}')"));
+    expect(
+      block,
+      matches(
+        RegExp(
+          r"_networkTransactions\s*\.doc\(\s*'recharge_\$\{rechargeRef\.id\}'\s*\)",
+        ),
+      ),
+    );
     expect(block, contains("'type': 'supplierRecharge'"));
     expect(block, contains("'direction': 'incoming'"));
     expect(block, contains('transaction.update(agentRef'));
@@ -52,13 +59,16 @@ void main() {
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final String block = source.substring(start, end);
-    expect(block, contains('_credits.doc(draft.orderId)'));
+    expect(block, matches(RegExp(r'_credits\s*\.doc\(\s*draft\.orderId\s*,?\s*\)')));
     expect(block, contains('Un crédit existe déjà pour cette commande'));
     expect(block, contains("paymentStatus == 'confirmed' || paymentStatus == 'credit'"));
     expect(block, contains("'paymentStatus': 'credit'"));
     expect(block, contains("'status': 'paidReady'"));
     expect(block, contains("'type': 'CREDIT_AUTHORIZED'"));
-    expect(block, contains('_autoAssignmentQueue.doc(draft.orderId)'));
+    expect(
+      block,
+      matches(RegExp(r'_autoAssignmentQueue\s*\.doc\(\s*draft\.orderId\s*,?\s*\)')),
+    );
     expect(block, isNot(contains("'paymentConfirmedAt': FieldValue.serverTimestamp()")));
     expect(block, isNot(contains("'paidAt': FieldValue.serverTimestamp()")));
   });
@@ -70,7 +80,7 @@ void main() {
     expect(end, greaterThan(start));
     final String block = source.substring(start, end);
     expect(block, contains('runTransaction'));
-    expect(block, contains('_waveAdjustments.doc()'));
+    expect(block, matches(RegExp(r'_waveAdjustments\s*\.doc\(\s*\)')));
     expect(block, contains("'previousOpeningBalance': previous"));
     expect(block, contains("'lastAdjustmentId': adjustmentRef.id"));
   });
@@ -79,7 +89,10 @@ void main() {
     final int start = source.indexOf('Future<void> createDailyClosing');
     expect(start, greaterThanOrEqualTo(0));
     final String block = source.substring(start);
-    expect(block, contains('_dailyClosings.doc(draft.dateKey)'));
+    expect(
+      block,
+      matches(RegExp(r'_dailyClosings\s*\.doc\(\s*draft\.dateKey\s*,?\s*\)')),
+    );
     expect(block, contains('Cette journée a déjà été clôturée'));
     expect(block, contains("'waveDifference': draft.waveDifference"));
     expect(block, contains("'waveDifferenceNote': _nullable(draft.waveDifferenceNote)"));

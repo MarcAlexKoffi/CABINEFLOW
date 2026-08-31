@@ -1,4 +1,4 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
@@ -6,6 +6,7 @@ import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/orders/presentation/view_models/agent_assignment_view_model.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 
 class AgentAssignmentPage extends StatefulWidget {
@@ -77,15 +78,10 @@ class _AgentAssignmentPageState extends State<AgentAssignmentPage> {
     if (!mounted) return;
 
     if (!success) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              _viewModel.errorMessage ?? 'Impossible d’affecter la commande.',
-            ),
-          ),
-        );
+      IzyTelFeedback.error(
+        context,
+        _viewModel.errorMessage ?? 'Impossible d’affecter la commande.',
+      );
       return;
     }
 
@@ -95,10 +91,10 @@ class _AgentAssignmentPageState extends State<AgentAssignmentPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: IzyTelColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.surfaceContainerLow,
-        foregroundColor: AppColors.onBackground,
+        backgroundColor: IzyTelColors.background,
+        foregroundColor: IzyTelColors.textPrimary,
         elevation: 0,
         titleSpacing: 4,
         title: const Text(
@@ -118,9 +114,9 @@ class _AgentAssignmentPageState extends State<AgentAssignmentPage> {
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
                 children: [
                   const Text(
-                    'Affecter Commande',
+                    'Affecter la commande',
                     style: TextStyle(
-                      color: AppColors.onBackground,
+                      color: IzyTelColors.textPrimary,
                       fontSize: 28,
                       fontWeight: FontWeight.w900,
                     ),
@@ -128,7 +124,7 @@ class _AgentAssignmentPageState extends State<AgentAssignmentPage> {
                   const SizedBox(height: 4),
                   const Text(
                     'Sélectionne un agent disponible et capable de traiter cette opération.',
-                    style: TextStyle(color: AppColors.onSurfaceVariant),
+                    style: TextStyle(color: IzyTelColors.textSecondary),
                   ),
                   const SizedBox(height: 22),
                   _OrderSummary(order: _viewModel.order),
@@ -139,7 +135,7 @@ class _AgentAssignmentPageState extends State<AgentAssignmentPage> {
                         child: Text(
                           'Agents compatibles',
                           style: TextStyle(
-                            color: AppColors.onBackground,
+                            color: IzyTelColors.textPrimary,
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
                           ),
@@ -151,14 +147,14 @@ class _AgentAssignmentPageState extends State<AgentAssignmentPage> {
                           vertical: 5,
                         ),
                         decoration: BoxDecoration(
-                          color: AppColors.surfaceContainerHighest,
+                          color: IzyTelColors.surfaceMuted,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.outlineVariant),
+                          border: Border.all(color: IzyTelColors.outline),
                         ),
                         child: Text(
                           '${_viewModel.assignableCount} disponibles',
                           style: const TextStyle(
-                            color: AppColors.onSurfaceVariant,
+                            color: IzyTelColors.textSecondary,
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
                           ),
@@ -202,16 +198,16 @@ class _AgentAssignmentPageState extends State<AgentAssignmentPage> {
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceContainer,
+                      color: IzyTelColors.surface,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.outlineVariant),
+                      border: Border.all(color: IzyTelColors.outline),
                     ),
                     child: const Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(
                           Icons.info_outline_rounded,
-                          color: AppColors.primaryContainer,
+                          color: IzyTelColors.primary,
                           size: 19,
                         ),
                         SizedBox(width: 10),
@@ -219,7 +215,7 @@ class _AgentAssignmentPageState extends State<AgentAssignmentPage> {
                           child: Text(
                             'La compatibilité est calculée avec la disponibilité, le réseau actif et la capacité déclarée. La commande ne contient pas encore de zone client, donc la zone n’est pas utilisée pour bloquer une affectation à ce stade.',
                             style: TextStyle(
-                              color: AppColors.onSurfaceVariant,
+                              color: IzyTelColors.textSecondary,
                               fontSize: 11,
                               height: 1.4,
                             ),
@@ -251,7 +247,7 @@ class _OrderSummary extends StatelessWidget {
         const Text(
           'Résumé de la commande',
           style: TextStyle(
-            color: AppColors.onBackground,
+            color: IzyTelColors.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w800,
           ),
@@ -287,7 +283,7 @@ class _OrderSummary extends StatelessWidget {
             icon: Icons.person_pin_circle_outlined,
             label: 'AFFECTATION ACTUELLE',
             value: order.assignedAgentName ?? 'Agent affecté',
-            accent: AppColors.warning,
+            accent: IzyTelColors.warning,
           ),
         ],
       ],
@@ -300,7 +296,7 @@ class _SummaryTile extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
-    this.accent = AppColors.primaryContainer,
+    this.accent = IzyTelColors.primary,
   });
 
   final IconData icon;
@@ -314,9 +310,16 @@ class _SummaryTile extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
+        color: IzyTelColors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outlineVariant),
+        border: Border.all(color: IzyTelColors.outline),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: IzyTelColors.shadow,
+            blurRadius: 14,
+            offset: Offset(0, 5),
+          ),
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -330,7 +333,7 @@ class _SummaryTile extends StatelessWidget {
                 Text(
                   label,
                   style: const TextStyle(
-                    color: AppColors.onSurfaceVariant,
+                    color: IzyTelColors.textSecondary,
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
                     letterSpacing: .6,
@@ -340,7 +343,7 @@ class _SummaryTile extends StatelessWidget {
                 Text(
                   value,
                   style: const TextStyle(
-                    color: AppColors.onBackground,
+                    color: IzyTelColors.textPrimary,
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
                   ),
@@ -386,12 +389,12 @@ class _AgentCandidateCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
+        color: IzyTelColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: candidate.isCurrentAssignment
-              ? AppColors.warning
-              : AppColors.outlineVariant,
+              ? IzyTelColors.warning
+              : IzyTelColors.outline,
         ),
       ),
       child: Column(
@@ -401,11 +404,11 @@ class _AgentCandidateCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 22,
-                backgroundColor: AppColors.surfaceContainerHighest,
+                backgroundColor: IzyTelColors.surfaceMuted,
                 child: Text(
                   _initials(agent.name),
                   style: const TextStyle(
-                    color: AppColors.primaryContainer,
+                    color: IzyTelColors.primary,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -418,7 +421,7 @@ class _AgentCandidateCard extends StatelessWidget {
                     Text(
                       agent.name,
                       style: const TextStyle(
-                        color: AppColors.onBackground,
+                        color: IzyTelColors.textPrimary,
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
                       ),
@@ -429,7 +432,7 @@ class _AgentCandidateCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: AppColors.onSurfaceVariant,
+                        color: IzyTelColors.textSecondary,
                         fontSize: 11,
                       ),
                     ),
@@ -440,7 +443,7 @@ class _AgentCandidateCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          Divider(color: AppColors.outlineVariant.withAlpha(120)),
+          Divider(color: IzyTelColors.outline.withAlpha(120)),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -467,7 +470,7 @@ class _AgentCandidateCard extends StatelessWidget {
               const Text(
                 'CAPACITÉ DISPONIBLE',
                 style: TextStyle(
-                  color: AppColors.onSurfaceVariant,
+                  color: IzyTelColors.textSecondary,
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
                 ),
@@ -475,7 +478,7 @@ class _AgentCandidateCard extends StatelessWidget {
               Text(
                 formatCfa(candidate.capacity),
                 style: const TextStyle(
-                  color: AppColors.onBackground,
+                  color: IzyTelColors.textPrimary,
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                 ),
@@ -488,9 +491,11 @@ class _AgentCandidateCard extends StatelessWidget {
             child: LinearProgressIndicator(
               minHeight: 6,
               value: requiredPercent / 100,
-              backgroundColor: AppColors.surfaceContainerHighest,
+              backgroundColor: IzyTelColors.surfaceMuted,
               valueColor: AlwaysStoppedAnimation<Color>(
-                candidate.capacity >= order.amount ? accent : AppColors.error,
+                candidate.capacity >= order.amount
+                    ? accent
+                    : IzyTelColors.error,
               ),
             ),
           ),
@@ -498,7 +503,7 @@ class _AgentCandidateCard extends StatelessWidget {
           Text(
             'Cette commande utilise environ $requiredPercent % de la capacité déclarée.',
             style: const TextStyle(
-              color: AppColors.onSurfaceVariant,
+              color: IzyTelColors.textSecondary,
               fontSize: 10,
             ),
           ),
@@ -538,7 +543,7 @@ class _Metric extends StatelessWidget {
   const _Metric({
     required this.label,
     required this.value,
-    this.valueColor = AppColors.onBackground,
+    this.valueColor = IzyTelColors.textPrimary,
   });
 
   final String label;
@@ -553,7 +558,7 @@ class _Metric extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            color: AppColors.onSurfaceVariant,
+            color: IzyTelColors.textSecondary,
             fontSize: 9,
             fontWeight: FontWeight.w800,
           ),
@@ -581,8 +586,8 @@ class _AvailabilityBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool available = candidate.isAssignable;
     final Color color = available
-        ? AppColors.success
-        : AppColors.onSurfaceVariant;
+        ? IzyTelColors.success
+        : IzyTelColors.textSecondary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
@@ -612,11 +617,11 @@ class _MessageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color color = isError ? AppColors.error : AppColors.primaryContainer;
+    final Color color = isError ? IzyTelColors.error : IzyTelColors.primary;
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
+        color: IzyTelColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withAlpha(90)),
       ),
@@ -631,7 +636,7 @@ class _MessageCard extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(color: AppColors.onSurfaceVariant),
+              style: const TextStyle(color: IzyTelColors.textSecondary),
             ),
           ),
         ],
@@ -654,11 +659,11 @@ String _networkLabel(MobileNetwork network) {
 Color _networkColor(MobileNetwork network) {
   switch (network) {
     case MobileNetwork.orange:
-      return AppColors.orange;
+      return IzyTelColors.orange;
     case MobileNetwork.mtn:
-      return AppColors.mtn;
+      return IzyTelColors.mtnText;
     case MobileNetwork.moov:
-      return AppColors.primaryContainer;
+      return IzyTelColors.primary;
   }
 }
 

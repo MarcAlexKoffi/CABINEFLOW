@@ -9,6 +9,7 @@ import 'package:cabine_flow/features/orders/domain/repositories/order_history_re
 import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
 import 'package:cabine_flow/features/refunds/presentation/widgets/refund_text_input_sheet.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -86,10 +87,15 @@ class _RefundManagementPageState extends State<RefundManagementPage> {
             final List<RefundCase> all = snapshot.data!;
             final List<RefundCase> visible = _filtered(all);
             final List<RefundCase> pending = all
-                .where((RefundCase value) => value.status == RefundStatus.pendingApproval)
+                .where(
+                  (RefundCase value) =>
+                      value.status == RefundStatus.pendingApproval,
+                )
                 .toList(growable: false);
             final List<RefundCase> approved = all
-                .where((RefundCase value) => value.status == RefundStatus.approved)
+                .where(
+                  (RefundCase value) => value.status == RefundStatus.approved,
+                )
                 .toList(growable: false);
             final int pendingAmount = pending.fold<int>(
               0,
@@ -115,7 +121,8 @@ class _RefundManagementPageState extends State<RefundManagementPage> {
                             child: FinancialMetricCard(
                               label: 'À valider',
                               value: '${_formatAmount(pendingAmount)} F',
-                              caption: '${pending.length} dossier${pending.length > 1 ? 's' : ''}',
+                              caption:
+                                  '${pending.length} dossier${pending.length > 1 ? 's' : ''}',
                               icon: Symbols.fact_check_rounded,
                               accent: IzyTelColors.warning,
                             ),
@@ -125,7 +132,8 @@ class _RefundManagementPageState extends State<RefundManagementPage> {
                             child: FinancialMetricCard(
                               label: 'À effectuer',
                               value: '${_formatAmount(approvedAmount)} F',
-                              caption: '${approved.length} dossier${approved.length > 1 ? 's' : ''}',
+                              caption:
+                                  '${approved.length} dossier${approved.length > 1 ? 's' : ''}',
                               icon: Symbols.currency_exchange_rounded,
                               accent: IzyTelColors.primary,
                             ),
@@ -154,14 +162,24 @@ class _RefundManagementPageState extends State<RefundManagementPage> {
                           ),
                           filled: true,
                           fillColor: IzyTelColors.surface,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                          ),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(IzyTelRadii.card),
-                            borderSide: const BorderSide(color: IzyTelColors.outline),
+                            borderRadius: BorderRadius.circular(
+                              IzyTelRadii.card,
+                            ),
+                            borderSide: const BorderSide(
+                              color: IzyTelColors.outline,
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(IzyTelRadii.card),
-                            borderSide: const BorderSide(color: IzyTelColors.outline),
+                            borderRadius: BorderRadius.circular(
+                              IzyTelRadii.card,
+                            ),
+                            borderSide: const BorderSide(
+                              color: IzyTelColors.outline,
+                            ),
                           ),
                         ),
                       ),
@@ -225,13 +243,15 @@ class _RefundManagementPageState extends State<RefundManagementPage> {
                           child: FinanceEmptyState(
                             icon: Symbols.currency_exchange_rounded,
                             title: 'Aucun remboursement',
-                            message: 'Les dossiers correspondant à ce filtre apparaîtront ici.',
+                            message:
+                                'Les dossiers correspondant à ce filtre apparaîtront ici.',
                           ),
                         )
                       : ListView.separated(
                           padding: const EdgeInsets.fromLTRB(20, 2, 20, 28),
                           itemCount: visible.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 10),
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 10),
                           itemBuilder: (BuildContext context, int index) {
                             final RefundCase refund = visible[index];
                             return _RefundCard(
@@ -409,7 +429,9 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
                               ),
                               _InfoRow(
                                 label: 'WhatsApp',
-                                value: formatIvorianPhone(refund.clientWhatsappPhone),
+                                value: formatIvorianPhone(
+                                  refund.clientWhatsappPhone,
+                                ),
                               ),
                               _InfoRow(
                                 label: 'Montant initial',
@@ -815,9 +837,7 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
   }
 
   void _showMessage(String value) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(value)));
+    IzyTelFeedback.show(context, value);
   }
 
   String _normalizeWhatsappPhone(String value) {
@@ -1192,11 +1212,7 @@ class _TimelineRow extends StatelessWidget {
                 ),
               ),
               if (showLine)
-                Container(
-                  width: 1,
-                  height: 48,
-                  color: IzyTelColors.outline,
-                ),
+                Container(width: 1, height: 48, color: IzyTelColors.outline),
             ],
           ),
         ),

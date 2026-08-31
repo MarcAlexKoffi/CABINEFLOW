@@ -15,6 +15,7 @@ import 'package:cabine_flow/features/orders/domain/repositories/order_history_re
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -50,20 +51,38 @@ class _WaveCashPageState extends State<WaveCashPage> {
 
   Stream<List<QueueOrder>> get _ordersStream {
     final OrdersRepository repository = widget.ordersRepository;
-    if (repository is OrderHistoryRepository) return (repository as OrderHistoryRepository).watchOrderHistory();
+    if (repository is OrderHistoryRepository) {
+      return (repository as OrderHistoryRepository).watchOrderHistory();
+    }
     return repository.watchPaymentTrackingOrders();
   }
 
   Future<_WavePageData> _load({WaveOpeningBalance? openingOverride}) async {
     final List<QueueOrder> orders = await _ordersStream.first;
-    final List<RefundCase> refunds = await widget.refundRepository.watchAll().first;
-    final List<CommissionPayout> payouts = await widget.commissionRepository.watchPayouts().first;
-    final List<SupplierPayment> supplierPayments = await widget.financeRepository.watchSupplierPayments().first;
-    final List<CustomerCreditSettlement> settlements = await widget.financeRepository.watchCustomerCreditSettlements().first;
-    final List<FinanceExpense> expenses = await widget.financeRepository.watchExpenses().first;
-    final WaveOpeningBalance? opening = openingOverride ??
+    final List<RefundCase> refunds = await widget.refundRepository
+        .watchAll()
+        .first;
+    final List<CommissionPayout> payouts = await widget.commissionRepository
+        .watchPayouts()
+        .first;
+    final List<SupplierPayment> supplierPayments = await widget
+        .financeRepository
+        .watchSupplierPayments()
+        .first;
+    final List<CustomerCreditSettlement> settlements = await widget
+        .financeRepository
+        .watchCustomerCreditSettlements()
+        .first;
+    final List<FinanceExpense> expenses = await widget.financeRepository
+        .watchExpenses()
+        .first;
+    final WaveOpeningBalance? opening =
+        openingOverride ??
         await widget.financeRepository.watchWaveOpeningBalance().first;
-    final List<WaveBalanceAdjustment> adjustments = await widget.financeRepository.watchWaveBalanceAdjustments().first;
+    final List<WaveBalanceAdjustment> adjustments = await widget
+        .financeRepository
+        .watchWaveBalanceAdjustments()
+        .first;
     return _WavePageData(
       opening: opening,
       adjustments: adjustments,
@@ -86,24 +105,49 @@ class _WaveCashPageState extends State<WaveCashPage> {
   }
 
   Future<void> _setOpening(_WavePageData data) async {
-    final TextEditingController amount = TextEditingController(text: '${data.snapshot.theoreticalBalance.clamp(0, 1000000000)}');
-    final TextEditingController note = TextEditingController(text: data.opening == null ? 'Initialisation de la caisse Wave' : 'Recalage du solde Wave réel');
+    final TextEditingController amount = TextEditingController(
+      text: '${data.snapshot.theoreticalBalance.clamp(0, 1000000000)}',
+    );
+    final TextEditingController note = TextEditingController(
+      text: data.opening == null
+          ? 'Initialisation de la caisse Wave'
+          : 'Recalage du solde Wave réel',
+    );
     final bool? submit = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) => AlertDialog(
         title: Text(data.opening == null ? 'Initialiser Wave' : 'Recaler Wave'),
         content: SingleChildScrollView(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('Saisis le solde réellement visible dans ta caisse Wave. Les mouvements futurs seront calculés à partir de ce point.'),
-            const SizedBox(height: 12),
-            TextField(controller: amount, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Solde Wave réel')),
-            const SizedBox(height: 10),
-            TextField(controller: note, maxLines: 2, decoration: const InputDecoration(labelText: 'Note')),
-          ]),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Saisis le solde réellement visible dans ta caisse Wave. Les mouvements futurs seront calculés à partir de ce point.',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: amount,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Solde Wave réel'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: note,
+                maxLines: 2,
+                decoration: const InputDecoration(labelText: 'Note'),
+              ),
+            ],
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Annuler')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Enregistrer')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Enregistrer'),
+          ),
         ],
       ),
     );
@@ -134,11 +178,12 @@ class _WaveCashPageState extends State<WaveCashPage> {
         confirmedOpening = await widget.financeRepository
             .watchWaveOpeningBalance()
             .firstWhere((WaveOpeningBalance? opening) {
-          if (opening == null || opening.amount != newAmount) return false;
-          if (previousOpening == null) return true;
-          return opening.effectiveAt.isAfter(previousOpening.effectiveAt) ||
-              opening.updatedAt.isAfter(previousOpening.updatedAt);
-        }).timeout(const Duration(seconds: 8));
+              if (opening == null || opening.amount != newAmount) return false;
+              if (previousOpening == null) return true;
+              return opening.effectiveAt.isAfter(previousOpening.effectiveAt) ||
+                  opening.updatedAt.isAfter(previousOpening.updatedAt);
+            })
+            .timeout(const Duration(seconds: 8));
       } on TimeoutException {
         // L'écriture a déjà été confirmée par setWaveOpeningBalance().
         // On affiche donc immédiatement le nouveau point réel, puis les
@@ -169,82 +214,262 @@ class _WaveCashPageState extends State<WaveCashPage> {
     }
   }
 
-  void _message(String text) => ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(content: Text(text)));
+  void _message(String text) => IzyTelFeedback.show(context, text);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: IzyTelColors.background,
       appBar: AppBar(
-        title: const Text('Caisse Wave', style: TextStyle(fontSize: IzyTelTypeScale.title3, fontWeight: FontWeight.w800)),
-        actions: [IconButton(onPressed: _busy ? null : _reload, tooltip: 'Actualiser', icon: const Icon(Symbols.refresh_rounded))],
+        title: const Text(
+          'Caisse Wave',
+          style: TextStyle(
+            fontSize: IzyTelTypeScale.title3,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        actions: [
+          IconButton(
+            onPressed: _busy ? null : _reload,
+            tooltip: 'Actualiser',
+            icon: const Icon(Symbols.refresh_rounded),
+          ),
+        ],
       ),
       body: FutureBuilder<_WavePageData>(
         future: _future,
         builder: (BuildContext context, AsyncSnapshot<_WavePageData> snapshot) {
-          if (!snapshot.hasData && snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-          if (snapshot.hasError) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('Impossible de calculer la caisse Wave : ${snapshot.error}', textAlign: TextAlign.center)));
+          if (!snapshot.hasData &&
+              snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'Impossible de calculer la caisse Wave : ${snapshot.error}',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          }
           final _WavePageData data = snapshot.data!;
           final WaveCashSnapshot cash = data.snapshot;
-          return ListView(padding: const EdgeInsets.all(20), children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: IzyTelColors.primary, borderRadius: BorderRadius.circular(IzyTelRadii.largeCard)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Solde théorique Wave', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 5),
-                Text(formatCfaFull(cash.theoreticalBalance), style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900)),
-                const SizedBox(height: 8),
-                Text(cash.hasOpeningBalance ? 'Calculé depuis ${financeDateTime(cash.effectiveAt)}' : 'Aucun solde d’ouverture : calcul depuis l’historique disponible', style: const TextStyle(color: Colors.white70, fontSize: 11)),
-              ]),
-            ),
-            const SizedBox(height: 14),
-            SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _busy ? null : () => _setOpening(data), icon: const Icon(Symbols.tune_rounded), label: Text(cash.hasOpeningBalance ? 'Recaler avec le solde réel' : 'Initialiser le solde Wave'))),
-            const SizedBox(height: 20),
-            const Text('Entrées Wave', style: TextStyle(fontWeight: FontWeight.w800, color: IzyTelColors.textPrimary)),
-            const SizedBox(height: 9),
-            _FlowRow(label: 'Solde d’ouverture', amount: cash.openingBalance, icon: Symbols.flag_rounded),
-            _FlowRow(label: 'Paiements clients', amount: cash.clientPayments, icon: Symbols.call_received_rounded, positive: true),
-            _FlowRow(label: 'Règlements de crédits', amount: cash.creditSettlements, icon: Symbols.savings_rounded, positive: true),
-            const SizedBox(height: 18),
-            const Text('Sorties Wave', style: TextStyle(fontWeight: FontWeight.w800, color: IzyTelColors.textPrimary)),
-            const SizedBox(height: 9),
-            _FlowRow(label: 'Paiements fournisseurs', amount: cash.supplierPayments, icon: Symbols.inventory_2_rounded, outgoing: true),
-            _FlowRow(label: 'Remboursements clients', amount: cash.refunds, icon: Symbols.currency_exchange_rounded, outgoing: true),
-            _FlowRow(label: 'Dépenses', amount: cash.expenses, icon: Symbols.receipt_long_rounded, outgoing: true),
-            _FlowRow(label: 'Commissions Agents', amount: cash.commissionPayouts, icon: Symbols.payments_rounded, outgoing: true),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(13),
-              decoration: BoxDecoration(color: IzyTelColors.surface, borderRadius: BorderRadius.circular(IzyTelRadii.card), border: Border.all(color: IzyTelColors.outline)),
-              child: Text('Formule : ouverture + paiements clients + règlements crédits - fournisseurs - remboursements - dépenses - commissions. Les paiements en espèces/banque ne modifient pas Wave.', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: IzyTelColors.textSecondary, height: 1.4)),
-            ),
-            const SizedBox(height: 22),
-            const Text('Historique des recalages', style: TextStyle(fontWeight: FontWeight.w800, color: IzyTelColors.textPrimary)),
-            const SizedBox(height: 9),
-            if (data.adjustments.isEmpty)
-              const FinanceEmptyState(icon: Symbols.history_rounded, title: 'Aucun recalage', message: 'Chaque initialisation ou recalage du solde Wave sera conservé ici.')
-            else
-              ...data.adjustments.take(30).map((WaveBalanceAdjustment adjustment) => Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: IzyTelColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: IzyTelColors.outline)),
-                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Icon(Symbols.tune_rounded, color: IzyTelColors.wave, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('${formatCfa(adjustment.previousOpeningBalance)} → ${formatCfa(adjustment.openingBalance)}', style: const TextStyle(fontWeight: FontWeight.w800, color: IzyTelColors.textPrimary)),
-                    const SizedBox(height: 2),
-                    Text('${financeDateTime(adjustment.effectiveAt)} · ${adjustment.createdByName}', style: const TextStyle(fontSize: 10.5, color: IzyTelColors.textMuted)),
-                    if (adjustment.note?.trim().isNotEmpty == true) ...[
-                      const SizedBox(height: 3),
-                      Text(adjustment.note!, style: const TextStyle(fontSize: 11, color: IzyTelColors.textSecondary)),
-                    ],
-                  ])),
-                  Text('${adjustment.difference >= 0 ? '+' : ''}${formatCfa(adjustment.difference)}', style: TextStyle(fontWeight: FontWeight.w800, color: adjustment.difference == 0 ? IzyTelColors.textMuted : IzyTelColors.warning)),
-                ]),
-              )),
-          ]);
+          return ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: IzyTelColors.primary,
+                  borderRadius: BorderRadius.circular(IzyTelRadii.largeCard),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Solde théorique Wave',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      formatCfaFull(cash.theoreticalBalance),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      cash.hasOpeningBalance
+                          ? 'Calculé depuis ${financeDateTime(cash.effectiveAt)}'
+                          : 'Aucun solde d’ouverture : calcul depuis l’historique disponible',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _busy ? null : () => _setOpening(data),
+                  icon: const Icon(Symbols.tune_rounded),
+                  label: Text(
+                    cash.hasOpeningBalance
+                        ? 'Recaler avec le solde réel'
+                        : 'Initialiser le solde Wave',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Entrées Wave',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: IzyTelColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 9),
+              _FlowRow(
+                label: 'Solde d’ouverture',
+                amount: cash.openingBalance,
+                icon: Symbols.flag_rounded,
+              ),
+              _FlowRow(
+                label: 'Paiements clients',
+                amount: cash.clientPayments,
+                icon: Symbols.call_received_rounded,
+                positive: true,
+              ),
+              _FlowRow(
+                label: 'Règlements de crédits',
+                amount: cash.creditSettlements,
+                icon: Symbols.savings_rounded,
+                positive: true,
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Sorties Wave',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: IzyTelColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 9),
+              _FlowRow(
+                label: 'Paiements fournisseurs',
+                amount: cash.supplierPayments,
+                icon: Symbols.inventory_2_rounded,
+                outgoing: true,
+              ),
+              _FlowRow(
+                label: 'Remboursements clients',
+                amount: cash.refunds,
+                icon: Symbols.currency_exchange_rounded,
+                outgoing: true,
+              ),
+              _FlowRow(
+                label: 'Dépenses',
+                amount: cash.expenses,
+                icon: Symbols.receipt_long_rounded,
+                outgoing: true,
+              ),
+              _FlowRow(
+                label: 'Commissions Agents',
+                amount: cash.commissionPayouts,
+                icon: Symbols.payments_rounded,
+                outgoing: true,
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(13),
+                decoration: BoxDecoration(
+                  color: IzyTelColors.surface,
+                  borderRadius: BorderRadius.circular(IzyTelRadii.card),
+                  border: Border.all(color: IzyTelColors.outline),
+                ),
+                child: Text(
+                  'Formule : ouverture + paiements clients + règlements crédits - fournisseurs - remboursements - dépenses - commissions. Les paiements en espèces/banque ne modifient pas Wave.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: IzyTelColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 22),
+              const Text(
+                'Historique des recalages',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: IzyTelColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 9),
+              if (data.adjustments.isEmpty)
+                const FinanceEmptyState(
+                  icon: Symbols.history_rounded,
+                  title: 'Aucun recalage',
+                  message:
+                      'Chaque initialisation ou recalage du solde Wave sera conservé ici.',
+                )
+              else
+                ...data.adjustments
+                    .take(30)
+                    .map(
+                      (WaveBalanceAdjustment adjustment) => Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: IzyTelColors.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: IzyTelColors.outline),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Symbols.tune_rounded,
+                              color: IzyTelColors.wave,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${formatCfa(adjustment.previousOpeningBalance)} → ${formatCfa(adjustment.openingBalance)}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      color: IzyTelColors.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${financeDateTime(adjustment.effectiveAt)} · ${adjustment.createdByName}',
+                                    style: const TextStyle(
+                                      fontSize: 10.5,
+                                      color: IzyTelColors.textMuted,
+                                    ),
+                                  ),
+                                  if (adjustment.note?.trim().isNotEmpty ==
+                                      true) ...[
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      adjustment.note!,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: IzyTelColors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            Text(
+                              '${adjustment.difference >= 0 ? '+' : ''}${formatCfa(adjustment.difference)}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: adjustment.difference == 0
+                                    ? IzyTelColors.textMuted
+                                    : IzyTelColors.warning,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+            ],
+          );
         },
       ),
     );
@@ -252,14 +477,24 @@ class _WaveCashPageState extends State<WaveCashPage> {
 }
 
 class _WavePageData {
-  const _WavePageData({required this.opening, required this.adjustments, required this.snapshot});
+  const _WavePageData({
+    required this.opening,
+    required this.adjustments,
+    required this.snapshot,
+  });
   final WaveOpeningBalance? opening;
   final List<WaveBalanceAdjustment> adjustments;
   final WaveCashSnapshot snapshot;
 }
 
 class _FlowRow extends StatelessWidget {
-  const _FlowRow({required this.label, required this.amount, required this.icon, this.positive = false, this.outgoing = false});
+  const _FlowRow({
+    required this.label,
+    required this.amount,
+    required this.icon,
+    this.positive = false,
+    this.outgoing = false,
+  });
   final String label;
   final int amount;
   final IconData icon;
@@ -267,18 +502,37 @@ class _FlowRow extends StatelessWidget {
   final bool outgoing;
   @override
   Widget build(BuildContext context) {
-    final Color accent = outgoing ? IzyTelColors.warning : (positive ? IzyTelColors.success : IzyTelColors.primary);
+    final Color accent = outgoing
+        ? IzyTelColors.warning
+        : (positive ? IzyTelColors.success : IzyTelColors.primary);
     final String prefix = outgoing ? '-' : (positive ? '+' : '');
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: IzyTelColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: IzyTelColors.outline)),
-      child: Row(children: [
-        Icon(icon, color: accent, size: 20),
-        const SizedBox(width: 10),
-        Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, color: IzyTelColors.textSecondary))),
-        Text('$prefix${formatCfa(amount)}', style: TextStyle(fontWeight: FontWeight.w800, color: accent)),
-      ]),
+      decoration: BoxDecoration(
+        color: IzyTelColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: IzyTelColors.outline),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: accent, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: IzyTelColors.textSecondary,
+              ),
+            ),
+          ),
+          Text(
+            '$prefix${formatCfa(amount)}',
+            style: TextStyle(fontWeight: FontWeight.w800, color: accent),
+          ),
+        ],
+      ),
     );
   }
 }

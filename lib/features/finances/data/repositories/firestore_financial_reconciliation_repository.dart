@@ -9,7 +9,8 @@ class FirestoreFinancialReconciliationRepository
     implements FinancialReconciliationRepository {
   FirestoreFinancialReconciliationRepository({
     FirebaseFirestore? firestore,
-    FinancialReconciliationEngine engine = const FinancialReconciliationEngine(),
+    FinancialReconciliationEngine engine =
+        const FinancialReconciliationEngine(),
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
        _engine = engine;
 
@@ -47,12 +48,14 @@ class FirestoreFinancialReconciliationRepository
         await Future.wait<QuerySnapshot<Map<String, dynamic>>>(reads);
 
     final QuerySnapshot<Map<String, dynamic>> ordersSnapshot = snapshots[0];
-    final QuerySnapshot<Map<String, dynamic>> assignmentsSnapshot = snapshots[1];
+    final QuerySnapshot<Map<String, dynamic>> assignmentsSnapshot =
+        snapshots[1];
     final QuerySnapshot<Map<String, dynamic>> usersSnapshot = snapshots[2];
     final QuerySnapshot<Map<String, dynamic>> eventsSnapshot = snapshots[3];
     final QuerySnapshot<Map<String, dynamic>> proofsSnapshot = snapshots[4];
     final QuerySnapshot<Map<String, dynamic>> movementsSnapshot = snapshots[5];
-    final QuerySnapshot<Map<String, dynamic>> commissionsSnapshot = snapshots[6];
+    final QuerySnapshot<Map<String, dynamic>> commissionsSnapshot =
+        snapshots[6];
     final QuerySnapshot<Map<String, dynamic>> refundsSnapshot = snapshots[7];
     final QuerySnapshot<Map<String, dynamic>> creditsSnapshot = snapshots[8];
 
@@ -63,8 +66,8 @@ class FirestoreFinancialReconciliationRepository
         )
         .toList(growable: false);
 
-    final Map<String, List<ReconciliationAssignmentEvidence>> assignmentsByOrder =
-        <String, List<ReconciliationAssignmentEvidence>>{};
+    final Map<String, List<ReconciliationAssignmentEvidence>>
+    assignmentsByOrder = <String, List<ReconciliationAssignmentEvidence>>{};
     for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
         in assignmentsSnapshot.docs) {
       final Map<String, dynamic> data = doc.data();
@@ -106,8 +109,7 @@ class FirestoreFinancialReconciliationRepository
         .toSet();
 
     final Map<String, ReconciliationNetworkMovementEvidence>
-        networkMovementsByOrder =
-        <String, ReconciliationNetworkMovementEvidence>{};
+    networkMovementsByOrder = <String, ReconciliationNetworkMovementEvidence>{};
     DateTime? networkCoverageStart;
     for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
         in movementsSnapshot.docs) {
@@ -156,7 +158,8 @@ class FirestoreFinancialReconciliationRepository
         orderId: orderId,
         amount: _int(data['amount']),
         status: _string(data['status']),
-        updatedAt: _date(data['updatedAt']) ??
+        updatedAt:
+            _date(data['updatedAt']) ??
             _date(data['reconciledAt']) ??
             _date(data['refundedAt']) ??
             _date(data['requestedAt']),

@@ -214,7 +214,8 @@ class FirestoreAgentRepository implements AgentRepository {
     final DocumentReference<Map<String, dynamic>> profileRef = _profiles.doc(
       agent.userId,
     );
-    final String actorId = (FirebaseAuth.instance.currentUser?.uid ?? '').trim();
+    final String actorId = (FirebaseAuth.instance.currentUser?.uid ?? '')
+        .trim();
     if (actorId.isEmpty) {
       throw StateError('Session administrateur introuvable.');
     }
@@ -330,8 +331,8 @@ class FirestoreAgentRepository implements AgentRepository {
     };
 
     await _firestore.runTransaction((Transaction transaction) async {
-      final DocumentSnapshot<Map<String, dynamic>> snapshot =
-          await transaction.get(ref);
+      final DocumentSnapshot<Map<String, dynamic>> snapshot = await transaction
+          .get(ref);
       if (!snapshot.exists || snapshot.data() == null) {
         throw StateError('Ton profil agent n’est pas encore configuré.');
       }

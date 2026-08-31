@@ -1,4 +1,5 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
@@ -47,8 +48,10 @@ class _RefundCreationSheetState extends State<RefundCreationSheet> {
       duration: const Duration(milliseconds: 180),
       padding: EdgeInsets.only(bottom: bottomInset),
       child: Material(
-        color: AppColors.surfaceContainer,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        color: IzyTelColors.surface,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(IzyTelRadii.sheet),
+        ),
         child: SafeArea(
           top: false,
           child: SingleChildScrollView(
@@ -63,7 +66,7 @@ class _RefundCreationSheetState extends State<RefundCreationSheet> {
                     width: 42,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: AppColors.outline.withAlpha(90),
+                      color: IzyTelColors.outlineStrong.withAlpha(90),
                       borderRadius: BorderRadius.circular(99),
                     ),
                   ),
@@ -72,7 +75,7 @@ class _RefundCreationSheetState extends State<RefundCreationSheet> {
                 const Text(
                   'Créer un remboursement',
                   style: TextStyle(
-                    color: AppColors.onBackground,
+                    color: IzyTelColors.textPrimary,
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
                   ),
@@ -81,7 +84,7 @@ class _RefundCreationSheetState extends State<RefundCreationSheet> {
                 Text(
                   'Commande ${widget.order.reference} · ${_formatAmount(widget.order.amount)} F',
                   style: const TextStyle(
-                    color: AppColors.onSurfaceVariant,
+                    color: IzyTelColors.textSecondary,
                     fontSize: 12,
                   ),
                 ),
@@ -94,7 +97,7 @@ class _RefundCreationSheetState extends State<RefundCreationSheet> {
                     inputFormatters: <TextInputFormatter>[
                       FilteringTextInputFormatter.digitsOnly,
                     ],
-                    style: const TextStyle(color: AppColors.inputText),
+                    style: const TextStyle(color: IzyTelColors.textPrimary),
                     decoration: _inputDecoration('Ex. ${widget.order.amount}'),
                   ),
                 ),
@@ -103,8 +106,8 @@ class _RefundCreationSheetState extends State<RefundCreationSheet> {
                   label: 'Raison du remboursement',
                   child: DropdownButtonFormField<RefundReason>(
                     initialValue: _reason,
-                    dropdownColor: AppColors.inputBackground,
-                    style: const TextStyle(color: AppColors.inputText),
+                    dropdownColor: IzyTelColors.surfaceMuted,
+                    style: const TextStyle(color: IzyTelColors.textPrimary),
                     decoration: _inputDecoration('Choisir une raison'),
                     items: RefundReason.values
                         .map(
@@ -134,7 +137,7 @@ class _RefundCreationSheetState extends State<RefundCreationSheet> {
                     minLines: 2,
                     maxLines: 4,
                     maxLength: 500,
-                    style: const TextStyle(color: AppColors.inputText),
+                    style: const TextStyle(color: IzyTelColors.textPrimary),
                     decoration: _inputDecoration(
                       'Ajoutez une précision utile pour l’audit.',
                     ),
@@ -145,7 +148,7 @@ class _RefundCreationSheetState extends State<RefundCreationSheet> {
                   Text(
                     _errorMessage!,
                     style: const TextStyle(
-                      color: AppColors.error,
+                      color: IzyTelColors.error,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -155,14 +158,16 @@ class _RefundCreationSheetState extends State<RefundCreationSheet> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withAlpha(22),
+                    color: IzyTelColors.primarySoft,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.primary.withAlpha(70)),
+                    border: Border.all(
+                      color: IzyTelColors.primary.withAlpha(60),
+                    ),
                   ),
                   child: const Text(
                     'Créer ce dossier ne rembourse pas automatiquement le client. Après approbation, le remboursement sera effectué manuellement via Wave puis sa référence sera enregistrée dans IzyTel.',
                     style: TextStyle(
-                      color: AppColors.onSurfaceVariant,
+                      color: IzyTelColors.textSecondary,
                       fontSize: 11,
                       height: 1.4,
                     ),
@@ -242,19 +247,19 @@ class _RefundCreationSheetState extends State<RefundCreationSheet> {
     return InputDecoration(
       hintText: hint,
       filled: true,
-      fillColor: AppColors.inputBackground,
-      hintStyle: const TextStyle(color: AppColors.inputHint),
+      fillColor: IzyTelColors.surfaceMuted,
+      hintStyle: const TextStyle(color: IzyTelColors.textMuted),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: AppColors.outline.withAlpha(60)),
+        borderSide: BorderSide(color: IzyTelColors.outlineStrong),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
+        borderSide: const BorderSide(color: IzyTelColors.primary, width: 1.4),
       ),
     );
   }
@@ -274,7 +279,7 @@ class _LabelledField extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            color: AppColors.onBackground,
+            color: IzyTelColors.textPrimary,
             fontSize: 12,
             fontWeight: FontWeight.w700,
           ),

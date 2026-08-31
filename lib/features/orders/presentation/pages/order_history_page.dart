@@ -8,6 +8,7 @@ import 'package:cabine_flow/features/orders/domain/repositories/order_history_re
 import 'package:cabine_flow/features/orders/presentation/view_models/order_history_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -274,9 +275,7 @@ class _FilterButton extends StatelessWidget {
         width: 54,
         height: 52,
         child: Material(
-          color: count > 0
-              ? IzyTelColors.primarySoft
-              : IzyTelColors.surface,
+          color: count > 0 ? IzyTelColors.primarySoft : IzyTelColors.surface,
           borderRadius: BorderRadius.circular(IzyTelRadii.input),
           child: InkWell(
             onTap: onTap,
@@ -419,137 +418,139 @@ class _OrderHistoryCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(17, 13, 13, 12),
             child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      _NetworkLogo(network: order.network),
-                      const SizedBox(width: 9),
-                      Expanded(
-                        child: Text(
-                          networkLabel(order.network),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            color: IzyTelColors.textPrimary,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      _HistoryStatusPill(
-                        label: _compactStatusLabel(order.status),
-                        color: statusColor,
-                        icon: _statusIcon(order.status),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    order.offerLabel.trim().isEmpty
-                        ? operationTypeLabel(order.operationType)
-                        : order.offerLabel,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: IzyTelColors.textPrimary,
-                      fontSize: IzyTelTypeScale.cardTitle,
-                      fontWeight: FontWeight.w800,
-                      height: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 9),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Symbols.phone_iphone_rounded,
-                        size: 18,
-                        color: IzyTelColors.textMuted,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          formatIvorianPhone(order.beneficiaryPhone),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: IzyTelColors.textPrimary,
-                            fontSize: IzyTelTypeScale.transactionNumber,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: .1,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        formatCfa(order.amount),
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _NetworkLogo(network: order.network),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Text(
+                        networkLabel(order.network),
                         maxLines: 1,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: IzyTelColors.primaryStrong,
-                          fontSize: IzyTelTypeScale.money,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: IzyTelColors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _HistoryStatusPill(
+                      label: _compactStatusLabel(order.status),
+                      color: statusColor,
+                      icon: _statusIcon(order.status),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  order.offerLabel.trim().isEmpty
+                      ? operationTypeLabel(order.operationType)
+                      : order.offerLabel,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: IzyTelColors.textPrimary,
+                    fontSize: IzyTelTypeScale.cardTitle,
+                    fontWeight: FontWeight.w800,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 9),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Symbols.phone_iphone_rounded,
+                      size: 18,
+                      color: IzyTelColors.textMuted,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        formatIvorianPhone(order.beneficiaryPhone),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: IzyTelColors.textPrimary,
+                          fontSize: IzyTelTypeScale.transactionNumber,
                           fontWeight: FontWeight.w800,
+                          letterSpacing: .1,
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  const Divider(height: 1),
-                  const SizedBox(height: 9),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              order.clientName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                color: IzyTelColors.textPrimary,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${formatOrderDateTime(order.createdAt)} · $operatorLabel',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                color: IzyTelColors.textMuted,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      formatCfa(order.amount),
+                      maxLines: 1,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: IzyTelColors.primaryStrong,
+                        fontSize: IzyTelTypeScale.money,
+                        fontWeight: FontWeight.w800,
                       ),
-                      const SizedBox(width: 8),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 108),
-                        child: Text(
-                          order.reference,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: IzyTelColors.textMuted,
-                            fontWeight: FontWeight.w600,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const Divider(height: 1),
+                const SizedBox(height: 9),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            order.clientName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelLarge
+                                ?.copyWith(
+                                  color: IzyTelColors.textPrimary,
+                                  fontWeight: FontWeight.w700,
+                                ),
                           ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${formatOrderDateTime(order.createdAt)} · $operatorLabel',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: IzyTelColors.textMuted,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 108),
+                      child: Text(
+                        order.reference,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: IzyTelColors.textMuted,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(width: 2),
-                      const Icon(
-                        Symbols.chevron_right_rounded,
-                        color: IzyTelColors.textMuted,
-                        size: 19,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                    const SizedBox(width: 2),
+                    const Icon(
+                      Symbols.chevron_right_rounded,
+                      color: IzyTelColors.textMuted,
+                      size: 19,
+                    ),
+                  ],
+                ),
+              ],
             ),
+          ),
         ],
       ),
     );
@@ -760,11 +761,7 @@ class _FilterSummaryChip extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
               child: Padding(
                 padding: const EdgeInsets.all(2),
-                child: Icon(
-                  Symbols.close_rounded,
-                  size: 14,
-                  color: accent,
-                ),
+                child: Icon(Symbols.close_rounded, size: 14, color: accent),
               ),
             ),
           ],
@@ -931,13 +928,11 @@ class _OrderHistoryFilterSheetState extends State<_OrderHistoryFilterSheet> {
     );
 
     if (minimum != null && maximum != null && minimum > maximum) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('Le montant minimum dépasse le montant maximum.'),
-          ),
-        );
+      IzyTelFeedback.show(
+        context,
+        'Le montant minimum dépasse le montant maximum.',
+        tone: IzyTelFeedbackTone.warning,
+      );
       return;
     }
 
@@ -999,17 +994,17 @@ class _OrderHistoryFilterSheetState extends State<_OrderHistoryFilterSheet> {
                         children: [
                           Text(
                             'Filtres de l’historique',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: IzyTelColors.textPrimary,
-                              fontWeight: FontWeight.w800,
-                            ),
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: IzyTelColors.textPrimary,
+                                  fontWeight: FontWeight.w800,
+                                ),
                           ),
                           const SizedBox(height: 3),
                           Text(
                             'Affiner les résultats sans perdre ta recherche.',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: IzyTelColors.textSecondary,
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: IzyTelColors.textSecondary),
                           ),
                         ],
                       ),

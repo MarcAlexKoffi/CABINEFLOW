@@ -1,10 +1,12 @@
 import 'package:cabine_flow/app/app_routes.dart';
+import 'package:cabine_flow/core/services/session_preferences.dart';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:cabine_flow/features/auth/presentation/view_models/login_view_model.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_brand.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -30,6 +32,7 @@ class _LoginPageState extends State<LoginPage> {
   void initState() {
     super.initState();
     _viewModel = LoginViewModel(authRepository: widget.authRepository);
+    _restoreRememberedPreference();
   }
 
   @override
@@ -38,6 +41,30 @@ class _LoginPageState extends State<LoginPage> {
     _passwordController.dispose();
     _viewModel.dispose();
     super.dispose();
+  }
+
+  Future<void> _restoreRememberedPreference() async {
+    final RememberedSessionPreference preference =
+        await SessionPreferences.load();
+    if (!mounted) return;
+    setState(() {
+      _rememberMe = preference.rememberMe;
+      if (_identifierController.text.trim().isEmpty &&
+          preference.email.isNotEmpty) {
+        _identifierController.text = preference.email;
+      }
+    });
+  }
+
+  Future<void> _persistRememberedPreference() async {
+    if (_rememberMe) {
+      await SessionPreferences.save(
+        rememberMe: true,
+        email: _identifierController.text,
+      );
+    } else {
+      await SessionPreferences.clear();
+    }
   }
 
   String? _validateIdentifier(String? value) {
@@ -71,6 +98,8 @@ class _LoginPageState extends State<LoginPage> {
     if (!mounted || result == null) return;
 
     if (result.isAuthenticated && result.user != null) {
+      await _persistRememberedPreference();
+      if (!mounted) return;
       Navigator.of(
         context,
       ).pushReplacementNamed(AppRoutes.dashboard, arguments: result.user);
@@ -78,6 +107,8 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     if (result.requiresAccessScreen) {
+      await _persistRememberedPreference();
+      if (!mounted) return;
       Navigator.of(
         context,
       ).pushReplacementNamed(AppRoutes.pendingAccount, arguments: result);
@@ -85,25 +116,17 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _showForgotPasswordMessage() {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Demande à l’administrateur de réinitialiser ton mot de passe.',
-          ),
-        ),
-      );
+    IzyTelFeedback.show(
+      context,
+      'Demande à l’administrateur de réinitialiser ton mot de passe.',
+    );
   }
 
   void _showGoogleMessage() {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text('La connexion Google sera activée prochainement.'),
-        ),
-      );
+    IzyTelFeedback.show(
+      context,
+      'La connexion Google sera activée prochainement.',
+    );
   }
 
   @override

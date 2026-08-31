@@ -24,12 +24,11 @@ class FakeNetworkFinanceRepository implements NetworkFinanceRepository {
   Future<void> dispose() => _controller.close();
 
   List<NetworkTransaction> _snapshot() {
-    final List<NetworkTransaction> values = List<NetworkTransaction>.from(
-      _transactions,
-    )..sort(
-        (NetworkTransaction a, NetworkTransaction b) =>
-            b.createdAt.compareTo(a.createdAt),
-      );
+    final List<NetworkTransaction> values =
+        List<NetworkTransaction>.from(_transactions)..sort(
+          (NetworkTransaction a, NetworkTransaction b) =>
+              b.createdAt.compareTo(a.createdAt),
+        );
     return List<NetworkTransaction>.unmodifiable(values);
   }
 }

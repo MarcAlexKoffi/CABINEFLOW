@@ -1,17 +1,13 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:cabine_flow/app/app_routes.dart';
-import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/services/session_preferences.dart';
+import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:flutter/material.dart';
-import 'package:material_symbols_icons/symbols.dart';
 
 class SplashPage extends StatefulWidget {
-  const SplashPage({
-    super.key,
-    required this.authRepository,
-  });
+  const SplashPage({super.key, required this.authRepository});
 
   final AuthRepository authRepository;
 
@@ -21,182 +17,215 @@ class SplashPage extends StatefulWidget {
 
 class _SplashPageState extends State<SplashPage>
     with SingleTickerProviderStateMixin {
-  Timer? _timer;
   late final AnimationController _controller;
+  late final Animation<double> _fade;
+  late final Animation<double> _scale;
+  bool _routing = false;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    )..repeat(reverse: true);
-    _timer = Timer(const Duration(milliseconds: 2100), _goToLogin);
+      duration: const Duration(milliseconds: 1500),
+    )..forward();
+    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
+    _scale = Tween<double>(
+      begin: .94,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+    unawaited(_resolveDestination());
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
-  void _goToLogin() {
+  Future<void> _resolveDestination() async {
+    if (_routing) return;
+    _routing = true;
+
+    final Future<void> minimumDisplay = Future<void>.delayed(
+      const Duration(milliseconds: 1850),
+    );
+    final RememberedSessionPreference preference =
+        await SessionPreferences.load();
+
+    AuthLoginResult? access;
+    if (preference.rememberMe) {
+      access = await widget.authRepository.refreshCurrentAccess();
+    } else {
+      // Firebase Auth conserve nativement une session entre deux lancements.
+      // Si l'utilisateur n'a pas demandé à être mémorisé, on la ferme au
+      // prochain démarrage afin que la case ait un comportement réel.
+      try {
+        await widget.authRepository.logout();
+      } catch (_) {
+        // Une déconnexion réseau ne doit pas bloquer l'écran de connexion.
+      }
+    }
+
+    await minimumDisplay;
     if (!mounted) return;
+
+    if (preference.rememberMe && access?.isAuthenticated == true) {
+      Navigator.of(
+        context,
+      ).pushReplacementNamed(AppRoutes.dashboard, arguments: access!.user);
+      return;
+    }
+
+    if (preference.rememberMe && access?.requiresAccessScreen == true) {
+      Navigator.of(
+        context,
+      ).pushReplacementNamed(AppRoutes.pendingAccount, arguments: access);
+      return;
+    }
+
     Navigator.of(context).pushReplacementNamed(AppRoutes.login);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: IzyTelColors.background,
-      body: AnimatedBuilder(
-        animation: _controller,
-        builder: (BuildContext context, Widget? child) {
-          final double pulse = 1 + (_controller.value * .018);
-          final double offset = (_controller.value - .5) * 10;
-
-          return LayoutBuilder(
+      backgroundColor: const Color(0xFF1747D1),
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: <Color>[
+              Color(0xFF0A2D91),
+              Color(0xFF245BE5),
+              Color(0xFF2E63EB),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
-              final bool compact =
-                  constraints.maxWidth < 370 || constraints.maxHeight < 760;
-              final double availableWidth = math.max(
-                0.0,
-                constraints.maxWidth - 52,
-              );
-              final double illustrationSize = math.min(
-                availableWidth,
-                compact ? 218.0 : 292.0,
-              );
-              final double logoSize = compact ? 58.0 : 68.0;
+              final bool compact = constraints.maxHeight < 720;
+              final double illustrationHeight = (constraints.maxHeight * .56)
+                  .clamp(compact ? 300.0 : 350.0, 520.0);
 
               return Stack(
-                children: [
-                  Positioned(
-                    top: -110,
-                    right: -40,
-                    child: _GlowOrb(
-                      size: 260,
-                      color: IzyTelColors.primary.withAlpha(26),
-                    ),
+                children: <Widget>[
+                  const Positioned(
+                    top: -130,
+                    right: -100,
+                    child: _BlueGlow(size: 330, opacity: .20),
                   ),
-                  Positioned(
-                    left: -90,
-                    bottom: 90,
-                    child: _GlowOrb(
-                      size: 220,
-                      color: IzyTelColors.success.withAlpha(18),
-                    ),
+                  const Positioned(
+                    left: -120,
+                    bottom: 40,
+                    child: _BlueGlow(size: 300, opacity: .15),
                   ),
-                  SafeArea(
-                    child: SingleChildScrollView(
-                      physics: const ClampingScrollPhysics(),
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: math.max(
-                            0.0,
-                            constraints.maxHeight -
-                                MediaQuery.paddingOf(context).vertical,
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      24,
+                      compact ? 18 : 28,
+                      24,
+                      compact ? 22 : 30,
+                    ),
+                    child: Column(
+                      children: <Widget>[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            Container(
+                              width: 34,
+                              height: 34,
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withAlpha(28),
+                                borderRadius: BorderRadius.circular(11),
+                                border: Border.all(
+                                  color: Colors.white.withAlpha(42),
+                                ),
+                              ),
+                              child: Image.asset(
+                                'assets/images/izyTel_logo.png',
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            const Text(
+                              'IzyTel',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        FadeTransition(
+                          opacity: _fade,
+                          child: ScaleTransition(
+                            scale: _scale,
+                            child: SizedBox(
+                              height: illustrationHeight,
+                              width: double.infinity,
+                              child: Image.asset(
+                                'assets/images/New_splash_illustration.png',
+                                fit: BoxFit.contain,
+                                filterQuality: FilterQuality.high,
+                              ),
+                            ),
                           ),
                         ),
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            26,
-                            compact ? 16 : 24,
-                            26,
-                            compact ? 18 : 26,
-                          ),
+                        const Spacer(),
+                        FadeTransition(
+                          opacity: _fade,
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _TopBadge(compact: compact),
-                              SizedBox(height: compact ? 20 : 34),
-                              Transform.translate(
-                                offset: Offset(0, offset),
-                                child: Transform.scale(
-                                  scale: pulse,
-                                  child: _IllustrationCard(
-                                    size: illustrationSize,
-                                    showBadges: !compact,
+                            children: <Widget>[
+                              Text(
+                                'Simple. Rapide. Izy.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: compact ? 23 : 27,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -.45,
+                                ),
+                              ),
+                              const SizedBox(height: 7),
+                              Text(
+                                'Vos opérations télécom, réunies au même endroit.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.white.withAlpha(205),
+                                  fontSize: compact ? 12.5 : 14,
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.35,
+                                ),
+                              ),
+                              SizedBox(height: compact ? 20 : 26),
+                              SizedBox(
+                                width: 42,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(999),
+                                  child: LinearProgressIndicator(
+                                    minHeight: 3.5,
+                                    backgroundColor: Colors.white.withAlpha(45),
+                                    color: Colors.white,
                                   ),
                                 ),
                               ),
-                              SizedBox(height: compact ? 18 : 28),
-                              _BrandBlock(
-                                logoSize: logoSize,
-                                compact: compact,
-                              ),
-                              SizedBox(height: compact ? 22 : 34),
-                              const _LoadingBlock(),
                             ],
                           ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                 ],
               );
             },
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _TopBadge extends StatelessWidget {
-  const _TopBadge({required this.compact});
-
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 300),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-            color: Colors.white.withAlpha(218),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: IzyTelColors.primary.withAlpha(26)),
-            boxShadow: const [
-              BoxShadow(
-                color: IzyTelColors.shadow,
-                blurRadius: 18,
-                offset: Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: IzyTelColors.primarySoft,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Symbols.bolt_rounded,
-                  color: IzyTelColors.primary,
-                  size: 18,
-                ),
-              ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Text(
-                  compact ? 'Espace opérateur IzyTel' : 'Plateforme opérateur IzyTel',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: IzyTelColors.textPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
           ),
         ),
       ),
@@ -204,206 +233,11 @@ class _TopBadge extends StatelessWidget {
   }
 }
 
-class _IllustrationCard extends StatelessWidget {
-  const _IllustrationCard({required this.size, required this.showBadges});
+class _BlueGlow extends StatelessWidget {
+  const _BlueGlow({required this.size, required this.opacity});
 
   final double size;
-  final bool showBadges;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox.square(
-      dimension: size,
-      child: Container(
-        padding: EdgeInsets.all(size < 240 ? 12 : 18),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.white, Color(0xFFF5F8FF)],
-          ),
-          borderRadius: BorderRadius.circular(size < 240 ? 28 : 34),
-          boxShadow: [
-            BoxShadow(
-              color: IzyTelColors.primary.withAlpha(22),
-              blurRadius: 28,
-              offset: const Offset(0, 16),
-            ),
-          ],
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(28),
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    IzyTelColors.primarySoft.withAlpha(130),
-                    Colors.white,
-                  ],
-                ),
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.all(size < 240 ? 10 : 18),
-              child: Image.asset(
-                'assets/images/splash_illustration.png',
-                fit: BoxFit.contain,
-                errorBuilder: (
-                  BuildContext context,
-                  Object error,
-                  StackTrace? stackTrace,
-                ) {
-                  return Icon(
-                    Symbols.phone_android_rounded,
-                    size: size * .42,
-                    color: IzyTelColors.primary,
-                  );
-                },
-              ),
-            ),
-            if (showBadges) ...[
-              const Positioned(
-                top: 16,
-                left: 16,
-                child: _MiniBadge(
-                  icon: Symbols.sim_card_rounded,
-                  label: 'Orange · MTN · Moov',
-                ),
-              ),
-              const Positioned(
-                bottom: 16,
-                right: 16,
-                child: _MiniBadge(
-                  icon: Symbols.payments_rounded,
-                  label: 'Paiements sécurisés',
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BrandBlock extends StatelessWidget {
-  const _BrandBlock({required this.logoSize, required this.compact});
-
-  final double logoSize;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: logoSize,
-          height: logoSize,
-          padding: EdgeInsets.all(compact ? 12 : 14),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF4373F4), Color(0xFF3056DE)],
-            ),
-            borderRadius: BorderRadius.circular(compact ? 20 : 22),
-            boxShadow: [
-              BoxShadow(
-                color: IzyTelColors.primary.withAlpha(30),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Image.asset(
-            'assets/images/logo.png',
-            fit: BoxFit.contain,
-            errorBuilder: (
-              BuildContext context,
-              Object error,
-              StackTrace? stackTrace,
-            ) {
-              return const Icon(
-                Symbols.wifi_tethering_rounded,
-                color: Colors.white,
-                size: 30,
-              );
-            },
-          ),
-        ),
-        SizedBox(height: compact ? 12 : 16),
-        Text(
-          'IzyTel',
-          style: Theme.of(context).textTheme.displaySmall?.copyWith(
-            color: IzyTelColors.textPrimary,
-            fontSize: compact ? 32 : 38,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -.6,
-          ),
-        ),
-        const SizedBox(height: 7),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 330),
-          child: Text(
-            compact
-                ? 'Encaisser, distribuer et superviser simplement.'
-                : 'Le cockpit intelligent pour encaisser, distribuer et superviser les commandes opérateurs.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: IzyTelColors.textSecondary,
-              fontSize: compact ? 13 : 15,
-              height: 1.4,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _LoadingBlock extends StatelessWidget {
-  const _LoadingBlock();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 330),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: const LinearProgressIndicator(
-              minHeight: 6,
-              backgroundColor: IzyTelColors.outline,
-              color: IzyTelColors.primary,
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          'Chargement de l’espace opérateur…',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: IzyTelColors.textMuted,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _GlowOrb extends StatelessWidget {
-  const _GlowOrb({required this.size, required this.color});
-
-  final double size;
-  final Color color;
+  final double opacity;
 
   @override
   Widget build(BuildContext context) {
@@ -413,46 +247,13 @@ class _GlowOrb extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: RadialGradient(colors: [color, Colors.transparent]),
-        ),
-      ),
-    );
-  }
-}
-
-class _MiniBadge extends StatelessWidget {
-  const _MiniBadge({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 165),
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withAlpha(220),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: IzyTelColors.outline),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: IzyTelColors.primary),
-          const SizedBox(width: 5),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: IzyTelColors.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+          gradient: RadialGradient(
+            colors: <Color>[
+              Colors.lightBlueAccent.withValues(alpha: opacity),
+              Colors.transparent,
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

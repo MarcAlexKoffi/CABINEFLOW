@@ -33,9 +33,11 @@ class FinancialReconciliationCheck {
   final FinancialReconciliationCheckState state;
   final String detail;
 
-  bool get isRequired => state != FinancialReconciliationCheckState.notApplicable;
+  bool get isRequired =>
+      state != FinancialReconciliationCheckState.notApplicable;
   bool get isCoherent => state == FinancialReconciliationCheckState.coherent;
-  bool get needsAttention => state == FinancialReconciliationCheckState.attention;
+  bool get needsAttention =>
+      state == FinancialReconciliationCheckState.attention;
 }
 
 class FinancialReconciliationResult {
@@ -167,7 +169,7 @@ class FinancialReconciliationEvidence {
   final Map<String, Set<String>> eventsByOrder;
   final Set<String> proofOrderIds;
   final Map<String, ReconciliationNetworkMovementEvidence>
-      networkMovementsByOrder;
+  networkMovementsByOrder;
   final Map<String, ReconciliationCommissionEvidence> commissionsByOrder;
   final Map<String, ReconciliationRefundEvidence> refundsByOrder;
   final Map<String, ReconciliationCreditEvidence> creditsByOrder;

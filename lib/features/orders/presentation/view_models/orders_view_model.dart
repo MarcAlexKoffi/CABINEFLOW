@@ -369,13 +369,13 @@ class OrdersViewModel extends ChangeNotifier {
   }
 
   int waitingMinutes(QueueOrder order) {
-    final DateTime? paidAt = order.paidAt;
+    final DateTime waitingSince =
+        order.paymentConfirmedAt ??
+        order.paidAt ??
+        order.assignedAt ??
+        order.createdAt;
 
-    if (paidAt == null) {
-      return 0;
-    }
-
-    final int minutes = DateTime.now().difference(paidAt).inMinutes;
+    final int minutes = DateTime.now().difference(waitingSince).inMinutes;
 
     if (minutes < 0) {
       return 0;

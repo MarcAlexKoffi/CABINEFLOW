@@ -39,7 +39,7 @@ class AppLogo extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         Text(
-          'CabineFlow',
+          'IzyTel',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: titleFontSize,

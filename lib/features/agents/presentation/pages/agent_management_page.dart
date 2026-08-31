@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
@@ -6,6 +8,7 @@ import 'package:cabine_flow/features/agents/presentation/pages/agent_detail_page
 import 'package:cabine_flow/features/agents/presentation/view_models/agent_management_view_model.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -24,18 +27,23 @@ class AgentManagementPage extends StatefulWidget {
 }
 
 class _AgentManagementPageState extends State<AgentManagementPage> {
+  Timer? _clockTimer;
   late final AgentManagementViewModel _viewModel;
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _clockTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted) setState(() {});
+    });
     _viewModel = AgentManagementViewModel(repository: widget.repository);
     _viewModel.start();
   }
 
   @override
   void dispose() {
+    _clockTimer?.cancel();
     _searchController.dispose();
     _viewModel.dispose();
     super.dispose();
@@ -188,9 +196,7 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    IzyTelFeedback.show(context, message);
   }
 
   Future<void> _showFilters() async {
@@ -416,11 +422,11 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: _MetricCard(
-                          value: '${_viewModel.openIssueCount}',
-                          label: 'Incidents',
-                          color: IzyTelColors.warning,
-                          softColor: IzyTelColors.warningSoft,
-                          icon: Symbols.warning_rounded,
+                          value: '${_viewModel.suspendedCount}',
+                          label: 'Suspendus',
+                          color: IzyTelColors.error,
+                          softColor: IzyTelColors.errorSoft,
+                          icon: Symbols.block_rounded,
                         ),
                       ),
                     ],
@@ -492,14 +498,6 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                       ],
                     ),
                   ),
-                  if (_viewModel.recentIssues.isNotEmpty) ...[
-                    const SizedBox(height: IzyTelSpacing.lg),
-                    _AgentIssuesPanel(
-                      issues: _viewModel.recentIssues,
-                      openCount: _viewModel.openIssueCount,
-                      agentNameFor: _viewModel.agentNameFor,
-                    ),
-                  ],
                   const SizedBox(height: IzyTelSpacing.lg),
                   IzyTelSectionHeader(
                     title: 'Équipe',
@@ -548,131 +546,20 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
   }
 }
 
-class _AgentIssuesPanel extends StatelessWidget {
-  const _AgentIssuesPanel({
-    required this.issues,
-    required this.openCount,
-    required this.agentNameFor,
-  });
-
-  final List<AgentIssue> issues;
-  final int openCount;
-  final String Function(String agentId) agentNameFor;
-
-  @override
-  Widget build(BuildContext context) {
-    return IzyTelSurface(
-      radius: IzyTelRadii.card,
-      borderColor: IzyTelColors.warning.withAlpha(70),
-      backgroundColor: IzyTelColors.warningSoft,
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Symbols.warning_rounded,
-                color: IzyTelColors.warning,
-                size: 21,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Signalements agents',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: IzyTelColors.textPrimary,
-                  ),
-                ),
-              ),
-              IzyTelStatusPill(
-                label: '$openCount ouvert${openCount > 1 ? 's' : ''}',
-                color: IzyTelColors.warning,
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ...issues.take(3).map((AgentIssue issue) {
-            final String agentName = agentNameFor(issue.agentId);
-            final Color statusColor = _issueStatusColor(issue.status);
-            return Container(
-              margin: const EdgeInsets.only(bottom: 7),
-              padding: const EdgeInsets.all(11),
-              decoration: BoxDecoration(
-                color: IzyTelColors.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: IzyTelColors.outline),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: statusColor.withAlpha(20),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      Symbols.report_problem_rounded,
-                      color: statusColor,
-                      size: 18,
-                    ),
-                  ),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                '$agentName · ${_issueTypeLabel(issue.type)}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.labelMedium
-                                    ?.copyWith(
-                                      color: IzyTelColors.textPrimary,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            _StatusBadge(
-                              label: _issueStatusLabel(issue.status),
-                              color: statusColor,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          issue.description,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: IzyTelColors.textSecondary),
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          '${issue.network?.label ?? 'Tous réseaux'} · ${_relative(issue.createdAt)}',
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(color: IzyTelColors.textMuted),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
-      ),
-    );
+String _agentZoneLabel(AgentProfile? profile, List<AgentZone> zones) {
+  if (profile == null || profile.zoneIds.isEmpty) {
+    return 'Aucune zone';
   }
+
+  final Map<String, AgentZone> zonesById = <String, AgentZone>{
+    for (final AgentZone zone in zones) zone.id: zone,
+  };
+  final List<String> labels = profile.zoneIds
+      .map((String id) => zonesById[id]?.displayLabel ?? id)
+      .where((String label) => label.trim().isNotEmpty)
+      .toList(growable: false);
+
+  return labels.isEmpty ? 'Aucune zone' : labels.join(' · ');
 }
 
 class _AgentCard extends StatelessWidget {
@@ -689,7 +576,7 @@ class _AgentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AgentProfile? profile = agent.profile;
-    final String zoneLabel = _zoneLabel(profile, zones);
+    final String zoneLabel = _agentZoneLabel(profile, zones);
     final bool available =
         agent.isActive && agent.availability == AgentAvailability.available;
     final int totalCapacity = profile == null
@@ -984,61 +871,6 @@ class _MessageCard extends StatelessWidget {
       child: IzyTelEmptyState(icon: icon, title: title, message: message),
     );
   }
-}
-
-String _issueTypeLabel(String value) {
-  switch (value) {
-    case 'network':
-      return 'Réseau';
-    case 'balance':
-      return 'Solde / capacité';
-    case 'technical':
-      return 'Technique';
-    case 'other':
-      return 'Autre';
-    default:
-      return 'Incident';
-  }
-}
-
-String _issueStatusLabel(String value) {
-  switch (value) {
-    case 'open':
-      return 'Ouvert';
-    case 'acknowledged':
-      return 'Pris en compte';
-    case 'resolved':
-      return 'Résolu';
-    case 'cancelled':
-      return 'Annulé';
-    default:
-      return value;
-  }
-}
-
-Color _issueStatusColor(String value) {
-  switch (value) {
-    case 'resolved':
-      return IzyTelColors.success;
-    case 'cancelled':
-      return IzyTelColors.textSecondary;
-    case 'acknowledged':
-      return IzyTelColors.primary;
-    case 'open':
-    default:
-      return IzyTelColors.warning;
-  }
-}
-
-String _zoneLabel(AgentProfile? profile, List<AgentZone> zones) {
-  if (profile == null || profile.zoneIds.isEmpty) return 'Aucune zone assignée';
-  final List<String> names = zones
-      .where((zone) => profile.zoneIds.contains(zone.id))
-      .map((zone) => zone.displayLabel)
-      .toList(growable: false);
-  return names.isEmpty
-      ? '${profile.zoneIds.length} zone(s)'
-      : names.join(' • ');
 }
 
 String _relative(DateTime value) {

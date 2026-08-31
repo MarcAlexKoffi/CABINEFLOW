@@ -1,4 +1,5 @@
 import 'package:cabine_flow/app/app_routes.dart';
+import 'package:cabine_flow/core/services/session_preferences.dart';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
@@ -22,6 +23,7 @@ import 'package:cabine_flow/features/support/presentation/pages/support_request_
 import 'package:cabine_flow/shared/widgets/feature_placeholder_page.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -68,6 +70,7 @@ class MorePage extends StatelessWidget {
     if (confirmed != true || !context.mounted) return;
     try {
       await authRepository.logout();
+      await SessionPreferences.clear();
       if (!context.mounted) return;
       Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
         AppRoutes.login,
@@ -75,13 +78,10 @@ class MorePage extends StatelessWidget {
       );
     } catch (_) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('Impossible de se déconnecter pour le moment.'),
-          ),
-        );
+      IzyTelFeedback.error(
+        context,
+        'Impossible de se déconnecter pour le moment.',
+      );
     }
   }
 
@@ -114,10 +114,7 @@ class MorePage extends StatelessWidget {
         bottom: false,
         child: StreamBuilder<List<SupportRequest>>(
           stream: supportRepository.watchAllRequests(),
-          builder: (
-            BuildContext context,
-            AsyncSnapshot<List<SupportRequest>> snapshot,
-          ) {
+          builder: (BuildContext context, AsyncSnapshot<List<SupportRequest>> snapshot) {
             final List<SupportRequest> requests =
                 snapshot.data ?? const <SupportRequest>[];
             final int activeRequests = requests
@@ -152,7 +149,8 @@ class MorePage extends StatelessWidget {
                                             return SupportRequestCenterPage(
                                               user: user,
                                               repository: supportRepository,
-                                              refundRepository: refundRepository,
+                                              refundRepository:
+                                                  refundRepository,
                                               orderHistoryRepository:
                                                   historyRepository,
                                             );
@@ -377,7 +375,8 @@ class MorePage extends StatelessWidget {
                   child: IzyTelMenuRow(
                     icon: Symbols.logout_rounded,
                     title: 'Se déconnecter',
-                    subtitle: 'Fermer la session Administration sur cet appareil.',
+                    subtitle:
+                        'Fermer la session Administration sur cet appareil.',
                     destructive: true,
                     onTap: () => _logout(context),
                   ),
@@ -391,15 +390,11 @@ class MorePage extends StatelessWidget {
   }
 
   void _historyUnavailable(BuildContext context) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text(
-            'L’historique n’est pas disponible avec ce dépôt de données.',
-          ),
-        ),
-      );
+    IzyTelFeedback.show(
+      context,
+      'L’historique n’est pas disponible avec ce dépôt de données.',
+      tone: IzyTelFeedbackTone.warning,
+    );
   }
 }
 

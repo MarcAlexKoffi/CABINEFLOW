@@ -436,6 +436,8 @@ class FirestoreOrderAuditRepository implements OrderAuditRepository {
         return 'Traitement réussi';
       case 'PROCESSING_FAILED':
         return 'Traitement échoué';
+      case 'REASSIGNMENT_REQUESTED':
+        return 'Réaffectation demandée';
       case 'CUSTOMER_CONTACTED':
         return 'Client contacté';
       default:

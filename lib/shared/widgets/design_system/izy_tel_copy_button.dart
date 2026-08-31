@@ -1,4 +1,5 @@
 import 'package:cabine_flow/core/theme/customer_app_colors.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -21,14 +22,7 @@ class IzyTelCopyButton extends StatelessWidget {
     if (!context.mounted) {
       return;
     }
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(successMessage),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+    IzyTelFeedback.success(context, successMessage);
   }
 
   @override

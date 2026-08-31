@@ -14,7 +14,7 @@ void main() {
   test('le tableau Finances écoute en temps réel les règlements de crédits', () {
     expect(
       source,
-      contains('_financeOperationsRepository.watchCustomerCreditSettlements()'),
+      matches(RegExp(r'_financeOperationsRepository\s*\.watchCustomerCreditSettlements\(\s*\)')),
     );
     expect(source, contains('_creditSettlementsToday(creditSettlements)'));
     expect(
@@ -38,9 +38,9 @@ void main() {
   test('le net Finances écoute aussi fournisseurs et dépenses', () {
     expect(
       source,
-      contains('_financeOperationsRepository.watchSupplierPayments()'),
+      matches(RegExp(r'_financeOperationsRepository\s*\.watchSupplierPayments\(\s*\)')),
     );
-    expect(source, contains('_financeOperationsRepository.watchExpenses()'));
+    expect(source, matches(RegExp(r'_financeOperationsRepository\s*\.watchExpenses\(\s*\)')));
     expect(source, contains('supplierPaymentsToday'));
     expect(source, contains('expensesToday'));
   });

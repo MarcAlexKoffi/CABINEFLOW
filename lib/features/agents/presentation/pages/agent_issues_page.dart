@@ -3,6 +3,7 @@ import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -29,20 +30,13 @@ class AgentIssuesPage extends StatelessWidget {
     try {
       await repository.createIssue(agentId: agentId, issue: draft);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('Signalement transmis à l’administration.'),
-          ),
-        );
+      IzyTelFeedback.success(
+        context,
+        'Signalement transmis à l’administration.',
+      );
     } catch (_) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('Impossible d’envoyer le signalement.')),
-        );
+      IzyTelFeedback.error(context, 'Impossible d’envoyer le signalement.');
     }
   }
 

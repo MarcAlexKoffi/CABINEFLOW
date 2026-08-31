@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
@@ -11,6 +13,7 @@ import 'package:cabine_flow/features/support/domain/models/support_request.dart'
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:cabine_flow/features/support/presentation/widgets/support_resolution_note_dialog.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -37,6 +40,7 @@ class SupportRequestCenterPage extends StatefulWidget {
 }
 
 class _SupportRequestCenterPageState extends State<SupportRequestCenterPage> {
+  Timer? _clockTimer;
   final TextEditingController _searchController = TextEditingController();
   late final Stream<List<SupportRequest>> _requestsStream;
   _SupportInboxTab _selectedTab = _SupportInboxTab.newRequests;
@@ -45,11 +49,15 @@ class _SupportRequestCenterPageState extends State<SupportRequestCenterPage> {
   @override
   void initState() {
     super.initState();
+    _clockTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted) setState(() {});
+    });
     _requestsStream = widget.repository.watchAllRequests();
   }
 
   @override
   void dispose() {
+    _clockTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -573,10 +581,40 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
                 foregroundColor: IzyTelColors.warning,
               ),
             ),
+          ] else if (order != null && order.isCreditSale) ...[
+            const SizedBox(height: 10),
+            const _CreditRefundInfo(),
           ],
         ];
       case SupportRequestStatus.resolved:
         return <Widget>[
+          if (refund != null) ...[
+            OutlinedButton.icon(
+              onPressed: () => _openRefund(refund),
+              icon: const Icon(Symbols.currency_exchange_rounded),
+              label: const Text('Voir le remboursement'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                foregroundColor: IzyTelColors.warning,
+              ),
+            ),
+            const SizedBox(height: 10),
+          ] else if (order != null &&
+              order.paymentStatus == OrderPaymentStatus.confirmed) ...[
+            OutlinedButton.icon(
+              onPressed: () => _createRefund(request, order),
+              icon: const Icon(Symbols.currency_exchange_rounded),
+              label: const Text('Créer un remboursement'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                foregroundColor: IzyTelColors.warning,
+              ),
+            ),
+            const SizedBox(height: 10),
+          ] else if (order != null && order.isCreditSale) ...[
+            const _CreditRefundInfo(),
+            const SizedBox(height: 10),
+          ],
           if (!request.customerWasNotified)
             FilledButton.icon(
               onPressed: order == null
@@ -860,9 +898,7 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    IzyTelFeedback.show(context, message);
   }
 
   String _normalizeWhatsappPhone(String value) {
@@ -874,6 +910,39 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
       return '225$digits';
     }
     return digits;
+  }
+}
+
+class _CreditRefundInfo extends StatelessWidget {
+  const _CreditRefundInfo();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: IzyTelColors.warningSoft,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: IzyTelColors.warning.withAlpha(70)),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(Symbols.info_rounded, color: IzyTelColors.warning, size: 20),
+          SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              'Cette commande a été autorisée à crédit : aucun paiement Wave confirmé n’est attaché à la commande, donc aucun remboursement Wave ne peut être créé ici. Si le client a réglé le crédit, vérifie ses encaissements dans Finances.',
+              style: TextStyle(
+                color: IzyTelColors.textSecondary,
+                fontSize: 12,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

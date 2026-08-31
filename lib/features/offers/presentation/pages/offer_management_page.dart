@@ -8,6 +8,7 @@ import 'package:cabine_flow/features/offers/presentation/pages/offer_editor_page
 import 'package:cabine_flow/features/offers/presentation/view_models/offer_management_view_model.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -90,19 +91,14 @@ class _OfferManagementPageState extends State<OfferManagementPage> {
     final bool success = await _viewModel.setOfferActive(offer, target);
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            success
-                ? target
-                      ? 'Offre réactivée.'
-                      : 'Offre suspendue.'
-                : _viewModel.errorMessage ?? 'Action impossible.',
-          ),
-        ),
-      );
+    final String message = success
+        ? (target ? 'Offre réactivée.' : 'Offre suspendue.')
+        : _viewModel.errorMessage ?? 'Action impossible.';
+    if (success) {
+      IzyTelFeedback.success(context, message);
+    } else {
+      IzyTelFeedback.error(context, message);
+    }
   }
 
   void _clearAll() {

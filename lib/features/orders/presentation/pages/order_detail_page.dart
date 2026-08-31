@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
@@ -17,6 +19,7 @@ import 'package:cabine_flow/features/support/domain/models/support_request.dart'
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -54,6 +57,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   String? _errorMessage;
   late final SupportRequestRepository _supportRequestRepository;
   late final OrderAuditRepository _auditRepository;
+  StreamSubscription<List<QueueOrder>>? _orderSubscription;
 
   @override
   void initState() {
@@ -72,6 +76,42 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
               )
             : FakeOrderAuditRepository());
     _refreshAll(showLoader: false);
+    _startRealtimeOrderWatch();
+  }
+
+  void _startRealtimeOrderWatch() {
+    _orderSubscription?.cancel();
+    _orderSubscription = widget.ordersRepository.watchOrderHistory().listen(
+      (List<QueueOrder> orders) {
+        QueueOrder? latest;
+        for (final QueueOrder candidate in orders) {
+          if (candidate.id == _order.id) {
+            latest = candidate;
+            break;
+          }
+        }
+        if (latest == null || !mounted) return;
+        final bool proofMayHaveChanged =
+            latest.completedAt != _order.completedAt;
+        setState(() {
+          _order = latest!;
+          _errorMessage = null;
+        });
+        if (proofMayHaveChanged) {
+          unawaited(_loadProof());
+        }
+      },
+      onError: (_) {
+        // Le rafraîchissement manuel reste disponible si le flux temps réel
+        // est momentanément indisponible.
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _orderSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _refreshAll({bool showLoader = true}) async {
@@ -82,7 +122,8 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   }
 
   Future<void> _loadProof() async {
-    final OrdersRepository? repository = widget.ordersRepository is OrdersRepository
+    final OrdersRepository? repository =
+        widget.ordersRepository is OrdersRepository
         ? widget.ordersRepository as OrdersRepository
         : null;
     if (repository == null) {
@@ -157,9 +198,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       return;
     }
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text('$label copié.')));
+    IzyTelFeedback.show(context, '$label copié.');
   }
 
   String get _normalizedWhatsappPhone {
@@ -203,9 +242,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    IzyTelFeedback.show(context, message);
   }
 
   String get _refundLabel {
@@ -358,8 +395,8 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                                     child: OutlinedButton.icon(
                                       onPressed: () =>
                                           widget.onOpenCustomerHistory(
-                                        _order.clientWhatsappPhone,
-                                      ),
+                                            _order.clientWhatsappPhone,
+                                          ),
                                       icon: const Icon(
                                         Symbols.history_rounded,
                                         size: IzyTelIconSize.info,
@@ -388,7 +425,8 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                               _DetailRow(
                                 label: 'Payeur',
                                 value:
-                                    _order.paymentPayerName ?? _order.clientName,
+                                    _order.paymentPayerName ??
+                                    _order.clientName,
                               ),
                               _DetailRow(
                                 label: 'Numéro payeur',
@@ -587,7 +625,8 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                if (_order.internalNotes?.trim().isNotEmpty == true)
+                                if (_order.internalNotes?.trim().isNotEmpty ==
+                                    true)
                                   _TextBlock(
                                     label: 'Note interne',
                                     value: _order.internalNotes!,
@@ -627,7 +666,12 @@ class _OrderProgressTimeline extends StatelessWidget {
   final QueueOrder order;
 
   bool get _funded => order.isFundedForProcessing;
-  bool get _assigned => order.assignedAgentId?.trim().isNotEmpty == true;
+  bool get _assigned =>
+      order.assignedAgentId?.trim().isNotEmpty == true ||
+      order.assignedAt != null ||
+      order.assignmentStatus != OrderAssignmentStatus.unassigned ||
+      _processing ||
+      _done;
   bool get _processing => const <QueueOrderStatus>{
     QueueOrderStatus.inProgress,
     QueueOrderStatus.onHold,
@@ -638,6 +682,7 @@ class _OrderProgressTimeline extends StatelessWidget {
     QueueOrderStatus.refunded,
   }.contains(order.status);
   bool get _done => const <QueueOrderStatus>{
+    QueueOrderStatus.awaitingCustomerConfirmation,
     QueueOrderStatus.completed,
     QueueOrderStatus.failed,
     QueueOrderStatus.refunded,
@@ -685,7 +730,9 @@ class _OrderProgressTimeline extends StatelessWidget {
                 right: itemWidth / 2,
                 top: 15,
                 child: Row(
-                  children: List<Widget>.generate(steps.length - 1, (int index) {
+                  children: List<Widget>.generate(steps.length - 1, (
+                    int index,
+                  ) {
                     final _ProgressState left = steps[index].state;
                     final _ProgressState right = steps[index + 1].state;
                     final bool completed =
@@ -778,7 +825,9 @@ class _ProgressStep extends StatelessWidget {
           child: Icon(
             done
                 ? Symbols.check_rounded
-                : (current ? Symbols.hourglass_top_rounded : Symbols.check_rounded),
+                : (current
+                      ? Symbols.hourglass_top_rounded
+                      : Symbols.check_rounded),
             size: 17,
             color: done ? Colors.white : accent,
           ),
@@ -1166,10 +1215,8 @@ class _OrderSummaryCard extends StatelessWidget {
                   Flexible(
                     child: InkWell(
                       borderRadius: BorderRadius.circular(6),
-                      onTap: () => onCopy(
-                        order.beneficiaryPhone,
-                        'Numéro bénéficiaire',
-                      ),
+                      onTap: () =>
+                          onCopy(order.beneficiaryPhone, 'Numéro bénéficiaire'),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 3),
                         child: Text(
@@ -1720,10 +1767,7 @@ class _DetailRow extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (canCopy) ...[
-                        const SizedBox(width: 5),
-                        copyButton,
-                      ],
+                      if (canCopy) ...[const SizedBox(width: 5), copyButton],
                     ],
                   ),
                 ],
@@ -1755,10 +1799,7 @@ class _DetailRow extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (canCopy) ...[
-                    const SizedBox(width: 5),
-                    copyButton,
-                  ],
+                  if (canCopy) ...[const SizedBox(width: 5), copyButton],
                 ],
               );
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
@@ -43,6 +45,7 @@ class FinancialReconciliationPage extends StatefulWidget {
 
 class _FinancialReconciliationPageState
     extends State<FinancialReconciliationPage> {
+  Timer? _clockTimer;
   _ReconciliationFilter _filter = _ReconciliationFilter.all;
   late final FinancialReconciliationRepository _repository;
   late Future<List<FinancialReconciliationResult>> _future;
@@ -58,12 +61,21 @@ class _FinancialReconciliationPageState
   @override
   void initState() {
     super.initState();
+    _clockTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted) setState(() {});
+    });
     _repository =
         widget.reconciliationRepository ??
         (Firebase.apps.isNotEmpty
             ? FirestoreFinancialReconciliationRepository()
             : FakeFinancialReconciliationRepository());
     _future = _repository.load();
+  }
+
+  @override
+  void dispose() {
+    _clockTimer?.cancel();
+    super.dispose();
   }
 
   void _reload() {
@@ -76,7 +88,9 @@ class _FinancialReconciliationPageState
     final OrderHistoryRepository? history = _historyRepository;
     if (history == null || result.refundId == null) return;
 
-    final List<RefundCase> refunds = await widget.refundRepository.watchAll().first;
+    final List<RefundCase> refunds = await widget.refundRepository
+        .watchAll()
+        .first;
     RefundCase? refund;
     for (final RefundCase item in refunds) {
       if (item.id == result.refundId || item.orderId == result.order.id) {
@@ -124,7 +138,7 @@ class _FinancialReconciliationPageState
                       width: 42,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: IzyTelColors.border,
+                        color: IzyTelColors.outline,
                         borderRadius: BorderRadius.circular(999),
                       ),
                     ),
@@ -151,7 +165,8 @@ class _FinancialReconciliationPageState
                       child: _ReconciliationCheckTile(check: check),
                     ),
                   ),
-                  if (result.refundId != null && _historyRepository != null) ...[
+                  if (result.refundId != null &&
+                      _historyRepository != null) ...[
                     const SizedBox(height: 8),
                     SizedBox(
                       height: 48,
@@ -203,169 +218,192 @@ class _FinancialReconciliationPageState
         top: false,
         child: FutureBuilder<List<FinancialReconciliationResult>>(
           future: _future,
-          builder: (
-            BuildContext context,
-            AsyncSnapshot<List<FinancialReconciliationResult>> snapshot,
-          ) {
-            if (snapshot.connectionState == ConnectionState.waiting &&
-                !snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return _ReconciliationError(
-                message: 'Impossible de préparer les rapprochements : ${snapshot.error}',
-                onRetry: _reload,
-              );
-            }
+          builder:
+              (
+                BuildContext context,
+                AsyncSnapshot<List<FinancialReconciliationResult>> snapshot,
+              ) {
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    !snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return _ReconciliationError(
+                    message:
+                        'Impossible de préparer les rapprochements : ${snapshot.error}',
+                    onRetry: _reload,
+                  );
+                }
 
-            final List<FinancialReconciliationResult> all =
-                snapshot.data ?? const <FinancialReconciliationResult>[];
-            final int attention = all
-                .where(
-                  (FinancialReconciliationResult item) =>
-                      item.state == FinancialReconciliationOverallState.attention,
-                )
-                .length;
-            final int coherent = all
-                .where(
-                  (FinancialReconciliationResult item) =>
-                      item.state == FinancialReconciliationOverallState.coherent ||
-                      item.state == FinancialReconciliationOverallState.inProgress,
-                )
-                .length;
-            final int refunded = all
-                .where(
-                  (FinancialReconciliationResult item) =>
-                      item.state == FinancialReconciliationOverallState.refunded,
-                )
-                .length;
-            final List<FinancialReconciliationResult> visible = all
-                .where(_matchesFilter)
-                .toList(growable: false);
+                final List<FinancialReconciliationResult> all =
+                    snapshot.data ?? const <FinancialReconciliationResult>[];
+                final int attention = all
+                    .where(
+                      (FinancialReconciliationResult item) =>
+                          item.state ==
+                          FinancialReconciliationOverallState.attention,
+                    )
+                    .length;
+                final int coherent = all
+                    .where(
+                      (FinancialReconciliationResult item) =>
+                          item.state ==
+                              FinancialReconciliationOverallState.coherent ||
+                          item.state ==
+                              FinancialReconciliationOverallState.inProgress,
+                    )
+                    .length;
+                final int refunded = all
+                    .where(
+                      (FinancialReconciliationResult item) =>
+                          item.state ==
+                          FinancialReconciliationOverallState.refunded,
+                    )
+                    .length;
+                final List<FinancialReconciliationResult> visible = all
+                    .where(_matchesFilter)
+                    .toList(growable: false);
 
-            return Column(
-              children: <Widget>[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: IzyTelColors.primarySoft,
-                          borderRadius: BorderRadius.circular(13),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            const Icon(
-                              Symbols.rule_rounded,
-                              color: IzyTelColors.primary,
-                              size: IzyTelIconSize.info,
+                return Column(
+                  children: <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: IzyTelColors.primarySoft,
+                              borderRadius: BorderRadius.circular(13),
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Contrôle réel de la chaîne paiement → affectation → Agent → traitement → preuve → réseau → commission → remboursement. Le rapprochement bancaire Wave restera manuel tant que l’API officielle n’est pas branchée.',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: IzyTelColors.textSecondary,
-                                  fontSize: IzyTelTypeScale.micro,
-                                  height: 1.35,
-                                  fontWeight: FontWeight.w500,
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                const Icon(
+                                  Symbols.rule_rounded,
+                                  color: IzyTelColors.primary,
+                                  size: IzyTelIconSize.info,
                                 ),
-                              ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Contrôle réel de la chaîne paiement → affectation → Agent → traitement → preuve → réseau → commission → remboursement. Le rapprochement bancaire Wave restera manuel tant que l’API officielle n’est pas branchée.',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: IzyTelColors.textSecondary,
+                                          fontSize: IzyTelTypeScale.micro,
+                                          height: 1.35,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        height: 34,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal,
-                          children: <Widget>[
-                            FinanceFilterPill(
-                              label: 'Tous',
-                              count: all.length,
-                              selected: _filter == _ReconciliationFilter.all,
-                              onTap: () => setState(
-                                () => _filter = _ReconciliationFilter.all,
-                              ),
-                            ),
-                            const SizedBox(width: 7),
-                            FinanceFilterPill(
-                              label: 'À vérifier',
-                              count: attention,
-                              accent: IzyTelColors.warning,
-                              selected:
-                                  _filter == _ReconciliationFilter.attention,
-                              onTap: () => setState(
-                                () => _filter = _ReconciliationFilter.attention,
-                              ),
-                            ),
-                            const SizedBox(width: 7),
-                            FinanceFilterPill(
-                              label: 'Cohérents',
-                              count: coherent,
-                              accent: IzyTelColors.success,
-                              selected: _filter == _ReconciliationFilter.coherent,
-                              onTap: () => setState(
-                                () => _filter = _ReconciliationFilter.coherent,
-                              ),
-                            ),
-                            const SizedBox(width: 7),
-                            FinanceFilterPill(
-                              label: 'Remboursés',
-                              count: refunded,
-                              selected: _filter == _ReconciliationFilter.refunded,
-                              onTap: () => setState(
-                                () => _filter = _ReconciliationFilter.refunded,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: visible.isEmpty
-                      ? const SingleChildScrollView(
-                          child: FinanceEmptyState(
-                            icon: Symbols.rule_rounded,
-                            title: 'Aucun élément dans ce filtre',
-                            message:
-                                'Les contrôles de cohérence apparaîtront ici au fur et à mesure des transactions.',
                           ),
-                        )
-                      : RefreshIndicator(
-                          onRefresh: () async {
-                            final Future<List<FinancialReconciliationResult>> next =
-                                _repository.load();
-                            setState(() {
-                              _future = next;
-                            });
-                            await next;
-                          },
-                          child: ListView.separated(
-                            padding: const EdgeInsets.fromLTRB(20, 2, 20, 28),
-                            itemCount: visible.length,
-                            separatorBuilder: (_, _) => const SizedBox(height: 10),
-                            itemBuilder: (BuildContext context, int index) {
-                              final FinancialReconciliationResult item = visible[index];
-                              return _ReconciliationCard(
-                                item: item,
-                                onTap: () => _showDetails(item),
-                              );
-                            },
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 34,
+                            child: ListView(
+                              scrollDirection: Axis.horizontal,
+                              children: <Widget>[
+                                FinanceFilterPill(
+                                  label: 'Tous',
+                                  count: all.length,
+                                  selected:
+                                      _filter == _ReconciliationFilter.all,
+                                  onTap: () => setState(
+                                    () => _filter = _ReconciliationFilter.all,
+                                  ),
+                                ),
+                                const SizedBox(width: 7),
+                                FinanceFilterPill(
+                                  label: 'À vérifier',
+                                  count: attention,
+                                  accent: IzyTelColors.warning,
+                                  selected:
+                                      _filter ==
+                                      _ReconciliationFilter.attention,
+                                  onTap: () => setState(
+                                    () => _filter =
+                                        _ReconciliationFilter.attention,
+                                  ),
+                                ),
+                                const SizedBox(width: 7),
+                                FinanceFilterPill(
+                                  label: 'Cohérents',
+                                  count: coherent,
+                                  accent: IzyTelColors.success,
+                                  selected:
+                                      _filter == _ReconciliationFilter.coherent,
+                                  onTap: () => setState(
+                                    () => _filter =
+                                        _ReconciliationFilter.coherent,
+                                  ),
+                                ),
+                                const SizedBox(width: 7),
+                                FinanceFilterPill(
+                                  label: 'Remboursés',
+                                  count: refunded,
+                                  selected:
+                                      _filter == _ReconciliationFilter.refunded,
+                                  onTap: () => setState(
+                                    () => _filter =
+                                        _ReconciliationFilter.refunded,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                ),
-              ],
-            );
-          },
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: visible.isEmpty
+                          ? const SingleChildScrollView(
+                              child: FinanceEmptyState(
+                                icon: Symbols.rule_rounded,
+                                title: 'Aucun élément dans ce filtre',
+                                message:
+                                    'Les contrôles de cohérence apparaîtront ici au fur et à mesure des transactions.',
+                              ),
+                            )
+                          : RefreshIndicator(
+                              onRefresh: () async {
+                                final Future<
+                                  List<FinancialReconciliationResult>
+                                >
+                                next = _repository.load();
+                                setState(() {
+                                  _future = next;
+                                });
+                                await next;
+                              },
+                              child: ListView.separated(
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  2,
+                                  20,
+                                  28,
+                                ),
+                                itemCount: visible.length,
+                                separatorBuilder: (_, _) =>
+                                    const SizedBox(height: 10),
+                                itemBuilder: (BuildContext context, int index) {
+                                  final FinancialReconciliationResult item =
+                                      visible[index];
+                                  return _ReconciliationCard(
+                                    item: item,
+                                    onTap: () => _showDetails(item),
+                                  );
+                                },
+                              ),
+                            ),
+                    ),
+                  ],
+                );
+              },
         ),
       ),
     );
@@ -529,11 +567,12 @@ class _ReconciliationCard extends StatelessWidget {
                     children: <Widget>[
                       Text(
                         _label,
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: _accent,
-                          fontSize: IzyTelTypeScale.label,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: _accent,
+                              fontSize: IzyTelTypeScale.label,
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -714,7 +753,7 @@ class _NetworkLogo extends StatelessWidget {
       decoration: BoxDecoration(
         color: IzyTelColors.surface,
         borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: IzyTelColors.border),
+        border: Border.all(color: IzyTelColors.outline),
       ),
       child: Image.asset(_asset, fit: BoxFit.contain),
     );

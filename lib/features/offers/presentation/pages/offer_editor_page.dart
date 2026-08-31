@@ -3,6 +3,7 @@ import 'package:cabine_flow/features/offers/domain/models/admin_offer.dart';
 import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
 import 'package:cabine_flow/features/offers/presentation/view_models/offer_editor_view_model.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -113,15 +114,10 @@ class _OfferEditorPageState extends State<OfferEditorPage> {
       return;
     }
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            _viewModel.errorMessage ?? 'Impossible d’enregistrer cette offre.',
-          ),
-        ),
-      );
+    IzyTelFeedback.error(
+      context,
+      _viewModel.errorMessage ?? 'Impossible d’enregistrer cette offre.',
+    );
   }
 
   @override

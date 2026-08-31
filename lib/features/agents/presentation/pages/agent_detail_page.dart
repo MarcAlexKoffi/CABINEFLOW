@@ -2,6 +2,7 @@ import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/agents/presentation/view_models/agent_detail_view_model.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -71,7 +72,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
     super.dispose();
   }
 
-  Future<void> _save() async {
+  void _syncFormToViewModel() {
     _viewModel.setName(_nameController.text);
     _viewModel.setPhone(_phoneController.text);
     _viewModel.setLimits(
@@ -84,20 +85,70 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
         int.tryParse(_capacityControllers[network]!.text.trim()) ?? 0,
       );
     }
+  }
+
+  Future<void> _save() async {
+    _syncFormToViewModel();
     final bool success = await _viewModel.save();
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            success
-                ? 'Profil agent enregistré.'
-                : _viewModel.errorMessage ?? 'Enregistrement impossible.',
-          ),
-        ),
+    if (success) {
+      IzyTelFeedback.success(context, 'Profil agent enregistré.');
+      Navigator.of(context).pop();
+    } else {
+      IzyTelFeedback.error(
+        context,
+        _viewModel.errorMessage ?? 'Enregistrement impossible.',
       );
-    if (success) Navigator.of(context).pop();
+    }
+  }
+
+  Future<void> _toggleAgentActiveState() async {
+    if (_viewModel.isSaving) return;
+    final bool targetActive = !_viewModel.isActive;
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: Text(
+          targetActive ? 'Réactiver cet agent ?' : 'Suspendre cet agent ?',
+        ),
+        content: Text(
+          targetActive
+              ? 'L’agent pourra de nouveau se connecter. Il restera indisponible jusqu’à ce qu’il réactive lui-même ses réseaux.'
+              : 'L’agent sera immédiatement désactivé et ne recevra plus de nouvelles affectations.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(targetActive ? 'Réactiver' : 'Suspendre'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final bool previous = _viewModel.isActive;
+    _syncFormToViewModel();
+    _viewModel.setActive(targetActive);
+    final bool success = await _viewModel.save();
+    if (!mounted) return;
+    if (!success) {
+      _viewModel.setActive(previous);
+      IzyTelFeedback.error(
+        context,
+        _viewModel.errorMessage ??
+            'Impossible de modifier le statut de l’agent.',
+      );
+      return;
+    }
+
+    IzyTelFeedback.success(
+      context,
+      targetActive ? 'Agent réactivé.' : 'Agent suspendu.',
+    );
   }
 
   Future<void> _createZone() async {
@@ -165,10 +216,10 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
     if (name.text.trim().length < 2 ||
         city.text.trim().length < 2 ||
         region.text.trim().length < 2) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Complète correctement les informations de la zone.'),
-        ),
+      IzyTelFeedback.show(
+        context,
+        'Complète correctement les informations de la zone.',
+        tone: IzyTelFeedbackTone.warning,
       );
       return;
     }
@@ -178,15 +229,14 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
       region: region.text,
     );
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          id == null
-              ? _viewModel.errorMessage ?? 'Création impossible.'
-              : 'Zone créée. Rouvre la fiche pour l’assigner après synchronisation.',
-        ),
-      ),
-    );
+    final String message = id == null
+        ? _viewModel.errorMessage ?? 'Création impossible.'
+        : 'Zone créée. Rouvre la fiche pour l’assigner après synchronisation.';
+    if (id == null) {
+      IzyTelFeedback.error(context, message);
+    } else {
+      IzyTelFeedback.success(context, message);
+    }
   }
 
   @override
@@ -442,7 +492,9 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                 ),
                 const SizedBox(height: 10),
                 OutlinedButton.icon(
-                  onPressed: () => _viewModel.setActive(!_viewModel.isActive),
+                  onPressed: _viewModel.isSaving
+                      ? null
+                      : _toggleAgentActiveState,
                   icon: Icon(
                     _viewModel.isActive
                         ? Symbols.block_rounded

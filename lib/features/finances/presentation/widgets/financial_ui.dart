@@ -5,15 +5,11 @@ import 'package:material_symbols_icons/symbols.dart';
 
 String formatIvorianPhone(String value) {
   final String digits = value.replaceAll(RegExp(r'[^0-9]'), '');
-  final String localDigits = digits.startsWith('225') ? digits.substring(3) : digits;
+  final String localDigits = digits.startsWith('225')
+      ? digits.substring(3)
+      : digits;
   if (localDigits.length != 10) return value;
-  return '+225 ${<String>[
-    localDigits.substring(0, 2),
-    localDigits.substring(2, 4),
-    localDigits.substring(4, 6),
-    localDigits.substring(6, 8),
-    localDigits.substring(8, 10),
-  ].join(' ')}';
+  return '+225 ${<String>[localDigits.substring(0, 2), localDigits.substring(2, 4), localDigits.substring(4, 6), localDigits.substring(6, 8), localDigits.substring(8, 10)].join(' ')}';
 }
 
 String financeRelativeTime(DateTime value, {DateTime? now}) {
@@ -196,18 +192,22 @@ class FinanceActionTile extends StatelessWidget {
                             title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: IzyTelColors.textPrimary,
-                              fontSize: IzyTelTypeScale.text,
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  color: IzyTelColors.textPrimary,
+                                  fontSize: IzyTelTypeScale.text,
+                                  fontWeight: FontWeight.w700,
+                                ),
                           ),
                         ),
                         if (badge != null) ...[
                           const SizedBox(width: 7),
                           Container(
                             constraints: const BoxConstraints(maxWidth: 104),
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: accent.withAlpha(20),
                               borderRadius: BorderRadius.circular(99),
@@ -216,11 +216,12 @@ class FinanceActionTile extends StatelessWidget {
                               badge!,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                color: accent,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                              ),
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(
+                                    color: accent,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                             ),
                           ),
                         ],

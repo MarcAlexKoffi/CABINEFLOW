@@ -95,6 +95,12 @@ abstract class OrdersRepository {
     required String reason,
   });
 
+  /// Réouvre une commande échouée pour une nouvelle affectation manuelle.
+  /// Réservé à l'Admin côté règles Firestore.
+  Future<QueueOrder> prepareFailedOrderForReassignment({
+    required String orderId,
+  });
+
   Future<QueueOrder> takeCharge({
     required String orderId,
     required String operatorId,

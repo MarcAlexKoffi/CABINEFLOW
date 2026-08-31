@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
@@ -7,6 +9,7 @@ import 'package:cabine_flow/features/orders/presentation/pages/order_detail_page
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -31,6 +34,7 @@ class AdminActivityJournalPage extends StatefulWidget {
 }
 
 class _AdminActivityJournalPageState extends State<AdminActivityJournalPage> {
+  Timer? _clockTimer;
   final TextEditingController _searchController = TextEditingController();
   late final Stream<List<QueueOrder>> _ordersStream;
   late final Stream<List<SupportRequest>> _requestsStream;
@@ -40,12 +44,16 @@ class _AdminActivityJournalPageState extends State<AdminActivityJournalPage> {
   @override
   void initState() {
     super.initState();
+    _clockTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted) setState(() {});
+    });
     _ordersStream = widget.orderHistoryRepository.watchOrderHistory();
     _requestsStream = widget.supportRequestRepository.watchAllRequests();
   }
 
   @override
   void dispose() {
+    _clockTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -72,6 +80,7 @@ class _AdminActivityJournalPageState extends State<AdminActivityJournalPage> {
     if (entry.request != null) {
       await showModalBottomSheet<void>(
         context: context,
+        isScrollControlled: true,
         useSafeArea: true,
         backgroundColor: Colors.transparent,
         builder: (BuildContext sheetContext) {
@@ -414,13 +423,7 @@ class _JournalEntryCard extends StatelessWidget {
                             ClipboardData(text: entry.reference),
                           );
                           if (!context.mounted) return;
-                          ScaffoldMessenger.of(context)
-                            ..hideCurrentSnackBar()
-                            ..showSnackBar(
-                              const SnackBar(
-                                content: Text('Référence copiée.'),
-                              ),
-                            );
+                          IzyTelFeedback.success(context, 'Référence copiée.');
                         },
                         child: Text(
                           entry.reference,
@@ -460,76 +463,86 @@ class _SupportRequestActivitySheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(12),
-      padding: const EdgeInsets.all(IzyTelSpacing.lg),
-      decoration: const BoxDecoration(
-        color: IzyTelColors.surface,
-        borderRadius: BorderRadius.all(Radius.circular(IzyTelRadii.sheet)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    final double maxHeight = MediaQuery.sizeOf(context).height * .78;
+    return SafeArea(
+      top: false,
+      child: Container(
+        margin: const EdgeInsets.all(12),
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        decoration: const BoxDecoration(
+          color: IzyTelColors.surface,
+          borderRadius: BorderRadius.all(Radius.circular(IzyTelRadii.sheet)),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(IzyTelSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  'Détail de la demande',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: IzyTelColors.textPrimary,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Détail de la demande',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: IzyTelColors.textPrimary,
+                      ),
+                    ),
                   ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Symbols.close_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  IzyTelStatusPill(
+                    label: request.type.label,
+                    color: _requestColor(request.status),
+                  ),
+                  IzyTelStatusPill(
+                    label: request.status.label,
+                    color: _requestColor(request.status),
+                  ),
+                ],
+              ),
+              const SizedBox(height: IzyTelSpacing.lg),
+              _RequestDetailLine(
+                label: 'Référence commande',
+                value: request.orderReference,
+              ),
+              const SizedBox(height: IzyTelSpacing.md),
+              _RequestDetailLine(
+                label: 'Description',
+                value: request.description,
+              ),
+              if (request.assignedToName != null) ...[
+                const SizedBox(height: IzyTelSpacing.md),
+                _RequestDetailLine(
+                  label: 'Prise en charge',
+                  value: request.assignedToName!,
                 ),
-              ),
-              IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Symbols.close_rounded),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              IzyTelStatusPill(
-                label: request.type.label,
-                color: _requestColor(request.status),
-              ),
-              IzyTelStatusPill(
-                label: request.status.label,
-                color: _requestColor(request.status),
+              ],
+              if (request.resolvedByName != null) ...[
+                const SizedBox(height: IzyTelSpacing.md),
+                _RequestDetailLine(
+                  label: 'Résolution',
+                  value: request.resolvedByName!,
+                ),
+              ],
+              const SizedBox(height: IzyTelSpacing.md),
+              _RequestDetailLine(
+                label: 'Dernière mise à jour',
+                value: _relativeTime(request.updatedAt),
               ),
             ],
           ),
-          const SizedBox(height: IzyTelSpacing.lg),
-          _RequestDetailLine(
-            label: 'Référence commande',
-            value: request.orderReference,
-          ),
-          const SizedBox(height: IzyTelSpacing.md),
-          _RequestDetailLine(label: 'Description', value: request.description),
-          if (request.assignedToName != null) ...[
-            const SizedBox(height: IzyTelSpacing.md),
-            _RequestDetailLine(
-              label: 'Prise en charge',
-              value: request.assignedToName!,
-            ),
-          ],
-          if (request.resolvedByName != null) ...[
-            const SizedBox(height: IzyTelSpacing.md),
-            _RequestDetailLine(
-              label: 'Résolution',
-              value: request.resolvedByName!,
-            ),
-          ],
-          const SizedBox(height: IzyTelSpacing.md),
-          _RequestDetailLine(
-            label: 'Dernière mise à jour',
-            value: _relativeTime(request.updatedAt),
-          ),
-        ],
+        ),
       ),
     );
   }

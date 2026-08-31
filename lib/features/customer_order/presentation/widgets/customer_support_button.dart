@@ -1,4 +1,5 @@
 import 'package:cabine_flow/core/services/customer_support_whatsapp.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 
 enum CustomerSupportButtonStyle { text, outlined, filled }
@@ -32,12 +33,9 @@ class CustomerSupportButton extends StatelessWidget {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Impossible d’ouvrir WhatsApp. Vous pouvez contacter le ${CustomerSupportWhatsApp.displayPhone}.',
-        ),
-      ),
+    IzyTelFeedback.error(
+      context,
+      'Impossible d’ouvrir WhatsApp. Vous pouvez contacter le ${CustomerSupportWhatsApp.displayPhone}.',
     );
   }
 

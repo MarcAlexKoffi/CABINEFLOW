@@ -9,6 +9,7 @@ import 'package:cabine_flow/features/commissions/domain/services/commission_perf
 import 'package:cabine_flow/features/commissions/presentation/pages/agent_commissions_page.dart';
 import 'package:cabine_flow/features/commissions/presentation/widgets/commission_payout_sheet.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -53,11 +54,7 @@ class _AgentPerformancePageState extends State<AgentPerformancePage> {
       },
     );
     if (!mounted || saved != true) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text('Paiement de commission enregistré.')),
-      );
+    IzyTelFeedback.success(context, 'Paiement de commission enregistré.');
   }
 
   @override
@@ -335,17 +332,17 @@ class _AgentPerformancePageState extends State<AgentPerformancePage> {
                       children: [
                         Text(
                           'Mes commissions',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: IzyTelColors.textPrimary,
-                            fontWeight: FontWeight.w700,
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: IzyTelColors.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           '${formatCfa(performance.commissionBalance)} disponibles',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: IzyTelColors.textSecondary,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: IzyTelColors.textSecondary),
                         ),
                       ],
                     ),
@@ -379,7 +376,9 @@ class _AgentPerformancePageState extends State<AgentPerformancePage> {
           ),
           const SizedBox(height: 10),
           if (recentCommissions.isEmpty)
-            const _EmptyCard(message: 'Aucune commission acquise pour le moment.')
+            const _EmptyCard(
+              message: 'Aucune commission acquise pour le moment.',
+            )
           else
             _RecentCommissionList(values: recentCommissions),
           if (recentPayouts.isNotEmpty) ...[
@@ -430,7 +429,8 @@ class _AgentIdentityCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 14),
-              Flexible(fit: FlexFit.tight, 
+              Flexible(
+                fit: FlexFit.tight,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -521,7 +521,8 @@ class _PeriodSelector extends StatelessWidget {
         children: CommissionPeriod.values
             .map((CommissionPeriod period) {
               final bool active = period == selected;
-              return Flexible(fit: FlexFit.tight, 
+              return Flexible(
+                fit: FlexFit.tight,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(9),
                   onTap: () => onChanged(period),
@@ -653,7 +654,8 @@ class _MetricCard extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              Flexible(fit: FlexFit.tight, 
+              Flexible(
+                fit: FlexFit.tight,
                 child: Text(
                   value,
                   style: const TextStyle(
@@ -663,11 +665,7 @@ class _MetricCard extends StatelessWidget {
                   ),
                 ),
               ),
-              Icon(
-                icon,
-                color: iconColor ?? IzyTelColors.primary,
-                size: 22,
-              ),
+              Icon(icon, color: iconColor ?? IzyTelColors.primary, size: 22),
             ],
           ),
         ],
@@ -690,7 +688,10 @@ class _TransactionsCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Flexible(fit: FlexFit.tight, child: _MetricLabel('TRANSACTIONS REÇUES')),
+              const Flexible(
+                fit: FlexFit.tight,
+                child: _MetricLabel('TRANSACTIONS REÇUES'),
+              ),
               Text(
                 '$total',
                 style: const TextStyle(
@@ -779,7 +780,8 @@ class _ProgressSegment extends StatelessWidget {
         ? 0
         : (value * 1000 ~/ total).clamp(0, 1000).toInt();
     if (flex <= 0) return const SizedBox.shrink();
-    return Flexible(fit: FlexFit.tight, 
+    return Flexible(
+      fit: FlexFit.tight,
       flex: flex,
       child: Container(height: 8, color: color),
     );
@@ -851,7 +853,8 @@ class _CommissionSummaryCard extends StatelessWidget {
                   size: 17,
                 ),
                 const SizedBox(width: 7),
-                Flexible(fit: FlexFit.tight, 
+                Flexible(
+                  fit: FlexFit.tight,
                   child: Text(
                     'Règle actuelle : ${CommissionPolicy.current.label}',
                     style: const TextStyle(
@@ -903,7 +906,8 @@ class _CommissionSummaryCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Flexible(fit: FlexFit.tight, 
+                Flexible(
+                  fit: FlexFit.tight,
                   child: Text(
                     isAdminView ? 'Solde à payer' : 'À recevoir',
                     style: const TextStyle(
@@ -966,7 +970,8 @@ class _RecentCommissionList extends StatelessWidget {
                       children: [
                         _NetworkDot(network: value.network),
                         const SizedBox(width: 10),
-                        Flexible(fit: FlexFit.tight, 
+                        Flexible(
+                          fit: FlexFit.tight,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1058,7 +1063,8 @@ class _RecentPayoutList extends StatelessWidget {
                           size: 20,
                         ),
                         const SizedBox(width: 10),
-                        Flexible(fit: FlexFit.tight, 
+                        Flexible(
+                          fit: FlexFit.tight,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1150,7 +1156,8 @@ class _ValueRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Flexible(fit: FlexFit.tight, 
+        Flexible(
+          fit: FlexFit.tight,
           child: Text(
             label,
             style: const TextStyle(
@@ -1199,7 +1206,9 @@ class _StatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: (active ? IzyTelColors.success : IzyTelColors.error).withAlpha(30),
+        color: (active ? IzyTelColors.success : IzyTelColors.error).withAlpha(
+          30,
+        ),
         borderRadius: BorderRadius.circular(99),
       ),
       child: Text(

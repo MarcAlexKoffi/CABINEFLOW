@@ -14,16 +14,15 @@ class FirestoreNetworkFinanceRepository implements NetworkFinanceRepository {
 
   @override
   Stream<List<NetworkTransaction>> watchTransactions() {
-    return _transactions
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
-          final List<NetworkTransaction> transactions = snapshot.docs
-              .map(_fromDocument)
-              .whereType<NetworkTransaction>()
-              .toList(growable: false);
-          return List<NetworkTransaction>.unmodifiable(transactions);
-        });
+    return _transactions.orderBy('createdAt', descending: true).snapshots().map(
+      (QuerySnapshot<Map<String, dynamic>> snapshot) {
+        final List<NetworkTransaction> transactions = snapshot.docs
+            .map(_fromDocument)
+            .whereType<NetworkTransaction>()
+            .toList(growable: false);
+        return List<NetworkTransaction>.unmodifiable(transactions);
+      },
+    );
   }
 
   NetworkTransaction? _fromDocument(

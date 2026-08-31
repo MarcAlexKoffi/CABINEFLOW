@@ -7,6 +7,7 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/presentation/view_models/agent_orders_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:flutter/foundation.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
@@ -63,9 +64,7 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    IzyTelFeedback.show(context, message);
   }
 
   Future<void> _accept() async {
@@ -498,7 +497,10 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
                             'Référence',
                             order.paymentReference ?? 'Non renseignée',
                           ),
-                          MapEntry('Statut', paymentStatusLabel(order.paymentStatus)),
+                          MapEntry(
+                            'Statut',
+                            paymentStatusLabel(order.paymentStatus),
+                          ),
                         ],
                       ),
                     ),
@@ -547,6 +549,40 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
                             );
                           },
                   ),
+                  if (order.status == QueueOrderStatus.failed)
+                    _DetailMenuRowData(
+                      icon: Symbols.error_rounded,
+                      label: 'Échec du traitement',
+                      trailing: const _TinyStateBadge(
+                        label: 'À traiter',
+                        color: IzyTelColors.error,
+                      ),
+                      onTap: () => _showInfoSheet(
+                        title: 'Détails de l’échec',
+                        child: _InfoSheetRows(
+                          rows: <MapEntry<String, String>>[
+                            MapEntry(
+                              'Motif',
+                              order.failureReason == null
+                                  ? 'Non renseigné'
+                                  : _failureReasonLabel(order.failureReason!),
+                            ),
+                            MapEntry(
+                              'Observation',
+                              order.observation?.trim().isNotEmpty == true
+                                  ? order.observation!.trim()
+                                  : 'Aucune observation',
+                            ),
+                            MapEntry(
+                              'Date',
+                              order.completedAt == null
+                                  ? 'Non renseignée'
+                                  : _formatAgentDateTime(order.completedAt!),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   _DetailMenuRowData(
                     icon: Symbols.history_rounded,
                     label: 'Journal d’activité',
@@ -794,7 +830,9 @@ class _ReferenceProgress extends StatelessWidget {
 
   bool get _isAssigned =>
       order.assignedAt != null ||
-      order.assignmentStatus != OrderAssignmentStatus.unassigned;
+      order.assignmentStatus != OrderAssignmentStatus.unassigned ||
+      _isProcessing ||
+      _isFinished;
 
   bool get _isProcessing => <QueueOrderStatus>{
     QueueOrderStatus.inProgress,
@@ -806,6 +844,7 @@ class _ReferenceProgress extends StatelessWidget {
   }.contains(order.status);
 
   bool get _isFinished => <QueueOrderStatus>{
+    QueueOrderStatus.awaitingCustomerConfirmation,
     QueueOrderStatus.completed,
     QueueOrderStatus.failed,
     QueueOrderStatus.refunded,
@@ -2006,6 +2045,16 @@ Color _agentStatusColor(QueueOrder order) {
     default:
       return IzyTelColors.textSecondary;
   }
+}
+
+String _formatAgentDateTime(DateTime value) {
+  final DateTime local = value.toLocal();
+  final String day = local.day.toString().padLeft(2, '0');
+  final String month = local.month.toString().padLeft(2, '0');
+  final String year = local.year.toString();
+  final String hour = local.hour.toString().padLeft(2, '0');
+  final String minute = local.minute.toString().padLeft(2, '0');
+  return '$day/$month/$year à $hour:$minute';
 }
 
 String _failureReasonLabel(OrderFailureReason reason) {

@@ -67,6 +67,22 @@ class AgentOrdersViewModel extends ChangeNotifier {
         }),
       );
 
+  List<QueueOrder> get successfulHistoryOrders =>
+      AgentOrderPriorityPolicy.sortCompleted(
+        _orders.where((QueueOrder order) {
+          return order.assignmentStatus == OrderAssignmentStatus.accepted &&
+              _isCompleted(order.status) &&
+              order.status != QueueOrderStatus.failed;
+        }),
+      );
+
+  List<QueueOrder> get failedOrders => AgentOrderPriorityPolicy.sortCompleted(
+    _orders.where((QueueOrder order) {
+      return order.assignmentStatus == OrderAssignmentStatus.accepted &&
+          order.status == QueueOrderStatus.failed;
+    }),
+  );
+
   List<QueueOrder> get visibleOrders {
     switch (_selectedTab) {
       case AgentOrdersTab.toAccept:
@@ -81,6 +97,8 @@ class AgentOrdersViewModel extends ChangeNotifier {
   int get toAcceptCount => toAcceptOrders.length;
   int get inProgressCount => inProgressOrders.length;
   int get completedCount => completedOrders.length;
+  int get successfulHistoryCount => successfulHistoryOrders.length;
+  int get failedCount => failedOrders.length;
 
   QueueOrder? orderById(String orderId) {
     for (final QueueOrder order in _orders) {

@@ -68,6 +68,8 @@ void main() {
     expect(find.text('Détails de l’offre'), findsOneWidget);
     expect(find.text('Preuve'), findsOneWidget);
     expect(find.text('Marquer comme réussie'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets('demande toujours un motif avant de refuser', (
@@ -120,5 +122,7 @@ void main() {
         .watchAssignedOrders(agentId: agent.id)
         .first;
     expect(remaining, isEmpty);
+
+    await tester.pump(const Duration(seconds: 3));
   });
 }

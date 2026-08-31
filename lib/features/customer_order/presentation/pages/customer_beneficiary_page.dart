@@ -7,6 +7,7 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_cards.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_operator_brand.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_inputs.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -252,9 +253,7 @@ class _CustomerBeneficiaryPageState extends State<CustomerBeneficiaryPage> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    IzyTelFeedback.error(context, message);
   }
 
   @override

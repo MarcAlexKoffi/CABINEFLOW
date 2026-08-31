@@ -209,7 +209,9 @@ Future<void> showIzyTelAccountSheet({
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 22),
         decoration: const BoxDecoration(
           color: IzyTelColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(IzyTelRadii.sheet)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(IzyTelRadii.sheet),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -520,7 +522,10 @@ class IzyTelFilterPill extends StatelessWidget {
               if (count != null) ...[
                 const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: selected ? Colors.white.withAlpha(42) : softColor,
                     borderRadius: BorderRadius.circular(999),
@@ -678,7 +683,10 @@ class IzyTelMenuRow extends StatelessWidget {
               if (badge != null && badge!.trim().isNotEmpty) ...[
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: IzyTelColors.warningSoft,
                     borderRadius: BorderRadius.circular(999),

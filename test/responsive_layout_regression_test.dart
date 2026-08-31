@@ -30,10 +30,17 @@ import 'package:cabine_flow/features/support/data/repositories/fake_support_requ
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
 import 'package:cabine_flow/features/support/presentation/pages/support_request_center_page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   Future<void> useCompactPhone(WidgetTester tester) async {
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('com.izytel/session_preferences'),
+      (MethodCall methodCall) async => null,
+    );
     // Gabarit volontairement plus exigeant que le téléphone de test principal.
     // Il sert de garde-fou contre les RenderFlex overflowed sur petits écrans.
     tester.view.physicalSize = const Size(320, 568);
@@ -49,10 +56,11 @@ void main() {
     await tester.pumpWidget(const CabineFlowApp());
     await tester.pump();
 
-    expect(find.text('Chargement de l’espace opérateur…'), findsOneWidget);
+    expect(find.text('Simple. Rapide. Izy.'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await tester.pump(const Duration(milliseconds: 2200));
+    await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
 
     expect(find.text('Bienvenue'), findsOneWidget);
@@ -222,7 +230,9 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
-    final FakeOrdersRepository ordersRepository = FakeOrdersRepository(isTest: true);
+    final FakeOrdersRepository ordersRepository = FakeOrdersRepository(
+      isTest: true,
+    );
     final FakeRefundRepository refundRepository = FakeRefundRepository();
     addTearDown(refundRepository.dispose);
 
@@ -252,7 +262,9 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
-    final FakeOrdersRepository ordersRepository = FakeOrdersRepository(isTest: true);
+    final FakeOrdersRepository ordersRepository = FakeOrdersRepository(
+      isTest: true,
+    );
     final FakeRefundRepository refundRepository = FakeRefundRepository();
     final FakeNetworkFinanceRepository networkFinanceRepository =
         FakeNetworkFinanceRepository();
@@ -445,8 +457,7 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
-    final FakeAdminOfferRepository offerRepository =
-        FakeAdminOfferRepository();
+    final FakeAdminOfferRepository offerRepository = FakeAdminOfferRepository();
     addTearDown(offerRepository.dispose);
     await tester.pumpWidget(
       MaterialApp(
@@ -506,7 +517,6 @@ void main() {
     expect(find.text('Activité récente'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
-
 
   testWidgets('profil Agent reste rendable sur petit écran', (
     WidgetTester tester,
@@ -613,5 +623,4 @@ void main() {
     expect(find.text('Signaler un problème'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
-
 }

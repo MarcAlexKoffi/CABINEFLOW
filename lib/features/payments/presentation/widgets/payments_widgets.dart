@@ -8,10 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 class PaymentsTopBar extends StatelessWidget {
-  const PaymentsTopBar({
-    super.key,
-    required this.onRefreshPressed,
-  });
+  const PaymentsTopBar({super.key, required this.onRefreshPressed});
 
   final VoidCallback onRefreshPressed;
 
@@ -61,7 +58,9 @@ class PaymentAttentionSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool hasPending = count > 0;
-    final Color accent = hasPending ? IzyTelColors.warning : IzyTelColors.success;
+    final Color accent = hasPending
+        ? IzyTelColors.warning
+        : IzyTelColors.success;
     final Color soft = hasPending
         ? IzyTelColors.warningSoft
         : IzyTelColors.successSoft;
@@ -150,8 +149,8 @@ class PaymentFilterPill extends StatelessWidget {
     final Color background = isSelected
         ? accent
         : emphasis == null
-            ? IzyTelColors.surfaceMuted
-            : accent.withAlpha(20);
+        ? IzyTelColors.surfaceMuted
+        : accent.withAlpha(20);
 
     return Material(
       color: background,
@@ -160,8 +159,8 @@ class PaymentFilterPill extends StatelessWidget {
           color: isSelected
               ? accent
               : emphasis == null
-                  ? IzyTelColors.outline
-                  : accent.withAlpha(50),
+              ? IzyTelColors.outline
+              : accent.withAlpha(50),
         ),
       ),
       child: InkWell(
@@ -295,13 +294,7 @@ class PaymentTrackingCard extends StatelessWidget {
         ? digits.substring(3)
         : digits;
     if (localDigits.length != 10) return value;
-    return '+225 ${<String>[
-      localDigits.substring(0, 2),
-      localDigits.substring(2, 4),
-      localDigits.substring(4, 6),
-      localDigits.substring(6, 8),
-      localDigits.substring(8, 10),
-    ].join(' ')}';
+    return '+225 ${<String>[localDigits.substring(0, 2), localDigits.substring(2, 4), localDigits.substring(4, 6), localDigits.substring(6, 8), localDigits.substring(8, 10)].join(' ')}';
   }
 
   @override

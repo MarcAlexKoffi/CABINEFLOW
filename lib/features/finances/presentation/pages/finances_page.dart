@@ -37,6 +37,7 @@ import 'package:cabine_flow/features/refunds/domain/repositories/refund_reposito
 import 'package:cabine_flow/features/refunds/presentation/pages/refund_management_page.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -323,9 +324,7 @@ class _FinancesPageState extends State<FinancesPage> {
   }
 
   void _showUnavailable(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    IzyTelFeedback.show(context, message, tone: IzyTelFeedbackTone.warning);
   }
 
   @override

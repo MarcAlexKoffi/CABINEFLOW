@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
@@ -11,6 +13,7 @@ import 'package:cabine_flow/features/orders/presentation/widgets/orders_widgets.
 import 'package:cabine_flow/features/support/data/repositories/fake_support_request_repository.dart';
 import 'package:cabine_flow/features/support/data/repositories/firestore_support_request_repository.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -41,6 +44,7 @@ class OrdersPage extends StatefulWidget {
 }
 
 class _OrdersPageState extends State<OrdersPage> {
+  Timer? _clockTimer;
   late final OrdersViewModel _viewModel;
   int _activeTabIndex = 0;
   bool _showHistory = false;
@@ -63,9 +67,7 @@ class _OrdersPageState extends State<OrdersPage> {
       final String message =
           _viewModel.errorMessage ?? 'Impossible de terminer la commande.';
 
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(message)));
+      IzyTelFeedback.error(context, message);
 
       return;
     }
@@ -102,9 +104,7 @@ class _OrdersPageState extends State<OrdersPage> {
         : 'La commande ${confirmationOrder.reference} est terminée '
               'sans envoi du message client.';
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    IzyTelFeedback.success(context, message);
   }
 
   Future<void> _markTransactionFailed(
@@ -126,9 +126,11 @@ class _OrdersPageState extends State<OrdersPage> {
         ? 'L’échec de la commande ${order?.reference ?? ''} est enregistré.'
         : _viewModel.errorMessage ?? 'Impossible d’enregistrer l’échec.';
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    if (isSuccessful) {
+      IzyTelFeedback.show(context, message, tone: IzyTelFeedbackTone.warning);
+    } else {
+      IzyTelFeedback.error(context, message);
+    }
   }
 
   Future<void> _putTransactionOnHold() async {
@@ -145,14 +147,19 @@ class _OrdersPageState extends State<OrdersPage> {
         : _viewModel.errorMessage ??
               'Impossible de mettre la commande en attente.';
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    if (isSuccessful) {
+      IzyTelFeedback.success(context, message);
+    } else {
+      IzyTelFeedback.error(context, message);
+    }
   }
 
   @override
   void initState() {
     super.initState();
+    _clockTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted) setState(() {});
+    });
 
     _viewModel = OrdersViewModel(
       ordersRepository: widget.ordersRepository,
@@ -167,6 +174,7 @@ class _OrdersPageState extends State<OrdersPage> {
 
   @override
   void dispose() {
+    _clockTimer?.cancel();
     _viewModel.dispose();
     super.dispose();
   }
@@ -180,15 +188,11 @@ class _OrdersPageState extends State<OrdersPage> {
   }
 
   void _showHistoryUnavailable() {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text(
-            'L’historique n’est pas disponible avec ce dépôt de données.',
-          ),
-        ),
-      );
+    IzyTelFeedback.show(
+      context,
+      'L’historique n’est pas disponible avec ce dépôt de données.',
+      tone: IzyTelFeedbackTone.warning,
+    );
   }
 
   void _openHistory({
@@ -322,15 +326,10 @@ class _OrdersPageState extends State<OrdersPage> {
     await _viewModel.loadQueue();
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            'Commande ${updatedOrder.reference} affectée à ${updatedOrder.assignedAgentName ?? 'l’agent'}.',
-          ),
-        ),
-      );
+    IzyTelFeedback.success(
+      context,
+      'Commande ${updatedOrder.reference} affectée à ${updatedOrder.assignedAgentName ?? 'l’agent'}.',
+    );
   }
 
   Future<void> _confirmTakeCharge(QueueOrder order) async {
@@ -376,15 +375,10 @@ class _OrdersPageState extends State<OrdersPage> {
     }
 
     if (isSuccessful) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              'La commande ${order.reference} est maintenant en cours.',
-            ),
-          ),
-        );
+      IzyTelFeedback.success(
+        context,
+        'La commande ${order.reference} est maintenant en cours.',
+      );
 
       return;
     }
@@ -393,9 +387,7 @@ class _OrdersPageState extends State<OrdersPage> {
         _viewModel.errorMessage ??
         'Impossible de prendre en charge la commande.';
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    IzyTelFeedback.error(context, message);
   }
 
   @override
@@ -455,15 +447,10 @@ class _OrdersPageState extends State<OrdersPage> {
             onTransactionFailed: _markTransactionFailed,
             onPutOnHold: _putTransactionOnHold,
             onNotificationsPressed: () {
-              ScaffoldMessenger.of(context)
-                ..hideCurrentSnackBar()
-                ..showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'L’écran des notifications sera ajouté ultérieurement.',
-                    ),
-                  ),
-                );
+              IzyTelFeedback.show(
+                context,
+                'L’écran des notifications sera ajouté ultérieurement.',
+              );
             },
           );
         }
@@ -489,15 +476,10 @@ class _OrdersPageState extends State<OrdersPage> {
                     _openHistory(openFiltersOnStart: true);
                   },
                   onNotificationsPressed: () {
-                    ScaffoldMessenger.of(context)
-                      ..hideCurrentSnackBar()
-                      ..showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'L’écran des notifications sera ajouté ultérieurement.',
-                          ),
-                        ),
-                      );
+                    IzyTelFeedback.show(
+                      context,
+                      'L’écran des notifications sera ajouté ultérieurement.',
+                    );
                   },
                 ),
               ),

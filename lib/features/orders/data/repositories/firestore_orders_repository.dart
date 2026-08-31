@@ -1776,6 +1776,92 @@ class FirestoreOrdersRepository
     });
   }
 
+  @override
+  Future<QueueOrder> prepareFailedOrderForReassignment({
+    required String orderId,
+  }) async {
+    final _AuditActor actor = await _currentStaffActor();
+    if (actor.role != 'admin') {
+      throw StateError('Seul un administrateur peut réaffecter un échec.');
+    }
+
+    final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
+        .doc(orderId.trim());
+    final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
+        .doc();
+    final OrderEventType eventType = OrderEventType.reassignmentRequested;
+
+    return _firestore.runTransaction<QueueOrder>((
+      Transaction transaction,
+    ) async {
+      final DocumentSnapshot<Map<String, dynamic>> snapshot = await transaction
+          .get(orderRef);
+      final Map<String, dynamic>? data = snapshot.data();
+      if (!snapshot.exists || data == null) {
+        throw StateError('La commande est introuvable.');
+      }
+
+      final QueueOrder order = FirestoreOrderMapper.fromMap(
+        id: snapshot.id,
+        data: data,
+      );
+      if (order.status != QueueOrderStatus.failed) {
+        throw StateError('Seule une commande échouée peut être réaffectée.');
+      }
+      if (!order.isFundedForProcessing) {
+        throw StateError('Cette commande n’est plus financée pour traitement.');
+      }
+
+      transaction.update(orderRef, <String, dynamic>{
+        'status': QueueOrderStatus.paidReady.name,
+        'takenByUserId': null,
+        'takenAt': null,
+        'completedAt': null,
+        'failureReason': null,
+        'observation': null,
+        'assignedAgentId': null,
+        'assignedAgentName': null,
+        'assignedByUserId': null,
+        'assignedAt': null,
+        'assignmentMode': null,
+        'assignmentStatus': OrderAssignmentStatus.unassigned.name,
+        'lastAssignmentRefusalReason': null,
+        'lastAssignmentRefusedAt': null,
+        'lastAssignmentRefusedAgentId': null,
+        'autoAssignmentRefusedAgentIds': <String>[],
+        'manualAssignmentRequired': true,
+        'lastHoldReason': null,
+        'lastHeldAt': null,
+        'lastResumedAt': null,
+        'updatedAt': FieldValue.serverTimestamp(),
+        ..._auditLinkData(eventRef: eventRef, type: eventType),
+      });
+
+      transaction.set(
+        eventRef,
+        _eventDocumentData(
+          orderId: order.id,
+          orderReference: order.reference,
+          type: eventType,
+          actor: actor,
+          metadata: <String, dynamic>{
+            'reason': 'Réaffectation demandée après échec',
+          },
+        ),
+      );
+
+      return order.copyWith(
+        status: QueueOrderStatus.paidReady,
+        manualAssignmentRequired: true,
+        autoAssignmentRefusedAgentIds: const <String>[],
+        clearAssignment: true,
+        clearAgentAssignment: true,
+        clearFailureDetails: true,
+        clearProcessingDetails: true,
+      );
+    });
+  }
+
   Future<DocumentReference<Map<String, dynamic>>>
   _findPendingAssignmentReference({
     required String orderId,

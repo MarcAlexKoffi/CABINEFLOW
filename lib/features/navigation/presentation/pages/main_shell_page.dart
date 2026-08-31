@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cabine_flow/app/app_routes.dart';
+import 'package:cabine_flow/core/services/session_preferences.dart';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
@@ -29,6 +30,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/offer_catalog_repository.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 
 class MainShellPage extends StatefulWidget {
   const MainShellPage({
@@ -69,6 +71,7 @@ class _MainShellPageState extends State<MainShellPage> {
   bool _automaticAssignmentSyncRunning = false;
   bool _automaticAssignmentSyncPending = false;
   bool _isLoggingOut = false;
+  DateTime? _lastBackPressAt;
 
   final List<GlobalKey<NavigatorState>> _tabNavigatorKeys =
       List<GlobalKey<NavigatorState>>.generate(
@@ -200,6 +203,7 @@ class _MainShellPageState extends State<MainShellPage> {
 
     try {
       await widget.authRepository.logout();
+      await SessionPreferences.clear();
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
         AppRoutes.login,
@@ -210,13 +214,10 @@ class _MainShellPageState extends State<MainShellPage> {
       setState(() {
         _isLoggingOut = false;
       });
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('Impossible de se déconnecter pour le moment.'),
-          ),
-        );
+      IzyTelFeedback.error(
+        context,
+        'Impossible de se déconnecter pour le moment.',
+      );
     }
   }
 
@@ -225,11 +226,27 @@ class _MainShellPageState extends State<MainShellPage> {
         _tabNavigatorKeys[_selectedIndex].currentState;
 
     if (currentNavigator != null && await currentNavigator.maybePop()) {
+      _lastBackPressAt = null;
       return;
     }
 
     if (_selectedIndex != 0) {
+      _lastBackPressAt = null;
       _selectDestination(0);
+      return;
+    }
+
+    final DateTime now = DateTime.now();
+    final DateTime? previous = _lastBackPressAt;
+    if (previous == null ||
+        now.difference(previous) > const Duration(seconds: 2)) {
+      _lastBackPressAt = now;
+      if (mounted) {
+        IzyTelFeedback.show(
+          context,
+          'Appuie encore une fois pour quitter IzyTel.',
+        );
+      }
       return;
     }
 
@@ -273,6 +290,8 @@ class _MainShellPageState extends State<MainShellPage> {
             widget.ordersRepository is OrderHistoryRepository
             ? widget.ordersRepository as OrderHistoryRepository
             : null,
+        ordersRepository: widget.ordersRepository,
+        agentRepository: widget.agentRepository,
         onOpenOrders: _openOrdersTab,
         onOpenPayments: _openPaymentsTab,
         onOpenMore: _openMoreTab,
@@ -350,6 +369,7 @@ class _AgentShell extends StatefulWidget {
 class _AgentShellState extends State<_AgentShell> {
   int _selectedIndex = 0;
   bool _isLoggingOut = false;
+  DateTime? _lastBackPressAt;
   final List<GlobalKey<NavigatorState>> _tabNavigatorKeys =
       List<GlobalKey<NavigatorState>>.generate(
         3,
@@ -391,6 +411,7 @@ class _AgentShellState extends State<_AgentShell> {
 
     try {
       await widget.authRepository.logout();
+      await SessionPreferences.clear();
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
         AppRoutes.login,
@@ -401,13 +422,10 @@ class _AgentShellState extends State<_AgentShell> {
       setState(() {
         _isLoggingOut = false;
       });
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('Impossible de se déconnecter pour le moment.'),
-          ),
-        );
+      IzyTelFeedback.error(
+        context,
+        'Impossible de se déconnecter pour le moment.',
+      );
     }
   }
 
@@ -416,13 +434,30 @@ class _AgentShellState extends State<_AgentShell> {
         _tabNavigatorKeys[_selectedIndex].currentState;
 
     if (currentNavigator != null && await currentNavigator.maybePop()) {
+      _lastBackPressAt = null;
       return;
     }
 
     if (_selectedIndex != 0) {
+      _lastBackPressAt = null;
       setState(() => _selectedIndex = 0);
       return;
     }
+
+    final DateTime now = DateTime.now();
+    final DateTime? previous = _lastBackPressAt;
+    if (previous == null ||
+        now.difference(previous) > const Duration(seconds: 2)) {
+      _lastBackPressAt = now;
+      if (mounted) {
+        IzyTelFeedback.show(
+          context,
+          'Appuie encore une fois pour quitter IzyTel.',
+        );
+      }
+      return;
+    }
+
     await SystemNavigator.pop();
   }
 

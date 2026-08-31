@@ -222,6 +222,7 @@ class QueueOrder {
     bool clearAssignment = false,
     bool clearAgentAssignment = false,
     bool clearFailureDetails = false,
+    bool clearProcessingDetails = false,
   }) {
     return QueueOrder(
       id: id,
@@ -253,11 +254,15 @@ class QueueOrder {
       paymentReference: paymentReference ?? this.paymentReference,
       status: status ?? this.status,
       paymentStatus: paymentStatus ?? this.paymentStatus,
-      takenByUserId: clearAssignment
+      takenByUserId: (clearAssignment || clearProcessingDetails)
           ? null
           : takenByUserId ?? this.takenByUserId,
-      takenAt: clearAssignment ? null : takenAt ?? this.takenAt,
-      completedAt: completedAt ?? this.completedAt,
+      takenAt: (clearAssignment || clearProcessingDetails)
+          ? null
+          : takenAt ?? this.takenAt,
+      completedAt: clearProcessingDetails
+          ? null
+          : completedAt ?? this.completedAt,
       failureReason: clearFailureDetails
           ? null
           : failureReason ?? this.failureReason,
@@ -293,9 +298,13 @@ class QueueOrder {
           autoAssignmentRefusedAgentIds ?? this.autoAssignmentRefusedAgentIds,
       manualAssignmentRequired:
           manualAssignmentRequired ?? this.manualAssignmentRequired,
-      lastHoldReason: lastHoldReason ?? this.lastHoldReason,
-      lastHeldAt: lastHeldAt ?? this.lastHeldAt,
-      lastResumedAt: lastResumedAt ?? this.lastResumedAt,
+      lastHoldReason: clearProcessingDetails
+          ? null
+          : lastHoldReason ?? this.lastHoldReason,
+      lastHeldAt: clearProcessingDetails ? null : lastHeldAt ?? this.lastHeldAt,
+      lastResumedAt: clearProcessingDetails
+          ? null
+          : lastResumedAt ?? this.lastResumedAt,
     );
   }
 }

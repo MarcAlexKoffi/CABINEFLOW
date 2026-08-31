@@ -1,6 +1,7 @@
 import 'package:cabine_flow/core/theme/app_colors.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -85,9 +86,7 @@ class _CustomerConfirmationPageState extends State<CustomerConfirmationPage> {
       return;
     }
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('Message copié.')));
+    IzyTelFeedback.success(context, 'Message copié.');
   }
 
   Future<bool> _openWhatsapp() async {
@@ -107,11 +106,7 @@ class _CustomerConfirmationPageState extends State<CustomerConfirmationPage> {
     }
 
     if (!wasOpened) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('Impossible d’ouvrir WhatsApp.')),
-        );
+      IzyTelFeedback.error(context, 'Impossible d’ouvrir WhatsApp.');
     }
 
     return wasOpened;
@@ -207,11 +202,7 @@ class _CustomerConfirmationPageState extends State<CustomerConfirmationPage> {
       _isSubmitting = false;
     });
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text('Impossible de clôturer la commande.')),
-      );
+    IzyTelFeedback.error(context, 'Impossible de clôturer la commande.');
   }
 
   Future<void> _handleBackButton() async {

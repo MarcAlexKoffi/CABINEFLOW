@@ -84,9 +84,11 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
                 }
               }
 
-              final List<QueueOrder> orders = _tab == 0
-                  ? _viewModel.inProgressOrders
-                  : _viewModel.completedOrders;
+              final List<QueueOrder> orders = switch (_tab) {
+                0 => _viewModel.inProgressOrders,
+                1 => _viewModel.successfulHistoryOrders,
+                _ => _viewModel.failedOrders,
+              };
 
               return RefreshIndicator(
                 onRefresh: _viewModel.start,
@@ -107,7 +109,7 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      'Retrouve tes commandes en cours et terminées.',
+                      'Retrouve tes commandes en cours, réussies et échouées.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: IzyTelColors.textSecondary,
                         fontSize: IzyTelTypeScale.label,
@@ -126,13 +128,22 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
                             onTap: () => setState(() => _tab = 0),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 7),
                         Expanded(
                           child: _HistoryTab(
-                            label: 'Terminées',
-                            count: _viewModel.completedCount,
+                            label: 'Réussies',
+                            count: _viewModel.successfulHistoryCount,
                             selected: _tab == 1,
                             onTap: () => setState(() => _tab = 1),
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: _HistoryTab(
+                            label: 'Échecs',
+                            count: _viewModel.failedCount,
+                            selected: _tab == 2,
+                            onTap: () => setState(() => _tab = 2),
                           ),
                         ),
                       ],
@@ -149,7 +160,9 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
                         child: Text(
                           _tab == 0
                               ? 'Aucune commande en cours.'
-                              : 'Aucune commande terminée.',
+                              : (_tab == 1
+                                    ? 'Aucune commande réussie.'
+                                    : 'Aucun échec enregistré.'),
                           textAlign: TextAlign.center,
                         ),
                       )
@@ -159,7 +172,7 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
                           padding: const EdgeInsets.only(bottom: 12),
                           child: _HistoryOrderCard(
                             order: order,
-                            isCompleted: _tab == 1,
+                            isCompleted: _tab != 0,
                             onTap: () =>
                                 setState(() => _openedOrderId = order.id),
                           ),
@@ -242,12 +255,11 @@ class _HistoryOrderCard extends StatelessWidget {
       MobileNetwork.moov => IzyTelColors.moov,
     };
     final (String statusLabel, Color statusColor) = isCompleted
-        ? (
-            order.status == QueueOrderStatus.refunded
-                ? 'Remboursée'
-                : 'Terminée',
-            IzyTelColors.success,
-          )
+        ? switch (order.status) {
+            QueueOrderStatus.failed => ('Échouée', IzyTelColors.error),
+            QueueOrderStatus.refunded => ('Remboursée', IzyTelColors.success),
+            _ => ('Réussie', IzyTelColors.success),
+          }
         : switch (order.status) {
             QueueOrderStatus.onHold => ('En attente', IzyTelColors.warning),
             QueueOrderStatus.awaitingCustomerConfirmation => (
@@ -308,6 +320,40 @@ class _HistoryOrderCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+          if (order.status == QueueOrderStatus.failed) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: IzyTelColors.errorSoft,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: IzyTelColors.error.withAlpha(55)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Text(
+                    'Motif : ${_failureReasonHistoryLabel(order.failureReason)}',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: IzyTelColors.error,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (order.observation?.trim().isNotEmpty == true) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      order.observation!.trim(),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: IzyTelColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
@@ -359,4 +405,17 @@ class _HistoryOrderCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _failureReasonHistoryLabel(OrderFailureReason? reason) {
+  if (reason == null) return 'Non renseigné';
+  return switch (reason) {
+    OrderFailureReason.incorrectNumber => 'Numéro incorrect',
+    OrderFailureReason.networkUnavailable => 'Réseau indisponible',
+    OrderFailureReason.offerUnavailable => 'Offre indisponible',
+    OrderFailureReason.insufficientBalance => 'Solde insuffisant',
+    OrderFailureReason.technicalError => 'Erreur technique',
+    OrderFailureReason.incorrectPayment => 'Paiement incorrect',
+    OrderFailureReason.other => 'Autre',
+  };
 }

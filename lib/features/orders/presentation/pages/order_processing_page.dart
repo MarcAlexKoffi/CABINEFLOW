@@ -5,6 +5,7 @@ import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/orders_widgets.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -125,11 +126,7 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
       return;
     }
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text('Numéro bénéficiaire copié.')),
-      );
+    IzyTelFeedback.success(context, 'Numéro bénéficiaire copié.');
   }
 
   Future<void> _confirmSuccess() async {

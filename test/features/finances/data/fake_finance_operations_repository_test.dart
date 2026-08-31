@@ -37,7 +37,8 @@ void main() {
       staffName: 'Admin',
     );
 
-    SupplierAccount account = (await repository.watchSupplierAccounts().first).single;
+    SupplierAccount account =
+        (await repository.watchSupplierAccounts().first).single;
     expect(account.totalRecharged, 104500);
     expect(account.balance, 100000);
 
@@ -114,7 +115,8 @@ void main() {
       staffName: 'Admin',
     );
 
-    final CustomerCredit partial = (await repository.watchCustomerCredits().first).single;
+    final CustomerCredit partial =
+        (await repository.watchCustomerCredits().first).single;
     expect(partial.status, CustomerCreditStatus.partial);
     expect(partial.outstanding, 2000);
 
@@ -138,33 +140,38 @@ void main() {
       staffId: 'admin',
       staffName: 'Admin',
     );
-    final CustomerCredit settled = (await repository.watchCustomerCredits().first).single;
+    final CustomerCredit settled =
+        (await repository.watchCustomerCredits().first).single;
     expect(settled.status, CustomerCreditStatus.settled);
     expect(settled.outstanding, 0);
     expect(settled.settledAt, isNotNull);
   });
 
-  test('chaque recalage Wave conserve un historique immuable en mémoire', () async {
-    await repository.setWaveOpeningBalance(
-      amount: 100000,
-      staffId: 'admin',
-      staffName: 'Admin',
-      note: 'Ouverture',
-    );
-    await repository.setWaveOpeningBalance(
-      amount: 98000,
-      staffId: 'admin',
-      staffName: 'Admin',
-      note: 'Recalage après contrôle',
-    );
+  test(
+    'chaque recalage Wave conserve un historique immuable en mémoire',
+    () async {
+      await repository.setWaveOpeningBalance(
+        amount: 100000,
+        staffId: 'admin',
+        staffName: 'Admin',
+        note: 'Ouverture',
+      );
+      await repository.setWaveOpeningBalance(
+        amount: 98000,
+        staffId: 'admin',
+        staffName: 'Admin',
+        note: 'Recalage après contrôle',
+      );
 
-    final List<WaveBalanceAdjustment> history =
-        await repository.watchWaveBalanceAdjustments().first;
-    expect(history, hasLength(2));
-    expect(history.first.openingBalance, 98000);
-    expect(history.first.previousOpeningBalance, 100000);
-    expect(history.first.difference, -2000);
-  });
+      final List<WaveBalanceAdjustment> history = await repository
+          .watchWaveBalanceAdjustments()
+          .first;
+      expect(history, hasLength(2));
+      expect(history.first.openingBalance, 98000);
+      expect(history.first.previousOpeningBalance, 100000);
+      expect(history.first.difference, -2000);
+    },
+  );
 
   test('interdit une seconde clôture du même jour', () async {
     const DailyFinancialClosingDraft draft = DailyFinancialClosingDraft(
@@ -211,32 +218,35 @@ void main() {
       throwsStateError,
     );
   });
-  test('une recharge fournisseur crée toujours la dette complète du principal', () async {
-    final String supplierId = await repository.createSupplier(
-      name: 'Grossiste MTN',
-      phoneNumber: '+2250500000000',
-      staffId: 'admin',
-      staffName: 'Admin',
-    );
-
-    await expectLater(
-      repository.recordSupplierRecharge(
-        draft: SupplierRechargeDraft(
-          supplierId: supplierId,
-          supplierName: 'Grossiste MTN',
-          agentId: 'agent-1',
-          agentName: 'Agent 1',
-          network: AgentNetwork.mtn,
-          principalAmount: 10000,
-          bonusAmount: 400,
-          amountOwed: 5000,
-        ),
+  test(
+    'une recharge fournisseur crée toujours la dette complète du principal',
+    () async {
+      final String supplierId = await repository.createSupplier(
+        name: 'Grossiste MTN',
+        phoneNumber: '+2250500000000',
         staffId: 'admin',
         staffName: 'Admin',
-      ),
-      throwsArgumentError,
-    );
-  });
+      );
+
+      await expectLater(
+        repository.recordSupplierRecharge(
+          draft: SupplierRechargeDraft(
+            supplierId: supplierId,
+            supplierName: 'Grossiste MTN',
+            agentId: 'agent-1',
+            agentName: 'Agent 1',
+            network: AgentNetwork.mtn,
+            principalAmount: 10000,
+            bonusAmount: 400,
+            amountOwed: 5000,
+          ),
+          staffId: 'admin',
+          staffName: 'Admin',
+        ),
+        throwsArgumentError,
+      );
+    },
+  );
 
   test('une dépense Wave exige une référence traçable', () async {
     await expectLater(
@@ -293,5 +303,4 @@ void main() {
       throwsArgumentError,
     );
   });
-
 }

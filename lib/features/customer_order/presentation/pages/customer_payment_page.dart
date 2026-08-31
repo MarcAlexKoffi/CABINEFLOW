@@ -8,6 +8,7 @@ import 'package:cabine_flow/features/customer_order/presentation/widgets/custome
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_progress_indicator.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_cards.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_inputs.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -120,9 +121,7 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    IzyTelFeedback.show(context, message);
   }
 
   @override

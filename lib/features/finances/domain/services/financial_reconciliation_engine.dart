@@ -8,19 +8,22 @@ class FinancialReconciliationEngine {
     required List<QueueOrder> orders,
     required FinancialReconciliationEvidence evidence,
   }) {
-    final List<FinancialReconciliationResult> results = orders
-        .where((QueueOrder order) => _isFinanciallyRelevant(order, evidence))
-        .map(
-          (QueueOrder order) => _reconcileOrder(
-            order: order,
-            evidence: evidence,
-          ),
-        )
-        .toList(growable: false)
-      ..sort(
-        (FinancialReconciliationResult a, FinancialReconciliationResult b) =>
-            b.date.compareTo(a.date),
-      );
+    final List<FinancialReconciliationResult> results =
+        orders
+            .where(
+              (QueueOrder order) => _isFinanciallyRelevant(order, evidence),
+            )
+            .map(
+              (QueueOrder order) =>
+                  _reconcileOrder(order: order, evidence: evidence),
+            )
+            .toList(growable: false)
+          ..sort(
+            (
+              FinancialReconciliationResult a,
+              FinancialReconciliationResult b,
+            ) => b.date.compareTo(a.date),
+          );
     return results;
   }
 
@@ -105,7 +108,8 @@ class FinancialReconciliationEngine {
   ) {
     if (order.paymentStatus == OrderPaymentStatus.confirmed) {
       final bool hasConfirmation = order.paymentConfirmedAt != null;
-      final bool hasReference = order.paymentReference?.trim().isNotEmpty == true;
+      final bool hasReference =
+          order.paymentReference?.trim().isNotEmpty == true;
       if (hasConfirmation && hasReference) {
         return const FinancialReconciliationCheck(
           link: FinancialReconciliationLink.payment,
@@ -127,7 +131,8 @@ class FinancialReconciliationEngine {
     }
 
     if (order.paymentStatus == OrderPaymentStatus.credit) {
-      final ReconciliationCreditEvidence? credit = evidence.creditsByOrder[order.id];
+      final ReconciliationCreditEvidence? credit =
+          evidence.creditsByOrder[order.id];
       if (credit == null) {
         return const FinancialReconciliationCheck(
           link: FinancialReconciliationLink.payment,
@@ -136,7 +141,8 @@ class FinancialReconciliationEngine {
           detail: 'Commande à crédit sans dossier customerCredits lié.',
         );
       }
-      final bool matches = credit.orderReference == order.reference &&
+      final bool matches =
+          credit.orderReference == order.reference &&
           credit.amount == order.amount;
       return FinancialReconciliationCheck(
         link: FinancialReconciliationLink.payment,
@@ -164,7 +170,8 @@ class FinancialReconciliationEngine {
         link: FinancialReconciliationLink.payment,
         label: 'Paiement client',
         state: FinancialReconciliationCheckState.attention,
-        detail: 'La commande a progressé sans paiement confirmé ni crédit autorisé.',
+        detail:
+            'La commande a progressé sans paiement confirmé ni crédit autorisé.',
       );
     }
 
@@ -260,16 +267,18 @@ class FinancialReconciliationEngine {
       );
     }
 
-    final Set<String> events = evidence.eventsByOrder[order.id] ?? const <String>{};
-    final bool hasStart = events.contains('PROCESSING_STARTED') || order.takenAt != null;
+    final Set<String> events =
+        evidence.eventsByOrder[order.id] ?? const <String>{};
+    final bool hasStart =
+        events.contains('PROCESSING_STARTED') || order.takenAt != null;
     final bool successPath = _isSuccessfulProcessingState(order);
     final bool failurePath = _isFailedProcessingPath(order);
     final bool hasResult = successPath
         ? events.contains('PROCESSING_SUCCEEDED') ||
-            (order.completedAt != null && order.failureReason == null)
+              (order.completedAt != null && order.failureReason == null)
         : failurePath
-            ? events.contains('PROCESSING_FAILED') || order.failureReason != null
-            : true;
+        ? events.contains('PROCESSING_FAILED') || order.failureReason != null
+        : true;
 
     if (hasStart && hasResult) {
       return const FinancialReconciliationCheck(
@@ -296,7 +305,8 @@ class FinancialReconciliationEngine {
     QueueOrder order,
     FinancialReconciliationEvidence evidence,
   ) {
-    final bool requiresProof = _isSuccessfulProcessingState(order) &&
+    final bool requiresProof =
+        _isSuccessfulProcessingState(order) &&
         _clean(order.assignedAgentId) != null;
     if (!requiresProof) {
       return const FinancialReconciliationCheck(
@@ -323,7 +333,8 @@ class FinancialReconciliationEngine {
     QueueOrder order,
     FinancialReconciliationEvidence evidence,
   ) {
-    final bool success = _isSuccessfulProcessingState(order) &&
+    final bool success =
+        _isSuccessfulProcessingState(order) &&
         _clean(order.assignedAgentId) != null;
     if (!success) {
       return const FinancialReconciliationCheck(
@@ -343,7 +354,8 @@ class FinancialReconciliationEngine {
         link: FinancialReconciliationLink.networkMovement,
         label: 'Mouvement réseau',
         state: FinancialReconciliationCheckState.notApplicable,
-        detail: 'Commande antérieure à l’activation du journal réseau Phase 13.',
+        detail:
+            'Commande antérieure à l’activation du journal réseau Phase 13.',
       );
     }
 
@@ -362,7 +374,8 @@ class FinancialReconciliationEngine {
       );
     }
 
-    final bool matches = movement.amount == order.amount &&
+    final bool matches =
+        movement.amount == order.amount &&
         movement.network == order.network.name &&
         movement.agentId == order.assignedAgentId;
     return FinancialReconciliationCheck(
@@ -381,7 +394,8 @@ class FinancialReconciliationEngine {
     QueueOrder order,
     FinancialReconciliationEvidence evidence,
   ) {
-    final bool success = _isSuccessfulProcessingState(order) &&
+    final bool success =
+        _isSuccessfulProcessingState(order) &&
         _clean(order.assignedAgentId) != null;
     if (!success) {
       return const FinancialReconciliationCheck(
@@ -420,7 +434,8 @@ class FinancialReconciliationEngine {
       );
     }
 
-    final bool matches = commission.agentId == order.assignedAgentId &&
+    final bool matches =
+        commission.agentId == order.assignedAgentId &&
         commission.orderAmount == order.amount &&
         commission.commissionAmount > 0;
     return FinancialReconciliationCheck(
@@ -439,7 +454,8 @@ class FinancialReconciliationEngine {
     QueueOrder order,
     ReconciliationRefundEvidence? refund,
   ) {
-    final bool requiresRefund = order.status == QueueOrderStatus.refundPending ||
+    final bool requiresRefund =
+        order.status == QueueOrderStatus.refundPending ||
         order.status == QueueOrderStatus.refunded;
     if (refund == null) {
       return FinancialReconciliationCheck(
@@ -455,7 +471,8 @@ class FinancialReconciliationEngine {
     }
 
     final bool amountValid = refund.amount > 0 && refund.amount <= order.amount;
-    final bool statusValid = !requiresRefund ||
+    final bool statusValid =
+        !requiresRefund ||
         (order.status == QueueOrderStatus.refundPending &&
             refund.status != 'rejected') ||
         (order.status == QueueOrderStatus.refunded &&
@@ -469,8 +486,8 @@ class FinancialReconciliationEngine {
           : FinancialReconciliationCheckState.attention,
       detail: coherent
           ? refund.status == 'reconciled'
-              ? 'Remboursement effectué et rapproché.'
-              : 'Dossier de remboursement relié à la commande.'
+                ? 'Remboursement effectué et rapproché.'
+                : 'Dossier de remboursement relié à la commande.'
           : 'Le montant ou le statut du remboursement n’est pas cohérent avec la commande.',
     );
   }

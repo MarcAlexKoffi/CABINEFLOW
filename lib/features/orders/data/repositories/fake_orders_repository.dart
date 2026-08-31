@@ -876,6 +876,39 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
   }
 
   @override
+  Future<QueueOrder> prepareFailedOrderForReassignment({
+    required String orderId,
+  }) async {
+    await _delay(250);
+    final int index = _findOrderIndex(orderId);
+    final QueueOrder currentOrder = _orders![index];
+    if (currentOrder.status != QueueOrderStatus.failed) {
+      throw StateError('Seule une commande échouée peut être réaffectée.');
+    }
+    final QueueOrder updatedOrder = currentOrder.copyWith(
+      status: QueueOrderStatus.paidReady,
+      manualAssignmentRequired: true,
+      autoAssignmentRefusedAgentIds: const <String>[],
+      clearAssignment: true,
+      clearAgentAssignment: true,
+      clearFailureDetails: true,
+      clearProcessingDetails: true,
+    );
+    _orders![index] = updatedOrder;
+    _recordEvent(
+      order: updatedOrder,
+      type: OrderEventType.reassignmentRequested,
+      actorId: 'ADMIN-001',
+      actorRole: 'admin',
+      metadata: const <String, Object?>{
+        'reason': 'Réaffectation demandée après échec',
+      },
+    );
+    _notify();
+    return updatedOrder;
+  }
+
+  @override
   Future<QueueOrder> putOnHold({required String orderId}) async {
     await Future<void>.delayed(const Duration(milliseconds: 600));
 

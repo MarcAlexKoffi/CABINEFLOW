@@ -4,7 +4,8 @@ import 'package:cabine_flow/features/finances/domain/repositories/financial_reco
 class FakeFinancialReconciliationRepository
     implements FinancialReconciliationRepository {
   FakeFinancialReconciliationRepository({
-    List<FinancialReconciliationResult> results = const <FinancialReconciliationResult>[],
+    List<FinancialReconciliationResult> results =
+        const <FinancialReconciliationResult>[],
   }) : _results = results;
 
   final List<FinancialReconciliationResult> _results;

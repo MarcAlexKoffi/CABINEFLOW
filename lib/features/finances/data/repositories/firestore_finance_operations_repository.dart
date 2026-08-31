@@ -104,7 +104,9 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
     String? note,
   }) async {
     final String cleanedName = name.trim();
-    if (cleanedName.length < 2) throw ArgumentError('Le nom du fournisseur est requis.');
+    if (cleanedName.length < 2) {
+      throw ArgumentError('Le nom du fournisseur est requis.');
+    }
     final DocumentReference<Map<String, dynamic>> ref = _suppliers.doc();
     await ref.set(<String, dynamic>{
       'schemaVersion': 1,
@@ -177,7 +179,9 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
       final String capacityField = _capacityField(draft.network);
       final int before = _int(agentData[capacityField]);
       final int after = before + draft.receivedAmount;
-      if (after > 100000000) throw StateError('La capacité réseau dépasse la limite autorisée.');
+      if (after > 100000000) {
+        throw StateError('La capacité réseau dépasse la limite autorisée.');
+      }
 
       transaction.update(agentRef, <String, dynamic>{
         capacityField: after,
@@ -253,8 +257,12 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
     required String staffId,
     required String staffName,
   }) async {
-    if (draft.amount <= 0) throw ArgumentError('Le montant du règlement doit être positif.');
-    if (draft.reference.trim().length < 3) throw ArgumentError('La référence du règlement est requise.');
+    if (draft.amount <= 0) {
+      throw ArgumentError('Le montant du règlement doit être positif.');
+    }
+    if (draft.reference.trim().length < 3) {
+      throw ArgumentError('La référence du règlement est requise.');
+    }
     final DocumentReference<Map<String, dynamic>> paymentRef = _supplierPayments.doc();
     final DocumentReference<Map<String, dynamic>> supplierRef = _suppliers.doc(draft.supplierId);
     final DocumentReference<Map<String, dynamic>> accountRef = _supplierAccounts.doc(draft.supplierId);
@@ -262,13 +270,19 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
     await _firestore.runTransaction((Transaction transaction) async {
       final DocumentSnapshot<Map<String, dynamic>> supplierSnapshot = await transaction.get(supplierRef);
       final DocumentSnapshot<Map<String, dynamic>> accountSnapshot = await transaction.get(accountRef);
-      if (!supplierSnapshot.exists) throw StateError('Fournisseur introuvable.');
-      if (!accountSnapshot.exists || accountSnapshot.data() == null) throw StateError('Aucune dette fournisseur n’est enregistrée.');
+      if (!supplierSnapshot.exists) {
+        throw StateError('Fournisseur introuvable.');
+      }
+      if (!accountSnapshot.exists || accountSnapshot.data() == null) {
+        throw StateError('Aucune dette fournisseur n’est enregistrée.');
+      }
       final Map<String, dynamic> account = accountSnapshot.data()!;
       final int owed = _int(account['totalOwed']);
       final int paid = _int(account['totalPaid']);
       final int balance = owed - paid;
-      if (draft.amount > balance) throw StateError('Le règlement dépasse le montant restant dû.');
+      if (draft.amount > balance) {
+        throw StateError('Le règlement dépasse le montant restant dû.');
+      }
 
       transaction.set(paymentRef, <String, dynamic>{
         'schemaVersion': 1,
@@ -406,19 +420,29 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
     required String staffName,
     String? note,
   }) async {
-    if (amount <= 0) throw ArgumentError('Le montant du règlement doit être positif.');
-    if (reference.trim().length < 3) throw ArgumentError('La référence du règlement est requise.');
+    if (amount <= 0) {
+      throw ArgumentError('Le montant du règlement doit être positif.');
+    }
+    if (reference.trim().length < 3) {
+      throw ArgumentError('La référence du règlement est requise.');
+    }
     final DocumentReference<Map<String, dynamic>> creditRef = _credits.doc(creditId);
     final DocumentReference<Map<String, dynamic>> settlementRef = _creditSettlements.doc();
     await _firestore.runTransaction((Transaction transaction) async {
       final DocumentSnapshot<Map<String, dynamic>> snapshot = await transaction.get(creditRef);
-      if (!snapshot.exists || snapshot.data() == null) throw StateError('Crédit client introuvable.');
+      if (!snapshot.exists || snapshot.data() == null) {
+        throw StateError('Crédit client introuvable.');
+      }
       final Map<String, dynamic> credit = snapshot.data()!;
       final int total = _int(credit['amount']);
       final int alreadyPaid = _int(credit['paidAmount']);
       final int outstanding = total - alreadyPaid;
-      if (outstanding <= 0) throw StateError('Ce crédit est déjà soldé.');
-      if (amount > outstanding) throw StateError('Le règlement dépasse le reste à payer.');
+      if (outstanding <= 0) {
+        throw StateError('Ce crédit est déjà soldé.');
+      }
+      if (amount > outstanding) {
+        throw StateError('Le règlement dépasse le reste à payer.');
+      }
       final int nextPaid = alreadyPaid + amount;
       final bool settled = nextPaid == total;
 
@@ -453,8 +477,12 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
     required String staffId,
     required String staffName,
   }) async {
-    if (draft.amount <= 0) throw ArgumentError('Le montant de la dépense doit être positif.');
-    if (draft.description.trim().length < 3) throw ArgumentError('La description de la dépense est requise.');
+    if (draft.amount <= 0) {
+      throw ArgumentError('Le montant de la dépense doit être positif.');
+    }
+    if (draft.description.trim().length < 3) {
+      throw ArgumentError('La description de la dépense est requise.');
+    }
     if (draft.channel == FinancePaymentChannel.wave && (draft.reference?.trim().length ?? 0) < 3) {
       throw ArgumentError('La référence Wave est requise pour une dépense payée via Wave.');
     }
@@ -480,7 +508,9 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
     required String staffName,
     String? note,
   }) async {
-    if (amount < 0) throw ArgumentError('Le solde Wave ne peut pas être négatif.');
+    if (amount < 0) {
+      throw ArgumentError('Le solde Wave ne peut pas être négatif.');
+    }
     final String cleanedStaffName = staffName.trim();
     if (staffId.trim().isEmpty || cleanedStaffName.length < 2) {
       throw ArgumentError('L’administrateur connecté est invalide.');
@@ -521,7 +551,9 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
     final DocumentReference<Map<String, dynamic>> ref = _dailyClosings.doc(draft.dateKey);
     await _firestore.runTransaction((Transaction transaction) async {
       final DocumentSnapshot<Map<String, dynamic>> existing = await transaction.get(ref);
-      if (existing.exists) throw StateError('Cette journée a déjà été clôturée.');
+      if (existing.exists) {
+        throw StateError('Cette journée a déjà été clôturée.');
+      }
       transaction.set(ref, <String, dynamic>{
         'schemaVersion': 1,
         'dateKey': draft.dateKey,
@@ -564,7 +596,9 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
     final DateTime? createdAt = _date(data['createdAt']);
     final DateTime? updatedAt = _date(data['updatedAt']);
     final String name = _string(data['name']);
-    if (createdAt == null || updatedAt == null || name.isEmpty) return null;
+    if (createdAt == null || updatedAt == null || name.isEmpty) {
+      return null;
+    }
     return FinanceSupplier(
       id: doc.id,
       name: name,
@@ -582,7 +616,9 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
     final Map<String, dynamic> data = doc.data();
     final DateTime? createdAt = _date(data['createdAt']);
     final DateTime? updatedAt = _date(data['updatedAt']);
-    if (createdAt == null || updatedAt == null) return null;
+    if (createdAt == null || updatedAt == null) {
+      return null;
+    }
     return SupplierAccount(
       supplierId: _string(data['supplierId']),
       supplierName: _string(data['supplierName']),
@@ -599,7 +635,9 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
     final Map<String, dynamic> data = doc.data();
     final AgentNetwork? network = _network(data['network']);
     final DateTime? createdAt = _date(data['createdAt']);
-    if (network == null || createdAt == null) return null;
+    if (network == null || createdAt == null) {
+      return null;
+    }
     return SupplierRecharge(
       id: doc.id,
       supplierId: _string(data['supplierId']),
@@ -623,7 +661,9 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
   SupplierPayment? _supplierPaymentFromDocument(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final Map<String, dynamic> data = doc.data();
     final DateTime? paidAt = _date(data['paidAt']);
-    if (paidAt == null) return null;
+    if (paidAt == null) {
+      return null;
+    }
     return SupplierPayment(
       id: doc.id,
       supplierId: _string(data['supplierId']),
@@ -642,7 +682,9 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
     final Map<String, dynamic> data = doc.data();
     final DateTime? createdAt = _date(data['createdAt']);
     final DateTime? updatedAt = _date(data['updatedAt']);
-    if (createdAt == null || updatedAt == null) return null;
+    if (createdAt == null || updatedAt == null) {
+      return null;
+    }
     return CustomerCredit(
       id: doc.id,
       orderId: _string(data['orderId']),
@@ -664,7 +706,9 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
   CustomerCreditSettlement? _creditSettlementFromDocument(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final Map<String, dynamic> data = doc.data();
     final DateTime? paidAt = _date(data['paidAt']);
-    if (paidAt == null) return null;
+    if (paidAt == null) {
+      return null;
+    }
     return CustomerCreditSettlement(
       id: doc.id,
       creditId: _string(data['creditId']),
@@ -684,7 +728,9 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
   FinanceExpense? _expenseFromDocument(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final Map<String, dynamic> data = doc.data();
     final DateTime? spentAt = _date(data['spentAt']);
-    if (spentAt == null) return null;
+    if (spentAt == null) {
+      return null;
+    }
     return FinanceExpense(
       id: doc.id,
       category: FinanceExpenseCategoryX.fromStorage(_string(data['category'])),
@@ -701,7 +747,9 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
   WaveBalanceAdjustment? _waveAdjustmentFromDocument(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final Map<String, dynamic> data = doc.data();
     final DateTime? effectiveAt = _date(data['effectiveAt']);
-    if (effectiveAt == null) return null;
+    if (effectiveAt == null) {
+      return null;
+    }
     return WaveBalanceAdjustment(
       id: doc.id,
       previousOpeningBalance: _int(data['previousOpeningBalance']),
@@ -714,11 +762,15 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
   }
 
   WaveOpeningBalance? _waveOpeningFromDocument(DocumentSnapshot<Map<String, dynamic>> doc) {
-    if (!doc.exists || doc.data() == null) return null;
+    if (!doc.exists || doc.data() == null) {
+      return null;
+    }
     final Map<String, dynamic> data = doc.data()!;
     final DateTime? effectiveAt = _date(data['effectiveAt']);
     final DateTime? updatedAt = _date(data['updatedAt']);
-    if (effectiveAt == null || updatedAt == null) return null;
+    if (effectiveAt == null || updatedAt == null) {
+      return null;
+    }
     return WaveOpeningBalance(
       amount: _int(data['openingBalance']),
       effectiveAt: effectiveAt,
@@ -732,7 +784,9 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
   DailyFinancialClosing? _dailyClosingFromDocument(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final Map<String, dynamic> data = doc.data();
     final DateTime? closedAt = _date(data['closedAt']);
-    if (closedAt == null) return null;
+    if (closedAt == null) {
+      return null;
+    }
     return DailyFinancialClosing(
       id: doc.id,
       dateKey: _string(data['dateKey']),
@@ -792,16 +846,24 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
   }
 
   AgentNetwork? _network(Object? value) {
-    if (value is! String) return null;
+    if (value is! String) {
+      return null;
+    }
     for (final AgentNetwork item in AgentNetwork.values) {
-      if (item.firestoreValue == value) return item;
+      if (item.firestoreValue == value) {
+        return item;
+      }
     }
     return null;
   }
 
   int _int(Object? value) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
     return 0;
   }
 
@@ -818,8 +880,12 @@ class FirestoreFinanceOperationsRepository implements FinanceOperationsRepositor
   }
 
   DateTime? _date(Object? value) {
-    if (value is Timestamp) return value.toDate();
-    if (value is DateTime) return value;
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+    if (value is DateTime) {
+      return value;
+    }
     return null;
   }
 }
