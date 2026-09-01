@@ -1,10 +1,10 @@
 import 'package:cabine_flow/features/agents/data/repositories/firestore_agent_personal_media_repository.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_personal_media.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_activity_v2_dashboard_page.dart';
+import 'package:cabine_flow/features/commissions/presentation/pages/commission_v2_dashboard_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 
 class AdminAgentProfileActivityPage extends StatefulWidget {
   const AdminAgentProfileActivityPage({
@@ -35,7 +35,10 @@ class _AdminAgentProfileActivityPageState
     );
   }
 
-  Future<void> _setVerification(String status, {String? note}) async {
+  Future<void> _setVerification(
+    String status, {
+    String? note,
+  }) async {
     if (_isUpdating) return;
     setState(() => _isUpdating = true);
     try {
@@ -59,15 +62,18 @@ class _AdminAgentProfileActivityPageState
             'updatedAt': FieldValue.serverTimestamp(),
           });
       if (!mounted) return;
-      IzyTelFeedback.success(context, _verificationLabel(status));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_verificationLabel(status))),
+      );
     } on FirebaseException catch (error) {
       if (!mounted) return;
-      IzyTelFeedback.error(context, error.message ?? error.code);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message ?? error.code)),
+      );
     } catch (error) {
       if (!mounted) return;
-      IzyTelFeedback.error(
-        context,
-        error.toString().replaceFirst('Bad state: ', ''),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString().replaceFirst('Bad state: ', ''))),
       );
     } finally {
       if (mounted) setState(() => _isUpdating = false);
@@ -121,7 +127,9 @@ class _AdminAgentProfileActivityPageState
       );
     } catch (error) {
       if (!mounted) return;
-      IzyTelFeedback.error(context, 'Export impossible : $error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Export impossible : $error')),
+      );
     }
   }
 
@@ -147,6 +155,8 @@ class _AdminAgentProfileActivityPageState
             return _NoProfile(
               agentName: widget.agentName,
               onActivity: () => _openActivity(context),
+              onCommissions: () => _openAgentCommissions(context),
+              onGlobalCommissions: () => _openGlobalCommissions(context),
             );
           }
           return ListView(
@@ -168,21 +178,17 @@ class _AdminAgentProfileActivityPageState
                     children: <Widget>[
                       Text(
                         'Vérification',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w800),
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        _verificationLabel(
-                          _text(profile['verificationStatus']),
-                        ),
+                        _verificationLabel(_text(profile['verificationStatus'])),
                       ),
-                      if (_nullableText(profile['verificationNote']) !=
-                          null) ...<Widget>[
+                      if (_nullableText(profile['verificationNote']) != null) ...<Widget>[
                         const SizedBox(height: 6),
-                        Text(
-                          'Note : ${_nullableText(profile['verificationNote'])}',
-                        ),
+                        Text('Note : ${_nullableText(profile['verificationNote'])}'),
                       ],
                       const SizedBox(height: 12),
                       Wrap(
@@ -192,8 +198,10 @@ class _AdminAgentProfileActivityPageState
                           FilledButton.icon(
                             onPressed: _isUpdating
                                 ? null
-                                : () =>
-                                      _setVerification('verified', note: null),
+                                : () => _setVerification(
+                                    'verified',
+                                    note: null,
+                                  ),
                             icon: const Icon(Icons.verified_outlined),
                             label: const Text('Marquer vérifié'),
                           ),
@@ -230,6 +238,18 @@ class _AdminAgentProfileActivityPageState
                 icon: const Icon(Icons.insights_outlined),
                 label: const Text('Ouvrir l’activité complète'),
               ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () => _openAgentCommissions(context),
+                icon: const Icon(Icons.receipt_long_outlined),
+                label: const Text('Commissions V2 de cet Agent'),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () => _openGlobalCommissions(context),
+                icon: const Icon(Icons.account_balance_wallet_outlined),
+                label: const Text('Vue globale Commissions V2'),
+              ),
             ],
           );
         },
@@ -246,6 +266,23 @@ class _AdminAgentProfileActivityPageState
           adminMode: true,
         ),
       ),
+    );
+  }
+
+  void _openAgentCommissions(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AdminAgentCommissionsV2Page(
+          agentId: widget.agentId,
+          agentName: widget.agentName,
+        ),
+      ),
+    );
+  }
+
+  void _openGlobalCommissions(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const AdminCommissionsV2Page()),
     );
   }
 }
@@ -283,9 +320,7 @@ class _ProfileSummary extends StatelessWidget {
                     final bytes = snapshot.data?.bytes;
                     return CircleAvatar(
                       radius: 36,
-                      foregroundImage: bytes == null
-                          ? null
-                          : MemoryImage(bytes),
+                      foregroundImage: bytes == null ? null : MemoryImage(bytes),
                       child: bytes == null
                           ? const Icon(Icons.person_outline, size: 32)
                           : null,
@@ -311,17 +346,13 @@ class _ProfileSummary extends StatelessWidget {
               ],
             ),
             const Divider(height: 28),
-            _Line(
-              label: 'Naissance',
-              value: _dateLabel(profile['dateOfBirth']),
-            ),
+            _Line(label: 'Naissance', value: _dateLabel(profile['dateOfBirth'])),
             _Line(label: 'Adresse', value: _text(profile['address'])),
             _Line(label: 'Ville / commune', value: _text(profile['city'])),
             _Line(label: 'Contact 2', value: _emptyDash(profile['contact2'])),
             _Line(
               label: 'Urgence',
-              value:
-                  '${_emptyDash(profile['emergencyContactName'])} • '
+              value: '${_emptyDash(profile['emergencyContactName'])} • '
                   '${_emptyDash(profile['emergencyContactPhone'])}',
             ),
             _Line(
@@ -356,9 +387,9 @@ class _IdentityAdminCard extends StatelessWidget {
           children: <Widget>[
             Text(
               'Document d’identité',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 10),
             if (media == null)
@@ -424,10 +455,17 @@ class _Line extends StatelessWidget {
 }
 
 class _NoProfile extends StatelessWidget {
-  const _NoProfile({required this.agentName, required this.onActivity});
+  const _NoProfile({
+    required this.agentName,
+    required this.onActivity,
+    required this.onCommissions,
+    required this.onGlobalCommissions,
+  });
 
   final String agentName;
   final VoidCallback onActivity;
+  final VoidCallback onCommissions;
+  final VoidCallback onGlobalCommissions;
 
   @override
   Widget build(BuildContext context) {
@@ -445,6 +483,17 @@ class _NoProfile extends StatelessWidget {
               onPressed: onActivity,
               icon: const Icon(Icons.insights_outlined),
               label: const Text('Voir quand même l’activité'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: onCommissions,
+              icon: const Icon(Icons.receipt_long_outlined),
+              label: const Text('Commissions V2 de cet Agent'),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: onGlobalCommissions,
+              child: const Text('Vue globale Commissions V2'),
             ),
           ],
         ),
@@ -469,8 +518,7 @@ String _identityLabel(String value) => switch (value) {
 };
 
 String _fullName(Map<String, dynamic> profile, {required String fallback}) {
-  final text = '${_text(profile['firstName'])} ${_text(profile['lastName'])}'
-      .trim();
+  final text = '${_text(profile['firstName'])} ${_text(profile['lastName'])}'.trim();
   return text.isEmpty ? fallback : text;
 }
 
@@ -487,7 +535,6 @@ String _emptyDash(Object? value) {
   final text = _text(value);
   return text.isEmpty ? '—' : text;
 }
-
 String _text(Object? value) => value is String ? value.trim() : '';
 String? _nullableText(Object? value) {
   final text = _text(value);

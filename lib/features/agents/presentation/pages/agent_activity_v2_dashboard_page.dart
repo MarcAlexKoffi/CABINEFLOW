@@ -1,5 +1,6 @@
 import 'package:cabine_flow/features/agents/data/repositories/firestore_agent_activity_v2_repository.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_activity_v2_models.dart';
+import 'package:cabine_flow/features/commissions/presentation/pages/commission_v2_dashboard_page.dart';
 import 'package:flutter/material.dart';
 
 class AgentActivityV2DashboardPage extends StatefulWidget {
@@ -79,8 +80,7 @@ class _AgentActivityV2DashboardPageState
               if (data.isUnavailable(AgentActivityV2Sources.orders) ||
                   data.isUnavailable(AgentActivityV2Sources.assignments))
                 const _UnavailableCard(
-                  text:
-                      'Les statistiques de performance sont temporairement indisponibles.',
+                  text: 'Les statistiques de performance sont temporairement indisponibles.',
                 )
               else
                 _PerformanceGrid(data: data),
@@ -110,6 +110,26 @@ class _AgentActivityV2DashboardPageState
               else ...<Widget>[
                 _CommissionSummary(data: data),
                 const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => widget.adminMode
+                            ? AdminAgentCommissionsV2Page(
+                                agentId: widget.agentId,
+                                agentName: widget.agentName,
+                              )
+                            : AgentCommissionsV2Page(
+                                agentId: widget.agentId,
+                                agentName: widget.agentName,
+                              ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  label: const Text('Historique complet & statistiques'),
+                ),
+                const SizedBox(height: 10),
                 if (data.commissions.isEmpty)
                   const _EmptyCard(text: 'Aucune commission enregistrée.')
                 else
@@ -123,8 +143,7 @@ class _AgentActivityV2DashboardPageState
               const SizedBox(height: 8),
               if (data.isUnavailable(AgentActivityV2Sources.payouts))
                 const _UnavailableCard(
-                  text:
-                      'Les versements de commissions sont temporairement indisponibles.',
+                  text: 'Les versements de commissions sont temporairement indisponibles.',
                 )
               else if (data.payouts.isEmpty)
                 const _EmptyCard(text: 'Aucun versement enregistré.')
@@ -138,8 +157,7 @@ class _AgentActivityV2DashboardPageState
               const SizedBox(height: 8),
               if (data.isUnavailable(AgentActivityV2Sources.movements))
                 const _UnavailableCard(
-                  text:
-                      'Les mouvements et recharges sont temporairement indisponibles. Réessaie après publication des règles B2+C.',
+                  text: 'Les mouvements et recharges sont temporairement indisponibles. Réessaie après publication des règles B2+C.',
                 )
               else if (data.movements.isEmpty)
                 const _EmptyCard(text: 'Aucun mouvement réseau disponible.')
@@ -167,8 +185,7 @@ class _AgentActivityV2DashboardPageState
               const SizedBox(height: 8),
               if (data.isUnavailable(AgentActivityV2Sources.orders))
                 const _UnavailableCard(
-                  text:
-                      'L’historique des commandes est temporairement indisponible.',
+                  text: 'L’historique des commandes est temporairement indisponible.',
                 )
               else if (data.orders.isEmpty)
                 const _EmptyCard(text: 'Aucune commande affectée à cet Agent.')
@@ -217,6 +234,7 @@ class _AgentActivityV2DashboardPageState
   }
 }
 
+
 class _PartialDataWarning extends StatelessWidget {
   const _PartialDataWarning({required this.sources});
 
@@ -224,8 +242,8 @@ class _PartialDataWarning extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<String> labels =
-        sources.map(_sourceLabel).toList(growable: false)..sort();
+    final List<String> labels = sources.map(_sourceLabel).toList(growable: false)
+      ..sort();
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -385,8 +403,11 @@ class _PerformanceGrid extends StatelessWidget {
     return _ResponsiveCards(
       children: items
           .map(
-            (item) =>
-                _MetricCard(label: item.$1, value: item.$2, icon: item.$3),
+            (item) => _MetricCard(
+              label: item.$1,
+              value: item.$2,
+              icon: item.$3,
+            ),
           )
           .toList(growable: false),
     );
@@ -436,9 +457,7 @@ class _CapacityCard extends StatelessWidget {
               spacing: 16,
               runSpacing: 8,
               children: <Widget>[
-                Text(
-                  'Limite jour : ${_formatCfa(value.dailyTransactionLimit)}',
-                ),
+                Text('Limite jour : ${_formatCfa(value.dailyTransactionLimit)}'),
                 Text('Max transactions/jour : ${value.maxTransactionsPerDay}'),
               ],
             ),
@@ -470,9 +489,7 @@ class _NetworkCapacity extends StatelessWidget {
           Row(
             children: <Widget>[
               Icon(
-                active
-                    ? Icons.check_circle_outline
-                    : Icons.pause_circle_outline,
+                active ? Icons.check_circle_outline : Icons.pause_circle_outline,
                 size: 18,
               ),
               const SizedBox(width: 6),
@@ -706,9 +723,7 @@ class _IssueCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        leading: Icon(
-          issue.isOpen ? Icons.report_problem_outlined : Icons.task_alt,
-        ),
+        leading: Icon(issue.isOpen ? Icons.report_problem_outlined : Icons.task_alt),
         title: Text(
           _issueTypeLabel(issue.type),
           style: const TextStyle(fontWeight: FontWeight.w700),
@@ -820,9 +835,9 @@ class _SectionTitle extends StatelessWidget {
       builder: (context, constraints) {
         final Text titleWidget = Text(
           title,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
         );
         final Text trailingWidget = Text(
           trailing,
@@ -861,7 +876,10 @@ class _EmptyCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       margin: EdgeInsets.zero,
-      child: Padding(padding: const EdgeInsets.all(16), child: Text(text)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(text),
+      ),
     );
   }
 }

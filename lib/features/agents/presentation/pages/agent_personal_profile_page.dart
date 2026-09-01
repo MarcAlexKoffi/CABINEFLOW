@@ -4,8 +4,8 @@ import 'package:cabine_flow/features/agents/data/repositories/firestore_agent_pe
 import 'package:cabine_flow/features/agents/domain/models/agent_personal_media.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_activity_v2_dashboard_page.dart';
+import 'package:cabine_flow/features/commissions/presentation/pages/commission_v2_dashboard_page.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
-import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -64,8 +64,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
   @override
   void initState() {
     super.initState();
-    final FirebaseFirestore? firestore =
-        widget.firestore ??
+    final FirebaseFirestore? firestore = widget.firestore ??
         (Firebase.apps.isNotEmpty ? FirebaseFirestore.instance : null);
     _firestore = firestore;
     if (firestore != null) {
@@ -213,9 +212,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       final Uint8List bytes = await file.readAsBytes();
       final mediaRepository = _mediaRepository;
       if (mediaRepository == null) {
-        throw StateError(
-          'Firebase doit être initialisé pour enregistrer la photo.',
-        );
+        throw StateError('Firebase doit être initialisé pour enregistrer la photo.');
       }
       final prepared = mediaRepository.prepareAvatar(
         source: bytes,
@@ -246,9 +243,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       final Uint8List bytes = await file.readAsBytes();
       final mediaRepository = _mediaRepository;
       if (mediaRepository == null) {
-        throw StateError(
-          'Firebase doit être initialisé pour enregistrer la pièce.',
-        );
+        throw StateError('Firebase doit être initialisé pour enregistrer la pièce.');
       }
       final prepared = mediaRepository.prepareIdentityImage(
         source: bytes,
@@ -280,9 +275,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       final Uint8List bytes = await file.readAsBytes();
       final mediaRepository = _mediaRepository;
       if (mediaRepository == null) {
-        throw StateError(
-          'Firebase doit être initialisé pour enregistrer la pièce.',
-        );
+        throw StateError('Firebase doit être initialisé pour enregistrer la pièce.');
       }
       final prepared = mediaRepository.prepareIdentityPdf(
         source: bytes,
@@ -303,10 +296,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             ListTile(
-              title: Text(
-                title,
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
+              title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
             ),
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
@@ -372,10 +362,10 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       if (firestore == null || mediaRepository == null) {
         _verificationStatus = nextVerification;
         if (mounted) {
-          IzyTelFeedback.show(
-            context,
-            'Mode de test local : aucune écriture Firebase effectuée.',
-            tone: IzyTelFeedbackTone.warning,
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Mode de test local : aucune écriture Firebase effectuée.'),
+            ),
           );
         }
         return;
@@ -388,14 +378,12 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
           .collection('users')
           .doc(widget.user.id);
       final WriteBatch batch = firestore.batch();
-      final Object createdAt =
-          _existingProfile?['createdAt'] ?? FieldValue.serverTimestamp();
-      final String? identityFileName =
-          _pendingIdentity?.fileName ??
+      final Object createdAt = _existingProfile?['createdAt'] ??
+          FieldValue.serverTimestamp();
+      final String? identityFileName = _pendingIdentity?.fileName ??
           _identityMedia?.fileName ??
           _nullableText(_existingProfile?['identityDocumentFileName']);
-      final String? identityMimeType =
-          _pendingIdentity?.mimeType ??
+      final String? identityMimeType = _pendingIdentity?.mimeType ??
           _identityMedia?.mimeType ??
           _nullableText(_existingProfile?['identityDocumentMimeType']);
 
@@ -446,7 +434,9 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       );
       await batch.commit();
       if (!mounted) return;
-      IzyTelFeedback.success(context, 'Profil enregistré.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profil enregistré.')),
+      );
       await _load();
     } on FirebaseException catch (error) {
       _showError(
@@ -478,17 +468,23 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
         mediaRepository.createData(agentId: widget.user.id, media: pending),
       );
     } else {
-      batch.set(ref, <String, dynamic>{
-        ...mediaRepository.updateData(media: pending),
-        'agentId': widget.user.id,
-      }, SetOptions(merge: true));
+      batch.set(
+        ref,
+        <String, dynamic>{
+          ...mediaRepository.updateData(media: pending),
+          'agentId': widget.user.id,
+        },
+        SetOptions(merge: true),
+      );
     }
   }
 
   void _showError(String message) {
     if (!mounted) return;
     setState(() => _error = message);
-    IzyTelFeedback.error(context, message);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
@@ -566,7 +562,12 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
               maxLength: 200,
             ),
             const SizedBox(height: 10),
-            _field(_city, 'Ville / commune', minLength: 2, maxLength: 100),
+            _field(
+              _city,
+              'Ville / commune',
+              minLength: 2,
+              maxLength: 100,
+            ),
             const SizedBox(height: 18),
             _sectionTitle(context, 'Contacts'),
             const SizedBox(height: 8),
@@ -672,14 +673,32 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
                         MaterialPageRoute<void>(
                           builder: (_) => AgentActivityV2DashboardPage(
                             agentId: widget.user.id,
-                            agentName: '${_firstName.text} ${_lastName.text}'
-                                .trim(),
+                            agentName:
+                                '${_firstName.text} ${_lastName.text}'.trim(),
                           ),
                         ),
                       );
                     },
               icon: const Icon(Icons.insights_outlined),
               label: const Text('Voir mon activité détaillée'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _firestore == null
+                  ? null
+                  : () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => AgentCommissionsV2Page(
+                            agentId: widget.user.id,
+                            agentName:
+                                '${_firstName.text} ${_lastName.text}'.trim(),
+                          ),
+                        ),
+                      );
+                    },
+              icon: const Icon(Icons.receipt_long_outlined),
+              label: const Text('Mes commissions V2'),
             ),
           ],
         ),
@@ -764,9 +783,7 @@ class _ProfileMediaHeader extends StatelessWidget {
             CircleAvatar(
               radius: 38,
               foregroundImage: bytes == null ? null : MemoryImage(bytes!),
-              child: bytes == null
-                  ? const Icon(Icons.person_outline, size: 34)
-                  : null,
+              child: bytes == null ? const Icon(Icons.person_outline, size: 34) : null,
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -832,9 +849,7 @@ class _IdentityMediaCard extends StatelessWidget {
             else
               const SizedBox(
                 height: 90,
-                child: Center(
-                  child: Icon(Icons.picture_as_pdf_outlined, size: 42),
-                ),
+                child: Center(child: Icon(Icons.picture_as_pdf_outlined, size: 42)),
               ),
             const SizedBox(height: 8),
             Text(
@@ -904,9 +919,9 @@ class _InfoCard extends StatelessWidget {
 Widget _sectionTitle(BuildContext context, String text) {
   return Text(
     text,
-    style: Theme.of(
-      context,
-    ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+      fontWeight: FontWeight.w800,
+    ),
   );
 }
 
@@ -928,7 +943,6 @@ String? _nullableText(Object? value) {
   final text = _text(value);
   return text.isEmpty ? null : text;
 }
-
 DateTime? _date(Object? value) {
   if (value is Timestamp) return value.toDate();
   if (value is DateTime) return value;
