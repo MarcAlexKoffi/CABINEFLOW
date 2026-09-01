@@ -1,30 +1,28 @@
 import 'dart:typed_data';
 
-import 'package:cabine_flow/core/theme/izytel_colors.dart';
-import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
-import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
+import 'package:cabine_flow/features/agents/data/repositories/firestore_agent_personal_media_repository.dart';
+import 'package:cabine_flow/features/agents/domain/models/agent_personal_media.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
+import 'package:cabine_flow/features/agents/presentation/pages/agent_activity_v2_dashboard_page.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
-import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
-import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:material_symbols_icons/symbols.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 
 class AgentPersonalProfilePage extends StatefulWidget {
   const AgentPersonalProfilePage({
     super.key,
     required this.user,
     required this.repository,
-    this.initialProfile,
-    this.initialAvatarUrl,
+    this.firestore,
   });
 
   final AppUser user;
   final AgentRepository repository;
-  final AgentPersonalProfile? initialProfile;
-  final String? initialAvatarUrl;
+  final FirebaseFirestore? firestore;
 
   @override
   State<AgentPersonalProfilePage> createState() =>
@@ -32,863 +30,873 @@ class AgentPersonalProfilePage extends StatefulWidget {
 }
 
 class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final ImagePicker _imagePicker = ImagePicker();
+  final _formKey = GlobalKey<FormState>();
+  final _picker = ImagePicker();
+  FirebaseFirestore? _firestore;
+  FirestoreAgentPersonalMediaRepository? _mediaRepository;
 
-  late final TextEditingController _firstNameController;
-  late final TextEditingController _lastNameController;
-  late final TextEditingController _addressController;
-  late final TextEditingController _cityController;
-  late final TextEditingController _contact1Controller;
-  late final TextEditingController _contact2Controller;
-  late final TextEditingController _emergencyNameController;
-  late final TextEditingController _emergencyPhoneController;
-  late final TextEditingController _identityNumberController;
+  final _firstName = TextEditingController();
+  final _lastName = TextEditingController();
+  final _address = TextEditingController();
+  final _city = TextEditingController();
+  final _contact1 = TextEditingController();
+  final _contact2 = TextEditingController();
+  final _emergencyName = TextEditingController();
+  final _emergencyPhone = TextEditingController();
+  final _identityNumber = TextEditingController();
 
   DateTime? _dateOfBirth;
-  AgentIdentityDocumentType _identityType =
-      AgentIdentityDocumentType.nationalId;
-  AgentProfileFileUpload? _avatarUpload;
-  AgentProfileFileUpload? _identityUpload;
-  bool _saving = false;
+  String _identityType = 'nationalId';
+  String _verificationStatus = 'incomplete';
+  String? _verificationNote;
+  Map<String, dynamic>? _existingProfile;
+  AgentPersonalMedia? _avatarMedia;
+  AgentPersonalMedia? _identityMedia;
+  PreparedAgentMedia? _pendingAvatar;
+  PreparedAgentMedia? _pendingIdentity;
+  bool _isLoading = true;
+  bool _isSaving = false;
+  String? _error;
 
-  AgentPersonalProfile? get _profile => widget.initialProfile;
+  bool get _isVerified => _verificationStatus == 'verified';
 
   @override
   void initState() {
     super.initState();
-    final AgentPersonalProfile? profile = _profile;
-    final List<String> userParts = widget.user.name
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((String value) => value.isNotEmpty)
-        .toList(growable: false);
-    final String fallbackFirst = userParts.isEmpty ? '' : userParts.first;
-    final String fallbackLast = userParts.length <= 1
-        ? ''
-        : userParts.skip(1).join(' ');
-
-    _firstNameController = TextEditingController(
-      text: profile?.firstName.isNotEmpty == true
-          ? profile!.firstName
-          : fallbackFirst,
-    );
-    _lastNameController = TextEditingController(
-      text: profile?.lastName.isNotEmpty == true
-          ? profile!.lastName
-          : fallbackLast,
-    );
-    _addressController = TextEditingController(text: profile?.address ?? '');
-    _cityController = TextEditingController(text: profile?.city ?? '');
-    _contact1Controller = TextEditingController(
-      text: profile?.contact1.isNotEmpty == true
-          ? profile!.contact1
-          : widget.user.phoneNumber,
-    );
-    _contact2Controller = TextEditingController(text: profile?.contact2 ?? '');
-    _emergencyNameController = TextEditingController(
-      text: profile?.emergencyContactName ?? '',
-    );
-    _emergencyPhoneController = TextEditingController(
-      text: profile?.emergencyContactPhone ?? '',
-    );
-    _identityNumberController = TextEditingController(
-      text: profile?.identityDocumentNumber ?? '',
-    );
-    _dateOfBirth = profile?.dateOfBirth;
-    _identityType =
-        profile?.identityDocumentType ?? AgentIdentityDocumentType.nationalId;
+    final FirebaseFirestore? firestore =
+        widget.firestore ??
+        (Firebase.apps.isNotEmpty ? FirebaseFirestore.instance : null);
+    _firestore = firestore;
+    if (firestore != null) {
+      _mediaRepository = FirestoreAgentPersonalMediaRepository(
+        firestore: firestore,
+      );
+    }
+    _load();
   }
 
   @override
   void dispose() {
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    _addressController.dispose();
-    _cityController.dispose();
-    _contact1Controller.dispose();
-    _contact2Controller.dispose();
-    _emergencyNameController.dispose();
-    _emergencyPhoneController.dispose();
-    _identityNumberController.dispose();
+    _firstName.dispose();
+    _lastName.dispose();
+    _address.dispose();
+    _city.dispose();
+    _contact1.dispose();
+    _contact2.dispose();
+    _emergencyName.dispose();
+    _emergencyPhone.dispose();
+    _identityNumber.dispose();
     super.dispose();
+  }
+
+  Future<void> _load() async {
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
+    final FirebaseFirestore? firestore = _firestore;
+    final FirestoreAgentPersonalMediaRepository? mediaRepository =
+        _mediaRepository;
+    if (firestore == null || mediaRepository == null) {
+      _hydrateFromSignedInUser();
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+    try {
+      final profileFuture = firestore
+          .collection('agentPersonalProfiles')
+          .doc(widget.user.id)
+          .get();
+      final avatarFuture = mediaRepository.fetch(
+        agentId: widget.user.id,
+        kind: AgentPersonalMediaKind.avatar,
+      );
+      final identityFuture = mediaRepository.fetch(
+        agentId: widget.user.id,
+        kind: AgentPersonalMediaKind.identity,
+      );
+      final results = await Future.wait<Object?>(<Future<Object?>>[
+        profileFuture,
+        avatarFuture,
+        identityFuture,
+      ]);
+      final profileSnapshot =
+          results[0] as DocumentSnapshot<Map<String, dynamic>>;
+      final Map<String, dynamic>? data = profileSnapshot.data();
+      if (data != null) {
+        _existingProfile = Map<String, dynamic>.from(data);
+        _firstName.text = _text(data['firstName']);
+        _lastName.text = _text(data['lastName']);
+        _address.text = _text(data['address']);
+        _city.text = _text(data['city']);
+        _contact1.text = _text(data['contact1']);
+        _contact2.text = _text(data['contact2']);
+        _emergencyName.text = _text(data['emergencyContactName']);
+        _emergencyPhone.text = _text(data['emergencyContactPhone']);
+        _identityNumber.text = _text(data['identityDocumentNumber']);
+        _dateOfBirth = _date(data['dateOfBirth']);
+        _identityType = _text(data['identityDocumentType']).isEmpty
+            ? 'nationalId'
+            : _text(data['identityDocumentType']);
+        _verificationStatus = _text(data['verificationStatus']).isEmpty
+            ? 'incomplete'
+            : _text(data['verificationStatus']);
+        _verificationNote = _nullableText(data['verificationNote']);
+      }
+      _avatarMedia = results[1] as AgentPersonalMedia?;
+      _identityMedia = results[2] as AgentPersonalMedia?;
+      _pendingAvatar = null;
+      _pendingIdentity = null;
+    } catch (error) {
+      _error = 'Impossible de charger le profil : $error';
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _hydrateFromSignedInUser() {
+    if (_firstName.text.isNotEmpty || _lastName.text.isNotEmpty) return;
+    final List<String> parts = widget.user.name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .toList(growable: false);
+    if (parts.isNotEmpty) {
+      _firstName.text = parts.first;
+      _lastName.text = parts.length > 1 ? parts.skip(1).join(' ') : 'Agent';
+    }
+    _contact1.text = widget.user.phoneNumber.trim();
+  }
+
+  Future<void> _pickAvatar() async {
+    final ImageSource? source = await _chooseImageSource(
+      title: 'Photo de profil',
+    );
+    if (source == null) return;
+    try {
+      final XFile? file = await _picker.pickImage(
+        source: source,
+        imageQuality: 95,
+      );
+      if (file == null) return;
+      final Uint8List bytes = await file.readAsBytes();
+      final mediaRepository = _mediaRepository;
+      if (mediaRepository == null) {
+        throw StateError(
+          'Firebase doit être initialisé pour enregistrer la photo.',
+        );
+      }
+      final prepared = mediaRepository.prepareAvatar(
+        source: bytes,
+        fileName: file.name,
+      );
+      if (!mounted) return;
+      setState(() => _pendingAvatar = prepared);
+    } catch (error) {
+      _showError('$error');
+    }
+  }
+
+  Future<void> _pickIdentityImage() async {
+    if (_isVerified) {
+      _showError('La pièce d’identité est verrouillée après vérification.');
+      return;
+    }
+    final ImageSource? source = await _chooseImageSource(
+      title: 'Pièce d’identité',
+    );
+    if (source == null) return;
+    try {
+      final XFile? file = await _picker.pickImage(
+        source: source,
+        imageQuality: 95,
+      );
+      if (file == null) return;
+      final Uint8List bytes = await file.readAsBytes();
+      final mediaRepository = _mediaRepository;
+      if (mediaRepository == null) {
+        throw StateError(
+          'Firebase doit être initialisé pour enregistrer la pièce.',
+        );
+      }
+      final prepared = mediaRepository.prepareIdentityImage(
+        source: bytes,
+        fileName: file.name,
+      );
+      if (!mounted) return;
+      setState(() => _pendingIdentity = prepared);
+    } catch (error) {
+      _showError('$error');
+    }
+  }
+
+  Future<void> _pickIdentityPdf() async {
+    if (_isVerified) {
+      _showError('La pièce d’identité est verrouillée après vérification.');
+      return;
+    }
+    try {
+      final PlatformFile? file = await FilePicker.pickFile(
+        dialogTitle: 'Sélectionner la pièce d’identité PDF',
+        type: FileType.custom,
+        allowedExtensions: const <String>['pdf'],
+      );
+      if (file == null) return;
+      final int length = await file.length();
+      if (length > FirestoreAgentPersonalMediaRepository.identityMaxBytes) {
+        throw StateError('Le PDF doit faire moins de 850 Ko.');
+      }
+      final Uint8List bytes = await file.readAsBytes();
+      final mediaRepository = _mediaRepository;
+      if (mediaRepository == null) {
+        throw StateError(
+          'Firebase doit être initialisé pour enregistrer la pièce.',
+        );
+      }
+      final prepared = mediaRepository.prepareIdentityPdf(
+        source: bytes,
+        fileName: file.name,
+      );
+      if (!mounted) return;
+      setState(() => _pendingIdentity = prepared);
+    } catch (error) {
+      _showError('$error');
+    }
+  }
+
+  Future<ImageSource?> _chooseImageSource({required String title}) {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            ListTile(
+              title: Text(
+                title,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Prendre une photo'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choisir dans la galerie'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _pickBirthDate() async {
     final DateTime now = DateTime.now();
-    final DateTime initial = _dateOfBirth ?? DateTime(now.year - 25, 1, 1);
-    final DateTime? selected = await showDatePicker(
+    final DateTime firstDate = DateTime(1940);
+    final DateTime lastDate = DateTime(now.year - 16, now.month, now.day);
+    final DateTime candidate = _dateOfBirth ?? DateTime(now.year - 25, 1, 1);
+    final DateTime initial = candidate.isBefore(firstDate)
+        ? firstDate
+        : candidate.isAfter(lastDate)
+        ? lastDate
+        : candidate;
+    final DateTime? result = await showDatePicker(
       context: context,
       initialDate: initial,
-      firstDate: DateTime(1940),
-      lastDate: DateTime(now.year, now.month, now.day),
-      helpText: 'Date de naissance',
-      cancelText: 'Annuler',
-      confirmText: 'Valider',
+      firstDate: firstDate,
+      lastDate: lastDate,
     );
-    if (selected == null || !mounted) return;
-    setState(() => _dateOfBirth = selected);
-  }
-
-  Future<void> _pickAvatar() async {
-    final ImageSource? source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext sheetContext) => _SourceSheet(
-        title: 'Photo d’identité',
-        actions: <_SourceAction<ImageSource>>[
-          _SourceAction<ImageSource>(
-            icon: Symbols.photo_camera_rounded,
-            label: 'Prendre une photo',
-            value: ImageSource.camera,
-          ),
-          _SourceAction<ImageSource>(
-            icon: Symbols.photo_library_rounded,
-            label: 'Choisir dans la galerie',
-            value: ImageSource.gallery,
-          ),
-        ],
-      ),
-    );
-    if (source == null || !mounted) return;
-
-    final XFile? file = await _imagePicker.pickImage(
-      source: source,
-      maxWidth: 1800,
-      maxHeight: 1800,
-      imageQuality: 88,
-      requestFullMetadata: false,
-    );
-    if (file == null || !mounted) return;
-    final Uint8List bytes = await file.readAsBytes();
-    if (!mounted) return;
-    if (bytes.length > 5 * 1024 * 1024) {
-      IzyTelFeedback.error(context, 'La photo doit faire moins de 5 Mo.');
-      return;
-    }
-    setState(() {
-      _avatarUpload = AgentProfileFileUpload(
-        fileName: file.name.isEmpty ? 'photo_profil.jpg' : file.name,
-        mimeType: file.mimeType ?? 'image/jpeg',
-        bytes: bytes,
-      );
-    });
-  }
-
-  Future<void> _pickIdentityDocument() async {
-    final String? choice = await showModalBottomSheet<String>(
-      context: context,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext sheetContext) => const _SourceSheet<String>(
-        title: 'Pièce d’identité',
-        actions: <_SourceAction<String>>[
-          _SourceAction<String>(
-            icon: Symbols.document_scanner_rounded,
-            label: 'Photographier la pièce',
-            value: 'camera',
-          ),
-          _SourceAction<String>(
-            icon: Symbols.upload_file_rounded,
-            label: 'Choisir une image ou un PDF',
-            value: 'file',
-          ),
-        ],
-      ),
-    );
-    if (choice == null || !mounted) return;
-
-    AgentProfileFileUpload? upload;
-    if (choice == 'camera') {
-      final XFile? file = await _imagePicker.pickImage(
-        source: ImageSource.camera,
-        maxWidth: 2400,
-        maxHeight: 2400,
-        imageQuality: 90,
-        requestFullMetadata: false,
-      );
-      if (file == null) return;
-      final Uint8List bytes = await file.readAsBytes();
-      upload = AgentProfileFileUpload(
-        fileName: file.name.isEmpty ? 'piece_identite.jpg' : file.name,
-        mimeType: file.mimeType ?? 'image/jpeg',
-        bytes: bytes,
-      );
-    } else {
-      final PlatformFile? file = await FilePicker.pickFile(
-        type: FileType.custom,
-        allowedExtensions: const <String>['jpg', 'jpeg', 'png', 'pdf'],
-      );
-      if (file == null) return;
-      final Uint8List bytes = await file.readAsBytes();
-      upload = AgentProfileFileUpload(
-        fileName: file.name,
-        mimeType: _mimeTypeFor(file.extension),
-        bytes: bytes,
-      );
-    }
-
-    if (!mounted) return;
-    if (upload.bytes.length > 10 * 1024 * 1024) {
-      IzyTelFeedback.error(
-        context,
-        'La pièce d’identité doit faire moins de 10 Mo.',
-      );
-      return;
-    }
-    setState(() => _identityUpload = upload);
-  }
-
-  String _mimeTypeFor(String? extension) {
-    switch ((extension ?? '').toLowerCase()) {
-      case 'pdf':
-        return 'application/pdf';
-      case 'png':
-        return 'image/png';
-      case 'jpg':
-      case 'jpeg':
-      default:
-        return 'image/jpeg';
-    }
+    if (result != null && mounted) setState(() => _dateOfBirth = result);
   }
 
   Future<void> _save() async {
-    if (_saving) return;
-    final FormState? form = _formKey.currentState;
-    if (form == null || !form.validate()) return;
+    if (_isSaving || !_formKey.currentState!.validate()) return;
     if (_dateOfBirth == null) {
-      IzyTelFeedback.show(
-        context,
-        'Renseigne ta date de naissance.',
-        tone: IzyTelFeedbackTone.warning,
-      );
+      _showError('Indique la date de naissance.');
       return;
     }
-
-    setState(() => _saving = true);
+    setState(() {
+      _isSaving = true;
+      _error = null;
+    });
     try {
-      await widget.repository.saveOwnPersonalProfile(
-        agentId: widget.user.id,
-        draft: AgentPersonalProfileDraft(
-          firstName: _firstNameController.text,
-          lastName: _lastNameController.text,
-          dateOfBirth: _dateOfBirth,
-          address: _addressController.text,
-          city: _cityController.text,
-          contact1: _contact1Controller.text,
-          contact2: _contact2Controller.text,
-          emergencyContactName: _emergencyNameController.text,
-          emergencyContactPhone: _emergencyPhoneController.text,
-          identityDocumentType: _identityType,
-          identityDocumentNumber: _identityNumberController.text,
-        ),
-        avatar: _avatarUpload,
-        identityDocument: _identityUpload,
+      final String firstName = _firstName.text.trim();
+      final String lastName = _lastName.text.trim();
+      final String displayName = '$firstName $lastName'.trim();
+      final bool avatarPresent = _pendingAvatar != null || _avatarMedia != null;
+      final bool identityPresent =
+          _pendingIdentity != null || _identityMedia != null;
+      final String nextVerification = _isVerified
+          ? 'verified'
+          : avatarPresent && identityPresent
+          ? 'pendingReview'
+          : 'incomplete';
+
+      final FirebaseFirestore? firestore = _firestore;
+      final FirestoreAgentPersonalMediaRepository? mediaRepository =
+          _mediaRepository;
+      if (firestore == null || mediaRepository == null) {
+        _verificationStatus = nextVerification;
+        if (mounted) {
+          IzyTelFeedback.show(
+            context,
+            'Mode de test local : aucune écriture Firebase effectuée.',
+            tone: IzyTelFeedbackTone.warning,
+          );
+        }
+        return;
+      }
+
+      final DocumentReference<Map<String, dynamic>> profileRef = firestore
+          .collection('agentPersonalProfiles')
+          .doc(widget.user.id);
+      final DocumentReference<Map<String, dynamic>> userRef = firestore
+          .collection('users')
+          .doc(widget.user.id);
+      final WriteBatch batch = firestore.batch();
+      final Object createdAt =
+          _existingProfile?['createdAt'] ?? FieldValue.serverTimestamp();
+      final String? identityFileName =
+          _pendingIdentity?.fileName ??
+          _identityMedia?.fileName ??
+          _nullableText(_existingProfile?['identityDocumentFileName']);
+      final String? identityMimeType =
+          _pendingIdentity?.mimeType ??
+          _identityMedia?.mimeType ??
+          _nullableText(_existingProfile?['identityDocumentMimeType']);
+
+      final Map<String, dynamic> profileData = <String, dynamic>{
+        'schemaVersion': 1,
+        'userId': widget.user.id,
+        'firstName': firstName,
+        'lastName': lastName,
+        'dateOfBirth': Timestamp.fromDate(_dateOfBirth!),
+        'address': _address.text.trim(),
+        'city': _city.text.trim(),
+        'contact1': _contact1.text.trim(),
+        'contact2': _contact2.text.trim(),
+        'emergencyContactName': _emergencyName.text.trim(),
+        'emergencyContactPhone': _emergencyPhone.text.trim(),
+        'identityDocumentType': _identityType,
+        'identityDocumentNumber': _identityNumber.text.trim(),
+        // Compatibilité du schéma A+B : ces anciens chemins sont conservés
+        // mais B2 ne lit ni n’écrit aucun fichier dans Firebase Storage.
+        'avatarStoragePath': _existingProfile?['avatarStoragePath'],
+        'identityDocumentStoragePath':
+            _existingProfile?['identityDocumentStoragePath'],
+        'identityDocumentFileName': identityFileName,
+        'identityDocumentMimeType': identityMimeType,
+        'verificationStatus': nextVerification,
+        'verificationNote': _isVerified ? _verificationNote : null,
+        'createdAt': createdAt,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      batch.set(profileRef, profileData);
+      batch.update(userRef, <String, dynamic>{
+        'name': displayName,
+        'phoneNumber': _contact1.text.trim(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      _queueMediaWrite(
+        batch: batch,
+        pending: _pendingAvatar,
+        existing: _avatarMedia,
+        mediaRepository: mediaRepository,
       );
+      _queueMediaWrite(
+        batch: batch,
+        pending: _pendingIdentity,
+        existing: _identityMedia,
+        mediaRepository: mediaRepository,
+      );
+      await batch.commit();
       if (!mounted) return;
-      IzyTelFeedback.success(context, 'Profil personnel enregistré.');
-      Navigator.of(context).pop(true);
-    } on ArgumentError catch (error) {
-      if (!mounted) return;
-      IzyTelFeedback.error(
-        context,
-        error.message?.toString() ?? 'Données invalides.',
+      IzyTelFeedback.success(context, 'Profil enregistré.');
+      await _load();
+    } on FirebaseException catch (error) {
+      _showError(
+        error.code == 'permission-denied'
+            ? 'Firestore refuse l’enregistrement. Publie d’abord les règles B2+C fournies.'
+            : 'Firebase : ${error.message ?? error.code}',
       );
     } catch (error) {
-      if (!mounted) return;
-      IzyTelFeedback.error(
-        context,
-        'Impossible d’enregistrer le profil pour le moment.',
-      );
+      _showError('$error');
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  void _queueMediaWrite({
+    required WriteBatch batch,
+    required PreparedAgentMedia? pending,
+    required AgentPersonalMedia? existing,
+    required FirestoreAgentPersonalMediaRepository mediaRepository,
+  }) {
+    if (pending == null) return;
+    final ref = mediaRepository.mediaRef(
+      agentId: widget.user.id,
+      kind: pending.kind,
+    );
+    if (existing == null) {
+      batch.set(
+        ref,
+        mediaRepository.createData(agentId: widget.user.id, media: pending),
+      );
+    } else {
+      batch.set(ref, <String, dynamic>{
+        ...mediaRepository.updateData(media: pending),
+        'agentId': widget.user.id,
+      }, SetOptions(merge: true));
+    }
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    setState(() => _error = message);
+    IzyTelFeedback.error(context, message);
   }
 
   @override
   Widget build(BuildContext context) {
-    final AgentPersonalProfile? profile = _profile;
-    final AgentProfileVerificationStatus status =
-        profile?.verificationStatus ??
-        AgentProfileVerificationStatus.incomplete;
-
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     return Scaffold(
-      backgroundColor: IzyTelColors.background,
       appBar: AppBar(title: const Text('Informations personnelles')),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            IzyTelSpacing.lg,
-            IzyTelSpacing.md,
-            IzyTelSpacing.lg,
-            120,
-          ),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
           children: <Widget>[
-            _ProfilePhotoCard(
-              name: _displayName,
-              avatarUrl: widget.initialAvatarUrl,
-              pendingUpload: _avatarUpload,
-              status: status,
-              completionPercent: profile?.completionPercent ?? 0,
-              onChangePhoto: _pickAvatar,
+            _ProfileMediaHeader(
+              bytes: _pendingAvatar?.bytes ?? _avatarMedia?.bytes,
+              status: _verificationStatus,
+              onPick: _pickAvatar,
             ),
-            const SizedBox(height: IzyTelSpacing.xl),
-            const _SectionTitle(
-              title: 'Identité',
-              subtitle:
-                  'Ces informations permettent d’identifier le titulaire du compte Agent.',
-            ),
+            if (_error != null) ...<Widget>[
+              const SizedBox(height: 12),
+              _InfoCard(icon: Icons.error_outline, text: _error!),
+            ],
+            if (_verificationNote != null) ...<Widget>[
+              const SizedBox(height: 12),
+              _InfoCard(
+                icon: Icons.info_outline,
+                text: 'Note de vérification : $_verificationNote',
+              ),
+            ],
+            const SizedBox(height: 18),
+            _sectionTitle(context, 'Identité'),
             const SizedBox(height: 8),
-            IzyTelSurface(
-              child: Column(
-                children: <Widget>[
-                  _textField(
-                    controller: _firstNameController,
-                    label: 'Prénom(s)',
-                    icon: Symbols.person_rounded,
-                    validator: _requiredName,
-                  ),
-                  const SizedBox(height: 12),
-                  _textField(
-                    controller: _lastNameController,
-                    label: 'Nom',
-                    icon: Symbols.badge_rounded,
-                    validator: _requiredName,
-                  ),
-                  const SizedBox(height: 12),
-                  _DateField(date: _dateOfBirth, onTap: _pickBirthDate),
-                ],
+            _twoFields(
+              _field(
+                _firstName,
+                'Prénom(s)',
+                locked: _isVerified,
+                minLength: 2,
+                maxLength: 80,
+              ),
+              _field(
+                _lastName,
+                'Nom',
+                locked: _isVerified,
+                minLength: 2,
+                maxLength: 80,
               ),
             ),
-            const SizedBox(height: IzyTelSpacing.xl),
-            const _SectionTitle(
-              title: 'Coordonnées',
-              subtitle:
-                  'Utilisées pour le suivi opérationnel et les contacts importants.',
-            ),
-            const SizedBox(height: 8),
-            IzyTelSurface(
-              child: Column(
-                children: <Widget>[
-                  _textField(
-                    controller: _addressController,
-                    label: 'Adresse / quartier',
-                    icon: Symbols.home_pin_rounded,
-                    validator: _requiredText,
-                  ),
-                  const SizedBox(height: 12),
-                  _textField(
-                    controller: _cityController,
-                    label: 'Ville / commune',
-                    icon: Symbols.location_city_rounded,
-                    validator: _requiredText,
-                  ),
-                  const SizedBox(height: 12),
-                  _textField(
-                    controller: _contact1Controller,
-                    label: 'Contact 1',
-                    icon: Symbols.call_rounded,
-                    keyboardType: TextInputType.phone,
-                    validator: _requiredPhone,
-                  ),
-                  const SizedBox(height: 12),
-                  _textField(
-                    controller: _contact2Controller,
-                    label: 'Contact 2 (facultatif)',
-                    icon: Symbols.phone_in_talk_rounded,
-                    keyboardType: TextInputType.phone,
-                    validator: _optionalPhone,
-                  ),
-                ],
+            const SizedBox(height: 10),
+            InkWell(
+              onTap: _isVerified ? null : _pickBirthDate,
+              borderRadius: BorderRadius.circular(12),
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Date de naissance',
+                  border: OutlineInputBorder(),
+                  suffixIcon: Icon(Icons.calendar_month_outlined),
+                ),
+                child: Text(_dateLabel(_dateOfBirth)),
               ),
             ),
-            const SizedBox(height: IzyTelSpacing.xl),
-            const _SectionTitle(
-              title: 'Contact d’urgence',
-              subtitle:
-                  'Facultatif, mais recommandé pour un compte professionnel.',
+            const SizedBox(height: 10),
+            _field(
+              _address,
+              'Adresse / quartier',
+              minLength: 3,
+              maxLength: 200,
             ),
+            const SizedBox(height: 10),
+            _field(_city, 'Ville / commune', minLength: 2, maxLength: 100),
+            const SizedBox(height: 18),
+            _sectionTitle(context, 'Contacts'),
             const SizedBox(height: 8),
-            IzyTelSurface(
-              child: Column(
-                children: <Widget>[
-                  _textField(
-                    controller: _emergencyNameController,
-                    label: 'Nom du contact',
-                    icon: Symbols.emergency_rounded,
-                  ),
-                  const SizedBox(height: 12),
-                  _textField(
-                    controller: _emergencyPhoneController,
-                    label: 'Téléphone du contact',
-                    icon: Symbols.contact_phone_rounded,
-                    keyboardType: TextInputType.phone,
-                    validator: _optionalPhone,
-                  ),
-                ],
+            _field(
+              _contact1,
+              'Contact principal',
+              minLength: 8,
+              maxLength: 30,
+              keyboard: TextInputType.phone,
+            ),
+            const SizedBox(height: 10),
+            _field(
+              _contact2,
+              'Contact secondaire (facultatif)',
+              required: false,
+              maxLength: 30,
+              keyboard: TextInputType.phone,
+            ),
+            const SizedBox(height: 10),
+            _twoFields(
+              _field(
+                _emergencyName,
+                'Contact d’urgence — nom',
+                required: false,
+                maxLength: 100,
+              ),
+              _field(
+                _emergencyPhone,
+                'Téléphone urgence',
+                required: false,
+                maxLength: 30,
+                keyboard: TextInputType.phone,
               ),
             ),
-            const SizedBox(height: IzyTelSpacing.xl),
-            const _SectionTitle(
-              title: 'Pièce d’identité',
-              subtitle:
-                  'Photo ou PDF. Le fichier reste privé et accessible uniquement à toi et aux administrateurs autorisés.',
-            ),
+            const SizedBox(height: 18),
+            _sectionTitle(context, 'Pièce d’identité'),
             const SizedBox(height: 8),
-            IzyTelSurface(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  DropdownButtonFormField<AgentIdentityDocumentType>(
-                    initialValue: _identityType,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Type de pièce',
-                      prefixIcon: Icon(Symbols.id_card_rounded),
-                    ),
-                    items: AgentIdentityDocumentType.values
-                        .map(
-                          (AgentIdentityDocumentType type) =>
-                              DropdownMenuItem<AgentIdentityDocumentType>(
-                                value: type,
-                                child: Text(
-                                  type.label,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                        )
-                        .toList(growable: false),
-                    onChanged: (AgentIdentityDocumentType? value) {
+            DropdownButtonFormField<String>(
+              initialValue: _identityType,
+              decoration: const InputDecoration(
+                labelText: 'Type de pièce',
+                border: OutlineInputBorder(),
+              ),
+              items: const <DropdownMenuItem<String>>[
+                DropdownMenuItem(value: 'nationalId', child: Text('CNI')),
+                DropdownMenuItem(value: 'passport', child: Text('Passeport')),
+                DropdownMenuItem(
+                  value: 'drivingLicense',
+                  child: Text('Permis de conduire'),
+                ),
+                DropdownMenuItem(
+                  value: 'residencePermit',
+                  child: Text('Titre de séjour'),
+                ),
+                DropdownMenuItem(value: 'other', child: Text('Autre')),
+              ],
+              onChanged: _isVerified
+                  ? null
+                  : (value) {
                       if (value != null) setState(() => _identityType = value);
                     },
+            ),
+            const SizedBox(height: 10),
+            _field(
+              _identityNumber,
+              'Numéro de pièce (facultatif)',
+              required: false,
+              locked: _isVerified,
+              maxLength: 80,
+            ),
+            const SizedBox(height: 12),
+            _IdentityMediaCard(
+              media: _pendingIdentity,
+              current: _identityMedia,
+              locked: _isVerified,
+              onPickImage: _pickIdentityImage,
+              onPickPdf: _pickIdentityPdf,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Limite B2 : 850 Ko maximum. Les images sont compressées automatiquement. '
+              'Les PDF trop lourds sont refusés. Aucun fichier n’est envoyé dans Firebase Storage.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: _isSaving ? null : _save,
+              icon: _isSaving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save_outlined),
+              label: Text(_isSaving ? 'Enregistrement…' : 'Enregistrer'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _firestore == null
+                  ? null
+                  : () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => AgentActivityV2DashboardPage(
+                            agentId: widget.user.id,
+                            agentName: '${_firstName.text} ${_lastName.text}'
+                                .trim(),
+                          ),
+                        ),
+                      );
+                    },
+              icon: const Icon(Icons.insights_outlined),
+              label: const Text('Voir mon activité détaillée'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _field(
+    TextEditingController controller,
+    String label, {
+    bool required = true,
+    bool locked = false,
+    int minLength = 2,
+    int? maxLength,
+    TextInputType? keyboard,
+  }) {
+    return TextFormField(
+      controller: controller,
+      readOnly: locked,
+      keyboardType: keyboard,
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+        filled: locked,
+      ),
+      validator: (value) {
+        final String text = value?.trim() ?? '';
+        if (required && text.length < minLength) {
+          return 'Minimum $minLength caractères.';
+        }
+        if (!required && text.isNotEmpty && text.length < minLength) {
+          return 'Minimum $minLength caractères.';
+        }
+        if (maxLength != null && text.length > maxLength) {
+          return 'Maximum $maxLength caractères.';
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _twoFields(Widget first, Widget second) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 560) {
+          return Column(
+            children: <Widget>[first, const SizedBox(height: 10), second],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Expanded(child: first),
+            const SizedBox(width: 10),
+            Expanded(child: second),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ProfileMediaHeader extends StatelessWidget {
+  const _ProfileMediaHeader({
+    required this.bytes,
+    required this.status,
+    required this.onPick,
+  });
+
+  final Uint8List? bytes;
+  final String status;
+  final VoidCallback onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: <Widget>[
+            CircleAvatar(
+              radius: 38,
+              foregroundImage: bytes == null ? null : MemoryImage(bytes!),
+              child: bytes == null
+                  ? const Icon(Icons.person_outline, size: 34)
+                  : null,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'Photo de profil',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  _textField(
-                    controller: _identityNumberController,
-                    label: 'Numéro de la pièce (facultatif)',
-                    icon: Symbols.numbers_rounded,
-                  ),
-                  const SizedBox(height: 14),
-                  _AttachmentTile(
-                    fileName:
-                        _identityUpload?.fileName ??
-                        profile?.identityDocumentFileName,
-                    hasExistingFile: profile?.hasIdentityDocument == true,
-                    onTap: _pickIdentityDocument,
+                  const SizedBox(height: 4),
+                  Text(_verificationLabel(status)),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: onPick,
+                    icon: const Icon(Icons.photo_camera_outlined),
+                    label: const Text('Changer la photo'),
                   ),
                 ],
               ),
             ),
-            if (profile?.verificationNote?.trim().isNotEmpty ==
-                true) ...<Widget>[
-              const SizedBox(height: 12),
-              _VerificationNote(note: profile!.verificationNote!),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IdentityMediaCard extends StatelessWidget {
+  const _IdentityMediaCard({
+    required this.media,
+    required this.current,
+    required this.locked,
+    required this.onPickImage,
+    required this.onPickPdf,
+  });
+
+  final PreparedAgentMedia? media;
+  final AgentPersonalMedia? current;
+  final bool locked;
+  final VoidCallback onPickImage;
+  final VoidCallback onPickPdf;
+
+  @override
+  Widget build(BuildContext context) {
+    final Uint8List? bytes = media?.bytes ?? current?.bytes;
+    final String? mime = media?.mimeType ?? current?.mimeType;
+    final String name = media?.fileName ?? current?.fileName ?? 'Aucun fichier';
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            if (bytes != null && mime == 'image/jpeg')
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.memory(bytes, height: 180, fit: BoxFit.contain),
+              )
+            else
+              const SizedBox(
+                height: 90,
+                child: Center(
+                  child: Icon(Icons.picture_as_pdf_outlined, size: 42),
+                ),
+              ),
+            const SizedBox(height: 8),
+            Text(
+              name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                OutlinedButton.icon(
+                  onPressed: locked ? null : onPickImage,
+                  icon: const Icon(Icons.image_outlined),
+                  label: const Text('Image'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: locked ? null : onPickPdf,
+                  icon: const Icon(Icons.picture_as_pdf_outlined),
+                  label: const Text('PDF'),
+                ),
+              ],
+            ),
+            if (locked) ...<Widget>[
+              const SizedBox(height: 8),
+              Text(
+                'Pièce verrouillée : profil déjà vérifié.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             ],
           ],
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
-          decoration: const BoxDecoration(
-            color: IzyTelColors.surface,
-            border: Border(top: BorderSide(color: IzyTelColors.outline)),
-          ),
-          child: FilledButton.icon(
-            onPressed: _saving ? null : _save,
-            icon: _saving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Symbols.save_rounded),
-            label: Text(_saving ? 'Enregistrement…' : 'Enregistrer le profil'),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String get _displayName {
-    final String value = <String>[
-      _firstNameController.text.trim(),
-      _lastNameController.text.trim(),
-    ].where((String item) => item.isNotEmpty).join(' ');
-    return value.isEmpty ? widget.user.name : value;
-  }
-
-  Widget _textField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    TextInputType? keyboardType,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      validator: validator,
-      textInputAction: TextInputAction.next,
-      onChanged: (_) => setState(() {}),
-      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
-    );
-  }
-
-  String? _requiredName(String? value) {
-    return (value ?? '').trim().length < 2 ? 'Champ obligatoire.' : null;
-  }
-
-  String? _requiredText(String? value) {
-    return (value ?? '').trim().length < 2 ? 'Champ obligatoire.' : null;
-  }
-
-  String? _requiredPhone(String? value) {
-    return (value ?? '').replaceAll(RegExp(r'\s+'), '').length < 8
-        ? 'Numéro invalide.'
-        : null;
-  }
-
-  String? _optionalPhone(String? value) {
-    final String cleaned = (value ?? '').replaceAll(RegExp(r'\s+'), '');
-    if (cleaned.isEmpty) return null;
-    return cleaned.length < 8 ? 'Numéro invalide.' : null;
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title, required this.subtitle});
-
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: IzyTelColors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          subtitle,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: IzyTelColors.textSecondary,
-            height: 1.35,
-          ),
-        ),
-      ],
     );
   }
 }
 
-class _ProfilePhotoCard extends StatelessWidget {
-  const _ProfilePhotoCard({
-    required this.name,
-    required this.avatarUrl,
-    required this.pendingUpload,
-    required this.status,
-    required this.completionPercent,
-    required this.onChangePhoto,
-  });
-
-  final String name;
-  final String? avatarUrl;
-  final AgentProfileFileUpload? pendingUpload;
-  final AgentProfileVerificationStatus status;
-  final int completionPercent;
-  final VoidCallback onChangePhoto;
-
-  @override
-  Widget build(BuildContext context) {
-    final Color statusColor = switch (status) {
-      AgentProfileVerificationStatus.verified => IzyTelColors.success,
-      AgentProfileVerificationStatus.pendingReview => IzyTelColors.warning,
-      AgentProfileVerificationStatus.needsCorrection => IzyTelColors.error,
-      AgentProfileVerificationStatus.incomplete => IzyTelColors.textSecondary,
-    };
-    final Widget avatar;
-    if (pendingUpload != null) {
-      avatar = ClipOval(
-        child: Image.memory(
-          pendingUpload!.bytes,
-          width: 82,
-          height: 82,
-          fit: BoxFit.cover,
-        ),
-      );
-    } else {
-      avatar = IzyTelAvatar(name: name, size: 82, imageUrl: avatarUrl);
-    }
-
-    return IzyTelSurface(
-      child: Row(
-        children: <Widget>[
-          Stack(
-            clipBehavior: Clip.none,
-            children: <Widget>[
-              avatar,
-              Positioned(
-                right: -3,
-                bottom: -3,
-                child: Material(
-                  color: IzyTelColors.primary,
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: onChangePhoto,
-                    child: const Padding(
-                      padding: EdgeInsets.all(7),
-                      child: Icon(
-                        Symbols.photo_camera_rounded,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 18),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                IzyTelStatusPill(label: status.label, color: statusColor),
-                const SizedBox(height: 8),
-                Text(
-                  'Profil complété à $completionPercent %',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: IzyTelColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DateField extends StatelessWidget {
-  const _DateField({required this.date, required this.onTap});
-
-  final DateTime? date;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final String value = date == null
-        ? 'Date de naissance'
-        : '${date!.day.toString().padLeft(2, '0')}/${date!.month.toString().padLeft(2, '0')}/${date!.year}';
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: InputDecorator(
-        decoration: const InputDecoration(
-          labelText: 'Date de naissance',
-          prefixIcon: Icon(Symbols.calendar_month_rounded),
-          suffixIcon: Icon(Symbols.chevron_right_rounded),
-        ),
-        child: Text(
-          value,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: date == null
-                ? IzyTelColors.textMuted
-                : IzyTelColors.textPrimary,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AttachmentTile extends StatelessWidget {
-  const _AttachmentTile({
-    required this.fileName,
-    required this.hasExistingFile,
-    required this.onTap,
-  });
-
-  final String? fileName;
-  final bool hasExistingFile;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool ready = fileName?.trim().isNotEmpty == true || hasExistingFile;
-    return Material(
-      color: IzyTelColors.background,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: <Widget>[
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: ready
-                      ? IzyTelColors.success.withAlpha(18)
-                      : IzyTelColors.primarySoft,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  ready
-                      ? Symbols.verified_rounded
-                      : Symbols.upload_file_rounded,
-                  color: ready ? IzyTelColors.success : IzyTelColors.primary,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      ready ? 'Pièce enregistrée' : 'Ajouter la pièce',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      fileName?.trim().isNotEmpty == true
-                          ? fileName!
-                          : 'Photo JPG/PNG ou PDF · 10 Mo maximum',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: IzyTelColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(Symbols.chevron_right_rounded),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _VerificationNote extends StatelessWidget {
-  const _VerificationNote({required this.note});
-
-  final String note;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: IzyTelColors.warning.withAlpha(12),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: IzyTelColors.warning.withAlpha(80)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const Icon(Symbols.info_rounded, color: IzyTelColors.warning),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              note,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(height: 1.4),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SourceSheet<T> extends StatelessWidget {
-  const _SourceSheet({required this.title, required this.actions});
-
-  final String title;
-  final List<_SourceAction<T>> actions;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(12),
-      padding: const EdgeInsets.fromLTRB(18, 10, 18, 16),
-      decoration: BoxDecoration(
-        color: IzyTelColors.surface,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          Align(
-            child: Container(
-              width: 42,
-              height: 4,
-              decoration: BoxDecoration(
-                color: IzyTelColors.outlineStrong,
-                borderRadius: BorderRadius.circular(99),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 8),
-          for (final _SourceAction<T> action in actions)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(action.icon, color: IzyTelColors.primary),
-              title: Text(action.label),
-              trailing: const Icon(Symbols.chevron_right_rounded),
-              onTap: () => Navigator.of(context).pop(action.value),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SourceAction<T> {
-  const _SourceAction({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
+class _InfoCard extends StatelessWidget {
+  const _InfoCard({required this.icon, required this.text});
 
   final IconData icon;
-  final String label;
-  final T value;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Icon(icon, size: 20),
+            const SizedBox(width: 8),
+            Expanded(child: Text(text)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Widget _sectionTitle(BuildContext context, String text) {
+  return Text(
+    text,
+    style: Theme.of(
+      context,
+    ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+  );
+}
+
+String _verificationLabel(String value) => switch (value) {
+  'verified' => 'Profil vérifié',
+  'pendingReview' => 'En attente de vérification',
+  'needsCorrection' => 'Corrections demandées',
+  _ => 'Profil incomplet',
+};
+
+String _dateLabel(DateTime? date) {
+  if (date == null) return 'Sélectionner une date';
+  String two(int value) => value.toString().padLeft(2, '0');
+  return '${two(date.day)}/${two(date.month)}/${date.year}';
+}
+
+String _text(Object? value) => value is String ? value.trim() : '';
+String? _nullableText(Object? value) {
+  final text = _text(value);
+  return text.isEmpty ? null : text;
+}
+
+DateTime? _date(Object? value) {
+  if (value is Timestamp) return value.toDate();
+  if (value is DateTime) return value;
+  return null;
 }

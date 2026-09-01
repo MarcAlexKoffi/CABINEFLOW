@@ -1859,7 +1859,6 @@ service cloud.firestore {
 
     function isValidAdminAgentPersonalProfileVerification(agentId) {
       return isAdmin()
-        && adminAgentVerificationHasRequiredIdentity(agentId)
         && hasValidAgentPersonalProfileValues(agentId)
         && request.resource.data.userId == resource.data.userId
         && request.resource.data.createdAt == resource.data.createdAt
@@ -1892,88 +1891,6 @@ service cloud.firestore {
           'updatedAt'
         ])
         && request.resource.data.updatedAt == request.time;
-    }
-    // B2 - mÃ©dias privÃ©s Agent en Blob Firestore, sans Firebase Storage.
-    // 250 Ko pour l'avatar; 850 Ko pour la piÃ¨ce afin de garder une marge
-    // confortable sous la limite de taille d'un document Firestore.
-    function hasValidAgentPersonalMediaValues(agentId, kind) {
-      return request.resource.data.keys().hasOnly([
-          'schemaVersion',
-          'agentId',
-          'kind',
-          'fileName',
-          'mimeType',
-          'contentBytes',
-          'sizeBytes',
-          'createdAt',
-          'updatedAt'
-        ])
-        && request.resource.data.schemaVersion == 1
-        && request.resource.data.agentId == agentId
-        && request.resource.data.kind == kind
-        && kind in ['avatar', 'identity']
-        && request.resource.data.fileName is string
-        && request.resource.data.fileName.size() >= 1
-        && request.resource.data.fileName.size() <= 255
-        && request.resource.data.mimeType is string
-        && request.resource.data.contentBytes is bytes
-        && request.resource.data.sizeBytes is int
-        && request.resource.data.sizeBytes > 0
-        && request.resource.data.sizeBytes
-          == request.resource.data.contentBytes.size()
-        && (
-          (
-            kind == 'avatar'
-            && request.resource.data.mimeType == 'image/jpeg'
-            && request.resource.data.sizeBytes <= 250000
-          )
-          || (
-            kind == 'identity'
-            && request.resource.data.mimeType in [
-              'image/jpeg',
-              'application/pdf'
-            ]
-            && request.resource.data.sizeBytes <= 850000
-          )
-        )
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.updatedAt is timestamp;
-    }
-
-    function agentCanWritePersonalMedia(agentId, kind) {
-      let profileAfter = getAfter(
-        /databases/$(database)/documents/agentPersonalProfiles/$(agentId)
-      ).data;
-      return isAgent()
-        && request.auth.uid == agentId
-        && profileAfter.userId == agentId
-        // AprÃ¨s validation Admin, l'identitÃ© est figÃ©e. L'avatar reste modifiable.
-        && (
-          kind == 'avatar'
-          || profileAfter.verificationStatus != 'verified'
-        );
-    }
-
-    function isValidAgentPersonalMediaCreation(agentId, kind) {
-      return agentCanWritePersonalMedia(agentId, kind)
-        && hasValidAgentPersonalMediaValues(agentId, kind)
-        && request.resource.data.createdAt == request.time
-        && request.resource.data.updatedAt == request.time;
-    }
-
-    function isValidAgentPersonalMediaUpdate(agentId, kind) {
-      return agentCanWritePersonalMedia(agentId, kind)
-        && hasValidAgentPersonalMediaValues(agentId, kind)
-        && request.resource.data.agentId == resource.data.agentId
-        && request.resource.data.kind == resource.data.kind
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.updatedAt == request.time;
-    }
-    function adminAgentVerificationHasRequiredIdentity(agentId) {
-      return request.resource.data.verificationStatus != 'verified'
-        || exists(
-          /databases/$(database)/documents/agentPersonalMedia/$(agentId)/items/identity
-        );
     }
     function hasValidZoneKeys() {
       return request.resource.data.keys().hasOnly([
@@ -4472,11 +4389,7 @@ service cloud.firestore {
     }
 
     match /networkTransactions/{transactionId} {
-      allow get, list: if isAdmin()
-        || (
-          isAgent()
-          && resource.data.agentId == request.auth.uid
-        );
+      allow get, list: if isAdmin();
       allow create: if isValidAgentOrderNetworkTransactionCreation(transactionId)
         || isValidAdminSupplierRechargeNetworkTransactionCreation(transactionId)
         || isValidManualNetworkAdjustmentCreation();
@@ -4661,15 +4574,6 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    match /agentPersonalMedia/{agentId}/items/{kind} {
-      allow get: if isAdmin()
-        || (isAgent() && request.auth.uid == agentId);
-      allow list: if isAdmin()
-        || (isAgent() && request.auth.uid == agentId);
-      allow create: if isValidAgentPersonalMediaCreation(agentId, kind);
-      allow update: if isValidAgentPersonalMediaUpdate(agentId, kind);
-      allow delete: if false;
-    }
     match /agentPersonalProfiles/{agentId} {
       allow get: if isAdmin()
         || (isAgent() && request.auth.uid == agentId);

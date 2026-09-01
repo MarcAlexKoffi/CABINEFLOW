@@ -113,8 +113,6 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
         builder: (_) => AgentPersonalProfilePage(
           user: widget.user,
           repository: widget.repository,
-          initialProfile: _viewModel.personalProfile,
-          initialAvatarUrl: _viewModel.avatarUrl,
         ),
       ),
     );

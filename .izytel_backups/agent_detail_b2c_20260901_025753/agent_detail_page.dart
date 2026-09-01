@@ -5,7 +5,6 @@ import 'package:cabine_flow/features/agents/presentation/view_models/agent_detai
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:cabine_flow/features/agents/presentation/pages/admin_agent_profile_activity_page.dart';
 
 class AgentDetailPage extends StatefulWidget {
   const AgentDetailPage({
@@ -244,19 +243,6 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
   Widget build(BuildContext context) {
     final AgentProfile? profile = widget.agent.profile;
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => AdminAgentProfileActivityPage(
-                agentId: widget.agent.userId,
-                agentName: widget.agent.name,
-              ),
-            ),
-          );
-        },
-        label: const Text('IdentitÃ© & activitÃ©'),
-      ),
       backgroundColor: IzyTelColors.background,
       appBar: AppBar(title: const Text('Profil Agent')),
       body: SafeArea(
