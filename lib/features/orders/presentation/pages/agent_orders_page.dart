@@ -134,7 +134,9 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
     final AgentProfile? profile = _viewModel.agentProfile;
     showIzyTelAccountSheet(
       context: context,
-      name: widget.user.name,
+      name: _viewModel.personalProfile?.displayName.isNotEmpty == true
+          ? _viewModel.personalProfile!.displayName
+          : widget.user.name,
       role: profile == null
           ? 'Agent IzyTel'
           : 'Agent • ${profile.availability.label}',
@@ -165,6 +167,7 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
             onTap: widget.onLogout!,
           ),
       ],
+      avatarImageUrl: _viewModel.avatarUrl,
     );
   }
 
@@ -270,6 +273,8 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
                     _AgentHeader(
                       user: widget.user,
                       profile: _viewModel.agentProfile,
+                      personalProfile: _viewModel.personalProfile,
+                      avatarUrl: _viewModel.avatarUrl,
                       onAvatarTap: _openAccountMenu,
                     ),
                     const SizedBox(height: 32),
@@ -356,12 +361,21 @@ class _AgentHeader extends StatelessWidget {
   const _AgentHeader({
     required this.user,
     required this.profile,
+    required this.personalProfile,
+    required this.avatarUrl,
     required this.onAvatarTap,
   });
 
   final AppUser user;
   final AgentProfile? profile;
+  final AgentPersonalProfile? personalProfile;
+  final String? avatarUrl;
   final VoidCallback onAvatarTap;
+
+  String get _displayName {
+    final String candidate = personalProfile?.displayName.trim() ?? '';
+    return candidate.isEmpty ? user.name : candidate;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -401,7 +415,7 @@ class _AgentHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Bonjour ${user.name.split(' ').first} 👋',
+                'Bonjour ${_displayName.split(' ').first} 👋',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -442,7 +456,12 @@ class _AgentHeader extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IzyTelAvatar(name: user.name, onTap: onAvatarTap, size: 38),
+            IzyTelAvatar(
+              name: _displayName,
+              imageUrl: avatarUrl,
+              onTap: onAvatarTap,
+              size: 38,
+            ),
             const Icon(
               Symbols.keyboard_arrow_down_rounded,
               size: IzyTelIconSize.info,
@@ -748,8 +767,8 @@ class _AgentInProgressTile extends StatelessWidget {
       QueueOrderStatus.refunded => ('Remboursée', IzyTelColors.success),
       QueueOrderStatus.onHold => ('En attente', IzyTelColors.warning),
       QueueOrderStatus.awaitingCustomerConfirmation => (
-        'À confirmer',
-        IzyTelColors.primary,
+        'Terminée',
+        IzyTelColors.success,
       ),
       _ => ('En traitement', IzyTelColors.primary),
     };

@@ -13,10 +13,13 @@ class AgentActivityViewModel extends ChangeNotifier {
   final String agentId;
   final AgentRepository _repository;
   StreamSubscription<AgentProfile?>? _profileSub;
+  StreamSubscription<AgentPersonalProfile?>? _personalProfileSub;
   StreamSubscription<List<AgentZone>>? _zonesSub;
   StreamSubscription<List<AgentIssue>>? _issuesSub;
 
   AgentProfile? profile;
+  AgentPersonalProfile? personalProfile;
+  String? avatarUrl;
   List<AgentZone> zones = const <AgentZone>[];
   List<AgentIssue> issues = const <AgentIssue>[];
   bool isLoading = true;
@@ -30,6 +33,7 @@ class AgentActivityViewModel extends ChangeNotifier {
 
   Future<void> start() async {
     await _profileSub?.cancel();
+    await _personalProfileSub?.cancel();
     await _zonesSub?.cancel();
     await _issuesSub?.cancel();
     isLoading = true;
@@ -50,6 +54,25 @@ class AgentActivityViewModel extends ChangeNotifier {
             notifyListeners();
           },
         );
+    _personalProfileSub = _repository
+        .watchPersonalProfile(agentId)
+        .listen(
+          (AgentPersonalProfile? value) {
+            personalProfile = value;
+            final String? path = value?.avatarStoragePath;
+            if (path == null || path.trim().isEmpty) {
+              avatarUrl = null;
+              notifyListeners();
+              return;
+            }
+            unawaited(_loadAvatarUrl(path));
+            notifyListeners();
+          },
+          onError: (_) {
+            // Le profil personnel ne doit jamais bloquer le profil opérationnel.
+          },
+        );
+
     _zonesSub = _repository.watchZones().listen((value) {
       zones = value;
       notifyListeners();
@@ -58,6 +81,15 @@ class AgentActivityViewModel extends ChangeNotifier {
       issues = value;
       notifyListeners();
     });
+  }
+
+  Future<void> _loadAvatarUrl(String storagePath) async {
+    final String? resolved = await _repository.resolvePersonalFileUrl(
+      storagePath,
+    );
+    if (personalProfile?.avatarStoragePath != storagePath) return;
+    avatarUrl = resolved;
+    notifyListeners();
   }
 
   Future<bool> setAvailability(AgentAvailability value) async {
@@ -141,6 +173,7 @@ class AgentActivityViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _profileSub?.cancel();
+    _personalProfileSub?.cancel();
     _zonesSub?.cancel();
     _issuesSub?.cancel();
     super.dispose();

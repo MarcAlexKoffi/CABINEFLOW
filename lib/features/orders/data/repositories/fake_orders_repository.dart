@@ -632,7 +632,7 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     }
 
     final QueueOrder updatedOrder = currentOrder.copyWith(
-      status: QueueOrderStatus.awaitingCustomerConfirmation,
+      status: QueueOrderStatus.completed,
       completedAt: DateTime.now(),
       customerConfirmationStatus: CustomerConfirmationStatus.pending,
       clearFailureDetails: true,

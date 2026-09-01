@@ -253,7 +253,10 @@ class _MainShellPageState extends State<MainShellPage> {
       setState(() {
         _isLoggingOut = false;
       });
-      IzyTelFeedback.error(context, 'Impossible de se déconnecter pour le moment.');
+      IzyTelFeedback.error(
+        context,
+        'Impossible de se déconnecter pour le moment.',
+      );
     }
   }
 
@@ -274,10 +277,14 @@ class _MainShellPageState extends State<MainShellPage> {
 
     final DateTime now = DateTime.now();
     final DateTime? previous = _lastBackPressAt;
-    if (previous == null || now.difference(previous) > const Duration(seconds: 2)) {
+    if (previous == null ||
+        now.difference(previous) > const Duration(seconds: 2)) {
       _lastBackPressAt = now;
       if (mounted) {
-        IzyTelFeedback.show(context, 'Appuie encore une fois pour quitter IzyTel.');
+        IzyTelFeedback.show(
+          context,
+          'Appuie encore une fois pour quitter IzyTel.',
+        );
       }
       return;
     }
@@ -455,7 +462,10 @@ class _AgentShellState extends State<_AgentShell> {
       setState(() {
         _isLoggingOut = false;
       });
-      IzyTelFeedback.error(context, 'Impossible de se déconnecter pour le moment.');
+      IzyTelFeedback.error(
+        context,
+        'Impossible de se déconnecter pour le moment.',
+      );
     }
   }
 
@@ -476,10 +486,14 @@ class _AgentShellState extends State<_AgentShell> {
 
     final DateTime now = DateTime.now();
     final DateTime? previous = _lastBackPressAt;
-    if (previous == null || now.difference(previous) > const Duration(seconds: 2)) {
+    if (previous == null ||
+        now.difference(previous) > const Duration(seconds: 2)) {
       _lastBackPressAt = now;
       if (mounted) {
-        IzyTelFeedback.show(context, 'Appuie encore une fois pour quitter IzyTel.');
+        IzyTelFeedback.show(
+          context,
+          'Appuie encore une fois pour quitter IzyTel.',
+        );
       }
       return;
     }

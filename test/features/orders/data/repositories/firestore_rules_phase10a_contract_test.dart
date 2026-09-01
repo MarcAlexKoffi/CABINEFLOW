@@ -27,7 +27,7 @@ void main() {
       contains('PHASE 9E AUTO ASSIGNMENT FIX V2 - artefacts unidirectionnels'),
     );
     expect(rules, contains('match /autoAssignmentQueue/{orderId}'));
-    expect(rules, isNot(contains('isValidAgentAutomaticSelfAssignment')));
+    expect(rules, contains('isValidAgentAutomaticSelfAssignment'));
     expect(rules, contains('isValidStaffAutomaticAssignment'));
     expect(rules, contains('isValidAutomaticAssignmentEventCreation'));
   });

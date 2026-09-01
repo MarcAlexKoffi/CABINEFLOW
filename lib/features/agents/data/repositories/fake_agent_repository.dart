@@ -51,6 +51,8 @@ class FakeAgentRepository implements AgentRepository {
   late List<AgentDirectoryEntry> _agents;
   late List<AgentZone> _zones;
   final Map<String, List<AgentIssue>> _issues = <String, List<AgentIssue>>{};
+  final Map<String, AgentPersonalProfile> _personalProfiles =
+      <String, AgentPersonalProfile>{};
   final StreamController<void> _changes = StreamController<void>.broadcast();
 
   void _notify() => _changes.add(null);
@@ -76,6 +78,96 @@ class FakeAgentRepository implements AgentRepository {
     await for (final _ in _changes.stream) {
       yield current();
     }
+  }
+
+  @override
+  Stream<AgentPersonalProfile?> watchPersonalProfile(String agentId) async* {
+    yield _personalProfiles[agentId];
+    await for (final _ in _changes.stream) {
+      yield _personalProfiles[agentId];
+    }
+  }
+
+  @override
+  Future<void> saveOwnPersonalProfile({
+    required String agentId,
+    required AgentPersonalProfileDraft draft,
+    AgentProfileFileUpload? avatar,
+    AgentProfileFileUpload? identityDocument,
+  }) async {
+    final DateTime now = DateTime.now();
+    final AgentPersonalProfile? current = _personalProfiles[agentId];
+    final String? avatarPath = avatar == null
+        ? current?.avatarStoragePath
+        : 'agent_profiles/$agentId/avatar/profile';
+    final String? identityPath = identityDocument == null
+        ? current?.identityDocumentStoragePath
+        : 'agent_profiles/$agentId/identity/document';
+    final bool complete =
+        draft.firstName.trim().length >= 2 &&
+        draft.lastName.trim().length >= 2 &&
+        draft.dateOfBirth != null &&
+        draft.address.trim().length >= 3 &&
+        draft.city.trim().length >= 2 &&
+        draft.contact1.trim().length >= 8 &&
+        avatarPath != null &&
+        identityPath != null;
+    final AgentProfileVerificationStatus status =
+        current?.verificationStatus ==
+                AgentProfileVerificationStatus.verified &&
+            avatar == null &&
+            identityDocument == null
+        ? AgentProfileVerificationStatus.verified
+        : complete
+        ? AgentProfileVerificationStatus.pendingReview
+        : AgentProfileVerificationStatus.incomplete;
+
+    _personalProfiles[agentId] = AgentPersonalProfile(
+      userId: agentId,
+      firstName: draft.firstName.trim(),
+      lastName: draft.lastName.trim(),
+      dateOfBirth: draft.dateOfBirth,
+      address: draft.address.trim(),
+      city: draft.city.trim(),
+      contact1: draft.contact1.trim(),
+      contact2: draft.contact2.trim(),
+      emergencyContactName: draft.emergencyContactName.trim(),
+      emergencyContactPhone: draft.emergencyContactPhone.trim(),
+      identityDocumentType: draft.identityDocumentType,
+      identityDocumentNumber: draft.identityDocumentNumber.trim(),
+      avatarStoragePath: avatarPath,
+      identityDocumentStoragePath: identityPath,
+      identityDocumentFileName:
+          identityDocument?.fileName ?? current?.identityDocumentFileName,
+      identityDocumentMimeType:
+          identityDocument?.mimeType ?? current?.identityDocumentMimeType,
+      verificationStatus: status,
+      verificationNote: status == AgentProfileVerificationStatus.needsCorrection
+          ? current?.verificationNote
+          : null,
+      createdAt: current?.createdAt ?? now,
+      updatedAt: now,
+    );
+
+    _agents = _agents
+        .map((AgentDirectoryEntry entry) {
+          if (entry.userId != agentId) return entry;
+          return AgentDirectoryEntry(
+            userId: entry.userId,
+            name: draft.displayName,
+            email: entry.email,
+            phoneNumber: draft.contact1.trim(),
+            isActive: entry.isActive,
+            profile: entry.profile,
+          );
+        })
+        .toList(growable: false);
+    _notify();
+  }
+
+  @override
+  Future<String?> resolvePersonalFileUrl(String storagePath) async {
+    return null;
   }
 
   @override

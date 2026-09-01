@@ -81,7 +81,7 @@ void main() {
     viewModel.dispose();
   });
 
-  test('phase 9C : réussite déplace le travail agent vers Terminées', () async {
+  test('réussite revient vers le prochain travail à traiter', () async {
     final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
     final QueueOrder order = (await repository.fetchPaidQueue()).first;
     await repository.assignToAgent(
@@ -111,7 +111,56 @@ void main() {
     expect(proof, isNotNull);
     expect(await viewModel.markSuccessful(started), isTrue);
     expect(viewModel.completedCount, 1);
-    expect(viewModel.selectedTab, AgentOrdersTab.completed);
+    expect(viewModel.selectedTab, AgentOrdersTab.toAccept);
     viewModel.dispose();
   });
+
+  test(
+    'réussite reste sur En cours quand une autre commande est active',
+    () async {
+      final FakeOrdersRepository repository = FakeOrdersRepository(
+        isTest: true,
+      );
+      final List<QueueOrder> queue = await repository.fetchPaidQueue();
+      for (final QueueOrder order in queue.take(2)) {
+        await repository.assignToAgent(
+          orderId: order.id,
+          agentId: 'AGENT-001',
+          assignedByUserId: 'ADMIN-001',
+        );
+      }
+
+      final AgentOrdersViewModel viewModel = AgentOrdersViewModel(
+        agentId: 'AGENT-001',
+        ordersRepository: repository,
+      );
+      await viewModel.start();
+      await Future<void>.delayed(Duration.zero);
+
+      final QueueOrder first = viewModel.toAcceptOrders.first;
+      expect(await viewModel.accept(first), isTrue);
+      final QueueOrder acceptedFirst = viewModel.orderById(first.id)!;
+      expect(await viewModel.startProcessing(acceptedFirst), isTrue);
+
+      final QueueOrder second = viewModel.toAcceptOrders.first;
+      expect(await viewModel.accept(second), isTrue);
+      final QueueOrder acceptedSecond = viewModel.orderById(second.id)!;
+      expect(await viewModel.startProcessing(acceptedSecond), isTrue);
+
+      final QueueOrder processingFirst = viewModel.orderById(first.id)!;
+      expect(
+        await viewModel.saveProof(
+          order: processingFirst,
+          fileName: 'preuve.jpg',
+          mimeType: 'image/jpeg',
+          bytes: <int>[1, 2, 3],
+        ),
+        isNotNull,
+      );
+      expect(await viewModel.markSuccessful(processingFirst), isTrue);
+      expect(viewModel.inProgressCount, 1);
+      expect(viewModel.selectedTab, AgentOrdersTab.inProgress);
+      viewModel.dispose();
+    },
+  );
 }

@@ -105,7 +105,10 @@ void main() {
   test('reaffectation echec possede une validation audit non circulaire', () {
     final String rules = source('firestore.rules');
     expect(rules, contains('REASSIGNMENT_REQUESTED'));
-    expect(rules, contains('function isValidAdminReassignmentRequestedEvent()'));
+    expect(
+      rules,
+      contains('function isValidAdminReassignmentRequestedEvent()'),
+    );
     expect(rules, contains('function isValidAdminFailedOrderRequeue(orderId)'));
   });
 }

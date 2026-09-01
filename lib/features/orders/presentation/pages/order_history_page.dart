@@ -1354,7 +1354,6 @@ String _compactStatusLabel(QueueOrderStatus status) {
     case QueueOrderStatus.onHold:
       return 'En attente';
     case QueueOrderStatus.awaitingCustomerConfirmation:
-      return 'Transaction effectuée';
     case QueueOrderStatus.completed:
       return 'Terminée';
     case QueueOrderStatus.failed:
@@ -1372,6 +1371,7 @@ String _compactStatusLabel(QueueOrderStatus status) {
 
 Color _statusColor(QueueOrderStatus status) {
   switch (status) {
+    case QueueOrderStatus.awaitingCustomerConfirmation:
     case QueueOrderStatus.completed:
     case QueueOrderStatus.refunded:
       return IzyTelColors.success;
@@ -1386,13 +1386,13 @@ Color _statusColor(QueueOrderStatus status) {
       return IzyTelColors.warning;
     case QueueOrderStatus.paidReady:
     case QueueOrderStatus.inProgress:
-    case QueueOrderStatus.awaitingCustomerConfirmation:
       return IzyTelColors.primary;
   }
 }
 
 IconData _statusIcon(QueueOrderStatus status) {
   switch (status) {
+    case QueueOrderStatus.awaitingCustomerConfirmation:
     case QueueOrderStatus.completed:
     case QueueOrderStatus.refunded:
       return Symbols.check_circle_rounded;
@@ -1407,8 +1407,6 @@ IconData _statusIcon(QueueOrderStatus status) {
       return Symbols.inventory_2_rounded;
     case QueueOrderStatus.inProgress:
       return Symbols.autorenew_rounded;
-    case QueueOrderStatus.awaitingCustomerConfirmation:
-      return Symbols.mark_chat_read_rounded;
     case QueueOrderStatus.awaitingPayment:
       return Symbols.account_balance_wallet_rounded;
     case QueueOrderStatus.paymentToVerify:

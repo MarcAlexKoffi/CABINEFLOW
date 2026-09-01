@@ -91,14 +91,16 @@ class FirestoreDashboardRepository implements DashboardRepository {
         .where(
           (QueueOrder order) =>
               order.status == QueueOrderStatus.inProgress ||
-              order.status == QueueOrderStatus.onHold ||
-              order.status == QueueOrderStatus.awaitingCustomerConfirmation,
+              order.status == QueueOrderStatus.onHold,
         )
         .length;
     final int completedToday = orders
         .where(
           (QueueOrder order) =>
-              order.status == QueueOrderStatus.completed &&
+              <QueueOrderStatus>{
+                QueueOrderStatus.awaitingCustomerConfirmation,
+                QueueOrderStatus.completed,
+              }.contains(order.status) &&
               _isBetween(
                 order.customerConfirmationCompletedAt ?? order.completedAt,
                 todayStart,

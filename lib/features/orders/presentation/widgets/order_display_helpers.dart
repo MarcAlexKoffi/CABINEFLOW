@@ -16,7 +16,6 @@ String orderStatusLabel(QueueOrderStatus status) {
     case QueueOrderStatus.onHold:
       return 'En attente';
     case QueueOrderStatus.awaitingCustomerConfirmation:
-      return 'Transaction effectuée';
     case QueueOrderStatus.completed:
       return 'Terminée';
     case QueueOrderStatus.failed:
@@ -34,6 +33,7 @@ String orderStatusLabel(QueueOrderStatus status) {
 
 Color orderStatusColor(QueueOrderStatus status) {
   switch (status) {
+    case QueueOrderStatus.awaitingCustomerConfirmation:
     case QueueOrderStatus.completed:
     case QueueOrderStatus.refunded:
       return AppColors.success;
@@ -45,7 +45,6 @@ Color orderStatusColor(QueueOrderStatus status) {
       return AppColors.warning;
     case QueueOrderStatus.paidReady:
     case QueueOrderStatus.inProgress:
-    case QueueOrderStatus.awaitingCustomerConfirmation:
       return AppColors.primary;
     case QueueOrderStatus.awaitingPayment:
     case QueueOrderStatus.paymentToVerify:
@@ -56,6 +55,7 @@ Color orderStatusColor(QueueOrderStatus status) {
 
 IconData orderStatusIcon(QueueOrderStatus status) {
   switch (status) {
+    case QueueOrderStatus.awaitingCustomerConfirmation:
     case QueueOrderStatus.completed:
     case QueueOrderStatus.refunded:
       return Icons.check_circle_outline_rounded;
@@ -70,8 +70,6 @@ IconData orderStatusIcon(QueueOrderStatus status) {
       return Icons.inventory_2_outlined;
     case QueueOrderStatus.inProgress:
       return Icons.autorenew_rounded;
-    case QueueOrderStatus.awaitingCustomerConfirmation:
-      return Icons.mark_chat_read_outlined;
     case QueueOrderStatus.awaitingPayment:
       return Icons.account_balance_wallet_outlined;
     case QueueOrderStatus.paymentToVerify:
@@ -290,11 +288,11 @@ bool orderMatchesState(QueueOrder order, OrderHistoryStateFilter state) {
         QueueOrderStatus.paidReady,
         QueueOrderStatus.inProgress,
         QueueOrderStatus.onHold,
-        QueueOrderStatus.awaitingCustomerConfirmation,
         QueueOrderStatus.refundPending,
       }.contains(order.status);
     case OrderHistoryStateFilter.completed:
       return <QueueOrderStatus>{
+        QueueOrderStatus.awaitingCustomerConfirmation,
         QueueOrderStatus.completed,
         QueueOrderStatus.refunded,
       }.contains(order.status);

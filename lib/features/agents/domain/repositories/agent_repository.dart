@@ -5,6 +5,17 @@ abstract class AgentRepository {
 
   Stream<AgentProfile?> watchAgentProfile(String agentId);
 
+  Stream<AgentPersonalProfile?> watchPersonalProfile(String agentId);
+
+  Future<void> saveOwnPersonalProfile({
+    required String agentId,
+    required AgentPersonalProfileDraft draft,
+    AgentProfileFileUpload? avatar,
+    AgentProfileFileUpload? identityDocument,
+  });
+
+  Future<String?> resolvePersonalFileUrl(String storagePath);
+
   Stream<List<AgentZone>> watchZones();
 
   Stream<List<AgentIssue>> watchAgentIssues(String agentId);

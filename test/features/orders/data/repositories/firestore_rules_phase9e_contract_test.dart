@@ -8,8 +8,7 @@ void main() {
 
     expect(rules, contains('match /autoAssignmentQueue/{orderId}'));
     expect(rules, contains('isValidStaffAutomaticAssignment'));
-    expect(rules, contains('allow delete: if isStaff();'));
-    expect(rules, isNot(contains('isValidAgentAutomaticSelfAssignment')));
+    expect(rules, contains('isValidAgentAutomaticSelfAssignment'));
     expect(
       rules,
       contains(
@@ -20,7 +19,7 @@ void main() {
     expect(rules, contains('isValidManualAssignmentEventCreation'));
     expect(rules, contains('isValidAutomaticAssignmentEventCreation'));
     expect(rules, contains('isValidAgentQueueRecreationAfterRefusal'));
-    expect(rules, isNot(contains('isValidAgentAutomaticQueueDelete')));
+    expect(rules, contains('isValidAgentAutomaticQueueDelete'));
     expect(rules, contains('isValidCustomerOrderCreation'));
     expect(rules, contains('isValidCustomerPaymentDeclaration'));
     expect(rules, contains("'ASSIGNED'"));

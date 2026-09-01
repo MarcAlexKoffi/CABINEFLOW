@@ -157,14 +157,16 @@ class _FinancesPageState extends State<FinancesPage> {
     List<CustomerCreditSettlement> settlements, {
     FinancePaymentChannel? channel,
   }) {
-    return settlements.where((CustomerCreditSettlement settlement) {
-      return _isToday(settlement.paidAt) &&
-          (channel == null || settlement.channel == channel);
-    }).fold<int>(
-      0,
-      (int total, CustomerCreditSettlement settlement) =>
-          total + settlement.amount,
-    );
+    return settlements
+        .where((CustomerCreditSettlement settlement) {
+          return _isToday(settlement.paidAt) &&
+              (channel == null || settlement.channel == channel);
+        })
+        .fold<int>(
+          0,
+          (int total, CustomerCreditSettlement settlement) =>
+              total + settlement.amount,
+        );
   }
 
   int _supplierPaymentsToday(List<SupplierPayment> payments) {
@@ -241,7 +243,6 @@ class _FinancesPageState extends State<FinancesPage> {
       ),
     );
   }
-
 
   void _openSuppliers() {
     Navigator.of(context).push<void>(
@@ -352,332 +353,595 @@ class _FinancesPageState extends State<FinancesPage> {
                               AsyncSnapshot<List<CommissionPayout>>
                               payoutSnapshot,
                             ) {
-                              return StreamBuilder<List<CustomerCreditSettlement>>(
-                                stream: _financeOperationsRepository.watchCustomerCreditSettlements(),
+                              return StreamBuilder<
+                                List<CustomerCreditSettlement>
+                              >(
+                                stream: _financeOperationsRepository
+                                    .watchCustomerCreditSettlements(),
                                 builder:
                                     (
                                       BuildContext context,
-                                      AsyncSnapshot<List<CustomerCreditSettlement>> settlementSnapshot,
+                                      AsyncSnapshot<
+                                        List<CustomerCreditSettlement>
+                                      >
+                                      settlementSnapshot,
                                     ) {
-                                  return StreamBuilder<List<SupplierPayment>>(
-                                    stream: _financeOperationsRepository.watchSupplierPayments(),
-                                    builder:
-                                        (
-                                          BuildContext context,
-                                          AsyncSnapshot<List<SupplierPayment>> supplierPaymentSnapshot,
-                                        ) {
-                                      return StreamBuilder<List<FinanceExpense>>(
-                                        stream: _financeOperationsRepository.watchExpenses(),
+                                      return StreamBuilder<
+                                        List<SupplierPayment>
+                                      >(
+                                        stream: _financeOperationsRepository
+                                            .watchSupplierPayments(),
                                         builder:
                                             (
                                               BuildContext context,
-                                              AsyncSnapshot<List<FinanceExpense>> expenseSnapshot,
+                                              AsyncSnapshot<
+                                                List<SupplierPayment>
+                                              >
+                                              supplierPaymentSnapshot,
                                             ) {
-                                              return StreamBuilder<List<NetworkTransaction>>(
-                                stream: _networkFinanceRepository.watchTransactions(),
-                                builder:
-                                    (
-                                      BuildContext context,
-                                      AsyncSnapshot<List<NetworkTransaction>> networkSnapshot,
-                                    ) {
-                              final List<QueueOrder> orders =
-                                  orderSnapshot.data ?? const <QueueOrder>[];
-                              final List<RefundCase> refunds =
-                                  refundSnapshot.data ?? const <RefundCase>[];
-                              final List<CommissionAccount> accounts =
-                                  accountSnapshot.data ??
-                                  const <CommissionAccount>[];
-                              final List<CommissionPayout> payouts =
-                                  payoutSnapshot.data ??
-                                  const <CommissionPayout>[];
-                              final List<NetworkTransaction> networkTransactions =
-                                  networkSnapshot.data ??
-                                  const <NetworkTransaction>[];
-                              final List<CustomerCreditSettlement> creditSettlements =
-                                  settlementSnapshot.data ??
-                                  const <CustomerCreditSettlement>[];
-                              final List<SupplierPayment> supplierPayments =
-                                  supplierPaymentSnapshot.data ??
-                                  const <SupplierPayment>[];
-                              final List<FinanceExpense> expenses =
-                                  expenseSnapshot.data ??
-                                  const <FinanceExpense>[];
+                                              return StreamBuilder<
+                                                List<FinanceExpense>
+                                              >(
+                                                stream:
+                                                    _financeOperationsRepository
+                                                        .watchExpenses(),
+                                                builder:
+                                                    (
+                                                      BuildContext context,
+                                                      AsyncSnapshot<
+                                                        List<FinanceExpense>
+                                                      >
+                                                      expenseSnapshot,
+                                                    ) {
+                                                      return StreamBuilder<
+                                                        List<NetworkTransaction>
+                                                      >(
+                                                        stream: _networkFinanceRepository
+                                                            .watchTransactions(),
+                                                        builder:
+                                                            (
+                                                              BuildContext
+                                                              context,
+                                                              AsyncSnapshot<
+                                                                List<
+                                                                  NetworkTransaction
+                                                                >
+                                                              >
+                                                              networkSnapshot,
+                                                            ) {
+                                                              final List<
+                                                                QueueOrder
+                                                              >
+                                                              orders =
+                                                                  orderSnapshot
+                                                                      .data ??
+                                                                  const <
+                                                                    QueueOrder
+                                                                  >[];
+                                                              final List<
+                                                                RefundCase
+                                                              >
+                                                              refunds =
+                                                                  refundSnapshot
+                                                                      .data ??
+                                                                  const <
+                                                                    RefundCase
+                                                                  >[];
+                                                              final List<
+                                                                CommissionAccount
+                                                              >
+                                                              accounts =
+                                                                  accountSnapshot
+                                                                      .data ??
+                                                                  const <
+                                                                    CommissionAccount
+                                                                  >[];
+                                                              final List<
+                                                                CommissionPayout
+                                                              >
+                                                              payouts =
+                                                                  payoutSnapshot
+                                                                      .data ??
+                                                                  const <
+                                                                    CommissionPayout
+                                                                  >[];
+                                                              final List<
+                                                                NetworkTransaction
+                                                              >
+                                                              networkTransactions =
+                                                                  networkSnapshot
+                                                                      .data ??
+                                                                  const <
+                                                                    NetworkTransaction
+                                                                  >[];
+                                                              final List<
+                                                                CustomerCreditSettlement
+                                                              >
+                                                              creditSettlements =
+                                                                  settlementSnapshot
+                                                                      .data ??
+                                                                  const <
+                                                                    CustomerCreditSettlement
+                                                                  >[];
+                                                              final List<
+                                                                SupplierPayment
+                                                              >
+                                                              supplierPayments =
+                                                                  supplierPaymentSnapshot
+                                                                      .data ??
+                                                                  const <
+                                                                    SupplierPayment
+                                                                  >[];
+                                                              final List<
+                                                                FinanceExpense
+                                                              >
+                                                              expenses =
+                                                                  expenseSnapshot
+                                                                      .data ??
+                                                                  const <
+                                                                    FinanceExpense
+                                                                  >[];
 
-                              final bool initialLoading =
-                                  !orderSnapshot.hasData &&
-                                  !refundSnapshot.hasData &&
-                                  orderSnapshot.connectionState ==
-                                      ConnectionState.waiting;
-                              if (initialLoading) {
-                                return const Center(
-                                  child: CircularProgressIndicator(),
-                                );
-                              }
+                                                              final bool
+                                                              initialLoading =
+                                                                  !orderSnapshot
+                                                                      .hasData &&
+                                                                  !refundSnapshot
+                                                                      .hasData &&
+                                                                  orderSnapshot
+                                                                          .connectionState ==
+                                                                      ConnectionState
+                                                                          .waiting;
+                                                              if (initialLoading) {
+                                                                return const Center(
+                                                                  child:
+                                                                      CircularProgressIndicator(),
+                                                                );
+                                                              }
 
-                              final int confirmedPaymentsToday =
-                                  _confirmedAmountToday(orders);
-                              final int creditSettlementsToday =
-                                  _creditSettlementsToday(creditSettlements);
-                              final int waveCreditSettlementsToday =
-                                  _creditSettlementsToday(
-                                    creditSettlements,
-                                    channel: FinancePaymentChannel.wave,
-                                  );
-                              final int incomeToday =
-                                  confirmedPaymentsToday + creditSettlementsToday;
-                              final int waveToday =
-                                  confirmedPaymentsToday + waveCreditSettlementsToday;
-                              final int refundsToday = _refundsPaidToday(
-                                refunds,
-                              );
-                              final int commissionsToday =
-                                  _commissionPayoutsToday(payouts);
-                              final int supplierPaymentsToday =
-                                  _supplierPaymentsToday(supplierPayments);
-                              final int expensesToday = _expensesToday(expenses);
-                              final int netToday =
-                                  incomeToday -
-                                  refundsToday -
-                                  commissionsToday -
-                                  supplierPaymentsToday -
-                                  expensesToday;
-                              final int refundPending = refunds
-                                  .where((RefundCase value) => value.isActive)
-                                  .fold<int>(
-                                    0,
-                                    (int total, RefundCase value) =>
-                                        total + value.amount,
-                                  );
-                              final int refundPendingCount = refunds
-                                  .where((RefundCase value) => value.isActive)
-                                  .length;
-                              final int commissionsOutstanding = accounts
-                                  .fold<int>(
-                                    0,
-                                    (int total, CommissionAccount account) =>
-                                        total +
-                                        account.balance
-                                            .clamp(0, account.earnedTotal)
-                                            .toInt(),
-                                  );
+                                                              final int
+                                                              confirmedPaymentsToday =
+                                                                  _confirmedAmountToday(
+                                                                    orders,
+                                                                  );
+                                                              final int
+                                                              creditSettlementsToday =
+                                                                  _creditSettlementsToday(
+                                                                    creditSettlements,
+                                                                  );
+                                                              final int
+                                                              waveCreditSettlementsToday =
+                                                                  _creditSettlementsToday(
+                                                                    creditSettlements,
+                                                                    channel:
+                                                                        FinancePaymentChannel
+                                                                            .wave,
+                                                                  );
+                                                              final int
+                                                              incomeToday =
+                                                                  confirmedPaymentsToday +
+                                                                  creditSettlementsToday;
+                                                              final int
+                                                              waveToday =
+                                                                  confirmedPaymentsToday +
+                                                                  waveCreditSettlementsToday;
+                                                              final int
+                                                              refundsToday =
+                                                                  _refundsPaidToday(
+                                                                    refunds,
+                                                                  );
+                                                              final int
+                                                              commissionsToday =
+                                                                  _commissionPayoutsToday(
+                                                                    payouts,
+                                                                  );
+                                                              final int
+                                                              supplierPaymentsToday =
+                                                                  _supplierPaymentsToday(
+                                                                    supplierPayments,
+                                                                  );
+                                                              final int
+                                                              expensesToday =
+                                                                  _expensesToday(
+                                                                    expenses,
+                                                                  );
+                                                              final int
+                                                              netToday =
+                                                                  incomeToday -
+                                                                  refundsToday -
+                                                                  commissionsToday -
+                                                                  supplierPaymentsToday -
+                                                                  expensesToday;
+                                                              final int
+                                                              refundPending = refunds
+                                                                  .where(
+                                                                    (
+                                                                      RefundCase
+                                                                      value,
+                                                                    ) => value
+                                                                        .isActive,
+                                                                  )
+                                                                  .fold<int>(
+                                                                    0,
+                                                                    (
+                                                                      int total,
+                                                                      RefundCase
+                                                                      value,
+                                                                    ) =>
+                                                                        total +
+                                                                        value
+                                                                            .amount,
+                                                                  );
+                                                              final int
+                                                              refundPendingCount = refunds
+                                                                  .where(
+                                                                    (
+                                                                      RefundCase
+                                                                      value,
+                                                                    ) => value
+                                                                        .isActive,
+                                                                  )
+                                                                  .length;
+                                                              final int
+                                                              commissionsOutstanding = accounts.fold<int>(
+                                                                0,
+                                                                (
+                                                                  int total,
+                                                                  CommissionAccount
+                                                                  account,
+                                                                ) =>
+                                                                    total +
+                                                                    account
+                                                                        .balance
+                                                                        .clamp(
+                                                                          0,
+                                                                          account
+                                                                              .earnedTotal,
+                                                                        )
+                                                                        .toInt(),
+                                                              );
 
-                              return ListView(
-                                padding: const EdgeInsets.fromLTRB(
-                                  20,
-                                  18,
-                                  20,
-                                  32,
-                                ),
-                                children: [
-                                  Text(
-                                    'Finances',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .headlineSmall
-                                        ?.copyWith(
-                                          color: IzyTelColors.textPrimary,
-                                          fontSize: IzyTelTypeScale.title2,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: -.45,
-                                        ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Vue d’ensemble de l’activité financière IzyTel.',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color: IzyTelColors.textSecondary,
-                                          fontSize: IzyTelTypeScale.label,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                  ),
-                                  const SizedBox(height: 18),
-                                  _FinanceHero(
-                                    incomeToday: incomeToday,
-                                    creditSettlementsToday: creditSettlementsToday,
-                                    netToday: netToday,
-                                    refundsToday: refundsToday,
-                                    commissionsToday: commissionsToday,
-                                    supplierPaymentsToday: supplierPaymentsToday,
-                                    expensesToday: expensesToday,
-                                  ),
-                                  const SizedBox(height: 20),
-                                  const IzyTelSectionHeader(
-                                    title: 'À surveiller',
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: FinancialMetricCard(
-                                          label: 'Remboursements ouverts',
-                                          value: formatCfa(refundPending),
-                                          caption:
-                                              '$refundPendingCount dossier${refundPendingCount > 1 ? 's' : ''}',
-                                          icon:
-                                              Symbols.currency_exchange_rounded,
-                                          accent: refundPending > 0
-                                              ? IzyTelColors.warning
-                                              : IzyTelColors.success,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: FinancialMetricCard(
-                                          label: 'Commissions à payer',
-                                          value: formatCfa(
-                                            commissionsOutstanding,
-                                          ),
-                                          caption: commissionsOutstanding > 0
-                                              ? 'Solde agents'
-                                              : 'À jour',
-                                          icon: Symbols
-                                              .account_balance_wallet_rounded,
-                                          accent: commissionsOutstanding > 0
-                                              ? IzyTelColors.error
-                                              : IzyTelColors.success,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 22),
-                                  const IzyTelSectionHeader(
-                                    title: 'Fonds de roulement',
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Soldes réseaux disponibles, montants engagés et encaissements Wave du jour.',
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(
-                                          color: IzyTelColors.textMuted,
-                                          fontSize: IzyTelTypeScale.micro,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  _NetworkCapacitySection(
-                                    agentRepository: widget.agentRepository,
-                                    orders: orders,
-                                    transactions: networkTransactions,
-                                    waveToday: waveToday,
-                                  ),
-                                  const SizedBox(height: 22),
-                                  const IzyTelSectionHeader(
-                                    title: 'Gestion financière',
-                                  ),
-                                  const SizedBox(height: 10),
-                                  FinanceActionTile(
-                                    icon: Symbols.receipt_long_rounded,
-                                    title: 'Paiements',
-                                    subtitle:
-                                        'Vérifier les déclarations et confirmer les encaissements.',
-                                    onTap: widget.onOpenPayments,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  FinanceActionTile(
-                                    icon: Symbols.currency_exchange_rounded,
-                                    title: 'Remboursements',
-                                    subtitle:
-                                        'Valider, effectuer et tracer les remboursements clients.',
-                                    accent: IzyTelColors.warning,
-                                    badge: refundPendingCount > 0
-                                        ? '$refundPendingCount'
-                                        : null,
-                                    onTap: _openRefunds,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  FinanceActionTile(
-                                    icon: Symbols.payments_rounded,
-                                    title: 'Commissions',
-                                    subtitle:
-                                        'Suivre les commissions acquises et les paiements agents.',
-                                    accent: IzyTelColors.success,
-                                    badge: commissionsOutstanding > 0
-                                        ? formatCfa(commissionsOutstanding)
-                                        : null,
-                                    onTap: _openCommissions,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  FinanceActionTile(
-                                    icon: Symbols.inventory_2_rounded,
-                                    title: 'Fournisseurs',
-                                    subtitle:
-                                        'Enregistrer les recharges, bonus et règlements fournisseurs.',
-                                    onTap: _openSuppliers,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  FinanceActionTile(
-                                    icon: Symbols.account_balance_wallet_rounded,
-                                    title: 'Caisse Wave',
-                                    subtitle:
-                                        'Suivre le solde théorique et tous les flux Wave.',
-                                    accent: IzyTelColors.wave,
-                                    onTap: _openWaveCash,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  FinanceActionTile(
-                                    icon: Symbols.request_quote_rounded,
-                                    title: 'Crédits clients',
-                                    subtitle:
-                                        'Suivre les montants dus et les règlements ultérieurs.',
-                                    accent: IzyTelColors.warning,
-                                    onTap: _openCustomerCredits,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  FinanceActionTile(
-                                    icon: Symbols.receipt_long_rounded,
-                                    title: 'Dépenses',
-                                    subtitle:
-                                        'Tracer transport, internet et autres charges.',
-                                    accent: IzyTelColors.warning,
-                                    onTap: _openExpenses,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  FinanceActionTile(
-                                    icon: Symbols.savings_rounded,
-                                    title: 'Fonds de roulement',
-                                    subtitle:
-                                        'Mesurer les liquidités, engagements, dettes et créances.',
-                                    onTap: _openWorkingCapital,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  FinanceActionTile(
-                                    icon: Symbols.calendar_month_rounded,
-                                    title: 'Clôture journalière',
-                                    subtitle:
-                                        'Figer les chiffres du jour, le solde Wave et les écarts.',
-                                    onTap: _openDailyClosing,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  FinanceActionTile(
-                                    icon: Symbols.rule_rounded,
-                                    title: 'Rapprochements',
-                                    subtitle:
-                                        'Contrôler toute la chaîne paiement, traitement et finance.',
-                                    accent: IzyTelColors.primary,
-                                    badge: 'Contrôle 14A',
-                                    onTap: _openReconciliation,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  FinanceActionTile(
-                                    icon: Symbols.swap_vert_rounded,
-                                    title: 'Mouvements',
-                                    subtitle:
-                                        'Consulter les entrées et sorties financières dans un journal unique.',
-                                    onTap: _openMovements,
-                                  ),
-                                ],
-                              );
-                                    },
-                              );
+                                                              return ListView(
+                                                                padding:
+                                                                    const EdgeInsets.fromLTRB(
+                                                                      20,
+                                                                      18,
+                                                                      20,
+                                                                      32,
+                                                                    ),
+                                                                children: [
+                                                                  Text(
+                                                                    'Finances',
+                                                                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                                                      color: IzyTelColors
+                                                                          .textPrimary,
+                                                                      fontSize:
+                                                                          IzyTelTypeScale
+                                                                              .title2,
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .w800,
+                                                                      letterSpacing:
+                                                                          -.45,
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 4,
+                                                                  ),
+                                                                  Text(
+                                                                    'Vue d’ensemble de l’activité financière IzyTel.',
+                                                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                                                      color: IzyTelColors
+                                                                          .textSecondary,
+                                                                      fontSize:
+                                                                          IzyTelTypeScale
+                                                                              .label,
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .w500,
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 18,
+                                                                  ),
+                                                                  _FinanceHero(
+                                                                    incomeToday:
+                                                                        incomeToday,
+                                                                    creditSettlementsToday:
+                                                                        creditSettlementsToday,
+                                                                    netToday:
+                                                                        netToday,
+                                                                    refundsToday:
+                                                                        refundsToday,
+                                                                    commissionsToday:
+                                                                        commissionsToday,
+                                                                    supplierPaymentsToday:
+                                                                        supplierPaymentsToday,
+                                                                    expensesToday:
+                                                                        expensesToday,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 20,
+                                                                  ),
+                                                                  const IzyTelSectionHeader(
+                                                                    title:
+                                                                        'À surveiller',
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 10,
+                                                                  ),
+                                                                  Row(
+                                                                    crossAxisAlignment:
+                                                                        CrossAxisAlignment
+                                                                            .start,
+                                                                    children: [
+                                                                      Expanded(
+                                                                        child: FinancialMetricCard(
+                                                                          label:
+                                                                              'Remboursements ouverts',
+                                                                          value: formatCfa(
+                                                                            refundPending,
+                                                                          ),
+                                                                          caption:
+                                                                              '$refundPendingCount dossier${refundPendingCount > 1 ? 's' : ''}',
+                                                                          icon:
+                                                                              Symbols.currency_exchange_rounded,
+                                                                          accent:
+                                                                              refundPending >
+                                                                                  0
+                                                                              ? IzyTelColors.warning
+                                                                              : IzyTelColors.success,
+                                                                        ),
+                                                                      ),
+                                                                      const SizedBox(
+                                                                        width:
+                                                                            10,
+                                                                      ),
+                                                                      Expanded(
+                                                                        child: FinancialMetricCard(
+                                                                          label:
+                                                                              'Commissions à payer',
+                                                                          value: formatCfa(
+                                                                            commissionsOutstanding,
+                                                                          ),
+                                                                          caption:
+                                                                              commissionsOutstanding >
+                                                                                  0
+                                                                              ? 'Solde agents'
+                                                                              : 'À jour',
+                                                                          icon:
+                                                                              Symbols.account_balance_wallet_rounded,
+                                                                          accent:
+                                                                              commissionsOutstanding >
+                                                                                  0
+                                                                              ? IzyTelColors.error
+                                                                              : IzyTelColors.success,
+                                                                        ),
+                                                                      ),
+                                                                    ],
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 22,
+                                                                  ),
+                                                                  const IzyTelSectionHeader(
+                                                                    title:
+                                                                        'Fonds de roulement',
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 4,
+                                                                  ),
+                                                                  Text(
+                                                                    'Soldes réseaux disponibles, montants engagés et encaissements Wave du jour.',
+                                                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                                      color: IzyTelColors
+                                                                          .textMuted,
+                                                                      fontSize:
+                                                                          IzyTelTypeScale
+                                                                              .micro,
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .w500,
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 10,
+                                                                  ),
+                                                                  _NetworkCapacitySection(
+                                                                    agentRepository:
+                                                                        widget
+                                                                            .agentRepository,
+                                                                    orders:
+                                                                        orders,
+                                                                    transactions:
+                                                                        networkTransactions,
+                                                                    waveToday:
+                                                                        waveToday,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 22,
+                                                                  ),
+                                                                  const IzyTelSectionHeader(
+                                                                    title:
+                                                                        'Gestion financière',
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 10,
+                                                                  ),
+                                                                  FinanceActionTile(
+                                                                    icon: Symbols
+                                                                        .receipt_long_rounded,
+                                                                    title:
+                                                                        'Paiements',
+                                                                    subtitle:
+                                                                        'Vérifier les déclarations et confirmer les encaissements.',
+                                                                    onTap: widget
+                                                                        .onOpenPayments,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 8,
+                                                                  ),
+                                                                  FinanceActionTile(
+                                                                    icon: Symbols
+                                                                        .currency_exchange_rounded,
+                                                                    title:
+                                                                        'Remboursements',
+                                                                    subtitle:
+                                                                        'Valider, effectuer et tracer les remboursements clients.',
+                                                                    accent: IzyTelColors
+                                                                        .warning,
+                                                                    badge:
+                                                                        refundPendingCount >
+                                                                            0
+                                                                        ? '$refundPendingCount'
+                                                                        : null,
+                                                                    onTap:
+                                                                        _openRefunds,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 8,
+                                                                  ),
+                                                                  FinanceActionTile(
+                                                                    icon: Symbols
+                                                                        .payments_rounded,
+                                                                    title:
+                                                                        'Commissions',
+                                                                    subtitle:
+                                                                        'Suivre les commissions acquises et les paiements agents.',
+                                                                    accent: IzyTelColors
+                                                                        .success,
+                                                                    badge:
+                                                                        commissionsOutstanding >
+                                                                            0
+                                                                        ? formatCfa(
+                                                                            commissionsOutstanding,
+                                                                          )
+                                                                        : null,
+                                                                    onTap:
+                                                                        _openCommissions,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 8,
+                                                                  ),
+                                                                  FinanceActionTile(
+                                                                    icon: Symbols
+                                                                        .inventory_2_rounded,
+                                                                    title:
+                                                                        'Fournisseurs',
+                                                                    subtitle:
+                                                                        'Enregistrer les recharges, bonus et règlements fournisseurs.',
+                                                                    onTap:
+                                                                        _openSuppliers,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 8,
+                                                                  ),
+                                                                  FinanceActionTile(
+                                                                    icon: Symbols
+                                                                        .account_balance_wallet_rounded,
+                                                                    title:
+                                                                        'Caisse Wave',
+                                                                    subtitle:
+                                                                        'Suivre le solde théorique et tous les flux Wave.',
+                                                                    accent:
+                                                                        IzyTelColors
+                                                                            .wave,
+                                                                    onTap:
+                                                                        _openWaveCash,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 8,
+                                                                  ),
+                                                                  FinanceActionTile(
+                                                                    icon: Symbols
+                                                                        .request_quote_rounded,
+                                                                    title:
+                                                                        'Crédits clients',
+                                                                    subtitle:
+                                                                        'Suivre les montants dus et les règlements ultérieurs.',
+                                                                    accent: IzyTelColors
+                                                                        .warning,
+                                                                    onTap:
+                                                                        _openCustomerCredits,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 8,
+                                                                  ),
+                                                                  FinanceActionTile(
+                                                                    icon: Symbols
+                                                                        .receipt_long_rounded,
+                                                                    title:
+                                                                        'Dépenses',
+                                                                    subtitle:
+                                                                        'Tracer transport, internet et autres charges.',
+                                                                    accent: IzyTelColors
+                                                                        .warning,
+                                                                    onTap:
+                                                                        _openExpenses,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 8,
+                                                                  ),
+                                                                  FinanceActionTile(
+                                                                    icon: Symbols
+                                                                        .savings_rounded,
+                                                                    title:
+                                                                        'Fonds de roulement',
+                                                                    subtitle:
+                                                                        'Mesurer les liquidités, engagements, dettes et créances.',
+                                                                    onTap:
+                                                                        _openWorkingCapital,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 8,
+                                                                  ),
+                                                                  FinanceActionTile(
+                                                                    icon: Symbols
+                                                                        .calendar_month_rounded,
+                                                                    title:
+                                                                        'Clôture journalière',
+                                                                    subtitle:
+                                                                        'Figer les chiffres du jour, le solde Wave et les écarts.',
+                                                                    onTap:
+                                                                        _openDailyClosing,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 8,
+                                                                  ),
+                                                                  FinanceActionTile(
+                                                                    icon: Symbols
+                                                                        .rule_rounded,
+                                                                    title:
+                                                                        'Rapprochements',
+                                                                    subtitle:
+                                                                        'Contrôler toute la chaîne paiement, traitement et finance.',
+                                                                    accent: IzyTelColors
+                                                                        .primary,
+                                                                    badge:
+                                                                        'Contrôle 14A',
+                                                                    onTap:
+                                                                        _openReconciliation,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 8,
+                                                                  ),
+                                                                  FinanceActionTile(
+                                                                    icon: Symbols
+                                                                        .swap_vert_rounded,
+                                                                    title:
+                                                                        'Mouvements',
+                                                                    subtitle:
+                                                                        'Consulter les entrées et sorties financières dans un journal unique.',
+                                                                    onTap:
+                                                                        _openMovements,
+                                                                  ),
+                                                                ],
+                                                              );
+                                                            },
+                                                      );
+                                                    },
+                                              );
                                             },
                                       );
-                                        },
-                                  );
                                     },
                               );
                             },
@@ -785,7 +1049,8 @@ class _FinanceHero extends StatelessWidget {
               ),
               if (creditSettlementsToday > 0)
                 _HeroTag(
-                  label: '+ ${formatCfa(creditSettlementsToday)} crédits encaissés',
+                  label:
+                      '+ ${formatCfa(creditSettlementsToday)} crédits encaissés',
                   icon: Symbols.savings_rounded,
                 ),
               if (refundsToday > 0)

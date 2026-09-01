@@ -14,33 +14,53 @@ void main() {
   test('le tableau Finances écoute en temps réel les règlements de crédits', () {
     expect(
       source,
-      matches(RegExp(r'_financeOperationsRepository\s*\.watchCustomerCreditSettlements\(\s*\)')),
+      matches(
+        RegExp(
+          r'_financeOperationsRepository\s*\.watchCustomerCreditSettlements\s*\(\s*\)',
+        ),
+      ),
     );
-    expect(source, contains('_creditSettlementsToday(creditSettlements)'));
     expect(
       source,
-      contains('confirmedPaymentsToday + creditSettlementsToday'),
+      matches(
+        RegExp(r'_creditSettlementsToday\s*\(\s*creditSettlements\s*,?\s*\)'),
+      ),
+    );
+    expect(
+      source,
+      matches(RegExp(r'confirmedPaymentsToday\s*\+\s*creditSettlementsToday')),
     );
   });
 
   test('la carte Wave ne compte que les crédits encaissés via Wave', () {
     expect(
       source,
-      contains('channel: FinancePaymentChannel.wave'),
+      matches(RegExp(r'channel\s*:\s*FinancePaymentChannel\s*\.\s*wave')),
     );
     expect(
       source,
-      contains('confirmedPaymentsToday + waveCreditSettlementsToday'),
+      matches(
+        RegExp(r'confirmedPaymentsToday\s*\+\s*waveCreditSettlementsToday'),
+      ),
     );
-    expect(source, contains('waveToday: waveToday'));
+    expect(source, matches(RegExp(r'waveToday\s*:\s*waveToday')));
   });
 
   test('le net Finances écoute aussi fournisseurs et dépenses', () {
     expect(
       source,
-      matches(RegExp(r'_financeOperationsRepository\s*\.watchSupplierPayments\(\s*\)')),
+      matches(
+        RegExp(
+          r'_financeOperationsRepository\s*\.watchSupplierPayments\s*\(\s*\)',
+        ),
+      ),
     );
-    expect(source, matches(RegExp(r'_financeOperationsRepository\s*\.watchExpenses\(\s*\)')));
+    expect(
+      source,
+      matches(
+        RegExp(r'_financeOperationsRepository\s*\.watchExpenses\s*\(\s*\)'),
+      ),
+    );
     expect(source, contains('supplierPaymentsToday'));
     expect(source, contains('expensesToday'));
   });

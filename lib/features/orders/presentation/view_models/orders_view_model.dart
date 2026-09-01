@@ -201,7 +201,6 @@ class OrdersViewModel extends ChangeNotifier {
       return <QueueOrderStatus>{
         QueueOrderStatus.inProgress,
         QueueOrderStatus.onHold,
-        QueueOrderStatus.awaitingCustomerConfirmation,
       }.contains(order.status);
     }).length;
   }
@@ -209,6 +208,7 @@ class OrdersViewModel extends ChangeNotifier {
   int get completedCount {
     return _historyOrders.where((QueueOrder order) {
       return <QueueOrderStatus>{
+        QueueOrderStatus.awaitingCustomerConfirmation,
         QueueOrderStatus.completed,
         QueueOrderStatus.refunded,
       }.contains(order.status);

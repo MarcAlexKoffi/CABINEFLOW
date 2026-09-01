@@ -1144,7 +1144,7 @@ service cloud.firestore {
 
     function isValidAgentProcessingSuccess(orderId) {
       return resource.data.status == 'inProgress'
-        && request.resource.data.status == 'completed'
+        && request.resource.data.status == 'awaitingCustomerConfirmation'
         && paymentStatusAllowsProcessing(resource.data.paymentStatus)
         && resource.data.get('assignmentStatus', 'unassigned') == 'accepted'
         && isCurrentAssignedAgent()
@@ -1707,191 +1707,6 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
     }
 
-    // AGENT PROFILE V2 A+B - identity profile + direct completion
-    function hasValidAgentPersonalProfileValues(agentId) {
-      return request.resource.data.keys().hasOnly([
-          'schemaVersion',
-          'userId',
-          'firstName',
-          'lastName',
-          'dateOfBirth',
-          'address',
-          'city',
-          'contact1',
-          'contact2',
-          'emergencyContactName',
-          'emergencyContactPhone',
-          'identityDocumentType',
-          'identityDocumentNumber',
-          'avatarStoragePath',
-          'identityDocumentStoragePath',
-          'identityDocumentFileName',
-          'identityDocumentMimeType',
-          'verificationStatus',
-          'verificationNote',
-          'createdAt',
-          'updatedAt'
-        ])
-        && request.resource.data.schemaVersion == 1
-        && request.resource.data.userId == agentId
-        && request.resource.data.firstName is string
-        && request.resource.data.firstName.size() >= 2
-        && request.resource.data.firstName.size() <= 80
-        && request.resource.data.lastName is string
-        && request.resource.data.lastName.size() >= 2
-        && request.resource.data.lastName.size() <= 80
-        && request.resource.data.dateOfBirth is timestamp
-        && request.resource.data.address is string
-        && request.resource.data.address.size() >= 3
-        && request.resource.data.address.size() <= 200
-        && request.resource.data.city is string
-        && request.resource.data.city.size() >= 2
-        && request.resource.data.city.size() <= 100
-        && request.resource.data.contact1 is string
-        && request.resource.data.contact1.size() >= 8
-        && request.resource.data.contact1.size() <= 30
-        && request.resource.data.contact2 is string
-        && request.resource.data.contact2.size() <= 30
-        && request.resource.data.emergencyContactName is string
-        && request.resource.data.emergencyContactName.size() <= 100
-        && request.resource.data.emergencyContactPhone is string
-        && request.resource.data.emergencyContactPhone.size() <= 30
-        && request.resource.data.identityDocumentType in [
-          'nationalId',
-          'passport',
-          'drivingLicense',
-          'residencePermit',
-          'other'
-        ]
-        && request.resource.data.identityDocumentNumber is string
-        && request.resource.data.identityDocumentNumber.size() <= 80
-        && (
-          request.resource.data.avatarStoragePath == null
-          || request.resource.data.avatarStoragePath
-            == 'agent_profiles/' + agentId + '/avatar/profile'
-        )
-        && (
-          request.resource.data.identityDocumentStoragePath == null
-          || request.resource.data.identityDocumentStoragePath
-            == 'agent_profiles/' + agentId + '/identity/document'
-        )
-        && (
-          request.resource.data.identityDocumentFileName == null
-          || (
-            request.resource.data.identityDocumentFileName is string
-            && request.resource.data.identityDocumentFileName.size() <= 255
-          )
-        )
-        && (
-          request.resource.data.identityDocumentMimeType == null
-          || request.resource.data.identityDocumentMimeType == 'application/pdf'
-          || request.resource.data.identityDocumentMimeType.matches('^image/.*$')
-        )
-        && request.resource.data.verificationStatus in [
-          'incomplete',
-          'pendingReview',
-          'verified',
-          'needsCorrection'
-        ]
-        && (
-          request.resource.data.verificationNote == null
-          || (
-            request.resource.data.verificationNote is string
-            && request.resource.data.verificationNote.size() <= 500
-          )
-        )
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.updatedAt is timestamp;
-    }
-
-    function agentPersonalIdentityCoreIsUnchanged() {
-      return request.resource.data.firstName == resource.data.firstName
-        && request.resource.data.lastName == resource.data.lastName
-        && request.resource.data.dateOfBirth == resource.data.dateOfBirth
-        && request.resource.data.identityDocumentType == resource.data.identityDocumentType
-        && request.resource.data.identityDocumentNumber == resource.data.identityDocumentNumber
-        && request.resource.data.avatarStoragePath == resource.data.avatarStoragePath
-        && request.resource.data.identityDocumentStoragePath
-          == resource.data.identityDocumentStoragePath
-        && request.resource.data.identityDocumentFileName
-          == resource.data.identityDocumentFileName
-        && request.resource.data.identityDocumentMimeType
-          == resource.data.identityDocumentMimeType;
-    }
-
-    function isValidAgentPersonalProfileCreation(agentId) {
-      return isAgent()
-        && request.auth.uid == agentId
-        && hasValidAgentPersonalProfileValues(agentId)
-        && request.resource.data.verificationStatus in [
-          'incomplete',
-          'pendingReview'
-        ]
-        && request.resource.data.verificationNote == null
-        && request.resource.data.createdAt == request.time
-        && request.resource.data.updatedAt == request.time;
-    }
-
-    function isValidAgentPersonalProfileUpdate(agentId) {
-      return isAgent()
-        && request.auth.uid == agentId
-        && hasValidAgentPersonalProfileValues(agentId)
-        && request.resource.data.userId == resource.data.userId
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.updatedAt == request.time
-        && (
-          (
-            request.resource.data.verificationStatus in [
-              'incomplete',
-              'pendingReview'
-            ]
-            && request.resource.data.verificationNote == null
-          )
-          || (
-            resource.data.verificationStatus == 'verified'
-            && request.resource.data.verificationStatus == 'verified'
-            && agentPersonalIdentityCoreIsUnchanged()
-            && request.resource.data.verificationNote
-              == resource.data.verificationNote
-          )
-        );
-    }
-
-    function isValidAdminAgentPersonalProfileVerification(agentId) {
-      return isAdmin()
-        && hasValidAgentPersonalProfileValues(agentId)
-        && request.resource.data.userId == resource.data.userId
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'verificationStatus',
-          'verificationNote',
-          'updatedAt'
-        ])
-        && request.resource.data.updatedAt == request.time;
-    }
-
-    function isValidAgentOwnUserContactUpdate(userId) {
-      return isAgent()
-        && request.auth.uid == userId
-        && resource.data.role == 'agent'
-        && request.resource.data.role == resource.data.role
-        && request.resource.data.isActive == resource.data.isActive
-        && request.resource.data.email == resource.data.email
-        && request.resource.data.schemaVersion == resource.data.schemaVersion
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.name is string
-        && request.resource.data.name.size() >= 4
-        && request.resource.data.name.size() <= 80
-        && request.resource.data.phoneNumber is string
-        && request.resource.data.phoneNumber.size() >= 8
-        && request.resource.data.phoneNumber.size() <= 30
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'name',
-          'phoneNumber',
-          'updatedAt'
-        ])
-        && request.resource.data.updatedAt == request.time;
-    }
     function hasValidZoneKeys() {
       return request.resource.data.keys().hasOnly([
         'schemaVersion',
@@ -2225,7 +2040,7 @@ service cloud.firestore {
         ])
         && orderAfter.get('assignedAgentId', null) == request.auth.uid
         && orderAfter.get('assignmentStatus', 'unassigned') == 'accepted'
-        && orderAfter.status in ['completed', 'awaitingCustomerConfirmation', 'failed']
+        && orderAfter.status in ['awaitingCustomerConfirmation', 'failed']
         && orderAfter.get('lastEventType', null) in [
           'PROCESSING_SUCCEEDED',
           'PROCESSING_FAILED'
@@ -3688,7 +3503,7 @@ service cloud.firestore {
         && order.get('assignedAgentName', null) == request.resource.data.agentName
         && order.get('assignmentStatus', 'unassigned') == 'accepted'
         && paymentStatusAllowsProcessing(order.paymentStatus)
-        && order.status in ['completed', 'awaitingCustomerConfirmation']
+        && order.status == 'awaitingCustomerConfirmation'
         && order.amount == request.resource.data.orderAmount
         && order.network == request.resource.data.network
         && order.get('takenAt', null)
@@ -3830,7 +3645,7 @@ service cloud.firestore {
           == request.resource.data.capacityBefore - request.resource.data.amount
         && order.reference == request.resource.data.orderReference
         && order.get('assignedAgentId', null) == request.auth.uid
-        && order.status in ['completed', 'awaitingCustomerConfirmation']
+        && order.status == 'awaitingCustomerConfirmation'
         && order.amount == request.resource.data.amount
         && order.network == request.resource.data.network
         && order.get('completedAt', null) == request.time;
@@ -4574,15 +4389,6 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    match /agentPersonalProfiles/{agentId} {
-      allow get: if isAdmin()
-        || (isAgent() && request.auth.uid == agentId);
-      allow list: if isAdmin();
-      allow create: if isValidAgentPersonalProfileCreation(agentId);
-      allow update: if isValidAgentPersonalProfileUpdate(agentId)
-        || isValidAdminAgentPersonalProfileVerification(agentId);
-      allow delete: if false;
-    }
     match /agentProfiles/{agentId} {
       allow get, list: if isStaff()
         || (isAgent() && request.auth.uid == agentId);
@@ -4623,8 +4429,7 @@ service cloud.firestore {
         );
       allow list: if isStaff();
       allow create: if isValidPendingStaffProfileCreation(userId);
-      allow update: if isValidAdminUserUpdate(userId)
-        || isValidAgentOwnUserContactUpdate(userId);
+      allow update: if isValidAdminUserUpdate(userId);
       allow delete: if false;
     }
   }

@@ -12,7 +12,10 @@ void main() {
     expect(rules, contains("request.resource.data.type == 'orderSuccess'"));
     expect(rules, contains("request.resource.data.direction == 'outgoing'"));
     expect(rules, contains("transactionId == 'order_' + orderId"));
-    expect(rules, contains("order.status == 'awaitingCustomerConfirmation'"));
+    expect(
+      rules,
+      contains("order.status in ['completed', 'awaitingCustomerConfirmation']"),
+    );
     expect(
       rules,
       contains("order.get('lastEventType', null) == 'PROCESSING_SUCCEEDED'"),

@@ -4,6 +4,7 @@ import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_issues_page.dart';
+import 'package:cabine_flow/features/agents/presentation/pages/agent_personal_profile_page.dart';
 import 'package:cabine_flow/features/agents/presentation/view_models/agent_activity_view_model.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
@@ -106,6 +107,19 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
     );
   }
 
+  void _openPersonalProfile() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => AgentPersonalProfilePage(
+          user: widget.user,
+          repository: widget.repository,
+          initialProfile: _viewModel.personalProfile,
+          initialAvatarUrl: _viewModel.avatarUrl,
+        ),
+      ),
+    );
+  }
+
   void _openPerformance() {
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
@@ -145,9 +159,16 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
         .length;
     showIzyTelAccountSheet(
       context: context,
-      name: widget.user.name,
+      name: _viewModel.personalProfile?.displayName.isNotEmpty == true
+          ? _viewModel.personalProfile!.displayName
+          : widget.user.name,
       role: 'Agent • ${profile.availability.label}',
       actions: <IzyTelAccountAction>[
+        IzyTelAccountAction(
+          icon: Symbols.manage_accounts_rounded,
+          label: 'Modifier mon profil',
+          onTap: _openPersonalProfile,
+        ),
         IzyTelAccountAction(
           icon: Symbols.insights_rounded,
           label: 'Mes performances',
@@ -174,6 +195,7 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
           },
         ),
       ],
+      avatarImageUrl: _viewModel.avatarUrl,
     );
   }
 
@@ -223,14 +245,45 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
                     subtitle: 'Ton activité et tes réglages opérationnels.',
                     actions: <Widget>[
                       IzyTelAvatar(
-                        name: widget.user.name,
+                        name:
+                            _viewModel
+                                    .personalProfile
+                                    ?.displayName
+                                    .isNotEmpty ==
+                                true
+                            ? _viewModel.personalProfile!.displayName
+                            : widget.user.name,
                         size: 42,
+                        imageUrl: _viewModel.avatarUrl,
                         onTap: () => _openAccountMenu(profile),
                       ),
                     ],
                   ),
                   const SizedBox(height: IzyTelSpacing.lg),
-                  _AgentIdentityHero(user: widget.user, profile: profile),
+                  _AgentIdentityHero(
+                    user: widget.user,
+                    profile: profile,
+                    personalProfile: _viewModel.personalProfile,
+                    avatarUrl: _viewModel.avatarUrl,
+                  ),
+                  const SizedBox(height: IzyTelSpacing.md),
+                  IzyTelSurface(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: IzyTelMenuRow(
+                      icon: Symbols.manage_accounts_rounded,
+                      title: 'Informations personnelles',
+                      subtitle: _viewModel.personalProfile == null
+                          ? 'Complète ton identité, tes contacts et ta pièce d’identité.'
+                          : '${_viewModel.personalProfile!.completionPercent} % complété · ${_viewModel.personalProfile!.verificationStatus.label}',
+                      badge:
+                          _viewModel.personalProfile?.verificationStatus ==
+                              AgentProfileVerificationStatus.verified
+                          ? 'Vérifié'
+                          : null,
+                      iconColor: IzyTelColors.primary,
+                      onTap: _openPersonalProfile,
+                    ),
+                  ),
                   const SizedBox(height: IzyTelSpacing.md),
                   _AvailabilityCard(
                     profile: profile,
@@ -381,10 +434,22 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
 }
 
 class _AgentIdentityHero extends StatelessWidget {
-  const _AgentIdentityHero({required this.user, required this.profile});
+  const _AgentIdentityHero({
+    required this.user,
+    required this.profile,
+    required this.personalProfile,
+    required this.avatarUrl,
+  });
 
   final AppUser user;
   final AgentProfile profile;
+  final AgentPersonalProfile? personalProfile;
+  final String? avatarUrl;
+
+  String get _displayName {
+    final String candidate = personalProfile?.displayName.trim() ?? '';
+    return candidate.isEmpty ? user.name : candidate;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -412,18 +477,21 @@ class _AgentIdentityHero extends StatelessWidget {
           Container(
             width: 58,
             height: 58,
-            alignment: Alignment.center,
+            padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
               color: Colors.white.withAlpha(30),
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white.withAlpha(90)),
             ),
-            child: Text(
-              _initials(user.name),
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-              ),
+            child: ClipOval(
+              child: avatarUrl?.trim().isNotEmpty == true
+                  ? Image.network(
+                      avatarUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) =>
+                          _HeroInitials(value: _initials(_displayName)),
+                    )
+                  : _HeroInitials(value: _initials(_displayName)),
             ),
           ),
           const SizedBox(width: IzyTelSpacing.md),
@@ -434,7 +502,7 @@ class _AgentIdentityHero extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  user.name,
+                  _displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -491,6 +559,28 @@ class _AgentIdentityHero extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _HeroInitials extends StatelessWidget {
+  const _HeroInitials({required this.value});
+
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.transparent,
+      child: Center(
+        child: Text(
+          value,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ),
     );
   }

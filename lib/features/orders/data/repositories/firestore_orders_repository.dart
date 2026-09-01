@@ -728,7 +728,9 @@ class FirestoreOrdersRepository
 
     // La réaffectation manuelle respecte la même capacité réellement
     // disponible que 9E : capacité déclarée - commandes déjà réservées.
-    final _AutomaticAssignmentUsage currentUsage = await _loadAgentUsage(agentId);
+    final _AutomaticAssignmentUsage currentUsage = await _loadAgentUsage(
+      agentId,
+    );
 
     final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
         .doc(orderId);
@@ -931,7 +933,8 @@ class FirestoreOrdersRepository
         .limit(500)
         .get();
     int reserved = 0;
-    for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in snapshot.docs) {
+    for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+        in snapshot.docs) {
       final QueueOrder order = _mapDocument(doc);
       if (_isActiveAssignedOrder(order) && order.network == network) {
         reserved += order.amount;
@@ -1528,7 +1531,7 @@ class FirestoreOrdersRepository
       );
 
       transaction.update(orderRef, <String, dynamic>{
-        'status': QueueOrderStatus.awaitingCustomerConfirmation.name,
+        'status': QueueOrderStatus.completed.name,
         'completedAt': FieldValue.serverTimestamp(),
         'failureReason': null,
         'observation': null,
@@ -1637,7 +1640,7 @@ class FirestoreOrdersRepository
       );
 
       return order.copyWith(
-        status: QueueOrderStatus.awaitingCustomerConfirmation,
+        status: QueueOrderStatus.completed,
         completedAt: completedAt,
         customerConfirmationStatus: CustomerConfirmationStatus.pending,
         clearFailureDetails: true,
@@ -1820,15 +1823,17 @@ class FirestoreOrdersRepository
       throw StateError('Seul un administrateur peut réaffecter un échec.');
     }
 
-    final DocumentReference<Map<String, dynamic>> orderRef =
-        _ordersCollection.doc(orderId.trim());
-    final DocumentReference<Map<String, dynamic>> eventRef =
-        _eventsCollection.doc();
+    final DocumentReference<Map<String, dynamic>> orderRef = _ordersCollection
+        .doc(orderId.trim());
+    final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
+        .doc();
     final OrderEventType eventType = OrderEventType.reassignmentRequested;
 
-    return _firestore.runTransaction<QueueOrder>((Transaction transaction) async {
-      final DocumentSnapshot<Map<String, dynamic>> snapshot =
-          await transaction.get(orderRef);
+    return _firestore.runTransaction<QueueOrder>((
+      Transaction transaction,
+    ) async {
+      final DocumentSnapshot<Map<String, dynamic>> snapshot = await transaction
+          .get(orderRef);
       final Map<String, dynamic>? data = snapshot.data();
       if (!snapshot.exists || data == null) {
         throw StateError('La commande est introuvable.');

@@ -71,7 +71,7 @@ void main() {
       orderId: started.id,
       agentId: 'AGENT-001',
     );
-    expect(success.status, QueueOrderStatus.awaitingCustomerConfirmation);
+    expect(success.status, QueueOrderStatus.completed);
     expect(success.completedAt, isNotNull);
   });
 

@@ -147,12 +147,14 @@ class IzyTelAvatar extends StatelessWidget {
     this.onTap,
     this.size = 42,
     this.initialsOverride,
+    this.imageUrl,
   });
 
   final String name;
   final VoidCallback? onTap;
   final double size;
   final String? initialsOverride;
+  final String? imageUrl;
 
   String get _initials {
     final String? override = initialsOverride?.trim();
@@ -171,7 +173,8 @@ class IzyTelAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Widget avatar = Container(
+    final String? resolvedImageUrl = imageUrl?.trim();
+    final Widget fallback = Container(
       width: size,
       height: size,
       alignment: Alignment.center,
@@ -187,6 +190,17 @@ class IzyTelAvatar extends StatelessWidget {
         ),
       ),
     );
+    final Widget avatar = resolvedImageUrl == null || resolvedImageUrl.isEmpty
+        ? fallback
+        : ClipOval(
+            child: Image.network(
+              resolvedImageUrl,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => fallback,
+            ),
+          );
 
     if (onTap == null) return avatar;
     return InkResponse(onTap: onTap, radius: size * .7, child: avatar);
@@ -198,6 +212,7 @@ Future<void> showIzyTelAccountSheet({
   required String name,
   required String role,
   required List<IzyTelAccountAction> actions,
+  String? avatarImageUrl,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -227,7 +242,7 @@ Future<void> showIzyTelAccountSheet({
             const SizedBox(height: 18),
             Row(
               children: [
-                IzyTelAvatar(name: name, size: 48),
+                IzyTelAvatar(name: name, size: 48, imageUrl: avatarImageUrl),
                 const SizedBox(width: 12),
                 Flexible(
                   fit: FlexFit.tight,

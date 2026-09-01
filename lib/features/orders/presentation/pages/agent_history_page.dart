@@ -263,8 +263,8 @@ class _HistoryOrderCard extends StatelessWidget {
         : switch (order.status) {
             QueueOrderStatus.onHold => ('En attente', IzyTelColors.warning),
             QueueOrderStatus.awaitingCustomerConfirmation => (
-              'À confirmer',
-              IzyTelColors.primary,
+              'Réussie',
+              IzyTelColors.success,
             ),
             _ => ('En traitement', IzyTelColors.primary),
           };

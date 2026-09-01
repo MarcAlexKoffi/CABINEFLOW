@@ -543,14 +543,23 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Profil'), findsOneWidget);
-    expect(find.text('Mes performances'), findsOneWidget);
-    expect(find.text('Mes commissions'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('Mes signalements'),
-      220,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(find.text('Mes signalements'), findsOneWidget);
+
+    // Le Profil V2 ajoute désormais la carte « Informations personnelles ».
+    // Sur 320x568, les raccourcis historiques peuvent donc être sous le pli :
+    // on vérifie leur accessibilité par scroll plutôt que leur présence dans
+    // le viewport initial.
+    for (final String label in <String>[
+      'Mes performances',
+      'Mes commissions',
+      'Mes signalements',
+    ]) {
+      await tester.scrollUntilVisible(
+        find.text(label),
+        220,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text(label), findsOneWidget);
+    }
     expect(tester.takeException(), isNull);
   });
 

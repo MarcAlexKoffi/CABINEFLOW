@@ -4,17 +4,24 @@ import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class FirestoreAgentRepository implements AgentRepository {
-  FirestoreAgentRepository({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+  FirestoreAgentRepository({
+    FirebaseFirestore? firestore,
+    FirebaseStorage? storage,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _storage = storage ?? FirebaseStorage.instance;
 
   final FirebaseFirestore _firestore;
+  final FirebaseStorage _storage;
 
   CollectionReference<Map<String, dynamic>> get _users =>
       _firestore.collection('users');
   CollectionReference<Map<String, dynamic>> get _profiles =>
       _firestore.collection('agentProfiles');
+  CollectionReference<Map<String, dynamic>> get _personalProfiles =>
+      _firestore.collection('agentPersonalProfiles');
   CollectionReference<Map<String, dynamic>> get _zones =>
       _firestore.collection('zones');
   CollectionReference<Map<String, dynamic>> get _issues =>
@@ -98,6 +105,198 @@ class FirestoreAgentRepository implements AgentRepository {
       if (!snapshot.exists || snapshot.data() == null) return null;
       return _profileFromSnapshot(snapshot);
     });
+  }
+
+  @override
+  Stream<AgentPersonalProfile?> watchPersonalProfile(String agentId) {
+    return _personalProfiles.doc(agentId).snapshots().map((snapshot) {
+      if (!snapshot.exists || snapshot.data() == null) return null;
+      return _personalProfileFromSnapshot(snapshot);
+    });
+  }
+
+  @override
+  Future<void> saveOwnPersonalProfile({
+    required String agentId,
+    required AgentPersonalProfileDraft draft,
+    AgentProfileFileUpload? avatar,
+    AgentProfileFileUpload? identityDocument,
+  }) async {
+    final String currentUid = (FirebaseAuth.instance.currentUser?.uid ?? '')
+        .trim();
+    if (currentUid.isEmpty || currentUid != agentId.trim()) {
+      throw StateError(
+        'La session Agent ne correspond pas au profil à modifier.',
+      );
+    }
+
+    final String firstName = draft.firstName.trim();
+    final String lastName = draft.lastName.trim();
+    final String displayName = draft.displayName.trim();
+    final String address = draft.address.trim();
+    final String city = draft.city.trim();
+    final String contact1 = draft.contact1.trim();
+    final String contact2 = draft.contact2.trim();
+    final String emergencyName = draft.emergencyContactName.trim();
+    final String emergencyPhone = draft.emergencyContactPhone.trim();
+    final String documentNumber = draft.identityDocumentNumber.trim();
+
+    if (firstName.length < 2 || lastName.length < 2 || displayName.length < 4) {
+      throw ArgumentError('Renseigne correctement ton prénom et ton nom.');
+    }
+    if (draft.dateOfBirth == null ||
+        draft.dateOfBirth!.isAfter(DateTime.now())) {
+      throw ArgumentError('La date de naissance est invalide.');
+    }
+    if (address.length < 3 || city.length < 2) {
+      throw ArgumentError(
+        'Renseigne une adresse et une ville / commune valides.',
+      );
+    }
+    if (contact1.length < 8) {
+      throw ArgumentError('Le contact principal est invalide.');
+    }
+
+    final DocumentReference<Map<String, dynamic>> personalRef =
+        _personalProfiles.doc(agentId);
+    final DocumentReference<Map<String, dynamic>> userRef = _users.doc(agentId);
+    final DocumentSnapshot<Map<String, dynamic>> existingSnapshot =
+        await personalRef.get();
+    final AgentPersonalProfile? existing = existingSnapshot.exists
+        ? _personalProfileFromSnapshot(existingSnapshot)
+        : null;
+
+    String? avatarPath = existing?.avatarStoragePath;
+    String? identityPath = existing?.identityDocumentStoragePath;
+    String? identityFileName = existing?.identityDocumentFileName;
+    String? identityMimeType = existing?.identityDocumentMimeType;
+
+    if (avatar != null) {
+      if (!avatar.mimeType.startsWith('image/')) {
+        throw ArgumentError('La photo de profil doit être une image.');
+      }
+      if (avatar.bytes.isEmpty || avatar.bytes.length > 5 * 1024 * 1024) {
+        throw ArgumentError('La photo de profil doit faire moins de 5 Mo.');
+      }
+      final Reference avatarRef = _storage.ref(
+        'agent_profiles/$agentId/avatar/profile',
+      );
+      await avatarRef.putData(
+        avatar.bytes,
+        SettableMetadata(
+          contentType: avatar.mimeType,
+          customMetadata: <String, String>{'originalName': avatar.fileName},
+        ),
+      );
+      avatarPath = avatarRef.fullPath;
+    }
+
+    if (identityDocument != null) {
+      final bool acceptedMime =
+          identityDocument.mimeType == 'application/pdf' ||
+          identityDocument.mimeType.startsWith('image/');
+      if (!acceptedMime) {
+        throw ArgumentError('La pièce doit être une image ou un PDF.');
+      }
+      if (identityDocument.bytes.isEmpty ||
+          identityDocument.bytes.length > 10 * 1024 * 1024) {
+        throw ArgumentError('La pièce d’identité doit faire moins de 10 Mo.');
+      }
+      final Reference identityRef = _storage.ref(
+        'agent_profiles/$agentId/identity/document',
+      );
+      await identityRef.putData(
+        identityDocument.bytes,
+        SettableMetadata(
+          contentType: identityDocument.mimeType,
+          customMetadata: <String, String>{
+            'originalName': identityDocument.fileName,
+          },
+        ),
+      );
+      identityPath = identityRef.fullPath;
+      identityFileName = identityDocument.fileName;
+      identityMimeType = identityDocument.mimeType;
+    }
+
+    final bool identityCriticalChanged =
+        avatar != null ||
+        identityDocument != null ||
+        existing == null ||
+        existing.firstName != firstName ||
+        existing.lastName != lastName ||
+        existing.dateOfBirth != draft.dateOfBirth ||
+        existing.identityDocumentType != draft.identityDocumentType ||
+        existing.identityDocumentNumber != documentNumber;
+    final bool complete =
+        firstName.length >= 2 &&
+        lastName.length >= 2 &&
+        draft.dateOfBirth != null &&
+        address.length >= 3 &&
+        city.length >= 2 &&
+        contact1.length >= 8 &&
+        avatarPath != null &&
+        avatarPath.trim().isNotEmpty &&
+        identityPath != null &&
+        identityPath.trim().isNotEmpty;
+
+    final AgentProfileVerificationStatus status;
+    if (existing?.verificationStatus ==
+            AgentProfileVerificationStatus.verified &&
+        !identityCriticalChanged) {
+      status = AgentProfileVerificationStatus.verified;
+    } else {
+      status = complete
+          ? AgentProfileVerificationStatus.pendingReview
+          : AgentProfileVerificationStatus.incomplete;
+    }
+
+    final Map<String, dynamic> personalData = <String, dynamic>{
+      'schemaVersion': 1,
+      'userId': agentId,
+      'firstName': firstName,
+      'lastName': lastName,
+      'dateOfBirth': Timestamp.fromDate(draft.dateOfBirth!),
+      'address': address,
+      'city': city,
+      'contact1': contact1,
+      'contact2': contact2,
+      'emergencyContactName': emergencyName,
+      'emergencyContactPhone': emergencyPhone,
+      'identityDocumentType': draft.identityDocumentType.firestoreValue,
+      'identityDocumentNumber': documentNumber,
+      'avatarStoragePath': avatarPath,
+      'identityDocumentStoragePath': identityPath,
+      'identityDocumentFileName': identityFileName,
+      'identityDocumentMimeType': identityMimeType,
+      'verificationStatus': status.firestoreValue,
+      'verificationNote': identityCriticalChanged
+          ? null
+          : existing.verificationNote,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'createdAt':
+          existingSnapshot.data()?['createdAt'] ?? FieldValue.serverTimestamp(),
+    };
+
+    final WriteBatch batch = _firestore.batch();
+    batch.set(personalRef, personalData, SetOptions(merge: true));
+    batch.update(userRef, <String, dynamic>{
+      'name': displayName,
+      'phoneNumber': contact1,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+  }
+
+  @override
+  Future<String?> resolvePersonalFileUrl(String storagePath) async {
+    final String cleaned = storagePath.trim();
+    if (cleaned.isEmpty) return null;
+    try {
+      return await _storage.ref(cleaned).getDownloadURL();
+    } on FirebaseException {
+      return null;
+    }
   }
 
   @override
@@ -529,6 +728,45 @@ class FirestoreAgentRepository implements AgentRepository {
     );
   }
 
+  AgentPersonalProfile? _personalProfileFromSnapshot(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final Map<String, dynamic>? data = doc.data();
+    if (data == null) return null;
+    final String userId = _string(data['userId'], fallback: doc.id);
+    if (userId.isEmpty) return null;
+    return AgentPersonalProfile(
+      userId: userId,
+      firstName: _string(data['firstName']),
+      lastName: _string(data['lastName']),
+      dateOfBirth: _date(data['dateOfBirth']),
+      address: _string(data['address']),
+      city: _string(data['city']),
+      contact1: _string(data['contact1']),
+      contact2: _string(data['contact2']),
+      emergencyContactName: _string(data['emergencyContactName']),
+      emergencyContactPhone: _string(data['emergencyContactPhone']),
+      identityDocumentType: _identityDocumentType(data['identityDocumentType']),
+      identityDocumentNumber: _string(data['identityDocumentNumber']),
+      avatarStoragePath: _nullableString(data['avatarStoragePath']),
+      identityDocumentStoragePath: _nullableString(
+        data['identityDocumentStoragePath'],
+      ),
+      identityDocumentFileName: _nullableString(
+        data['identityDocumentFileName'],
+      ),
+      identityDocumentMimeType: _nullableString(
+        data['identityDocumentMimeType'],
+      ),
+      verificationStatus: _profileVerificationStatus(
+        data['verificationStatus'],
+      ),
+      verificationNote: _nullableString(data['verificationNote']),
+      createdAt: _date(data['createdAt']),
+      updatedAt: _date(data['updatedAt']),
+    );
+  }
+
   AgentZone? _zoneFromDocument(
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
   ) {
@@ -608,6 +846,26 @@ class FirestoreAgentRepository implements AgentRepository {
     return value == 'available'
         ? AgentAvailability.available
         : AgentAvailability.unavailable;
+  }
+
+  AgentIdentityDocumentType _identityDocumentType(Object? value) {
+    if (value is String) {
+      for (final AgentIdentityDocumentType type
+          in AgentIdentityDocumentType.values) {
+        if (type.firestoreValue == value) return type;
+      }
+    }
+    return AgentIdentityDocumentType.nationalId;
+  }
+
+  AgentProfileVerificationStatus _profileVerificationStatus(Object? value) {
+    if (value is String) {
+      for (final AgentProfileVerificationStatus status
+          in AgentProfileVerificationStatus.values) {
+        if (status.firestoreValue == value) return status;
+      }
+    }
+    return AgentProfileVerificationStatus.incomplete;
   }
 
   List<AgentNetwork> _networkList(Object? value) {

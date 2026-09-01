@@ -44,7 +44,9 @@ void main() {
     expect(rules, isNot(contains('targetAgentUser(')));
     expect(rules, isNot(contains('targetAgentProfile(')));
     expect(rules, contains('getAfter('));
-    expect(rules, contains("hasMatchingOrderEvent(orderId, 'ASSIGNED')"));
+    expect(rules, contains('function isValidAssignedOrderEventCreation()'));
+    expect(rules, contains("request.resource.data.type == 'ASSIGNED'"));
+    expect(rules, contains('&& isValidAssignedOrderEventCreation()'));
     expect(rules, contains("actorRole == 'customer'"));
     expect(rules, contains("actorRole == 'agent'"));
   });

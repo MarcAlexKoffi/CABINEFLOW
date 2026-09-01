@@ -24,7 +24,10 @@ class AgentOrdersViewModel extends ChangeNotifier {
 
   StreamSubscription<List<QueueOrder>>? _subscription;
   StreamSubscription<AgentProfile?>? _profileSubscription;
+  StreamSubscription<AgentPersonalProfile?>? _personalProfileSubscription;
   AgentProfile? _agentProfile;
+  AgentPersonalProfile? _personalProfile;
+  String? _avatarUrl;
   List<QueueOrder> _orders = const <QueueOrder>[];
   AgentOrdersTab _selectedTab = AgentOrdersTab.toAccept;
   String? _busyOrderId;
@@ -33,6 +36,8 @@ class AgentOrdersViewModel extends ChangeNotifier {
 
   AgentOrdersTab get selectedTab => _selectedTab;
   AgentProfile? get agentProfile => _agentProfile;
+  AgentPersonalProfile? get personalProfile => _personalProfile;
+  String? get avatarUrl => _avatarUrl;
   String? get busyOrderId => _busyOrderId;
   String? get errorMessage => _errorMessage;
   bool get isLoading => _isLoading;
@@ -69,13 +74,12 @@ class AgentOrdersViewModel extends ChangeNotifier {
         }),
       );
 
-  List<QueueOrder> get failedOrders =>
-      AgentOrderPriorityPolicy.sortCompleted(
-        _orders.where((QueueOrder order) {
-          return order.assignmentStatus == OrderAssignmentStatus.accepted &&
-              order.status == QueueOrderStatus.failed;
-        }),
-      );
+  List<QueueOrder> get failedOrders => AgentOrderPriorityPolicy.sortCompleted(
+    _orders.where((QueueOrder order) {
+      return order.assignmentStatus == OrderAssignmentStatus.accepted &&
+          order.status == QueueOrderStatus.failed;
+    }),
+  );
 
   List<QueueOrder> get visibleOrders {
     switch (_selectedTab) {
@@ -108,6 +112,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
 
     await _subscription?.cancel();
     await _profileSubscription?.cancel();
+    await _personalProfileSubscription?.cancel();
 
     _subscription = ordersRepository
         .watchAssignedOrders(agentId: agentId)
@@ -140,7 +145,37 @@ class AgentOrdersViewModel extends ChangeNotifier {
               debugPrint('[AutoAssignment][watch-profile] $error');
             },
           );
+      _personalProfileSubscription = repository
+          .watchPersonalProfile(agentId)
+          .listen(
+            (AgentPersonalProfile? profile) {
+              _personalProfile = profile;
+              final String? path = profile?.avatarStoragePath;
+              if (path == null || path.trim().isEmpty) {
+                _avatarUrl = null;
+                notifyListeners();
+                return;
+              }
+              unawaited(_resolveAvatar(repository, path));
+              notifyListeners();
+            },
+            onError: (Object error) {
+              debugPrint('[AgentProfile][watch-personal] $error');
+            },
+          );
     }
+  }
+
+  Future<void> _resolveAvatar(
+    AgentRepository repository,
+    String storagePath,
+  ) async {
+    final String? resolved = await repository.resolvePersonalFileUrl(
+      storagePath,
+    );
+    if (_personalProfile?.avatarStoragePath != storagePath) return;
+    _avatarUrl = resolved;
+    notifyListeners();
   }
 
   void selectTab(AgentOrdersTab tab) {
@@ -316,7 +351,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
         agentId: agentId,
       );
       _replaceOrder(updated);
-      _selectedTab = AgentOrdersTab.completed;
+      _selectNextWorkTabAfterCompletion();
       return true;
     } catch (error, stackTrace) {
       _logActionError('success', error, stackTrace);
@@ -346,7 +381,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
         observation: observation,
       );
       _replaceOrder(updated);
-      _selectedTab = AgentOrdersTab.completed;
+      _selectNextWorkTabAfterCompletion();
       return true;
     } catch (error, stackTrace) {
       _logActionError('failure', error, stackTrace);
@@ -381,6 +416,14 @@ class AgentOrdersViewModel extends ChangeNotifier {
       _busyOrderId = null;
       notifyListeners();
     }
+  }
+
+  void _selectNextWorkTabAfterCompletion() {
+    if (inProgressOrders.isNotEmpty) {
+      _selectedTab = AgentOrdersTab.inProgress;
+      return;
+    }
+    _selectedTab = AgentOrdersTab.toAccept;
   }
 
   bool _canActOnAcceptedOrder(QueueOrder order) {
@@ -452,6 +495,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
   void dispose() {
     _subscription?.cancel();
     _profileSubscription?.cancel();
+    _personalProfileSubscription?.cancel();
     super.dispose();
   }
 }

@@ -19,7 +19,10 @@ void main() {
     expect(rules, contains('isValidAdminCommissionAccountPayoutUpdate'));
     expect(rules, contains("request.resource.data.commissionAmount == 10"));
     expect(rules, contains("request.resource.data.policyId == 'fixed-10-v1'"));
-    expect(rules, contains("order.status == 'awaitingCustomerConfirmation'"));
+    expect(
+      rules,
+      contains("order.status in ['completed', 'awaitingCustomerConfirmation']"),
+    );
     expect(
       rules,
       contains("order.get('lastEventType', null) == 'PROCESSING_SUCCEEDED'"),

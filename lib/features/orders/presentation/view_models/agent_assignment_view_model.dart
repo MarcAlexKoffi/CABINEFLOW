@@ -176,9 +176,8 @@ class AgentAssignmentViewModel extends ChangeNotifier {
 
   Future<void> _refreshReservedAmounts() async {
     final MobileNetwork network = order.network;
-    final List<AgentDirectoryEntry> currentAgents = List<AgentDirectoryEntry>.from(
-      _agents,
-    );
+    final List<AgentDirectoryEntry> currentAgents =
+        List<AgentDirectoryEntry>.from(_agents);
     if (currentAgents.isEmpty) {
       _reservedAmounts = const <String, int>{};
       return;

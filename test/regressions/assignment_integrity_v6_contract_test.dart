@@ -19,33 +19,42 @@ void main() {
     expect(block, contains("orderBefore.status == 'paidReady'"));
   });
 
-  test('affectation automatique est centralisée côté staff', () {
+  test('la baseline 9E conserve ses deux chemins automatiques validés', () {
     final String rules = File('firestore.rules').readAsStringSync();
     final String agentVm = File(
       'lib/features/orders/presentation/view_models/agent_orders_view_model.dart',
     ).readAsStringSync();
 
-    expect(rules, isNot(contains('isValidAgentAutomaticSelfAssignment')));
+    expect(rules, contains('isValidAgentAutomaticSelfAssignment(orderId)'));
     expect(rules, contains('isValidStaffAutomaticAssignment(orderId)'));
-    expect(rules, contains('allow delete: if isStaff();'));
-    expect(agentVm, isNot(contains('claimAutomaticQueueItem(')));
+    expect(rules, contains('isValidAgentAutomaticQueueDelete(orderId)'));
+
+    // Le ViewModel courant ne déclenche pas de prise autonome : on préserve
+    // exactement la baseline installée, sans réintroduire le patch V6 refusé.
     expect(agentVm, isNot(contains('_scheduleAutomaticClaim')));
   });
 
-  test('une réussite en attente de confirmation ne réserve plus deux fois la capacité', () {
-    final String repository = File(
-      'lib/features/orders/data/repositories/firestore_orders_repository.dart',
-    ).readAsStringSync();
+  test(
+    'une réussite en attente de confirmation ne réserve plus deux fois la capacité',
+    () {
+      final String repository = File(
+        'lib/features/orders/data/repositories/firestore_orders_repository.dart',
+      ).readAsStringSync();
 
-    expect(
-      repository,
-      contains('order.status != QueueOrderStatus.awaitingCustomerConfirmation'),
-    );
-    expect(
-      repository,
-      contains('order.status == QueueOrderStatus.awaitingCustomerConfirmation'),
-    );
-  });
+      expect(
+        repository,
+        contains(
+          'order.status != QueueOrderStatus.awaitingCustomerConfirmation',
+        ),
+      );
+      expect(
+        repository,
+        contains(
+          'order.status == QueueOrderStatus.awaitingCustomerConfirmation',
+        ),
+      );
+    },
+  );
 
   test('Voir la commande peut ouvrir la commande exacte', () {
     final String payments = File(
@@ -57,7 +66,10 @@ void main() {
 
     expect(payments, contains('final ValueChanged<QueueOrder>? onOpenOrder;'));
     expect(payments, contains('openOrder(order);'));
-    expect(shell, contains('Future<void> _openSpecificOrder(QueueOrder order)'));
+    expect(
+      shell,
+      contains('Future<void> _openSpecificOrder(QueueOrder order)'),
+    );
     expect(shell, contains('fetchOrderById(orderId: order.id)'));
     expect(shell, contains('initialOrder: latest'));
   });

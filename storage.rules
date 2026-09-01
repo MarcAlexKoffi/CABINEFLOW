@@ -1,0 +1,45 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function currentUserRole() {
+      return isSignedIn()
+        ? firestore.get(
+            /databases/(default)/documents/users/$(request.auth.uid)
+          ).data.role
+        : null;
+    }
+
+    function isAdmin() {
+      return currentUserRole() in ['admin', 'administrator'];
+    }
+
+    function isOwner(agentId) {
+      return isSignedIn() && request.auth.uid == agentId;
+    }
+
+    match /agent_profiles/{agentId}/avatar/profile {
+      allow read: if isOwner(agentId) || isAdmin();
+      allow create, update: if isOwner(agentId)
+        && request.resource.size > 0
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('^image/.*$');
+      allow delete: if false;
+    }
+
+    match /agent_profiles/{agentId}/identity/document {
+      allow read: if isOwner(agentId) || isAdmin();
+      allow create, update: if isOwner(agentId)
+        && request.resource.size > 0
+        && request.resource.size <= 10 * 1024 * 1024
+        && (
+          request.resource.contentType == 'application/pdf'
+          || request.resource.contentType.matches('^image/.*$')
+        );
+      allow delete: if false;
+    }
+  }
+}
