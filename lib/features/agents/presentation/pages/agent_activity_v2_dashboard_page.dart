@@ -66,39 +66,67 @@ class _AgentActivityV2DashboardPageState
                 adminMode: widget.adminMode,
                 profile: data.operationalProfile,
               ),
+              if (data.hasUnavailableSources) ...<Widget>[
+                const SizedBox(height: 12),
+                _PartialDataWarning(sources: data.unavailableSources),
+              ],
               const SizedBox(height: 16),
               const _SectionTitle(
                 title: 'Performance',
                 trailing: 'Données réelles',
               ),
               const SizedBox(height: 8),
-              _PerformanceGrid(data: data),
+              if (data.isUnavailable(AgentActivityV2Sources.orders) ||
+                  data.isUnavailable(AgentActivityV2Sources.assignments))
+                const _UnavailableCard(
+                  text:
+                      'Les statistiques de performance sont temporairement indisponibles.',
+                )
+              else
+                _PerformanceGrid(data: data),
               const SizedBox(height: 20),
               const _SectionTitle(
                 title: 'Capacités actuelles',
                 trailing: 'Profil 9E',
               ),
               const SizedBox(height: 8),
-              _CapacityCard(profile: data.operationalProfile),
+              if (data.isUnavailable(AgentActivityV2Sources.operationalProfile))
+                const _UnavailableCard(
+                  text: 'Les capacités 9E sont temporairement indisponibles.',
+                )
+              else
+                _CapacityCard(profile: data.operationalProfile),
               const SizedBox(height: 20),
               _SectionTitle(
                 title: 'Commissions',
                 trailing: '${data.commissionTransactionCount} transaction(s)',
               ),
               const SizedBox(height: 8),
-              _CommissionSummary(data: data),
-              const SizedBox(height: 10),
-              if (data.commissions.isEmpty)
-                const _EmptyCard(text: 'Aucune commission enregistrée.')
-              else
-                ...data.commissions.take(8).map(_CommissionCard.new),
+              if (data.isUnavailable(AgentActivityV2Sources.commissions) ||
+                  data.isUnavailable(AgentActivityV2Sources.commissionAccount))
+                const _UnavailableCard(
+                  text: 'Les commissions sont temporairement indisponibles.',
+                )
+              else ...<Widget>[
+                _CommissionSummary(data: data),
+                const SizedBox(height: 10),
+                if (data.commissions.isEmpty)
+                  const _EmptyCard(text: 'Aucune commission enregistrée.')
+                else
+                  ...data.commissions.take(8).map(_CommissionCard.new),
+              ],
               const SizedBox(height: 20),
               _SectionTitle(
                 title: 'Versements de commissions',
                 trailing: _formatCfa(data.commissionPaid),
               ),
               const SizedBox(height: 8),
-              if (data.payouts.isEmpty)
+              if (data.isUnavailable(AgentActivityV2Sources.payouts))
+                const _UnavailableCard(
+                  text:
+                      'Les versements de commissions sont temporairement indisponibles.',
+                )
+              else if (data.payouts.isEmpty)
                 const _EmptyCard(text: 'Aucun versement enregistré.')
               else
                 ...data.payouts.take(8).map(_PayoutCard.new),
@@ -108,7 +136,12 @@ class _AgentActivityV2DashboardPageState
                 trailing: 'Recharges ${_formatCfa(data.rechargeAmount)}',
               ),
               const SizedBox(height: 8),
-              if (data.movements.isEmpty)
+              if (data.isUnavailable(AgentActivityV2Sources.movements))
+                const _UnavailableCard(
+                  text:
+                      'Les mouvements et recharges sont temporairement indisponibles. Réessaie après publication des règles B2+C.',
+                )
+              else if (data.movements.isEmpty)
                 const _EmptyCard(text: 'Aucun mouvement réseau disponible.')
               else
                 ...data.movements.take(12).map(_MovementCard.new),
@@ -118,7 +151,11 @@ class _AgentActivityV2DashboardPageState
                 trailing: '${data.openIssueCount} en cours',
               ),
               const SizedBox(height: 8),
-              if (data.issues.isEmpty)
+              if (data.isUnavailable(AgentActivityV2Sources.issues))
+                const _UnavailableCard(
+                  text: 'Les signalements sont temporairement indisponibles.',
+                )
+              else if (data.issues.isEmpty)
                 const _EmptyCard(text: 'Aucun signalement pour cet Agent.')
               else
                 ...data.issues.take(10).map(_IssueCard.new),
@@ -128,11 +165,17 @@ class _AgentActivityV2DashboardPageState
                 trailing: '${data.orders.length} au total',
               ),
               const SizedBox(height: 8),
-              if (data.orders.isEmpty)
+              if (data.isUnavailable(AgentActivityV2Sources.orders))
+                const _UnavailableCard(
+                  text:
+                      'L’historique des commandes est temporairement indisponible.',
+                )
+              else if (data.orders.isEmpty)
                 const _EmptyCard(text: 'Aucune commande affectée à cet Agent.')
               else
                 ...data.orders.take(12).map(_OrderCard.new),
-              if (data.orders.isNotEmpty) ...<Widget>[
+              if (!data.isUnavailable(AgentActivityV2Sources.orders) &&
+                  data.orders.isNotEmpty) ...<Widget>[
                 const SizedBox(height: 4),
                 OutlinedButton.icon(
                   onPressed: () {
@@ -155,7 +198,11 @@ class _AgentActivityV2DashboardPageState
                 trailing: '${data.refusedCount}',
               ),
               const SizedBox(height: 8),
-              if (data.assignments.where((item) => item.isRefused).isEmpty)
+              if (data.isUnavailable(AgentActivityV2Sources.assignments))
+                const _UnavailableCard(
+                  text: 'Les affectations sont temporairement indisponibles.',
+                )
+              else if (data.assignments.where((item) => item.isRefused).isEmpty)
                 const _EmptyCard(text: 'Aucun refus enregistré.')
               else
                 ...data.assignments
@@ -165,6 +212,75 @@ class _AgentActivityV2DashboardPageState
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _PartialDataWarning extends StatelessWidget {
+  const _PartialDataWarning({required this.sources});
+
+  final Set<String> sources;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<String> labels =
+        sources.map(_sourceLabel).toList(growable: false)..sort();
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const Icon(Icons.cloud_off_outlined),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Certaines données sont temporairement indisponibles : ${labels.join(', ')}. '
+                'Les autres sections restent utilisables.',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _sourceLabel(String source) {
+    return switch (source) {
+      AgentActivityV2Sources.orders => 'commandes',
+      AgentActivityV2Sources.assignments => 'affectations',
+      AgentActivityV2Sources.movements => 'mouvements/recharges',
+      AgentActivityV2Sources.commissions => 'commissions',
+      AgentActivityV2Sources.commissionAccount => 'compte de commissions',
+      AgentActivityV2Sources.payouts => 'versements',
+      AgentActivityV2Sources.operationalProfile => 'capacités 9E',
+      AgentActivityV2Sources.issues => 'signalements',
+      _ => source,
+    };
+  }
+}
+
+class _UnavailableCard extends StatelessWidget {
+  const _UnavailableCard({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const Icon(Icons.cloud_off_outlined),
+            const SizedBox(width: 10),
+            Expanded(child: Text(text)),
+          ],
+        ),
       ),
     );
   }

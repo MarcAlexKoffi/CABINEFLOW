@@ -23,6 +23,7 @@ class FirestoreAgentActivityV2Repository {
     List<AgentCommissionPayoutV2> payouts = const <AgentCommissionPayoutV2>[];
     AgentOperationalSnapshotV2? operationalProfile;
     List<AgentIssueSnapshotV2> issues = const <AgentIssueSnapshotV2>[];
+    final Set<String> unavailableSources = <String>{};
 
     bool hasOrders = false;
     bool hasAssignments = false;
@@ -55,8 +56,19 @@ class FirestoreAgentActivityV2Repository {
           payouts: payouts,
           operationalProfile: operationalProfile,
           issues: issues,
+          unavailableSources: Set<String>.unmodifiable(unavailableSources),
         ),
       );
+    }
+
+    void markUnavailable(String source, void Function() markLoaded) {
+      unavailableSources.add(source);
+      markLoaded();
+      emit();
+    }
+
+    void markAvailable(String source) {
+      unavailableSources.remove(source);
     }
 
     void start() {
@@ -65,125 +77,209 @@ class FirestoreAgentActivityV2Repository {
             .collection('orders')
             .where('assignedAgentId', isEqualTo: agentId)
             .snapshots()
-            .listen((snapshot) {
-              orders =
-                  snapshot.docs
-                      .map(AgentActivityOrderV2.fromSnapshot)
-                      .whereType<AgentActivityOrderV2>()
-                      .toList(growable: false)
-                    ..sort(
-                      (a, b) => _compareDates(
-                        b.completedAt ?? b.assignedAt,
-                        a.completedAt ?? a.assignedAt,
-                      ),
-                    );
-              hasOrders = true;
-              emit();
-            }, onError: controller.addError),
+            .listen(
+              (snapshot) {
+                orders =
+                    snapshot.docs
+                        .map(AgentActivityOrderV2.fromSnapshot)
+                        .whereType<AgentActivityOrderV2>()
+                        .toList(growable: false)
+                      ..sort(
+                        (a, b) => _compareDates(
+                          b.completedAt ?? b.assignedAt,
+                          a.completedAt ?? a.assignedAt,
+                        ),
+                      );
+                hasOrders = true;
+                markAvailable(AgentActivityV2Sources.orders);
+                emit();
+              },
+              onError: (Object error, StackTrace stackTrace) {
+                orders = const <AgentActivityOrderV2>[];
+                markUnavailable(
+                  AgentActivityV2Sources.orders,
+                  () => hasOrders = true,
+                );
+              },
+            ),
       );
       subscriptions.add(
         _firestore
             .collection('orderAssignments')
             .where('agentId', isEqualTo: agentId)
             .snapshots()
-            .listen((snapshot) {
-              assignments =
-                  snapshot.docs
-                      .map(AgentActivityAssignmentV2.fromSnapshot)
-                      .whereType<AgentActivityAssignmentV2>()
-                      .toList(growable: false)
-                    ..sort((a, b) => _compareDates(b.assignedAt, a.assignedAt));
-              hasAssignments = true;
-              emit();
-            }, onError: controller.addError),
+            .listen(
+              (snapshot) {
+                assignments =
+                    snapshot.docs
+                        .map(AgentActivityAssignmentV2.fromSnapshot)
+                        .whereType<AgentActivityAssignmentV2>()
+                        .toList(growable: false)
+                      ..sort(
+                        (a, b) => _compareDates(b.assignedAt, a.assignedAt),
+                      );
+                hasAssignments = true;
+                markAvailable(AgentActivityV2Sources.assignments);
+                emit();
+              },
+              onError: (Object error, StackTrace stackTrace) {
+                assignments = const <AgentActivityAssignmentV2>[];
+                markUnavailable(
+                  AgentActivityV2Sources.assignments,
+                  () => hasAssignments = true,
+                );
+              },
+            ),
       );
       subscriptions.add(
         _firestore
             .collection('networkTransactions')
             .where('agentId', isEqualTo: agentId)
             .snapshots()
-            .listen((snapshot) {
-              movements =
-                  snapshot.docs
-                      .map(AgentNetworkMovementV2.fromSnapshot)
-                      .whereType<AgentNetworkMovementV2>()
-                      .toList(growable: false)
-                    ..sort((a, b) => _compareDates(b.createdAt, a.createdAt));
-              hasMovements = true;
-              emit();
-            }, onError: controller.addError),
+            .listen(
+              (snapshot) {
+                movements =
+                    snapshot.docs
+                        .map(AgentNetworkMovementV2.fromSnapshot)
+                        .whereType<AgentNetworkMovementV2>()
+                        .toList(growable: false)
+                      ..sort((a, b) => _compareDates(b.createdAt, a.createdAt));
+                hasMovements = true;
+                markAvailable(AgentActivityV2Sources.movements);
+                emit();
+              },
+              onError: (Object error, StackTrace stackTrace) {
+                movements = const <AgentNetworkMovementV2>[];
+                markUnavailable(
+                  AgentActivityV2Sources.movements,
+                  () => hasMovements = true,
+                );
+              },
+            ),
       );
       subscriptions.add(
         _firestore
             .collection('commissions')
             .where('agentId', isEqualTo: agentId)
             .snapshots()
-            .listen((snapshot) {
-              commissions =
-                  snapshot.docs
-                      .map(AgentCommissionV2.fromSnapshot)
-                      .whereType<AgentCommissionV2>()
-                      .toList(growable: false)
-                    ..sort((a, b) => _compareDates(b.earnedAt, a.earnedAt));
-              hasCommissions = true;
-              emit();
-            }, onError: controller.addError),
+            .listen(
+              (snapshot) {
+                commissions =
+                    snapshot.docs
+                        .map(AgentCommissionV2.fromSnapshot)
+                        .whereType<AgentCommissionV2>()
+                        .toList(growable: false)
+                      ..sort((a, b) => _compareDates(b.earnedAt, a.earnedAt));
+                hasCommissions = true;
+                markAvailable(AgentActivityV2Sources.commissions);
+                emit();
+              },
+              onError: (Object error, StackTrace stackTrace) {
+                commissions = const <AgentCommissionV2>[];
+                markUnavailable(
+                  AgentActivityV2Sources.commissions,
+                  () => hasCommissions = true,
+                );
+              },
+            ),
       );
       subscriptions.add(
         _firestore
             .collection('commissionAccounts')
             .doc(agentId)
             .snapshots()
-            .listen((snapshot) {
-              commissionAccount = AgentCommissionAccountV2.fromSnapshot(
-                snapshot,
-              );
-              hasCommissionAccount = true;
-              emit();
-            }, onError: controller.addError),
+            .listen(
+              (snapshot) {
+                commissionAccount = AgentCommissionAccountV2.fromSnapshot(
+                  snapshot,
+                );
+                hasCommissionAccount = true;
+                markAvailable(AgentActivityV2Sources.commissionAccount);
+                emit();
+              },
+              onError: (Object error, StackTrace stackTrace) {
+                commissionAccount = null;
+                markUnavailable(
+                  AgentActivityV2Sources.commissionAccount,
+                  () => hasCommissionAccount = true,
+                );
+              },
+            ),
       );
       subscriptions.add(
         _firestore
             .collection('commissionPayouts')
             .where('agentId', isEqualTo: agentId)
             .snapshots()
-            .listen((snapshot) {
-              payouts =
-                  snapshot.docs
-                      .map(AgentCommissionPayoutV2.fromSnapshot)
-                      .whereType<AgentCommissionPayoutV2>()
-                      .toList(growable: false)
-                    ..sort((a, b) => _compareDates(b.paidAt, a.paidAt));
-              hasPayouts = true;
-              emit();
-            }, onError: controller.addError),
+            .listen(
+              (snapshot) {
+                payouts =
+                    snapshot.docs
+                        .map(AgentCommissionPayoutV2.fromSnapshot)
+                        .whereType<AgentCommissionPayoutV2>()
+                        .toList(growable: false)
+                      ..sort((a, b) => _compareDates(b.paidAt, a.paidAt));
+                hasPayouts = true;
+                markAvailable(AgentActivityV2Sources.payouts);
+                emit();
+              },
+              onError: (Object error, StackTrace stackTrace) {
+                payouts = const <AgentCommissionPayoutV2>[];
+                markUnavailable(
+                  AgentActivityV2Sources.payouts,
+                  () => hasPayouts = true,
+                );
+              },
+            ),
       );
       subscriptions.add(
-        _firestore.collection('agentProfiles').doc(agentId).snapshots().listen((
-          snapshot,
-        ) {
-          operationalProfile = AgentOperationalSnapshotV2.fromSnapshot(
-            snapshot,
-          );
-          hasOperationalProfile = true;
-          emit();
-        }, onError: controller.addError),
+        _firestore
+            .collection('agentProfiles')
+            .doc(agentId)
+            .snapshots()
+            .listen(
+              (snapshot) {
+                operationalProfile = AgentOperationalSnapshotV2.fromSnapshot(
+                  snapshot,
+                );
+                hasOperationalProfile = true;
+                markAvailable(AgentActivityV2Sources.operationalProfile);
+                emit();
+              },
+              onError: (Object error, StackTrace stackTrace) {
+                operationalProfile = null;
+                markUnavailable(
+                  AgentActivityV2Sources.operationalProfile,
+                  () => hasOperationalProfile = true,
+                );
+              },
+            ),
       );
       subscriptions.add(
         _firestore
             .collection('agentIssues')
             .where('agentId', isEqualTo: agentId)
             .snapshots()
-            .listen((snapshot) {
-              issues =
-                  snapshot.docs
-                      .map(AgentIssueSnapshotV2.fromSnapshot)
-                      .whereType<AgentIssueSnapshotV2>()
-                      .toList(growable: false)
-                    ..sort((a, b) => _compareDates(b.createdAt, a.createdAt));
-              hasIssues = true;
-              emit();
-            }, onError: controller.addError),
+            .listen(
+              (snapshot) {
+                issues =
+                    snapshot.docs
+                        .map(AgentIssueSnapshotV2.fromSnapshot)
+                        .whereType<AgentIssueSnapshotV2>()
+                        .toList(growable: false)
+                      ..sort((a, b) => _compareDates(b.createdAt, a.createdAt));
+                hasIssues = true;
+                markAvailable(AgentActivityV2Sources.issues);
+                emit();
+              },
+              onError: (Object error, StackTrace stackTrace) {
+                issues = const <AgentIssueSnapshotV2>[];
+                markUnavailable(
+                  AgentActivityV2Sources.issues,
+                  () => hasIssues = true,
+                );
+              },
+            ),
       );
     }
 

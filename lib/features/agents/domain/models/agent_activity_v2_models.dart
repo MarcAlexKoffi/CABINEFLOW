@@ -340,6 +340,19 @@ class AgentIssueSnapshotV2 {
   }
 }
 
+class AgentActivityV2Sources {
+  const AgentActivityV2Sources._();
+
+  static const String orders = 'orders';
+  static const String assignments = 'orderAssignments';
+  static const String movements = 'networkTransactions';
+  static const String commissions = 'commissions';
+  static const String commissionAccount = 'commissionAccounts';
+  static const String payouts = 'commissionPayouts';
+  static const String operationalProfile = 'agentProfiles';
+  static const String issues = 'agentIssues';
+}
+
 class AgentActivityV2Snapshot {
   const AgentActivityV2Snapshot({
     required this.orders,
@@ -350,6 +363,7 @@ class AgentActivityV2Snapshot {
     required this.payouts,
     required this.operationalProfile,
     required this.issues,
+    this.unavailableSources = const <String>{},
   });
 
   final List<AgentActivityOrderV2> orders;
@@ -360,6 +374,10 @@ class AgentActivityV2Snapshot {
   final List<AgentCommissionPayoutV2> payouts;
   final AgentOperationalSnapshotV2? operationalProfile;
   final List<AgentIssueSnapshotV2> issues;
+  final Set<String> unavailableSources;
+
+  bool isUnavailable(String source) => unavailableSources.contains(source);
+  bool get hasUnavailableSources => unavailableSources.isNotEmpty;
 
   int get assignedCount => assignments.length;
   int get refusedCount => assignments.where((item) => item.isRefused).length;

@@ -5,12 +5,12 @@ import 'package:cabine_flow/features/agents/domain/models/agent_personal_media.d
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_activity_v2_dashboard_page.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 
 class AgentPersonalProfilePage extends StatefulWidget {
   const AgentPersonalProfilePage({
@@ -57,6 +57,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
   bool _isLoading = true;
   bool _isSaving = false;
   String? _error;
+  String? _mediaWarning;
 
   bool get _isVerified => _verificationStatus == 'verified';
 
@@ -94,36 +95,28 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       setState(() {
         _isLoading = true;
         _error = null;
+        _mediaWarning = null;
       });
     }
+
+    // Toujours afficher au minimum les informations déjà connues du compte
+    // connecté. Un échec Firestore sur un média ne doit jamais vider le
+    // formulaire personnel.
+    _hydrateFromSignedInUser();
+
     final FirebaseFirestore? firestore = _firestore;
     final FirestoreAgentPersonalMediaRepository? mediaRepository =
         _mediaRepository;
-    if (firestore == null || mediaRepository == null) {
-      _hydrateFromSignedInUser();
+    if (firestore == null) {
       if (mounted) setState(() => _isLoading = false);
       return;
     }
+
     try {
-      final profileFuture = firestore
+      final profileSnapshot = await firestore
           .collection('agentPersonalProfiles')
           .doc(widget.user.id)
           .get();
-      final avatarFuture = mediaRepository.fetch(
-        agentId: widget.user.id,
-        kind: AgentPersonalMediaKind.avatar,
-      );
-      final identityFuture = mediaRepository.fetch(
-        agentId: widget.user.id,
-        kind: AgentPersonalMediaKind.identity,
-      );
-      final results = await Future.wait<Object?>(<Future<Object?>>[
-        profileFuture,
-        avatarFuture,
-        identityFuture,
-      ]);
-      final profileSnapshot =
-          results[0] as DocumentSnapshot<Map<String, dynamic>>;
       final Map<String, dynamic>? data = profileSnapshot.data();
       if (data != null) {
         _existingProfile = Map<String, dynamic>.from(data);
@@ -145,16 +138,50 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
             : _text(data['verificationStatus']);
         _verificationNote = _nullableText(data['verificationNote']);
       }
-      _avatarMedia = results[1] as AgentPersonalMedia?;
-      _identityMedia = results[2] as AgentPersonalMedia?;
-      _pendingAvatar = null;
-      _pendingIdentity = null;
+    } on FirebaseException catch (error) {
+      _error = error.code == 'permission-denied'
+          ? 'Impossible de lire le profil Firestore pour le moment. '
+                'Les informations du compte restent affichées. Publie les règles B2+C puis réessaie.'
+          : 'Impossible de charger les informations personnelles : '
+                '${error.message ?? error.code}';
     } catch (error) {
-      _error = 'Impossible de charger le profil : $error';
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
+      _error = 'Impossible de charger les informations personnelles : $error';
+    }
+
+    final List<String> unavailableMedia = <String>[];
+    if (mediaRepository != null) {
+      try {
+        _avatarMedia = await mediaRepository.fetch(
+          agentId: widget.user.id,
+          kind: AgentPersonalMediaKind.avatar,
+        );
+      } catch (_) {
+        _avatarMedia = null;
+        unavailableMedia.add('photo de profil');
       }
+
+      try {
+        _identityMedia = await mediaRepository.fetch(
+          agentId: widget.user.id,
+          kind: AgentPersonalMediaKind.identity,
+        );
+      } catch (_) {
+        _identityMedia = null;
+        unavailableMedia.add('pièce d’identité');
+      }
+    }
+
+    _pendingAvatar = null;
+    _pendingIdentity = null;
+    if (unavailableMedia.isNotEmpty) {
+      _mediaWarning =
+          'Certains médias du profil sont temporairement indisponibles '
+          '(${unavailableMedia.join(', ')}). Le formulaire reste utilisable ; '
+          'réessaie après publication des règles B2+C.';
+    }
+
+    if (mounted) {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -484,6 +511,13 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
             if (_error != null) ...<Widget>[
               const SizedBox(height: 12),
               _InfoCard(icon: Icons.error_outline, text: _error!),
+            ],
+            if (_mediaWarning != null) ...<Widget>[
+              const SizedBox(height: 12),
+              _InfoCard(
+                icon: Icons.image_not_supported_outlined,
+                text: _mediaWarning!,
+              ),
             ],
             if (_verificationNote != null) ...<Widget>[
               const SizedBox(height: 12),
