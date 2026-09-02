@@ -24,6 +24,11 @@ void main() {
       matching: find.text('Commissions'),
     );
     expect(appBarTitle, findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Synthèse'),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Synthèse'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

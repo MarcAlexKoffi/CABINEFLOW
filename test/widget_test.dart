@@ -170,8 +170,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 900));
     await tester.pumpAndSettle();
 
-    // Le profil ne contient plus les pages d'activité/commissions officielles :
-    // elles sont volontairement mises en avant sur Accueil.
+    // Le profil conserve un accès clair au suivi, sans enfouir ces pages
+    // dans les informations personnelles.
     expect(find.text('Profil'), findsWidgets);
     expect(
       find.text('Tes informations et réglages opérationnels.'),
@@ -187,12 +187,11 @@ void main() {
       find.text('Informations personnelles', skipOffstage: false),
       findsOneWidget,
     );
+    expect(find.text('Mes signalements', skipOffstage: false), findsWidgets);
     expect(
-      find.text('Mes signalements', skipOffstage: false),
+      find.text('Mon activité détaillée', skipOffstage: false),
       findsWidgets,
     );
-    // L'Accueil reste monté dans l'IndexedStack, mais son raccourci ne doit
-    // pas être visible quand l'onglet Profil est actif.
-    expect(find.text('Mon activité détaillée'), findsNothing);
+    expect(find.text('Mes commissions', skipOffstage: false), findsWidgets);
   });
 }

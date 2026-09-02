@@ -1,6 +1,9 @@
 import 'dart:async';
 
+import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
+import 'package:cabine_flow/features/agents/data/repositories/supabase_agent_issue_repository.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_activity_v2_models.dart';
+import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FirestoreAgentActivityV2Repository {
@@ -255,32 +258,42 @@ class FirestoreAgentActivityV2Repository {
               },
             ),
       );
-      subscriptions.add(
-        _firestore
-            .collection('agentIssues')
-            .where('agentId', isEqualTo: agentId)
-            .snapshots()
-            .listen(
-              (snapshot) {
-                issues =
-                    snapshot.docs
-                        .map(AgentIssueSnapshotV2.fromSnapshot)
-                        .whereType<AgentIssueSnapshotV2>()
-                        .toList(growable: false)
-                      ..sort((a, b) => _compareDates(b.createdAt, a.createdAt));
-                hasIssues = true;
-                markAvailable(AgentActivityV2Sources.issues);
-                emit();
-              },
-              onError: (Object error, StackTrace stackTrace) {
-                issues = const <AgentIssueSnapshotV2>[];
-                markUnavailable(
-                  AgentActivityV2Sources.issues,
-                  () => hasIssues = true,
-                );
-              },
-            ),
-      );
+      if (SupabaseBootstrap.isInitialized) {
+        subscriptions.add(
+          SupabaseAgentIssueRepository()
+              .watchAgentIssues(agentId)
+              .listen(
+                (List<AgentIssue> items) {
+                  issues = items
+                      .map(
+                        (AgentIssue issue) => AgentIssueSnapshotV2(
+                          id: issue.id,
+                          type: issue.type,
+                          status: issue.status,
+                          description: issue.description,
+                          network: issue.network?.name,
+                          createdAt: issue.createdAt,
+                          resolvedAt: issue.resolvedAt,
+                        ),
+                      )
+                      .toList(growable: false);
+                  hasIssues = true;
+                  markAvailable(AgentActivityV2Sources.issues);
+                  emit();
+                },
+                onError: (Object error, StackTrace stackTrace) {
+                  issues = const <AgentIssueSnapshotV2>[];
+                  markUnavailable(
+                    AgentActivityV2Sources.issues,
+                    () => hasIssues = true,
+                  );
+                },
+              ),
+        );
+      } else {
+        issues = const <AgentIssueSnapshotV2>[];
+        markUnavailable(AgentActivityV2Sources.issues, () => hasIssues = true);
+      }
     }
 
     controller = StreamController<AgentActivityV2Snapshot>(

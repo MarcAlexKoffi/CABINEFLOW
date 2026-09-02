@@ -3,21 +3,31 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('D preserve le hotfix profil B2 et l accès commissions depuis Accueil', () {
-    final String profile = File(
-      'lib/features/agents/presentation/pages/agent_personal_profile_page.dart',
-    ).readAsStringSync();
-    final String home = File(
-      'lib/features/agents/presentation/pages/agent_home_page.dart',
-    ).readAsStringSync();
+  test(
+    'D preserve le hotfix profil B2 et l accès commissions depuis Accueil',
+    () {
+      final String profile = File(
+        'lib/features/agents/presentation/pages/agent_personal_profile_page.dart',
+      ).readAsStringSync();
+      final String home = File(
+        'lib/features/agents/presentation/pages/agent_home_page.dart',
+      ).readAsStringSync();
+      final String shell = File(
+        'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      ).readAsStringSync();
 
-    expect(profile, contains('_hydrateFromSignedInUser();'));
-    expect(profile, contains('_mediaWarning'));
-    expect(profile, contains('Certains médias du profil sont temporairement indisponibles'));
-    expect(profile, isNot(contains('AgentCommissionsV2Page')));
-    expect(home, contains('AgentCommissionsV2Page'));
-    expect(home, contains("title: 'Mes commissions'"));
-  });
+      expect(profile, contains('_hydrateFromSignedInUser();'));
+      expect(profile, contains('_mediaWarning'));
+      expect(
+        profile,
+        contains('Certains médias Supabase sont temporairement indisponibles'),
+      );
+      expect(profile, isNot(contains('AgentCommissionsV2Page')));
+      expect(home, contains("title: 'Mes commissions'"));
+      expect(home, contains('onOpenCommissions'));
+      expect(shell, contains('AgentCommissionsPage'));
+    },
+  );
 
   test('D preserve la résilience Activité V2', () {
     final String source = File(

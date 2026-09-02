@@ -52,17 +52,18 @@ void main() {
     final String home = _read(
       'lib/features/agents/presentation/pages/agent_home_page.dart',
     );
-    final String personalProfile = _read(
-      'lib/features/agents/presentation/pages/agent_personal_profile_page.dart',
+    final String shell = _read(
+      'lib/features/navigation/presentation/pages/main_shell_page.dart',
     );
 
     expect(activity, contains('AdminAgentCommissionsV2Page'));
     expect(activity, contains('AgentCommissionsV2Page'));
     expect(adminProfile, contains('AdminCommissionsV2Page'));
     expect(adminProfile, contains('AdminAgentCommissionsV2Page'));
-    expect(home, contains('AgentCommissionsV2Page'));
     expect(home, contains("title: 'Mes commissions'"));
-    expect(personalProfile, isNot(contains('AgentCommissionsV2Page')));
+    expect(home, contains('onOpenCommissions'));
+    expect(shell, contains('AgentCommissionsPage'));
+    expect(shell, contains('repository: widget.commissionRepository'));
   });
 }
 

@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
+import 'package:cabine_flow/features/agents/data/repositories/supabase_agent_issue_repository.dart';
+import 'package:cabine_flow/features/agents/data/repositories/supabase_agent_personal_profile_repository.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -24,8 +27,6 @@ class FirestoreAgentRepository implements AgentRepository {
       _firestore.collection('agentPersonalProfiles');
   CollectionReference<Map<String, dynamic>> get _zones =>
       _firestore.collection('zones');
-  CollectionReference<Map<String, dynamic>> get _issues =>
-      _firestore.collection('agentIssues');
   CollectionReference<Map<String, dynamic>> get _networkTransactions =>
       _firestore.collection('networkTransactions');
 
@@ -109,6 +110,24 @@ class FirestoreAgentRepository implements AgentRepository {
 
   @override
   Stream<AgentPersonalProfile?> watchPersonalProfile(String agentId) {
+    if (SupabaseBootstrap.isInitialized) {
+      try {
+        final String currentUid = (FirebaseAuth.instance.currentUser?.uid ?? '')
+            .trim();
+        if (currentUid.isNotEmpty && currentUid == agentId.trim()) {
+          return SupabaseAgentPersonalProfileRepository()
+              .watchProfile(agentId)
+              .map((Map<String, dynamic>? data) {
+                if (data == null) return null;
+                return _personalProfileFromMap(agentId, data);
+              });
+        }
+      } catch (_) {
+        // Les tests et les contextes sans Firebase/Supabase initialisé doivent
+        // conserver le comportement Firestore historique.
+      }
+    }
+
     return _personalProfiles.doc(agentId).snapshots().map((snapshot) {
       if (!snapshot.exists || snapshot.data() == null) return null;
       return _personalProfileFromSnapshot(snapshot);
@@ -295,6 +314,20 @@ class FirestoreAgentRepository implements AgentRepository {
   Future<String?> resolvePersonalFileUrl(String storagePath) async {
     final String cleaned = storagePath.trim();
     if (cleaned.isEmpty) return null;
+
+    if (SupabaseBootstrap.isInitialized) {
+      try {
+        final String currentUid = (FirebaseAuth.instance.currentUser?.uid ?? '')
+            .trim();
+        if (currentUid.isNotEmpty && cleaned.startsWith('$currentUid/')) {
+          return await SupabaseAgentPersonalProfileRepository()
+              .createSignedMediaUrl(cleaned);
+        }
+      } catch (_) {
+        return null;
+      }
+    }
+
     try {
       return await _storage.ref(cleaned).getDownloadURL();
     } on FirebaseException {
@@ -323,30 +356,22 @@ class FirestoreAgentRepository implements AgentRepository {
 
   @override
   Stream<List<AgentIssue>> watchAgentIssues(String agentId) {
-    return _issues.where('agentId', isEqualTo: agentId).snapshots().map((
-      snapshot,
-    ) {
-      final List<AgentIssue> issues =
-          snapshot.docs
-              .map(_issueFromDocument)
-              .whereType<AgentIssue>()
-              .toList(growable: false)
-            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return List<AgentIssue>.unmodifiable(issues);
-    });
+    if (!SupabaseBootstrap.isInitialized) {
+      return Stream<List<AgentIssue>>.error(
+        StateError('Supabase est indisponible pour les signalements Agent.'),
+      );
+    }
+    return SupabaseAgentIssueRepository().watchAgentIssues(agentId);
   }
 
   @override
   Stream<List<AgentIssue>> watchAllAgentIssues() {
-    return _issues.snapshots().map((snapshot) {
-      final List<AgentIssue> issues =
-          snapshot.docs
-              .map(_issueFromDocument)
-              .whereType<AgentIssue>()
-              .toList(growable: false)
-            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return List<AgentIssue>.unmodifiable(issues);
-    });
+    if (!SupabaseBootstrap.isInitialized) {
+      return Stream<List<AgentIssue>>.error(
+        StateError('Supabase est indisponible pour les signalements Agent.'),
+      );
+    }
+    return SupabaseAgentIssueRepository().watchAllAgentIssues();
   }
 
   @override
@@ -620,18 +645,15 @@ class FirestoreAgentRepository implements AgentRepository {
     required String agentId,
     required AgentIssueDraft issue,
   }) async {
-    await _issues.add(<String, dynamic>{
-      'schemaVersion': 1,
-      'agentId': agentId,
-      'type': issue.type,
-      'network': issue.network?.firestoreValue,
-      'description': issue.description.trim(),
-      'status': 'open',
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-      'resolvedAt': null,
-      'resolvedBy': null,
-    });
+    if (!SupabaseBootstrap.isInitialized) {
+      throw StateError(
+        'Supabase est indisponible pour les signalements Agent.',
+      );
+    }
+    await SupabaseAgentIssueRepository().createIssue(
+      agentId: agentId,
+      issue: issue,
+    );
   }
 
   @override
@@ -640,13 +662,16 @@ class FirestoreAgentRepository implements AgentRepository {
     required String status,
     String? resolvedBy,
   }) async {
-    final bool marksAsResolved = status == 'resolved' || status == 'cancelled';
-    await _issues.doc(issueId).update(<String, dynamic>{
-      'status': status,
-      'updatedAt': FieldValue.serverTimestamp(),
-      'resolvedAt': marksAsResolved ? FieldValue.serverTimestamp() : null,
-      'resolvedBy': marksAsResolved ? resolvedBy : null,
-    });
+    if (!SupabaseBootstrap.isInitialized) {
+      throw StateError(
+        'Supabase est indisponible pour les signalements Agent.',
+      );
+    }
+    await SupabaseAgentIssueRepository().updateIssueStatus(
+      issueId: issueId,
+      status: status,
+      resolvedBy: resolvedBy,
+    );
   }
 
   String _movementMarkerField(AgentNetwork network) {
@@ -736,7 +761,14 @@ class FirestoreAgentRepository implements AgentRepository {
   ) {
     final Map<String, dynamic>? data = doc.data();
     if (data == null) return null;
-    final String userId = _string(data['userId'], fallback: doc.id);
+    return _personalProfileFromMap(doc.id, data);
+  }
+
+  AgentPersonalProfile? _personalProfileFromMap(
+    String documentId,
+    Map<String, dynamic> data,
+  ) {
+    final String userId = _string(data['userId'], fallback: documentId);
     if (userId.isEmpty) return null;
     return AgentPersonalProfile(
       userId: userId,
@@ -786,26 +818,6 @@ class FirestoreAgentRepository implements AgentRepository {
       city: city,
       region: region,
       isActive: data['isActive'] == true,
-    );
-  }
-
-  AgentIssue? _issueFromDocument(
-    QueryDocumentSnapshot<Map<String, dynamic>> doc,
-  ) {
-    final Map<String, dynamic> data = doc.data();
-    final DateTime? createdAt = _date(data['createdAt']);
-    if (createdAt == null) return null;
-    return AgentIssue(
-      id: doc.id,
-      agentId: _string(data['agentId']),
-      type: _string(data['type']),
-      network: _network(data['network']),
-      description: _string(data['description']),
-      status: _string(data['status']),
-      createdAt: createdAt,
-      updatedAt: _date(data['updatedAt']),
-      resolvedAt: _date(data['resolvedAt']),
-      resolvedBy: _nullableString(data['resolvedBy']),
     );
   }
 

@@ -9,9 +9,15 @@ void main() {
     final String rules = _read('firestore.rules');
 
     expect(rules, contains('function isValidAgentAssignmentRefusedEvent()'));
-    expect(rules, contains("request.resource.data.type == 'ASSIGNMENT_REFUSED'"));
+    expect(
+      rules,
+      contains("request.resource.data.type == 'ASSIGNMENT_REFUSED'"),
+    );
     expect(rules, contains('let orderBefore = get('));
-    expect(rules, contains("hasMatchingOrderEvent(orderId, 'ASSIGNMENT_REFUSED')"));
+    expect(
+      rules,
+      contains("hasMatchingOrderEvent(orderId, 'ASSIGNMENT_REFUSED')"),
+    );
   });
 
   test('le suivi des signalements accepte en cours et trace la cloture', () {
@@ -26,19 +32,25 @@ void main() {
     expect(rules, contains('request.resource.data.resolvedBy is string'));
     expect(page, contains('Rechercher un signalement'));
     expect(page, contains('_AgentIssueDetailSheet'));
-    expect(page, contains("label: resolved ? 'R\u00e9solu par' : 'Class\u00e9 par'"));
+    expect(
+      page,
+      contains("label: resolved ? 'R\u00e9solu par' : 'Class\u00e9 par'"),
+    );
   });
 
-  test('la photo Agent est autorisee en Blob Firestore', () {
-    final String rules = _read('firestore.rules');
+  test('la photo Agent est migrée vers Supabase Storage', () {
     final String profile = _read(
       'lib/features/agents/presentation/pages/agent_personal_profile_page.dart',
     );
+    final String repository = _read(
+      'lib/features/agents/data/repositories/'
+      'supabase_agent_personal_profile_repository.dart',
+    );
 
-    expect(rules, contains('match /agentPersonalMedia/{agentId}/items/{kind}'));
-    expect(rules, contains('request.resource.data.contentBytes is bytes'));
-    expect(profile, contains("'hasAvatarMedia': avatarPresent"));
-    expect(profile, contains("'hasIdentityDocumentMedia': identityPresent"));
+    expect(profile, contains('SupabaseAgentPersonalProfileRepository'));
+    expect(profile, isNot(contains('WriteBatch')));
+    expect(repository, contains("bucketName = 'agent-personal'"));
+    expect(repository, contains('.uploadBinary('));
   });
 
   test('l espace Agent possede un accueil et les raccourcis officiels', () {
@@ -57,7 +69,10 @@ void main() {
     expect(home, contains("title: 'Mon activit\u00e9 d\u00e9taill\u00e9e'"));
     expect(home, contains("title: 'Mes commissions'"));
     expect(profile, isNot(contains('Mes commissions V2')));
-    expect(profile, isNot(contains('Voir mon activit\u00e9 d\u00e9taill\u00e9e')));
+    expect(
+      profile,
+      isNot(contains('Voir mon activit\u00e9 d\u00e9taill\u00e9e')),
+    );
   });
 
   test('les commandes sans Agent sont visibles cote Admin', () {
@@ -84,7 +99,10 @@ void main() {
     );
 
     expect(page, isNot(contains('floatingActionButton:')));
-    expect(page, contains('Identit\u00e9 et activit\u00e9 d\u00e9taill\u00e9e'));
+    expect(
+      page,
+      contains('Identit\u00e9 et activit\u00e9 d\u00e9taill\u00e9e'),
+    );
     expect(page, isNot(contains('Identit\u00c3\u00a9')));
   });
 

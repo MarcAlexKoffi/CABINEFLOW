@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
@@ -41,10 +43,8 @@ class AgentHomePage extends StatelessWidget {
   void _openIssues(BuildContext context) {
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => AgentIssuesPage(
-          agentId: user.id,
-          repository: agentRepository,
-        ),
+        builder: (_) =>
+            AgentIssuesPage(agentId: user.id, repository: agentRepository),
       ),
     );
   }
@@ -61,136 +61,174 @@ class AgentHomePage extends StatelessWidget {
             final AgentProfile? profile = profileSnapshot.data;
             return StreamBuilder<List<QueueOrder>>(
               stream: ordersRepository.watchAssignedOrders(agentId: user.id),
-              builder: (BuildContext context, AsyncSnapshot<List<QueueOrder>> orderSnapshot) {
-                final List<QueueOrder> orders =
-                    orderSnapshot.data ?? const <QueueOrder>[];
-                return StreamBuilder<List<AgentIssue>>(
-                  stream: agentRepository.watchAgentIssues(user.id),
-                  builder: (BuildContext context, AsyncSnapshot<List<AgentIssue>> issueSnapshot) {
-                    final List<AgentIssue> issues =
-                        issueSnapshot.data ?? const <AgentIssue>[];
-                    final int toAccept = orders.where((QueueOrder order) {
-                      return order.status == QueueOrderStatus.paidReady &&
-                          order.assignmentStatus == OrderAssignmentStatus.assigned;
-                    }).length;
-                    final int inProgress = orders.where((QueueOrder order) {
-                      return order.status == QueueOrderStatus.inProgress ||
-                          order.status == QueueOrderStatus.onHold ||
-                          (order.status == QueueOrderStatus.paidReady &&
-                              order.assignmentStatus == OrderAssignmentStatus.accepted);
-                    }).length;
-                    final int completed = orders.where((QueueOrder order) {
-                      return order.status == QueueOrderStatus.completed ||
-                          order.status == QueueOrderStatus.awaitingCustomerConfirmation;
-                    }).length;
-                    final int openIssues = issues.where((AgentIssue issue) {
-                      return issue.status == 'open' ||
-                          issue.status == 'in_progress' ||
-                          issue.status == 'acknowledged';
-                    }).length;
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<List<QueueOrder>> orderSnapshot,
+                  ) {
+                    final List<QueueOrder> orders =
+                        orderSnapshot.data ?? const <QueueOrder>[];
+                    return StreamBuilder<List<AgentIssue>>(
+                      stream: agentRepository.watchAgentIssues(user.id),
+                      builder:
+                          (
+                            BuildContext context,
+                            AsyncSnapshot<List<AgentIssue>> issueSnapshot,
+                          ) {
+                            final List<AgentIssue> issues =
+                                issueSnapshot.data ?? const <AgentIssue>[];
+                            final int toAccept = orders.where((
+                              QueueOrder order,
+                            ) {
+                              return order.status ==
+                                      QueueOrderStatus.paidReady &&
+                                  order.assignmentStatus ==
+                                      OrderAssignmentStatus.assigned;
+                            }).length;
+                            final int inProgress = orders.where((
+                              QueueOrder order,
+                            ) {
+                              return order.status ==
+                                      QueueOrderStatus.inProgress ||
+                                  order.status == QueueOrderStatus.onHold ||
+                                  (order.status == QueueOrderStatus.paidReady &&
+                                      order.assignmentStatus ==
+                                          OrderAssignmentStatus.accepted);
+                            }).length;
+                            final int completed = orders.where((
+                              QueueOrder order,
+                            ) {
+                              return order.status ==
+                                      QueueOrderStatus.completed ||
+                                  order.status ==
+                                      QueueOrderStatus
+                                          .awaitingCustomerConfirmation;
+                            }).length;
+                            final int openIssues = issues.where((
+                              AgentIssue issue,
+                            ) {
+                              return issue.status == 'open' ||
+                                  issue.status == 'in_progress' ||
+                                  issue.status == 'acknowledged';
+                            }).length;
 
-                    return RefreshIndicator(
-                      onRefresh: () async {
-                        await Future<void>.delayed(const Duration(milliseconds: 220));
-                      },
-                      child: ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(
-                          IzyTelSpacing.lg,
-                          IzyTelSpacing.md,
-                          IzyTelSpacing.lg,
-                          IzyTelSpacing.xxl,
-                        ),
-                        children: <Widget>[
-                          _HomeHeader(
-                            firstName: _firstName,
-                            userName: user.name,
-                            availability: profile?.availability,
-                            onOpenProfile: onOpenProfile,
-                          ),
-                          const SizedBox(height: IzyTelSpacing.xl),
-                          _PriorityActionCard(
-                            toAccept: toAccept,
-                            inProgress: inProgress,
-                            onOpenOrders: onOpenOrders,
-                          ),
-                          const SizedBox(height: IzyTelSpacing.lg),
-                          _OperationalSummary(
-                            toAccept: toAccept,
-                            inProgress: inProgress,
-                            completed: completed,
-                          ),
-                          const SizedBox(height: IzyTelSpacing.xl),
-                          const IzyTelSectionHeader(title: 'Mon suivi'),
-                          const SizedBox(height: IzyTelSpacing.sm),
-                          IzyTelSurface(
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                IzyTelMenuRow(
-                                  icon: Symbols.insights_rounded,
-                                  title: 'Mon activité détaillée',
-                                  subtitle:
-                                      'Performances, commandes, capacités et mouvements.',
-                                  iconColor: IzyTelColors.primary,
-                                  onTap: onOpenActivity,
+                            return RefreshIndicator(
+                              onRefresh: () async {
+                                await Future<void>.delayed(
+                                  const Duration(milliseconds: 220),
+                                );
+                              },
+                              child: ListView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                padding: const EdgeInsets.fromLTRB(
+                                  IzyTelSpacing.lg,
+                                  IzyTelSpacing.md,
+                                  IzyTelSpacing.lg,
+                                  IzyTelSpacing.xxl,
                                 ),
-                                const Divider(height: 1),
-                                IzyTelMenuRow(
-                                  icon: Symbols.account_balance_wallet_rounded,
-                                  title: 'Mes commissions',
-                                  subtitle:
-                                      'Consulter mon solde, mes gains et mes versements.',
-                                  iconColor: IzyTelColors.success,
-                                  onTap: onOpenCommissions,
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (openIssues > 0) ...<Widget>[
-                            const SizedBox(height: IzyTelSpacing.xl),
-                            const IzyTelSectionHeader(title: 'À surveiller'),
-                            const SizedBox(height: IzyTelSpacing.sm),
-                            IzyTelSurface(
-                              padding: const EdgeInsets.symmetric(horizontal: 14),
-                              child: IzyTelMenuRow(
-                                icon: Symbols.support_agent_rounded,
-                                title: 'Mes signalements',
-                                subtitle:
-                                    'Suivre les incidents actuellement en cours de traitement.',
-                                badge: '$openIssues',
-                                iconColor: IzyTelColors.warning,
-                                onTap: () => _openIssues(context),
+                                children: <Widget>[
+                                  _HomeHeader(
+                                    agentId: user.id,
+                                    firstName: _firstName,
+                                    userName: user.name,
+                                    availability: profile?.availability,
+                                    repository: agentRepository,
+                                    onOpenProfile: onOpenProfile,
+                                  ),
+                                  const SizedBox(height: IzyTelSpacing.xl),
+                                  _PriorityActionCard(
+                                    toAccept: toAccept,
+                                    inProgress: inProgress,
+                                    onOpenOrders: onOpenOrders,
+                                  ),
+                                  const SizedBox(height: IzyTelSpacing.lg),
+                                  _OperationalSummary(
+                                    toAccept: toAccept,
+                                    inProgress: inProgress,
+                                    completed: completed,
+                                  ),
+                                  const SizedBox(height: IzyTelSpacing.xl),
+                                  const IzyTelSectionHeader(title: 'Mon suivi'),
+                                  const SizedBox(height: IzyTelSpacing.sm),
+                                  IzyTelSurface(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: <Widget>[
+                                        IzyTelMenuRow(
+                                          icon: Symbols.insights_rounded,
+                                          title: 'Mon activité détaillée',
+                                          subtitle:
+                                              'Performances, commandes, capacités et mouvements.',
+                                          iconColor: IzyTelColors.primary,
+                                          onTap: onOpenActivity,
+                                        ),
+                                        const Divider(height: 1),
+                                        IzyTelMenuRow(
+                                          icon: Symbols
+                                              .account_balance_wallet_rounded,
+                                          title: 'Mes commissions',
+                                          subtitle:
+                                              'Consulter mon solde, mes gains et mes versements.',
+                                          iconColor: IzyTelColors.success,
+                                          onTap: onOpenCommissions,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (openIssues > 0) ...<Widget>[
+                                    const SizedBox(height: IzyTelSpacing.xl),
+                                    const IzyTelSectionHeader(
+                                      title: 'À surveiller',
+                                    ),
+                                    const SizedBox(height: IzyTelSpacing.sm),
+                                    IzyTelSurface(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                      ),
+                                      child: IzyTelMenuRow(
+                                        icon: Symbols.support_agent_rounded,
+                                        title: 'Mes signalements',
+                                        subtitle:
+                                            'Suivre les incidents actuellement en cours de traitement.',
+                                        badge: '$openIssues',
+                                        iconColor: IzyTelColors.warning,
+                                        onTap: () => _openIssues(context),
+                                      ),
+                                    ),
+                                  ],
+                                  const SizedBox(height: IzyTelSpacing.xl),
+                                  Row(
+                                    children: <Widget>[
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: onOpenHistory,
+                                          icon: const Icon(
+                                            Symbols.history_rounded,
+                                          ),
+                                          label: const Text('Historique'),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: onOpenProfile,
+                                          icon: const Icon(
+                                            Symbols.person_rounded,
+                                          ),
+                                          label: const Text('Profil'),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                            ),
-                          ],
-                          const SizedBox(height: IzyTelSpacing.xl),
-                          Row(
-                            children: <Widget>[
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: onOpenHistory,
-                                  icon: const Icon(Symbols.history_rounded),
-                                  label: const Text('Historique'),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: onOpenProfile,
-                                  icon: const Icon(Symbols.person_rounded),
-                                  label: const Text('Profil'),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                            );
+                          },
                     );
                   },
-                );
-              },
             );
           },
         ),
@@ -201,15 +239,19 @@ class AgentHomePage extends StatelessWidget {
 
 class _HomeHeader extends StatelessWidget {
   const _HomeHeader({
+    required this.agentId,
     required this.firstName,
     required this.userName,
     required this.availability,
+    required this.repository,
     required this.onOpenProfile,
   });
 
+  final String agentId;
   final String firstName;
   final String userName;
   final AgentAvailability? availability;
+  final AgentRepository repository;
   final VoidCallback onOpenProfile;
 
   @override
@@ -254,8 +296,101 @@ class _HomeHeader extends StatelessWidget {
             ],
           ),
         ),
-        IzyTelAvatar(name: userName, onTap: onOpenProfile),
+        _AgentHomeAvatar(
+          agentId: agentId,
+          userName: userName,
+          repository: repository,
+          onTap: onOpenProfile,
+        ),
       ],
+    );
+  }
+}
+
+class _AgentHomeAvatar extends StatefulWidget {
+  const _AgentHomeAvatar({
+    required this.agentId,
+    required this.userName,
+    required this.repository,
+    required this.onTap,
+  });
+
+  final String agentId;
+  final String userName;
+  final AgentRepository repository;
+  final VoidCallback onTap;
+
+  @override
+  State<_AgentHomeAvatar> createState() => _AgentHomeAvatarState();
+}
+
+class _AgentHomeAvatarState extends State<_AgentHomeAvatar> {
+  StreamSubscription<AgentPersonalProfile?>? _subscription;
+  String? _avatarUrl;
+  int _resolveGeneration = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _bindPersonalProfile();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AgentHomeAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.agentId != widget.agentId ||
+        oldWidget.repository != widget.repository) {
+      _bindPersonalProfile();
+    }
+  }
+
+  void _bindPersonalProfile() {
+    unawaited(_subscription?.cancel());
+    _avatarUrl = null;
+    _subscription = widget.repository
+        .watchPersonalProfile(widget.agentId)
+        .listen(
+          (AgentPersonalProfile? profile) {
+            final String? path = profile?.avatarStoragePath?.trim();
+            if (path == null || path.isEmpty) {
+              _resolveGeneration++;
+              if (mounted && _avatarUrl != null) {
+                setState(() => _avatarUrl = null);
+              }
+              return;
+            }
+            unawaited(_resolveAvatar(path));
+          },
+          onError: (_) {
+            _resolveGeneration++;
+            if (mounted && _avatarUrl != null) {
+              setState(() => _avatarUrl = null);
+            }
+          },
+        );
+  }
+
+  Future<void> _resolveAvatar(String path) async {
+    final int generation = ++_resolveGeneration;
+    final String? resolved = await widget.repository.resolvePersonalFileUrl(
+      path,
+    );
+    if (!mounted || generation != _resolveGeneration) return;
+    setState(() => _avatarUrl = resolved);
+  }
+
+  @override
+  void dispose() {
+    unawaited(_subscription?.cancel());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IzyTelAvatar(
+      name: widget.userName,
+      imageUrl: _avatarUrl,
+      onTap: widget.onTap,
     );
   }
 }
@@ -326,8 +461,8 @@ class _PriorityActionCard extends StatelessWidget {
             hasPending
                 ? '$toAccept commande${toAccept > 1 ? 's' : ''} à accepter'
                 : inProgress > 0
-                    ? '$inProgress commande${inProgress > 1 ? 's' : ''} en cours'
-                    : 'Aucune commande urgente',
+                ? '$inProgress commande${inProgress > 1 ? 's' : ''} en cours'
+                : 'Aucune commande urgente',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: hasPending ? Colors.white : IzyTelColors.textPrimary,
               fontWeight: FontWeight.w800,

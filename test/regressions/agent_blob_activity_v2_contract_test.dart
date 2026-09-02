@@ -5,31 +5,24 @@ import 'package:flutter_test/flutter_test.dart';
 String _read(String path) => File(path).readAsStringSync();
 
 void main() {
-  test('B2 stocke avatar et pièce en Blob Firestore sans Firebase Storage', () {
+  test('Phase Supabase 1 stocke avatar et pièce hors Firestore', () {
     final String mediaRepository = _read(
       'lib/features/agents/data/repositories/'
-      'firestore_agent_personal_media_repository.dart',
+      'supabase_agent_personal_profile_repository.dart',
     );
     final String profilePage = _read(
       'lib/features/agents/presentation/pages/agent_personal_profile_page.dart',
     );
 
-    expect(mediaRepository, contains('Blob(media.bytes)'));
+    expect(mediaRepository, contains("bucketName = 'agent-personal'"));
     expect(mediaRepository, contains('avatarMaxBytes = 250000'));
     expect(mediaRepository, contains('identityMaxBytes = 850000'));
     expect(mediaRepository, contains("mimeType: 'application/pdf'"));
-    expect(mediaRepository, contains('bytes[0] == 0x25'));
-    expect(mediaRepository, contains('bytes[1] == 0x50'));
-    expect(mediaRepository, contains('bytes[2] == 0x44'));
-    expect(mediaRepository, contains('bytes[3] == 0x46'));
+    expect(mediaRepository, contains('.uploadBinary('));
+    expect(mediaRepository, contains('.download(path)'));
     expect(profilePage, isNot(contains('FirebaseStorage')));
-    expect(profilePage, isNot(contains('firebase_storage')));
-    expect(profilePage, isNot(contains('putData(')));
-    expect(profilePage, isNot(contains('getDownloadURL(')));
-    expect(
-      profilePage,
-      contains('Aucun fichier n’est envoyé dans Firebase Storage'),
-    );
+    expect(profilePage, isNot(contains('WriteBatch')));
+    expect(profilePage, contains('espace privé Supabase'));
   });
 
   test('les règles B2 bornent strictement les médias privés Agent', () {
@@ -60,7 +53,6 @@ void main() {
       'commissionAccounts',
       'commissionPayouts',
       'agentProfiles',
-      'agentIssues',
     ]) {
       expect(
         activityRepository,
@@ -72,6 +64,8 @@ void main() {
       activityRepository,
       isNot(contains(".collection('agentActivities')")),
     );
+    expect(activityRepository, isNot(contains(".collection('agentIssues')")));
+    expect(activityRepository, contains('SupabaseAgentIssueRepository'));
   });
 
   test('C n’élargit en écriture aucun flux financier', () {

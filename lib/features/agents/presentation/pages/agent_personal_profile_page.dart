@@ -1,13 +1,11 @@
 import 'dart:typed_data';
 
-import 'package:cabine_flow/features/agents/data/repositories/firestore_agent_personal_media_repository.dart';
+import 'package:cabine_flow/features/agents/data/repositories/supabase_agent_personal_profile_repository.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_personal_media.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -16,12 +14,12 @@ class AgentPersonalProfilePage extends StatefulWidget {
     super.key,
     required this.user,
     required this.repository,
-    this.firestore,
+    this.personalProfileRepository,
   });
 
   final AppUser user;
   final AgentRepository repository;
-  final FirebaseFirestore? firestore;
+  final SupabaseAgentPersonalProfileRepository? personalProfileRepository;
 
   @override
   State<AgentPersonalProfilePage> createState() =>
@@ -31,8 +29,7 @@ class AgentPersonalProfilePage extends StatefulWidget {
 class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
   final _formKey = GlobalKey<FormState>();
   final _picker = ImagePicker();
-  FirebaseFirestore? _firestore;
-  FirestoreAgentPersonalMediaRepository? _mediaRepository;
+  SupabaseAgentPersonalProfileRepository? _profileRepository;
 
   final _firstName = TextEditingController();
   final _lastName = TextEditingController();
@@ -63,13 +60,14 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
   @override
   void initState() {
     super.initState();
-    final FirebaseFirestore? firestore = widget.firestore ??
-        (Firebase.apps.isNotEmpty ? FirebaseFirestore.instance : null);
-    _firestore = firestore;
-    if (firestore != null) {
-      _mediaRepository = FirestoreAgentPersonalMediaRepository(
-        firestore: firestore,
-      );
+    _profileRepository = widget.personalProfileRepository;
+    if (_profileRepository == null) {
+      try {
+        _profileRepository = SupabaseAgentPersonalProfileRepository();
+      } catch (_) {
+        // Les widget tests n'initialisent pas Supabase. Dans ce cas la page
+        // reste rendable et affiche les informations déjà connues du compte.
+      }
     }
     _load();
   }
@@ -97,25 +95,22 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       });
     }
 
-    // Toujours afficher au minimum les informations déjà connues du compte
-    // connecté. Un échec Firestore sur un média ne doit jamais vider le
-    // formulaire personnel.
+    // Le compte Firebase reste l'identité de connexion pendant la migration.
+    // Les données personnelles sont désormais lues exclusivement dans Supabase.
     _hydrateFromSignedInUser();
 
-    final FirebaseFirestore? firestore = _firestore;
-    final FirestoreAgentPersonalMediaRepository? mediaRepository =
-        _mediaRepository;
-    if (firestore == null) {
+    final SupabaseAgentPersonalProfileRepository? repository =
+        _profileRepository;
+    if (repository == null) {
+      _error =
+          'Supabase n’est pas initialisé. Le profil reste consultable, mais ne peut pas encore être enregistré.';
       if (mounted) setState(() => _isLoading = false);
       return;
     }
 
+    Map<String, dynamic>? data;
     try {
-      final profileSnapshot = await firestore
-          .collection('agentPersonalProfiles')
-          .doc(widget.user.id)
-          .get();
-      final Map<String, dynamic>? data = profileSnapshot.data();
+      data = await repository.fetchProfile(widget.user.id);
       if (data != null) {
         _existingProfile = Map<String, dynamic>.from(data);
         _firstName.text = _text(data['firstName']);
@@ -135,23 +130,21 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
             ? 'incomplete'
             : _text(data['verificationStatus']);
         _verificationNote = _nullableText(data['verificationNote']);
+      } else {
+        _existingProfile = null;
       }
-    } on FirebaseException catch (error) {
-      _error = error.code == 'permission-denied'
-          ? 'Impossible de lire le profil Firestore pour le moment. '
-                'Les informations du compte restent affichées. Réessaie après la mise à jour des autorisations.'
-          : 'Impossible de charger les informations personnelles : '
-                '${error.message ?? error.code}';
     } catch (error) {
-      _error = 'Impossible de charger les informations personnelles : $error';
+      _error =
+          'Impossible de charger le profil Supabase pour le moment : $error';
     }
 
     final List<String> unavailableMedia = <String>[];
-    if (mediaRepository != null) {
+    if (data != null) {
       try {
-        _avatarMedia = await mediaRepository.fetch(
+        _avatarMedia = await repository.fetchMedia(
           agentId: widget.user.id,
           kind: AgentPersonalMediaKind.avatar,
+          profile: data,
         );
       } catch (_) {
         _avatarMedia = null;
@@ -159,23 +152,26 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       }
 
       try {
-        _identityMedia = await mediaRepository.fetch(
+        _identityMedia = await repository.fetchMedia(
           agentId: widget.user.id,
           kind: AgentPersonalMediaKind.identity,
+          profile: data,
         );
       } catch (_) {
         _identityMedia = null;
         unavailableMedia.add('pièce d’identité');
       }
+    } else {
+      _avatarMedia = null;
+      _identityMedia = null;
     }
 
     _pendingAvatar = null;
     _pendingIdentity = null;
     if (unavailableMedia.isNotEmpty) {
       _mediaWarning =
-          'Certains médias du profil sont temporairement indisponibles '
-          '(${unavailableMedia.join(', ')}). Le formulaire reste utilisable ; '
-          'réessaie après la mise à jour des autorisations.';
+          'Certains médias Supabase sont temporairement indisponibles '
+          '(${unavailableMedia.join(', ')}). Le formulaire reste utilisable.';
     }
 
     if (mounted) {
@@ -209,11 +205,13 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       );
       if (file == null) return;
       final Uint8List bytes = await file.readAsBytes();
-      final mediaRepository = _mediaRepository;
-      if (mediaRepository == null) {
-        throw StateError('Firebase doit être initialisé pour enregistrer la photo.');
+      final repository = _profileRepository;
+      if (repository == null) {
+        throw StateError(
+          'Supabase doit être initialisé pour enregistrer la photo.',
+        );
       }
-      final prepared = mediaRepository.prepareAvatar(
+      final prepared = repository.prepareAvatar(
         source: bytes,
         fileName: file.name,
       );
@@ -240,11 +238,13 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       );
       if (file == null) return;
       final Uint8List bytes = await file.readAsBytes();
-      final mediaRepository = _mediaRepository;
-      if (mediaRepository == null) {
-        throw StateError('Firebase doit être initialisé pour enregistrer la pièce.');
+      final repository = _profileRepository;
+      if (repository == null) {
+        throw StateError(
+          'Supabase doit être initialisé pour enregistrer la pièce.',
+        );
       }
-      final prepared = mediaRepository.prepareIdentityImage(
+      final prepared = repository.prepareIdentityImage(
         source: bytes,
         fileName: file.name,
       );
@@ -268,15 +268,17 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       );
       if (file == null) return;
       final int length = await file.length();
-      if (length > FirestoreAgentPersonalMediaRepository.identityMaxBytes) {
+      if (length > SupabaseAgentPersonalProfileRepository.identityMaxBytes) {
         throw StateError('Le PDF doit faire moins de 850 Ko.');
       }
       final Uint8List bytes = await file.readAsBytes();
-      final mediaRepository = _mediaRepository;
-      if (mediaRepository == null) {
-        throw StateError('Firebase doit être initialisé pour enregistrer la pièce.');
+      final repository = _profileRepository;
+      if (repository == null) {
+        throw StateError(
+          'Supabase doit être initialisé pour enregistrer la pièce.',
+        );
       }
-      final prepared = mediaRepository.prepareIdentityPdf(
+      final prepared = repository.prepareIdentityPdf(
         source: bytes,
         fileName: file.name,
       );
@@ -295,7 +297,10 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             ListTile(
-              title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+              title: Text(
+                title,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
             ),
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
@@ -345,7 +350,6 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
     try {
       final String firstName = _firstName.text.trim();
       final String lastName = _lastName.text.trim();
-      final String displayName = '$firstName $lastName'.trim();
       final bool avatarPresent =
           _pendingAvatar != null ||
           _avatarMedia != null ||
@@ -355,133 +359,54 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
           _pendingIdentity != null ||
           _identityMedia != null ||
           _existingProfile?['hasIdentityDocumentMedia'] == true ||
-          _nullableText(_existingProfile?['identityDocumentStoragePath']) != null;
+          _nullableText(_existingProfile?['identityDocumentStoragePath']) !=
+              null;
       final String nextVerification = _isVerified
           ? 'verified'
           : avatarPresent && identityPresent
           ? 'pendingReview'
           : 'incomplete';
 
-      final FirebaseFirestore? firestore = _firestore;
-      final FirestoreAgentPersonalMediaRepository? mediaRepository =
-          _mediaRepository;
-      if (firestore == null || mediaRepository == null) {
+      final SupabaseAgentPersonalProfileRepository? repository =
+          _profileRepository;
+      if (repository == null) {
         _verificationStatus = nextVerification;
         if (mounted) {
           IzyTelFeedback.show(
             context,
-            'Mode de test local : aucune écriture Firebase effectuée.',
+            'Supabase n’est pas initialisé : aucune écriture effectuée.',
             tone: IzyTelFeedbackTone.warning,
           );
         }
         return;
       }
 
-      final DocumentReference<Map<String, dynamic>> profileRef = firestore
-          .collection('agentPersonalProfiles')
-          .doc(widget.user.id);
-      final DocumentReference<Map<String, dynamic>> userRef = firestore
-          .collection('users')
-          .doc(widget.user.id);
-      final WriteBatch batch = firestore.batch();
-      final Object createdAt = _existingProfile?['createdAt'] ??
-          FieldValue.serverTimestamp();
-      final String? identityFileName = _pendingIdentity?.fileName ??
-          _identityMedia?.fileName ??
-          _nullableText(_existingProfile?['identityDocumentFileName']);
-      final String? identityMimeType = _pendingIdentity?.mimeType ??
-          _identityMedia?.mimeType ??
-          _nullableText(_existingProfile?['identityDocumentMimeType']);
-
-      final Map<String, dynamic> profileData = <String, dynamic>{
-        'schemaVersion': 1,
-        'userId': widget.user.id,
-        'firstName': firstName,
-        'lastName': lastName,
-        'dateOfBirth': Timestamp.fromDate(_dateOfBirth!),
-        'address': _address.text.trim(),
-        'city': _city.text.trim(),
-        'contact1': _contact1.text.trim(),
-        'contact2': _contact2.text.trim(),
-        'emergencyContactName': _emergencyName.text.trim(),
-        'emergencyContactPhone': _emergencyPhone.text.trim(),
-        'identityDocumentType': _identityType,
-        'identityDocumentNumber': _identityNumber.text.trim(),
-        // Compatibilité du schéma A+B : ces anciens chemins sont conservés
-        // mais B2 ne lit ni n’écrit aucun fichier dans Firebase Storage.
-        'avatarStoragePath': _existingProfile?['avatarStoragePath'],
-        'identityDocumentStoragePath':
-            _existingProfile?['identityDocumentStoragePath'],
-        'hasAvatarMedia': avatarPresent,
-        'hasIdentityDocumentMedia': identityPresent,
-        'identityDocumentFileName': identityFileName,
-        'identityDocumentMimeType': identityMimeType,
-        'verificationStatus': nextVerification,
-        'verificationNote': _isVerified ? _verificationNote : null,
-        'createdAt': createdAt,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-      batch.set(profileRef, profileData);
-      batch.update(userRef, <String, dynamic>{
-        'name': displayName,
-        'phoneNumber': _contact1.text.trim(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      _queueMediaWrite(
-        batch: batch,
-        pending: _pendingAvatar,
-        existing: _avatarMedia,
-        mediaRepository: mediaRepository,
+      await repository.saveProfile(
+        agentId: widget.user.id,
+        firstName: firstName,
+        lastName: lastName,
+        dateOfBirth: _dateOfBirth!,
+        address: _address.text.trim(),
+        city: _city.text.trim(),
+        contact1: _contact1.text.trim(),
+        contact2: _contact2.text.trim(),
+        emergencyContactName: _emergencyName.text.trim(),
+        emergencyContactPhone: _emergencyPhone.text.trim(),
+        identityDocumentType: _identityType,
+        identityDocumentNumber: _identityNumber.text.trim(),
+        verificationStatus: nextVerification,
+        verificationNote: _isVerified ? _verificationNote : null,
+        avatar: _pendingAvatar,
+        identityDocument: _pendingIdentity,
       );
-      _queueMediaWrite(
-        batch: batch,
-        pending: _pendingIdentity,
-        existing: _identityMedia,
-        mediaRepository: mediaRepository,
-      );
-      await batch.commit();
+
       if (!mounted) return;
-      IzyTelFeedback.success(context, 'Profil enregistré.');
+      IzyTelFeedback.success(context, 'Profil enregistré sur Supabase.');
       await _load();
-    } on FirebaseException catch (error) {
-      _showError(
-        error.code == 'permission-denied'
-            ? 'Firestore refuse l’enregistrement. Vérifie que les règles de sécurité à jour sont publiées.'
-            : 'Firebase : ${error.message ?? error.code}',
-      );
     } catch (error) {
-      _showError('$error');
+      _showError('Supabase refuse l’enregistrement : $error');
     } finally {
       if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  void _queueMediaWrite({
-    required WriteBatch batch,
-    required PreparedAgentMedia? pending,
-    required AgentPersonalMedia? existing,
-    required FirestoreAgentPersonalMediaRepository mediaRepository,
-  }) {
-    if (pending == null) return;
-    final ref = mediaRepository.mediaRef(
-      agentId: widget.user.id,
-      kind: pending.kind,
-    );
-    if (existing == null) {
-      batch.set(
-        ref,
-        mediaRepository.createData(agentId: widget.user.id, media: pending),
-      );
-    } else {
-      batch.set(
-        ref,
-        <String, dynamic>{
-          ...mediaRepository.updateData(media: pending),
-          'agentId': widget.user.id,
-        },
-        SetOptions(merge: true),
-      );
     }
   }
 
@@ -566,12 +491,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
               maxLength: 200,
             ),
             const SizedBox(height: 10),
-            _field(
-              _city,
-              'Ville / commune',
-              minLength: 2,
-              maxLength: 100,
-            ),
+            _field(_city, 'Ville / commune', minLength: 2, maxLength: 100),
             const SizedBox(height: 18),
             _sectionTitle(context, 'Contacts'),
             const SizedBox(height: 8),
@@ -653,7 +573,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
             const SizedBox(height: 8),
             Text(
               '850 Ko maximum. Les images sont compressées automatiquement. '
-              'Les PDF trop lourds sont refusés. Aucun fichier n’est envoyé dans Firebase Storage.',
+              'Les PDF trop lourds sont refusés. Les fichiers sont enregistrés dans l’espace privé Supabase de l’Agent.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 20),
@@ -751,7 +671,9 @@ class _ProfileMediaHeader extends StatelessWidget {
             CircleAvatar(
               radius: 38,
               foregroundImage: bytes == null ? null : MemoryImage(bytes!),
-              child: bytes == null ? const Icon(Icons.person_outline, size: 34) : null,
+              child: bytes == null
+                  ? const Icon(Icons.person_outline, size: 34)
+                  : null,
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -817,7 +739,9 @@ class _IdentityMediaCard extends StatelessWidget {
             else
               const SizedBox(
                 height: 90,
-                child: Center(child: Icon(Icons.picture_as_pdf_outlined, size: 42)),
+                child: Center(
+                  child: Icon(Icons.picture_as_pdf_outlined, size: 42),
+                ),
               ),
             const SizedBox(height: 8),
             Text(
@@ -887,9 +811,9 @@ class _InfoCard extends StatelessWidget {
 Widget _sectionTitle(BuildContext context, String text) {
   return Text(
     text,
-    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-      fontWeight: FontWeight.w800,
-    ),
+    style: Theme.of(
+      context,
+    ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
   );
 }
 
@@ -911,8 +835,11 @@ String? _nullableText(Object? value) {
   final text = _text(value);
   return text.isEmpty ? null : text;
 }
+
 DateTime? _date(Object? value) {
-  if (value is Timestamp) return value.toDate();
   if (value is DateTime) return value;
+  if (value is String && value.trim().isNotEmpty) {
+    return DateTime.tryParse(value.trim());
+  }
   return null;
 }
