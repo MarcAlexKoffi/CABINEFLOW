@@ -153,8 +153,16 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1100));
     await tester.pumpAndSettle();
 
+    // L'agent arrive désormais sur un véritable Accueil, avec les raccourcis
+    // vers l'activité détaillée et les commissions.
     expect(find.textContaining('Bonjour'), findsOneWidget);
-    expect(find.textContaining('commande'), findsWidgets);
+    expect(find.text('Mon activité détaillée'), findsOneWidget);
+    expect(find.text('Mes commissions'), findsOneWidget);
+
+    // La file de commandes reste accessible depuis la navigation principale.
+    await tester.tap(find.byKey(const ValueKey<String>('agent-nav-commandes')));
+    await tester.pump(const Duration(milliseconds: 900));
+    await tester.pumpAndSettle();
     expect(find.text('Accepter'), findsWidgets);
     expect(find.text('Mes commandes'), findsNothing);
 
@@ -162,27 +170,29 @@ void main() {
     await tester.pump(const Duration(milliseconds: 900));
     await tester.pumpAndSettle();
 
-    // 'Profil' est affiché à la fois comme titre de page et dans la
-    // navigation basse. Le test valide donc le contenu propre à l'écran
-    // Profil plutôt qu'un nombre fragile d'occurrences du libellé.
+    // Le profil ne contient plus les pages d'activité/commissions officielles :
+    // elles sont volontairement mises en avant sur Accueil.
     expect(find.text('Profil'), findsWidgets);
     expect(
-      find.text('Ton activité et tes réglages opérationnels.'),
+      find.text('Tes informations et réglages opérationnels.'),
       findsOneWidget,
     );
-    // Le contenu du Profil est dans une ListView paresseuse : `Mon activité`
-    // peut ne pas encore être construit sur un viewport de test compact.
-    // On fait défiler la vraie liste au lieu d'utiliser scrollUntilVisible,
-    // qui exige que la cible soit déjà matérialisée dans l'arbre.
+
     final Finder profileList = find.byType(ListView);
     expect(profileList, findsOneWidget);
     await tester.drag(profileList, const Offset(0, -420));
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Mon activité'.toUpperCase(), skipOffstage: false),
+      find.text('Informations personnelles', skipOffstage: false),
       findsOneWidget,
     );
-    expect(find.text('Mes performances', skipOffstage: false), findsOneWidget);
+    expect(
+      find.text('Mes signalements', skipOffstage: false),
+      findsWidgets,
+    );
+    // L'Accueil reste monté dans l'IndexedStack, mais son raccourci ne doit
+    // pas être visible quand l'onglet Profil est actif.
+    expect(find.text('Mon activité détaillée'), findsNothing);
   });
 }

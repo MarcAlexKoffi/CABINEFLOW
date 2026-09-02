@@ -240,23 +240,21 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
     }
   }
 
+  void _openDetailedProfile() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AdminAgentProfileActivityPage(
+          agentId: widget.agent.userId,
+          agentName: widget.agent.name,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final AgentProfile? profile = widget.agent.profile;
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => AdminAgentProfileActivityPage(
-                agentId: widget.agent.userId,
-                agentName: widget.agent.name,
-              ),
-            ),
-          );
-        },
-        label: const Text('IdentitÃ© & activitÃ©'),
-      ),
       backgroundColor: IzyTelColors.background,
       appBar: AppBar(title: const Text('Profil Agent')),
       body: SafeArea(
@@ -270,6 +268,15 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                 _ProfileHeader(
                   agent: widget.agent,
                   isActive: _viewModel.isActive,
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _openDetailedProfile,
+                    icon: const Icon(Symbols.manage_accounts_rounded),
+                    label: const Text('Identité et activité détaillée'),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 _SectionCard(

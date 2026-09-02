@@ -18,6 +18,7 @@ class FakeDashboardRepository implements DashboardRepository {
         paymentsToVerify: 3,
         inProgress: 5,
         completed: 42,
+        unassignedOrders: 2,
       ),
       balances: <AccountBalance>[
         AccountBalance(channel: ServiceChannel.orange, amount: 35400),

@@ -3,9 +3,8 @@ import 'dart:typed_data';
 import 'package:cabine_flow/features/agents/data/repositories/firestore_agent_personal_media_repository.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_personal_media.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
-import 'package:cabine_flow/features/agents/presentation/pages/agent_activity_v2_dashboard_page.dart';
-import 'package:cabine_flow/features/commissions/presentation/pages/commission_v2_dashboard_page.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -140,7 +139,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
     } on FirebaseException catch (error) {
       _error = error.code == 'permission-denied'
           ? 'Impossible de lire le profil Firestore pour le moment. '
-                'Les informations du compte restent affichées. Publie les règles B2+C puis réessaie.'
+                'Les informations du compte restent affichées. Réessaie après la mise à jour des autorisations.'
           : 'Impossible de charger les informations personnelles : '
                 '${error.message ?? error.code}';
     } catch (error) {
@@ -176,7 +175,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       _mediaWarning =
           'Certains médias du profil sont temporairement indisponibles '
           '(${unavailableMedia.join(', ')}). Le formulaire reste utilisable ; '
-          'réessaie après publication des règles B2+C.';
+          'réessaie après la mise à jour des autorisations.';
     }
 
     if (mounted) {
@@ -347,9 +346,16 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       final String firstName = _firstName.text.trim();
       final String lastName = _lastName.text.trim();
       final String displayName = '$firstName $lastName'.trim();
-      final bool avatarPresent = _pendingAvatar != null || _avatarMedia != null;
+      final bool avatarPresent =
+          _pendingAvatar != null ||
+          _avatarMedia != null ||
+          _existingProfile?['hasAvatarMedia'] == true ||
+          _nullableText(_existingProfile?['avatarStoragePath']) != null;
       final bool identityPresent =
-          _pendingIdentity != null || _identityMedia != null;
+          _pendingIdentity != null ||
+          _identityMedia != null ||
+          _existingProfile?['hasIdentityDocumentMedia'] == true ||
+          _nullableText(_existingProfile?['identityDocumentStoragePath']) != null;
       final String nextVerification = _isVerified
           ? 'verified'
           : avatarPresent && identityPresent
@@ -362,10 +368,10 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       if (firestore == null || mediaRepository == null) {
         _verificationStatus = nextVerification;
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Mode de test local : aucune écriture Firebase effectuée.'),
-            ),
+          IzyTelFeedback.show(
+            context,
+            'Mode de test local : aucune écriture Firebase effectuée.',
+            tone: IzyTelFeedbackTone.warning,
           );
         }
         return;
@@ -406,6 +412,8 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
         'avatarStoragePath': _existingProfile?['avatarStoragePath'],
         'identityDocumentStoragePath':
             _existingProfile?['identityDocumentStoragePath'],
+        'hasAvatarMedia': avatarPresent,
+        'hasIdentityDocumentMedia': identityPresent,
         'identityDocumentFileName': identityFileName,
         'identityDocumentMimeType': identityMimeType,
         'verificationStatus': nextVerification,
@@ -434,14 +442,12 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       );
       await batch.commit();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profil enregistré.')),
-      );
+      IzyTelFeedback.success(context, 'Profil enregistré.');
       await _load();
     } on FirebaseException catch (error) {
       _showError(
         error.code == 'permission-denied'
-            ? 'Firestore refuse l’enregistrement. Publie d’abord les règles B2+C fournies.'
+            ? 'Firestore refuse l’enregistrement. Vérifie que les règles de sécurité à jour sont publiées.'
             : 'Firebase : ${error.message ?? error.code}',
       );
     } catch (error) {
@@ -482,9 +488,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
   void _showError(String message) {
     if (!mounted) return;
     setState(() => _error = message);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    IzyTelFeedback.error(context, message);
   }
 
   @override
@@ -648,7 +652,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Limite B2 : 850 Ko maximum. Les images sont compressées automatiquement. '
+              '850 Ko maximum. Les images sont compressées automatiquement. '
               'Les PDF trop lourds sont refusés. Aucun fichier n’est envoyé dans Firebase Storage.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
@@ -663,42 +667,6 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
                     )
                   : const Icon(Icons.save_outlined),
               label: Text(_isSaving ? 'Enregistrement…' : 'Enregistrer'),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: _firestore == null
-                  ? null
-                  : () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => AgentActivityV2DashboardPage(
-                            agentId: widget.user.id,
-                            agentName:
-                                '${_firstName.text} ${_lastName.text}'.trim(),
-                          ),
-                        ),
-                      );
-                    },
-              icon: const Icon(Icons.insights_outlined),
-              label: const Text('Voir mon activité détaillée'),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: _firestore == null
-                  ? null
-                  : () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => AgentCommissionsV2Page(
-                            agentId: widget.user.id,
-                            agentName:
-                                '${_firstName.text} ${_lastName.text}'.trim(),
-                          ),
-                        ),
-                      );
-                    },
-              icon: const Icon(Icons.receipt_long_outlined),
-              label: const Text('Mes commissions V2'),
             ),
           ],
         ),

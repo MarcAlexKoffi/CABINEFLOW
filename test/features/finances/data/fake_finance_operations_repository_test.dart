@@ -303,4 +303,70 @@ void main() {
       throwsArgumentError,
     );
   });
+
+  test('un fournisseur peut etre modifie', () async {
+    final String supplierId = await repository.createSupplier(
+      name: 'Grossiste initial',
+      phoneNumber: '+2250700000000',
+      staffId: 'admin',
+      staffName: 'Admin',
+    );
+
+    await repository.updateSupplier(
+      supplierId: supplierId,
+      name: 'Grossiste modifie',
+      phoneNumber: '+2250100000000',
+      note: 'Contact principal',
+      staffId: 'admin',
+      staffName: 'Admin',
+    );
+
+    final FinanceSupplier supplier =
+        (await repository.watchSuppliers().first).single;
+    expect(supplier.name, 'Grossiste modifie');
+    expect(supplier.phoneNumber, '+2250100000000');
+    expect(supplier.note, 'Contact principal');
+  });
+
+  test('un fournisseur sans historique peut etre supprime', () async {
+    final String supplierId = await repository.createSupplier(
+      name: 'Fournisseur temporaire',
+      phoneNumber: '+2250500000000',
+      staffId: 'admin',
+      staffName: 'Admin',
+    );
+
+    await repository.deleteSupplier(supplierId: supplierId);
+
+    expect(await repository.watchSuppliers().first, isEmpty);
+  });
+
+  test('un fournisseur avec historique ne peut pas etre supprime', () async {
+    final String supplierId = await repository.createSupplier(
+      name: 'Grossiste historique',
+      phoneNumber: '+2250700000000',
+      staffId: 'admin',
+      staffName: 'Admin',
+    );
+    await repository.recordSupplierRecharge(
+      draft: SupplierRechargeDraft(
+        supplierId: supplierId,
+        supplierName: 'Grossiste historique',
+        agentId: 'agent-1',
+        agentName: 'Agent 1',
+        network: AgentNetwork.orange,
+        principalAmount: 10000,
+        bonusAmount: 400,
+        amountOwed: 10000,
+      ),
+      staffId: 'admin',
+      staffName: 'Admin',
+    );
+
+    await expectLater(
+      repository.deleteSupplier(supplierId: supplierId),
+      throwsStateError,
+    );
+  });
+
 }

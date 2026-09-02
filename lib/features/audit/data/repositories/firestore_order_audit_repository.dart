@@ -247,7 +247,7 @@ class FirestoreOrderAuditRepository implements OrderAuditRepository {
       details: <String>[
         'Canal : WhatsApp',
         if (notifiedBy.isEmpty && notifiedByName.isEmpty)
-          'Auteur non enregistré (action antérieure à la Phase 11C).',
+          'Auteur non enregistré pour cette ancienne action.',
       ],
     );
 
@@ -262,7 +262,7 @@ class FirestoreOrderAuditRepository implements OrderAuditRepository {
       actorName: closedByName,
       details: <String>[
         if (closedBy.isEmpty && closedByName.isEmpty)
-          'Auteur non enregistré (action antérieure à la Phase 11C).',
+          'Auteur non enregistré pour cette ancienne action.',
       ],
     );
 

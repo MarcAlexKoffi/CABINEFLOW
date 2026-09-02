@@ -411,6 +411,107 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
     );
   }
 
+  Future<void> _editSupplier(FinanceSupplier supplier) async {
+    final TextEditingController name = TextEditingController(text: supplier.name);
+    final TextEditingController phone =
+        TextEditingController(text: supplier.phoneNumber);
+    final TextEditingController note = TextEditingController(text: supplier.note ?? '');
+    final bool? submit = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: const Text('Modifier le fournisseur'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              TextField(
+                controller: name,
+                decoration: const InputDecoration(labelText: 'Nom'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: phone,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(labelText: 'Téléphone'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: note,
+                maxLines: 2,
+                decoration: const InputDecoration(labelText: 'Note (facultatif)'),
+              ),
+            ],
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+    );
+    if (submit != true || !mounted) return;
+    await _run(
+      () => widget.repository.updateSupplier(
+        supplierId: supplier.id,
+        name: name.text,
+        phoneNumber: phone.text,
+        note: note.text,
+        staffId: widget.user.id,
+        staffName: widget.user.name,
+      ),
+    );
+  }
+
+  Future<void> _deleteSupplier(FinanceSupplier supplier) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: const Text('Supprimer ce fournisseur ?'),
+        content: Text(
+          'Le fournisseur « ${supplier.name} » sera supprimé uniquement s’il ne possède aucun historique financier. Sinon, désactive-le pour conserver la traçabilité.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: IzyTelColors.error),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _run(() => widget.repository.deleteSupplier(supplierId: supplier.id));
+  }
+
+  Future<void> _handleSupplierMenu(
+    FinanceSupplier supplier,
+    String action,
+  ) async {
+    switch (action) {
+      case 'edit':
+        await _editSupplier(supplier);
+        return;
+      case 'toggle':
+        await _toggle(supplier);
+        return;
+      case 'delete':
+        await _deleteSupplier(supplier);
+        return;
+      default:
+        return;
+    }
+  }
+
   Future<void> _toggle(FinanceSupplier supplier) async {
     await _run(
       () => widget.repository.setSupplierActive(
@@ -558,14 +659,50 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                                       ),
                                     ),
                                     PopupMenuButton<String>(
-                                      onSelected: (_) => _toggle(supplier),
-                                      itemBuilder: (_) => [
-                                        PopupMenuItem(
+                                      enabled: !_busy,
+                                      onSelected: (String action) =>
+                                          _handleSupplierMenu(supplier, action),
+                                      itemBuilder: (_) => <PopupMenuEntry<String>>[
+                                        const PopupMenuItem<String>(
+                                          value: 'edit',
+                                          child: ListTile(
+                                            dense: true,
+                                            contentPadding: EdgeInsets.zero,
+                                            leading: Icon(Symbols.edit_rounded),
+                                            title: Text('Modifier'),
+                                          ),
+                                        ),
+                                        PopupMenuItem<String>(
                                           value: 'toggle',
-                                          child: Text(
-                                            supplier.isActive
-                                                ? 'Désactiver'
-                                                : 'Réactiver',
+                                          child: ListTile(
+                                            dense: true,
+                                            contentPadding: EdgeInsets.zero,
+                                            leading: Icon(
+                                              supplier.isActive
+                                                  ? Symbols.pause_circle_rounded
+                                                  : Symbols.play_circle_rounded,
+                                            ),
+                                            title: Text(
+                                              supplier.isActive
+                                                  ? 'Désactiver'
+                                                  : 'Réactiver',
+                                            ),
+                                          ),
+                                        ),
+                                        const PopupMenuDivider(),
+                                        const PopupMenuItem<String>(
+                                          value: 'delete',
+                                          child: ListTile(
+                                            dense: true,
+                                            contentPadding: EdgeInsets.zero,
+                                            leading: Icon(
+                                              Symbols.delete_rounded,
+                                              color: IzyTelColors.error,
+                                            ),
+                                            title: Text(
+                                              'Supprimer',
+                                              style: TextStyle(color: IzyTelColors.error),
+                                            ),
                                           ),
                                         ),
                                       ],

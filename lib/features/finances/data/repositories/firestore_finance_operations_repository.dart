@@ -215,6 +215,50 @@ class FirestoreFinanceOperationsRepository
   }
 
   @override
+  Future<void> updateSupplier({
+    required String supplierId,
+    required String name,
+    required String phoneNumber,
+    required String staffId,
+    required String staffName,
+    String? note,
+  }) async {
+    final String cleanedName = name.trim();
+    if (cleanedName.length < 2) {
+      throw ArgumentError('Le nom du fournisseur est requis.');
+    }
+    await _suppliers.doc(supplierId).update(<String, dynamic>{
+      'name': cleanedName,
+      'phoneNumber': phoneNumber.trim(),
+      'note': _nullable(note),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': staffId,
+      'updatedByName': staffName.trim(),
+    });
+  }
+
+  @override
+  Future<void> deleteSupplier({required String supplierId}) async {
+    final DocumentReference<Map<String, dynamic>> supplierRef =
+        _suppliers.doc(supplierId);
+    final DocumentSnapshot<Map<String, dynamic>> supplier =
+        await supplierRef.get();
+    if (!supplier.exists) {
+      throw StateError('Fournisseur introuvable.');
+    }
+
+    final DocumentSnapshot<Map<String, dynamic>> account =
+        await _supplierAccounts.doc(supplierId).get();
+    if (account.exists) {
+      throw StateError(
+        'Ce fournisseur possède déjà un historique financier. Désactive-le plutôt que de le supprimer.',
+      );
+    }
+
+    await supplierRef.delete();
+  }
+
+  @override
   Future<String> recordSupplierRecharge({
     required SupplierRechargeDraft draft,
     required String staffId,

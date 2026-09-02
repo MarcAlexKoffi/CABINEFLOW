@@ -23,12 +23,17 @@ void main() {
     );
   });
 
-  test('hotfix conserve l’accès Activité V2', () {
-    final String source = File(
+  test('hotfix conserve l’accès Activité détaillée depuis Accueil', () {
+    final String home = File(
+      'lib/features/agents/presentation/pages/agent_home_page.dart',
+    ).readAsStringSync();
+    final String profile = File(
       'lib/features/agents/presentation/pages/agent_personal_profile_page.dart',
     ).readAsStringSync();
 
-    expect(source, contains('AgentActivityV2DashboardPage'));
+    expect(home, contains('AgentActivityV2DashboardPage'));
+    expect(home, contains("title: 'Mon activité détaillée'"));
+    expect(profile, isNot(contains('AgentActivityV2DashboardPage')));
   });
 
   test('lectures profil et médias restent documentaires', () {

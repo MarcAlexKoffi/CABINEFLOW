@@ -3,14 +3,23 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('D reste une couche de lecture des collections Phase 12', () {
+  test('D reste une couche de lecture des collections de commissions', () {
     final String repository = _read(
       'lib/features/commissions/data/repositories/firestore_commission_v2_repository.dart',
     );
 
-    expect(repository, contains("collection('commissions')"));
-    expect(repository, contains("collection('commissionAccounts')"));
-    expect(repository, contains("collection('commissionPayouts')"));
+    expect(
+      repository,
+      matches(RegExp(r"collection\(\s*'commissions'\s*,?\s*\)")),
+    );
+    expect(
+      repository,
+      matches(RegExp(r"collection\(\s*'commissionAccounts'\s*,?\s*\)")),
+    );
+    expect(
+      repository,
+      matches(RegExp(r"collection\(\s*'commissionPayouts'\s*,?\s*\)")),
+    );
     expect(repository, contains("where('agentId', isEqualTo: agentId)"));
 
     expect(repository, isNot(contains('.set(')));
@@ -40,6 +49,9 @@ void main() {
     final String adminProfile = _read(
       'lib/features/agents/presentation/pages/admin_agent_profile_activity_page.dart',
     );
+    final String home = _read(
+      'lib/features/agents/presentation/pages/agent_home_page.dart',
+    );
     final String personalProfile = _read(
       'lib/features/agents/presentation/pages/agent_personal_profile_page.dart',
     );
@@ -48,7 +60,9 @@ void main() {
     expect(activity, contains('AgentCommissionsV2Page'));
     expect(adminProfile, contains('AdminCommissionsV2Page'));
     expect(adminProfile, contains('AdminAgentCommissionsV2Page'));
-    expect(personalProfile, contains('AgentCommissionsV2Page'));
+    expect(home, contains('AgentCommissionsV2Page'));
+    expect(home, contains("title: 'Mes commissions'"));
+    expect(personalProfile, isNot(contains('AgentCommissionsV2Page')));
   });
 }
 

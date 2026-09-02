@@ -436,6 +436,9 @@ class _OrdersPageState extends State<OrdersPage> {
       builder: (BuildContext context, Widget? child) {
         final List<QueueOrder> orders = _viewModel.filteredOrders;
         final QueueOrder? activeOrder = _viewModel.activeOrder;
+        final int unassignedPaidCount = _viewModel.allReadyOrders
+            .where((QueueOrder order) => !order.isAssignedToAgent)
+            .length;
 
         if (activeOrder != null &&
             activeOrder.status == QueueOrderStatus.inProgress) {
@@ -565,6 +568,39 @@ class _OrdersPageState extends State<OrdersPage> {
                         ),
                       ),
                       const SizedBox(height: 10),
+                      if (widget.user.role == UserRole.administrator &&
+                          unassignedPaidCount > 0) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: IzyTelColors.warningSoft,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: IzyTelColors.warning.withAlpha(90),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              const Icon(
+                                Symbols.warning_rounded,
+                                color: IzyTelColors.warning,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  '$unassignedPaidCount commande${unassignedPaidCount > 1 ? 's' : ''} payée${unassignedPaidCount > 1 ? 's' : ''} sans agent. Vérifie l’affectation ou réaffecte-${unassignedPaidCount > 1 ? 'les' : 'la'} ci-dessous.',
+                                  style: const TextStyle(
+                                    color: IzyTelColors.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                       if (_viewModel.errorMessage != null &&
                           _viewModel.hasOrders) ...[
                         Container(

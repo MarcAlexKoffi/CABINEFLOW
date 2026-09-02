@@ -8,12 +8,14 @@ class DashboardStatistics {
     required this.paymentsToVerify,
     required this.inProgress,
     required this.completed,
+    this.unassignedOrders = 0,
   });
 
   final int newRequests;
   final int paymentsToVerify;
   final int inProgress;
   final int completed;
+  final int unassignedOrders;
 }
 
 class AccountBalance {

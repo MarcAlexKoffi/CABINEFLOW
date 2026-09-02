@@ -267,6 +267,9 @@ class FirestoreAgentRepository implements AgentRepository {
       'identityDocumentNumber': documentNumber,
       'avatarStoragePath': avatarPath,
       'identityDocumentStoragePath': identityPath,
+      'hasAvatarMedia': avatarPath != null && avatarPath.trim().isNotEmpty,
+      'hasIdentityDocumentMedia':
+          identityPath != null && identityPath.trim().isNotEmpty,
       'identityDocumentFileName': identityFileName,
       'identityDocumentMimeType': identityMimeType,
       'verificationStatus': status.firestoreValue,
@@ -752,6 +755,8 @@ class FirestoreAgentRepository implements AgentRepository {
       identityDocumentStoragePath: _nullableString(
         data['identityDocumentStoragePath'],
       ),
+      hasAvatarMedia: data['hasAvatarMedia'] == true,
+      hasIdentityDocumentMedia: data['hasIdentityDocumentMedia'] == true,
       identityDocumentFileName: _nullableString(
         data['identityDocumentFileName'],
       ),

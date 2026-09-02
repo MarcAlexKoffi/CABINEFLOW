@@ -7,11 +7,12 @@ import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_activity_page.dart';
+import 'package:cabine_flow/features/agents/presentation/pages/agent_activity_v2_dashboard_page.dart';
+import 'package:cabine_flow/features/agents/presentation/pages/agent_home_page.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:cabine_flow/features/commissions/presentation/pages/agent_commissions_page.dart';
-import 'package:cabine_flow/features/commissions/presentation/pages/agent_performance_page.dart';
 import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_repository.dart';
 import 'package:cabine_flow/features/dashboard/presentation/pages/dashboard_page.dart';
 import 'package:cabine_flow/features/dashboard/presentation/widgets/dashboard_widgets.dart';
@@ -412,7 +413,7 @@ class _AgentShellState extends State<_AgentShell> {
   DateTime? _lastBackPressAt;
   final List<GlobalKey<NavigatorState>> _tabNavigatorKeys =
       List<GlobalKey<NavigatorState>>.generate(
-        3,
+        4,
         (int index) =>
             GlobalKey<NavigatorState>(debugLabel: 'agent-tab-$index'),
       );
@@ -513,26 +514,30 @@ class _AgentShellState extends State<_AgentShell> {
     );
   }
 
+  void _openAgentOrders() {
+    setState(() => _selectedIndex = 1);
+  }
+
   void _openAgentProfile() {
-    setState(() => _selectedIndex = 2);
-    _tabNavigatorKeys[2].currentState?.popUntil(
+    setState(() => _selectedIndex = 3);
+    _tabNavigatorKeys[3].currentState?.popUntil(
       (Route<dynamic> route) => route.isFirst,
     );
   }
 
   void _openAgentHistory() {
-    setState(() => _selectedIndex = 1);
+    setState(() => _selectedIndex = 2);
   }
 
   void _openAgentPerformance() {
-    setState(() => _selectedIndex = 2);
+    final int navigatorIndex = _selectedIndex;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _tabNavigatorKeys[2].currentState?.push<void>(
+      _tabNavigatorKeys[navigatorIndex].currentState?.push<void>(
         MaterialPageRoute<void>(
-          builder: (_) => AgentPerformancePage(
-            user: widget.user,
-            repository: widget.commissionRepository,
+          builder: (_) => AgentActivityV2DashboardPage(
+            agentId: widget.user.id,
+            agentName: widget.user.name,
           ),
         ),
       );
@@ -540,10 +545,10 @@ class _AgentShellState extends State<_AgentShell> {
   }
 
   void _openAgentCommissions() {
-    setState(() => _selectedIndex = 2);
+    final int navigatorIndex = _selectedIndex;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _tabNavigatorKeys[2].currentState?.push<void>(
+      _tabNavigatorKeys[navigatorIndex].currentState?.push<void>(
         MaterialPageRoute<void>(
           builder: (_) => AgentCommissionsPage(
             user: widget.user,
@@ -557,6 +562,16 @@ class _AgentShellState extends State<_AgentShell> {
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = <Widget>[
+      AgentHomePage(
+        user: widget.user,
+        ordersRepository: widget.ordersRepository,
+        agentRepository: widget.agentRepository,
+        onOpenOrders: _openAgentOrders,
+        onOpenHistory: _openAgentHistory,
+        onOpenProfile: _openAgentProfile,
+        onOpenActivity: _openAgentPerformance,
+        onOpenCommissions: _openAgentCommissions,
+      ),
       AgentOrdersPage(
         user: widget.user,
         ordersRepository: widget.ordersRepository,
@@ -574,10 +589,10 @@ class _AgentShellState extends State<_AgentShell> {
       AgentActivityPage(
         user: widget.user,
         repository: widget.agentRepository,
-        commissionRepository: widget.commissionRepository,
         isLoggingOut: _isLoggingOut,
         onLogout: _logout,
-        onOpenHistory: _openAgentHistory,
+        onOpenActivity: _openAgentPerformance,
+        onOpenCommissions: _openAgentCommissions,
       ),
     ];
 
@@ -618,6 +633,11 @@ class _AgentBottomNavigationBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const List<_AgentNavigationItem> items = <_AgentNavigationItem>[
+      _AgentNavigationItem(
+        label: 'Accueil',
+        icon: Symbols.home_rounded,
+        selectedIcon: Symbols.home_rounded,
+      ),
       _AgentNavigationItem(
         label: 'Commandes',
         icon: Symbols.receipt_long_rounded,

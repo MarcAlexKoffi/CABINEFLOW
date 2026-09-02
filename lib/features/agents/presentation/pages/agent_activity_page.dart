@@ -7,9 +7,6 @@ import 'package:cabine_flow/features/agents/presentation/pages/agent_issues_page
 import 'package:cabine_flow/features/agents/presentation/pages/agent_personal_profile_page.dart';
 import 'package:cabine_flow/features/agents/presentation/view_models/agent_activity_view_model.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
-import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
-import 'package:cabine_flow/features/commissions/presentation/pages/agent_commissions_page.dart';
-import 'package:cabine_flow/features/commissions/presentation/pages/agent_performance_page.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
@@ -20,18 +17,18 @@ class AgentActivityPage extends StatefulWidget {
     super.key,
     required this.user,
     required this.repository,
-    required this.commissionRepository,
     required this.isLoggingOut,
     required this.onLogout,
-    this.onOpenHistory,
+    required this.onOpenActivity,
+    required this.onOpenCommissions,
   });
 
   final AppUser user;
   final AgentRepository repository;
-  final CommissionRepository commissionRepository;
   final bool isLoggingOut;
   final Future<void> Function() onLogout;
-  final VoidCallback? onOpenHistory;
+  final VoidCallback onOpenActivity;
+  final VoidCallback onOpenCommissions;
 
   @override
   State<AgentActivityPage> createState() => _AgentActivityPageState();
@@ -118,28 +115,6 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
     );
   }
 
-  void _openPerformance() {
-    Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => AgentPerformancePage(
-          user: widget.user,
-          repository: widget.commissionRepository,
-        ),
-      ),
-    );
-  }
-
-  void _openCommissions() {
-    Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => AgentCommissionsPage(
-          user: widget.user,
-          repository: widget.commissionRepository,
-        ),
-      ),
-    );
-  }
-
   void _openIssues() {
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
@@ -153,7 +128,10 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
 
   void _openAccountMenu(AgentProfile profile) {
     final int openIssues = _viewModel.issues
-        .where((AgentIssue issue) => issue.status != 'resolved')
+        .where((AgentIssue issue) =>
+            issue.status == 'open' ||
+            issue.status == 'in_progress' ||
+            issue.status == 'acknowledged')
         .length;
     showIzyTelAccountSheet(
       context: context,
@@ -166,16 +144,6 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
           icon: Symbols.manage_accounts_rounded,
           label: 'Modifier mon profil',
           onTap: _openPersonalProfile,
-        ),
-        IzyTelAccountAction(
-          icon: Symbols.insights_rounded,
-          label: 'Mes performances',
-          onTap: _openPerformance,
-        ),
-        IzyTelAccountAction(
-          icon: Symbols.account_balance_wallet_rounded,
-          label: 'Mes commissions',
-          onTap: _openCommissions,
         ),
         IzyTelAccountAction(
           icon: Symbols.support_agent_rounded,
@@ -224,7 +192,10 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
             final AgentProfile profile =
                 _viewModel.profile ?? _fallbackProfile();
             final int openIssues = _viewModel.issues
-                .where((AgentIssue issue) => issue.status != 'resolved')
+                .where((AgentIssue issue) =>
+            issue.status == 'open' ||
+            issue.status == 'in_progress' ||
+            issue.status == 'acknowledged')
                 .length;
 
             return RefreshIndicator(
@@ -240,7 +211,7 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
                 children: <Widget>[
                   IzyTelPageHeader(
                     title: 'Profil',
-                    subtitle: 'Ton activité et tes réglages opérationnels.',
+                    subtitle: 'Tes informations et réglages opérationnels.',
                     actions: <Widget>[
                       IzyTelAvatar(
                         name:
@@ -299,45 +270,6 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
                     },
                   ),
                   const SizedBox(height: IzyTelSpacing.xl),
-                  const _SectionLabel('Mon activité'),
-                  const SizedBox(height: 6),
-                  IzyTelSurface(
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        IzyTelMenuRow(
-                          icon: Symbols.insights_rounded,
-                          title: 'Mes performances',
-                          subtitle:
-                              'Volume traité, réussite, refus, échecs et temps moyen.',
-                          iconColor: IzyTelColors.primary,
-                          onTap: _openPerformance,
-                        ),
-                        const Divider(height: 1),
-                        IzyTelMenuRow(
-                          icon: Symbols.account_balance_wallet_rounded,
-                          title: 'Mes commissions',
-                          subtitle:
-                              'Solde, commissions acquises et versements reçus.',
-                          iconColor: IzyTelColors.success,
-                          onTap: _openCommissions,
-                        ),
-                        if (widget.onOpenHistory != null) ...<Widget>[
-                          const Divider(height: 1),
-                          IzyTelMenuRow(
-                            icon: Symbols.history_rounded,
-                            title: 'Historique',
-                            subtitle:
-                                'Retrouver tes commandes en cours et terminées.',
-                            iconColor: IzyTelColors.moov,
-                            onTap: widget.onOpenHistory!,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: IzyTelSpacing.xl),
                   const _SectionLabel('Disponibilité'),
                   const SizedBox(height: 6),
                   IzyTelSurface(
@@ -385,6 +317,32 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
                   _AssignmentCard(
                     zones: _viewModel.assignedZones,
                     profile: profile,
+                  ),
+                  const SizedBox(height: IzyTelSpacing.xl),
+                  const _SectionLabel('Mon suivi'),
+                  const SizedBox(height: 6),
+                  IzyTelSurface(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        IzyTelMenuRow(
+                          icon: Symbols.insights_rounded,
+                          title: 'Mon activité détaillée',
+                          subtitle: 'Performances, commandes, capacités et mouvements.',
+                          iconColor: IzyTelColors.primary,
+                          onTap: widget.onOpenActivity,
+                        ),
+                        const Divider(height: 1),
+                        IzyTelMenuRow(
+                          icon: Symbols.account_balance_wallet_rounded,
+                          title: 'Mes commissions',
+                          subtitle: 'Solde, gains acquis et versements reçus.',
+                          iconColor: IzyTelColors.success,
+                          onTap: widget.onOpenCommissions,
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: IzyTelSpacing.xl),
                   const _SectionLabel('Assistance'),

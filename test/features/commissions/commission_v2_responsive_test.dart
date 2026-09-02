@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('Commissions V2 Admin reste rendable à 320x568', (tester) async {
+  testWidgets('Commissions Admin reste rendable à 320x568', (tester) async {
     await tester.binding.setSurfaceSize(const Size(320, 568));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -19,12 +19,16 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Commissions V2'), findsOneWidget);
+    final Finder appBarTitle = find.descendant(
+      of: find.byType(AppBar),
+      matching: find.text('Commissions'),
+    );
+    expect(appBarTitle, findsOneWidget);
     expect(find.text('Synthèse'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Commissions V2 Agent reste rendable à 320x568', (tester) async {
+  testWidgets('Commissions Agent reste rendable à 320x568', (tester) async {
     await tester.binding.setSurfaceSize(const Size(320, 568));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -41,6 +45,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Mes commissions'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Mon compte'),
+      260,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Mon compte'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

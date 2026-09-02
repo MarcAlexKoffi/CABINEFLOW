@@ -87,12 +87,12 @@ class _AgentActivityV2DashboardPageState
               const SizedBox(height: 20),
               const _SectionTitle(
                 title: 'Capacités actuelles',
-                trailing: 'Profil 9E',
+                trailing: 'Profil opérationnel',
               ),
               const SizedBox(height: 8),
               if (data.isUnavailable(AgentActivityV2Sources.operationalProfile))
                 const _UnavailableCard(
-                  text: 'Les capacités 9E sont temporairement indisponibles.',
+                  text: 'Les capacités sont temporairement indisponibles.',
                 )
               else
                 _CapacityCard(profile: data.operationalProfile),
@@ -157,7 +157,7 @@ class _AgentActivityV2DashboardPageState
               const SizedBox(height: 8),
               if (data.isUnavailable(AgentActivityV2Sources.movements))
                 const _UnavailableCard(
-                  text: 'Les mouvements et recharges sont temporairement indisponibles. Réessaie après publication des règles B2+C.',
+                  text: 'Les mouvements et recharges sont temporairement indisponibles. Réessaie un peu plus tard.',
                 )
               else if (data.movements.isEmpty)
                 const _EmptyCard(text: 'Aucun mouvement réseau disponible.')
@@ -273,7 +273,7 @@ class _PartialDataWarning extends StatelessWidget {
       AgentActivityV2Sources.commissions => 'commissions',
       AgentActivityV2Sources.commissionAccount => 'compte de commissions',
       AgentActivityV2Sources.payouts => 'versements',
-      AgentActivityV2Sources.operationalProfile => 'capacités 9E',
+      AgentActivityV2Sources.operationalProfile => 'capacités',
       AgentActivityV2Sources.issues => 'signalements',
       _ => source,
     };

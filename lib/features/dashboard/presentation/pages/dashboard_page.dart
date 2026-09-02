@@ -337,10 +337,13 @@ class _DashboardPageState extends State<DashboardPage> {
                           ),
                           const Divider(),
                           _ActionRow(
-                            icon: Symbols.inventory_2_rounded,
-                            iconColor: IzyTelColors.primary,
-                            title:
-                                '${data.statistics.newRequests} commandes à affecter',
+                            icon: Symbols.warning_rounded,
+                            iconColor: data.statistics.unassignedOrders > 0
+                                ? IzyTelColors.warning
+                                : IzyTelColors.textMuted,
+                            title: data.statistics.unassignedOrders > 0
+                                ? '${data.statistics.unassignedOrders} commande${data.statistics.unassignedOrders > 1 ? 's' : ''} sans agent à vérifier'
+                                : 'Aucune commande sans agent',
                             onTap: widget.onOpenOrders,
                           ),
                           const Divider(),

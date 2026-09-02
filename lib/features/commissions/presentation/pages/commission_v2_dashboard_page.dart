@@ -270,7 +270,7 @@ class _CommissionV2DashboardPageState extends State<CommissionV2DashboardPage> {
       case CommissionV2Scope.agentSelf:
         return 'Mes commissions';
       case CommissionV2Scope.adminAll:
-        return 'Commissions V2';
+        return 'Commissions';
       case CommissionV2Scope.adminAgent:
         final String name = (widget.agentName ?? '').trim();
         return name.isEmpty ? 'Commissions Agent' : 'Commissions • $name';

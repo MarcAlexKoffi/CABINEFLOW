@@ -80,6 +80,13 @@ class FirestoreDashboardRepository implements DashboardRepository {
     final int readyCount = orders
         .where((QueueOrder order) => order.status == QueueOrderStatus.paidReady)
         .length;
+    final int unassignedOrders = orders
+        .where(
+          (QueueOrder order) =>
+              order.status == QueueOrderStatus.paidReady &&
+              !order.isAssignedToAgent,
+        )
+        .length;
     final int paymentsToVerify = orders
         .where(
           (QueueOrder order) =>
@@ -143,6 +150,7 @@ class FirestoreDashboardRepository implements DashboardRepository {
         paymentsToVerify: paymentsToVerify,
         inProgress: inProgressCount,
         completed: completedToday,
+        unassignedOrders: unassignedOrders,
       ),
       balances: const <AccountBalance>[
         AccountBalance(channel: ServiceChannel.orange),

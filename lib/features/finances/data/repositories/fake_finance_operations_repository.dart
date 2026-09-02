@@ -204,6 +204,61 @@ class FakeFinanceOperationsRepository implements FinanceOperationsRepository {
   }
 
   @override
+  Future<void> updateSupplier({
+    required String supplierId,
+    required String name,
+    required String phoneNumber,
+    required String staffId,
+    required String staffName,
+    String? note,
+  }) async {
+    final int index = _suppliers.indexWhere(
+      (FinanceSupplier item) => item.id == supplierId,
+    );
+    if (index < 0) {
+      throw StateError('Fournisseur introuvable.');
+    }
+    final String cleanedName = name.trim();
+    if (cleanedName.length < 2) {
+      throw ArgumentError('Le nom du fournisseur est requis.');
+    }
+    final FinanceSupplier current = _suppliers[index];
+    _suppliers[index] = FinanceSupplier(
+      id: current.id,
+      name: cleanedName,
+      phoneNumber: phoneNumber.trim(),
+      isActive: current.isActive,
+      note: _nullable(note),
+      createdAt: current.createdAt,
+      createdBy: current.createdBy,
+      createdByName: current.createdByName,
+      updatedAt: DateTime.now(),
+    );
+    _notify();
+  }
+
+  @override
+  Future<void> deleteSupplier({required String supplierId}) async {
+    final int index = _suppliers.indexWhere(
+      (FinanceSupplier item) => item.id == supplierId,
+    );
+    if (index < 0) {
+      throw StateError('Fournisseur introuvable.');
+    }
+    final bool hasHistory =
+        _supplierAccounts.any((SupplierAccount item) => item.supplierId == supplierId) ||
+        _recharges.any((SupplierRecharge item) => item.supplierId == supplierId) ||
+        _supplierPayments.any((SupplierPayment item) => item.supplierId == supplierId);
+    if (hasHistory) {
+      throw StateError(
+        'Ce fournisseur possède déjà un historique financier. Désactive-le plutôt que de le supprimer.',
+      );
+    }
+    _suppliers.removeAt(index);
+    _notify();
+  }
+
+  @override
   Future<String> recordSupplierRecharge({
     required SupplierRechargeDraft draft,
     required String staffId,

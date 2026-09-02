@@ -2,6 +2,7 @@ import 'package:cabine_flow/features/agents/data/repositories/firestore_agent_pe
 import 'package:cabine_flow/features/agents/domain/models/agent_personal_media.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_activity_v2_dashboard_page.dart';
 import 'package:cabine_flow/features/commissions/presentation/pages/commission_v2_dashboard_page.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -62,18 +63,15 @@ class _AdminAgentProfileActivityPageState
             'updatedAt': FieldValue.serverTimestamp(),
           });
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_verificationLabel(status))),
-      );
+      IzyTelFeedback.success(context, _verificationLabel(status));
     } on FirebaseException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message ?? error.code)),
-      );
+      IzyTelFeedback.error(context, error.message ?? error.code);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString().replaceFirst('Bad state: ', ''))),
+      IzyTelFeedback.error(
+        context,
+        error.toString().replaceFirst('Bad state: ', ''),
       );
     } finally {
       if (mounted) setState(() => _isUpdating = false);
@@ -127,9 +125,7 @@ class _AdminAgentProfileActivityPageState
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export impossible : $error')),
-      );
+      IzyTelFeedback.error(context, 'Export impossible : $error');
     }
   }
 
@@ -242,13 +238,13 @@ class _AdminAgentProfileActivityPageState
               OutlinedButton.icon(
                 onPressed: () => _openAgentCommissions(context),
                 icon: const Icon(Icons.receipt_long_outlined),
-                label: const Text('Commissions V2 de cet Agent'),
+                label: const Text('Commissions de cet agent'),
               ),
               const SizedBox(height: 10),
               OutlinedButton.icon(
                 onPressed: () => _openGlobalCommissions(context),
                 icon: const Icon(Icons.account_balance_wallet_outlined),
-                label: const Text('Vue globale Commissions V2'),
+                label: const Text('Vue globale des commissions'),
               ),
             ],
           );
@@ -488,12 +484,12 @@ class _NoProfile extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onCommissions,
               icon: const Icon(Icons.receipt_long_outlined),
-              label: const Text('Commissions V2 de cet Agent'),
+              label: const Text('Commissions de cet agent'),
             ),
             const SizedBox(height: 8),
             TextButton(
               onPressed: onGlobalCommissions,
-              child: const Text('Vue globale Commissions V2'),
+              child: const Text('Vue globale des commissions'),
             ),
           ],
         ),

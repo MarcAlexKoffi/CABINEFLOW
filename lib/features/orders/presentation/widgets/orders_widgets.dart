@@ -345,8 +345,17 @@ class QueueOrderCard extends StatelessWidget {
   final String? assignmentLabel;
   final bool isActionEnabled;
 
+  bool get _requiresAgentAssignment {
+    return order.status == QueueOrderStatus.paidReady &&
+        !order.isAssignedToAgent;
+  }
+
   String get _stateLabel {
-    if (order.manualAssignmentRequired) return 'En attente d’affectation';
+    if (_requiresAgentAssignment) {
+      return order.manualAssignmentRequired
+          ? 'Affectation manuelle requise'
+          : 'Non affectée';
+    }
     if (order.isCreditSale) return 'Crédit autorisé';
     if (order.paymentStatus == OrderPaymentStatus.confirmed) {
       return 'Paiement confirmé';
@@ -356,7 +365,7 @@ class QueueOrderCard extends StatelessWidget {
   }
 
   Color get _stateColor {
-    if (order.manualAssignmentRequired) return IzyTelColors.warning;
+    if (_requiresAgentAssignment) return IzyTelColors.warning;
     if (order.isCreditSale) return IzyTelColors.warning;
     if (order.paymentStatus == OrderPaymentStatus.confirmed) {
       return IzyTelColors.success;

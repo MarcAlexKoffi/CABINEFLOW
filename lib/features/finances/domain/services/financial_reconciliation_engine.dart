@@ -355,7 +355,7 @@ class FinancialReconciliationEngine {
         label: 'Mouvement réseau',
         state: FinancialReconciliationCheckState.notApplicable,
         detail:
-            'Commande antérieure à l’activation du journal réseau Phase 13.',
+            'Commande antérieure à l’activation du journal réseau.',
       );
     }
 
@@ -369,7 +369,7 @@ class FinancialReconciliationEngine {
             ? FinancialReconciliationCheckState.notApplicable
             : FinancialReconciliationCheckState.attention,
         detail: coverageStart == null
-            ? 'Aucun mouvement Phase 13 disponible pour établir la période de contrôle.'
+            ? 'Aucun mouvement disponible pour établir la période de contrôle.'
             : 'Commande réussie sans sortie networkTransactions correspondante.',
       );
     }
@@ -415,7 +415,7 @@ class FinancialReconciliationEngine {
         link: FinancialReconciliationLink.commission,
         label: 'Commission',
         state: FinancialReconciliationCheckState.notApplicable,
-        detail: 'Commande antérieure à l’activation des commissions Phase 12.',
+        detail: 'Commande antérieure à l’activation du suivi des commissions.',
       );
     }
 

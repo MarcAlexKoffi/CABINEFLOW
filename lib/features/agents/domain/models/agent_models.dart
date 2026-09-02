@@ -324,6 +324,8 @@ class AgentPersonalProfile {
     this.dateOfBirth,
     this.avatarStoragePath,
     this.identityDocumentStoragePath,
+    this.hasAvatarMedia = false,
+    this.hasIdentityDocumentMedia = false,
     this.identityDocumentFileName,
     this.identityDocumentMimeType,
     this.verificationNote,
@@ -345,6 +347,8 @@ class AgentPersonalProfile {
   final String identityDocumentNumber;
   final String? avatarStoragePath;
   final String? identityDocumentStoragePath;
+  final bool hasAvatarMedia;
+  final bool hasIdentityDocumentMedia;
   final String? identityDocumentFileName;
   final String? identityDocumentMimeType;
   final AgentProfileVerificationStatus verificationStatus;
@@ -357,8 +361,10 @@ class AgentPersonalProfile {
     lastName.trim(),
   ].where((String value) => value.isNotEmpty).join(' ');
 
-  bool get hasAvatar => avatarStoragePath?.trim().isNotEmpty == true;
+  bool get hasAvatar =>
+      hasAvatarMedia || avatarStoragePath?.trim().isNotEmpty == true;
   bool get hasIdentityDocument =>
+      hasIdentityDocumentMedia ||
       identityDocumentStoragePath?.trim().isNotEmpty == true;
 
   bool get isComplete =>

@@ -27,6 +27,17 @@ abstract class FinanceOperationsRepository {
     required String staffName,
   });
 
+  Future<void> updateSupplier({
+    required String supplierId,
+    required String name,
+    required String phoneNumber,
+    required String staffId,
+    required String staffName,
+    String? note,
+  });
+
+  Future<void> deleteSupplier({required String supplierId});
+
   Future<String> recordSupplierRecharge({
     required SupplierRechargeDraft draft,
     required String staffId,

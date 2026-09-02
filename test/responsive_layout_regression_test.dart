@@ -533,10 +533,8 @@ void main() {
             role: UserRole.agent,
           ),
           repository: FakeAgentRepository(),
-          commissionRepository: FakeCommissionRepository(),
           isLoggingOut: false,
           onLogout: () async {},
-          onOpenHistory: () {},
         ),
       ),
     );
@@ -544,13 +542,11 @@ void main() {
 
     expect(find.text('Profil'), findsOneWidget);
 
-    // Le Profil V2 ajoute désormais la carte « Informations personnelles ».
-    // Sur 320x568, les raccourcis historiques peuvent donc être sous le pli :
-    // on vérifie leur accessibilité par scroll plutôt que leur présence dans
-    // le viewport initial.
+    // Sur 320x568, les informations du profil peuvent etre sous le pli :
+    // on verifie leur accessibilite par scroll plutot que leur presence dans
+    // le viewport initial. Les performances et commissions vivent sur Accueil.
     for (final String label in <String>[
-      'Mes performances',
-      'Mes commissions',
+      'Informations personnelles',
       'Mes signalements',
     ]) {
       await tester.scrollUntilVisible(

@@ -150,7 +150,7 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
         if (widget.onOpenPerformance != null)
           IzyTelAccountAction(
             icon: Symbols.insights_rounded,
-            label: 'Mes performances',
+            label: 'Mon activité détaillée',
             onTap: widget.onOpenPerformance!,
           ),
         if (widget.onOpenCommissions != null)
