@@ -526,6 +526,8 @@ void main() {
       MaterialApp(
         theme: AppTheme.light,
         home: AgentActivityPage(
+          onOpenActivity: () {},
+          onOpenCommissions: () {},
           user: const AppUser(
             id: 'AGENT-001',
             name: 'Koffi Kouassi',
