@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
@@ -11,6 +12,7 @@ import 'package:cabine_flow/features/commissions/domain/repositories/commission_
 import 'package:cabine_flow/features/commissions/presentation/pages/commission_management_page.dart';
 import 'package:cabine_flow/features/finances/data/repositories/fake_finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/firestore_finance_operations_repository.dart';
+import 'package:cabine_flow/features/finances/data/repositories/hybrid_finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/fake_network_finance_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/firestore_network_finance_repository.dart';
 import 'package:cabine_flow/features/finances/domain/models/finance_operations_models.dart';
@@ -90,7 +92,9 @@ class _FinancesPageState extends State<FinancesPage> {
         ? FirestoreNetworkFinanceRepository()
         : FakeNetworkFinanceRepository();
     _financeOperationsRepository = Firebase.apps.isNotEmpty
-        ? FirestoreFinanceOperationsRepository()
+        ? (SupabaseBootstrap.isInitialized
+              ? HybridFinanceOperationsRepository()
+              : FirestoreFinanceOperationsRepository())
         : FakeFinanceOperationsRepository();
   }
 

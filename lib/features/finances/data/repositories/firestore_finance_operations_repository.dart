@@ -199,6 +199,33 @@ class FirestoreFinanceOperationsRepository
     return ref.id;
   }
 
+  Future<void> createSupplierCompatibilityMirror({
+    required String supplierId,
+    required String name,
+    required String phoneNumber,
+    required String staffId,
+    required String staffName,
+    String? note,
+  }) async {
+    final String cleanedName = name.trim();
+    if (cleanedName.length < 2) {
+      throw ArgumentError('Le nom du fournisseur est requis.');
+    }
+    await _suppliers.doc(supplierId.trim()).set(<String, dynamic>{
+      'schemaVersion': 1,
+      'name': cleanedName,
+      'phoneNumber': phoneNumber.trim(),
+      'isActive': true,
+      'note': _nullable(note),
+      'createdAt': FieldValue.serverTimestamp(),
+      'createdBy': staffId,
+      'createdByName': staffName.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': staffId,
+      'updatedByName': staffName.trim(),
+    });
+  }
+
   @override
   Future<void> setSupplierActive({
     required String supplierId,
@@ -239,10 +266,11 @@ class FirestoreFinanceOperationsRepository
 
   @override
   Future<void> deleteSupplier({required String supplierId}) async {
-    final DocumentReference<Map<String, dynamic>> supplierRef =
-        _suppliers.doc(supplierId);
-    final DocumentSnapshot<Map<String, dynamic>> supplier =
-        await supplierRef.get();
+    final DocumentReference<Map<String, dynamic>> supplierRef = _suppliers.doc(
+      supplierId,
+    );
+    final DocumentSnapshot<Map<String, dynamic>> supplier = await supplierRef
+        .get();
     if (!supplier.exists) {
       throw StateError('Fournisseur introuvable.');
     }
@@ -303,6 +331,16 @@ class FirestoreFinanceOperationsRepository
         throw StateError('Le profil Agent est introuvable.');
       }
 
+      // Pendant la migration hybride, le nom courant du fournisseur vit sur
+      // Supabase. Les règles Firestore historiques comparent encore la recharge
+      // au nom du miroir financeSuppliers : on utilise donc ce nom legacy
+      // uniquement dans les écritures Firestore de compatibilité.
+      final String compatibilitySupplierName =
+          (supplierSnapshot.data()?['name'] as String? ?? '').trim();
+      if (compatibilitySupplierName.length < 2) {
+        throw StateError('Le miroir fournisseur Firebase est invalide.');
+      }
+
       final Map<String, dynamic> agentData = agentSnapshot.data()!;
       final List<String> authorizedNetworks =
           (agentData['authorizedNetworks'] is List)
@@ -332,7 +370,7 @@ class FirestoreFinanceOperationsRepository
       transaction.set(rechargeRef, <String, dynamic>{
         'schemaVersion': 1,
         'supplierId': draft.supplierId,
-        'supplierName': draft.supplierName.trim(),
+        'supplierName': compatibilitySupplierName,
         'agentId': draft.agentId,
         'agentName': draft.agentName.trim(),
         'network': draft.network.firestoreValue,
@@ -361,7 +399,7 @@ class FirestoreFinanceOperationsRepository
         'orderId': null,
         'orderReference': null,
         'supplierId': draft.supplierId,
-        'supplierName': draft.supplierName.trim(),
+        'supplierName': compatibilitySupplierName,
         'supplierRechargeId': rechargeRef.id,
         'createdBy': staffId,
         'createdByRole': 'admin',
@@ -376,7 +414,7 @@ class FirestoreFinanceOperationsRepository
       transaction.set(accountRef, <String, dynamic>{
         'schemaVersion': 1,
         'supplierId': draft.supplierId,
-        'supplierName': draft.supplierName.trim(),
+        'supplierName': compatibilitySupplierName,
         'totalOwed': currentOwed + draft.amountOwed,
         'totalPaid': currentPaid,
         'totalRecharged': currentRecharged + draft.receivedAmount,
