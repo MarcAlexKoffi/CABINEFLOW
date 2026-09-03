@@ -3,6 +3,8 @@ import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
+import 'package:cabine_flow/features/auth/presentation/widgets/manager_profile_avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -30,25 +32,28 @@ class DashboardHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: AppColors.primary.withAlpha(40),
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.primary, width: 1.5),
-          ),
-          child: Center(
-            child: Text(
-              firstName.isNotEmpty ? firstName[0].toUpperCase() : 'U',
-              style: const TextStyle(
-                color: Color(0xFF1677FF),
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
+        if (user.isManager)
+          ManagerProfileAvatar(user: user, size: 48, editable: true)
+        else
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withAlpha(40),
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.primary, width: 1.5),
+            ),
+            child: Center(
+              child: Text(
+                firstName.isNotEmpty ? firstName[0].toUpperCase() : 'U',
+                style: const TextStyle(
+                  color: Color(0xFF1677FF),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ),
-        ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(

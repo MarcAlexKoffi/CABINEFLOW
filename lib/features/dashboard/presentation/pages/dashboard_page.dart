@@ -5,6 +5,7 @@ import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
+import 'package:cabine_flow/features/auth/presentation/widgets/manager_profile_avatar.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/dashboard/domain/models/dashboard_data.dart';
 import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_repository.dart';
@@ -111,7 +112,10 @@ class _DashboardPageState extends State<DashboardPage> {
     }
 
     final OrderHistoryRepository? history = widget.orderHistoryRepository;
-    if (history != null) {
+    // Les échecs sont une action exclusivement Administrateur. Le Manager ne
+    // doit pas voir tout l'historique des anciens échecs comme des tâches
+    // actuelles à réaffecter.
+    if (history != null && widget.user.permissions.canManageFailedOrders) {
       _failedOrdersSubscription = history.watchOrderHistory().listen((
         List<QueueOrder> orders,
       ) {
@@ -362,23 +366,25 @@ class _DashboardPageState extends State<DashboardPage> {
                                 : 'Aucune commande sans agent',
                             onTap: widget.onOpenOrders,
                           ),
-                          const Divider(),
-                          _ActionRow(
-                            icon: Symbols.error_rounded,
-                            iconColor: _failedOrders.isEmpty
-                                ? IzyTelColors.textMuted
-                                : IzyTelColors.error,
-                            title: _failedOrders.isEmpty
-                                ? 'Commandes échouées'
-                                : '${_failedOrders.length} commande${_failedOrders.length > 1 ? 's' : ''} échouée${_failedOrders.length > 1 ? 's' : ''} à traiter',
-                            onTap: _openFailedOrdersCenter,
-                          ),
+                          if (widget.user.permissions.canManageFailedOrders) ...<Widget>[
+                            const Divider(),
+                            _ActionRow(
+                              icon: Symbols.error_rounded,
+                              iconColor: _failedOrders.isEmpty
+                                  ? IzyTelColors.textMuted
+                                  : IzyTelColors.error,
+                              title: _failedOrders.isEmpty
+                                  ? 'Commandes échouées'
+                                  : '${_failedOrders.length} commande${_failedOrders.length > 1 ? 's' : ''} échouée${_failedOrders.length > 1 ? 's' : ''} à traiter',
+                              onTap: _openFailedOrdersCenter,
+                            ),
+                          ],
                           const Divider(),
                           _ActionRow(
                             icon: Symbols.person_rounded,
                             iconColor: IzyTelColors.orange,
                             title: '$_customerRequestsCount demandes client',
-                            onTap: widget.user.permissions.canProcessSupportRequests
+                            onTap: widget.user.permissions.canViewSupportRequests
                                 ? widget.onOpenMore
                                 : null,
                           ),
@@ -548,14 +554,21 @@ class _Header extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IzyTelAvatar(
-              name: user.name,
-              initialsOverride: user.name.trim().isEmpty
-                  ? '?'
-                  : user.name.trim().substring(0, 1),
-              onTap: onAvatarTap,
-              size: 44,
-            ),
+            if (user.isManager)
+              ManagerProfileAvatar(
+                user: user,
+                size: 44,
+                onTap: onAvatarTap,
+              )
+            else
+              IzyTelAvatar(
+                name: user.name,
+                initialsOverride: user.name.trim().isEmpty
+                    ? '?'
+                    : user.name.trim().substring(0, 1),
+                onTap: onAvatarTap,
+                size: 44,
+              ),
             const SizedBox(width: 2),
             const Icon(
               Symbols.keyboard_arrow_down_rounded,

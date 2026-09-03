@@ -3,6 +3,7 @@ import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
@@ -84,9 +85,11 @@ class _AgentIssueCenterPageState extends State<AgentIssueCenterPage> {
                           );
                         }
                         if (issuesSnapshot.hasError) {
+                          final String raw = issuesSnapshot.error.toString();
                           return _IssueErrorState(
-                            message:
-                                'Impossible de charger les signalements agents.',
+                            message: raw.contains('STAFF_REQUIRED')
+                                ? 'Ce compte Manager n’est pas encore activé dans Supabase. Enregistre son UID dans izytel_staff_access avec le rôle manager, puis reconnecte-toi.'
+                                : 'Impossible de charger les signalements agents.',
                             onRetry: () => setState(() {}),
                           );
                         }
@@ -138,6 +141,35 @@ class _AgentIssueCenterPageState extends State<AgentIssueCenterPage> {
                                     'Centralise les incidents remontés par les agents, puis prends une action de suivi.',
                               ),
                               const SizedBox(height: IzyTelSpacing.lg),
+                              if (widget.user.isManager && allIssues.isEmpty) ...<Widget>[
+                                IzyTelSurface(
+                                  padding: const EdgeInsets.all(IzyTelSpacing.md),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      const Icon(
+                                        Symbols.admin_panel_settings_rounded,
+                                        color: IzyTelColors.warning,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          'Aucun signalement visible. Si ce compte Manager vient d’être créé et que des signalements existent déjà, vérifie que son UID Firebase est enregistré dans Supabase avec le rôle manager.',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: IzyTelColors.textSecondary,
+                                                height: 1.4,
+                                              ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: IzyTelSpacing.md),
+                              ],
                               Row(
                                 children: [
                                   Expanded(

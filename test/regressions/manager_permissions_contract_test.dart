@@ -41,12 +41,13 @@ void main() {
     expect(end, greaterThan(start));
     final String managerBlock = more.substring(start, end);
 
-    expect(managerBlock, contains('Affectations & réaffectations'));
+    expect(managerBlock, contains('Affectations des commandes'));
     expect(managerBlock, contains('Signalements agents'));
     expect(managerBlock, contains('AgentManagementPage'));
     expect(managerBlock, contains("label: 'Agents'"));
     expect(managerBlock, isNot(contains('OfferManagementPage')));
-    expect(managerBlock, isNot(contains('SupportRequestCenterPage')));
+    expect(managerBlock, contains('SupportRequestCenterPage'));
+    expect(managerBlock, contains('FakeRefundRepository()'));
     expect(managerBlock, isNot(contains('FailedOrdersPage')));
     expect(managerBlock, isNot(contains('FirestoreRefundRepository')));
   });

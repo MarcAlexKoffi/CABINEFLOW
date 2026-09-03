@@ -4,6 +4,7 @@ import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/finances/domain/models/finance_operations_models.dart';
 import 'package:cabine_flow/features/finances/domain/repositories/finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/presentation/widgets/financial_ui.dart';
@@ -29,6 +30,8 @@ class SupplierFinancePage extends StatefulWidget {
 
 class _SupplierFinancePageState extends State<SupplierFinancePage> {
   bool _busy = false;
+
+  bool get _canManage => widget.user.permissions.canManageFinanceSettings;
 
   Future<void> _addSupplier() async {
     final TextEditingController name = TextEditingController();
@@ -554,12 +557,13 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
             fontWeight: FontWeight.w800,
           ),
         ),
-        actions: [
-          IconButton(
-            onPressed: _busy ? null : _addSupplier,
-            tooltip: 'Ajouter',
-            icon: const Icon(Symbols.add_rounded),
-          ),
+        actions: <Widget>[
+          if (_canManage)
+            IconButton(
+              onPressed: _busy ? null : _addSupplier,
+              tooltip: 'Ajouter',
+              icon: const Icon(Symbols.add_rounded),
+            ),
         ],
       ),
       body: StreamBuilder<List<FinanceSupplier>>(
@@ -591,11 +595,12 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                               item.supplierId: item,
                           };
                       if (suppliers.isEmpty) {
-                        return const FinanceEmptyState(
+                        return FinanceEmptyState(
                           icon: Symbols.inventory_2_rounded,
                           title: 'Aucun fournisseur',
-                          message:
-                              'Ajoute ton premier fournisseur pour enregistrer les recharges réseaux.',
+                          message: _canManage
+                              ? 'Ajoute ton premier fournisseur pour enregistrer les recharges réseaux.'
+                              : 'Aucun fournisseur n’est encore disponible dans le registre Supabase.',
                         );
                       }
                       return ListView.separated(
@@ -658,55 +663,75 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                                         ],
                                       ),
                                     ),
-                                    PopupMenuButton<String>(
-                                      enabled: !_busy,
-                                      onSelected: (String action) =>
-                                          _handleSupplierMenu(supplier, action),
-                                      itemBuilder: (_) => <PopupMenuEntry<String>>[
-                                        const PopupMenuItem<String>(
-                                          value: 'edit',
-                                          child: ListTile(
-                                            dense: true,
-                                            contentPadding: EdgeInsets.zero,
-                                            leading: Icon(Symbols.edit_rounded),
-                                            title: Text('Modifier'),
-                                          ),
-                                        ),
-                                        PopupMenuItem<String>(
-                                          value: 'toggle',
-                                          child: ListTile(
-                                            dense: true,
-                                            contentPadding: EdgeInsets.zero,
-                                            leading: Icon(
-                                              supplier.isActive
-                                                  ? Symbols.pause_circle_rounded
-                                                  : Symbols.play_circle_rounded,
-                                            ),
-                                            title: Text(
-                                              supplier.isActive
-                                                  ? 'Désactiver'
-                                                  : 'Réactiver',
+                                    if (_canManage)
+                                      PopupMenuButton<String>(
+                                        enabled: !_busy,
+                                        onSelected: (String action) =>
+                                            _handleSupplierMenu(supplier, action),
+                                        itemBuilder: (_) => <PopupMenuEntry<String>>[
+                                          const PopupMenuItem<String>(
+                                            value: 'edit',
+                                            child: ListTile(
+                                              dense: true,
+                                              contentPadding: EdgeInsets.zero,
+                                              leading: Icon(Symbols.edit_rounded),
+                                              title: Text('Modifier'),
                                             ),
                                           ),
-                                        ),
-                                        const PopupMenuDivider(),
-                                        const PopupMenuItem<String>(
-                                          value: 'delete',
-                                          child: ListTile(
-                                            dense: true,
-                                            contentPadding: EdgeInsets.zero,
-                                            leading: Icon(
-                                              Symbols.delete_rounded,
-                                              color: IzyTelColors.error,
-                                            ),
-                                            title: Text(
-                                              'Supprimer',
-                                              style: TextStyle(color: IzyTelColors.error),
+                                          PopupMenuItem<String>(
+                                            value: 'toggle',
+                                            child: ListTile(
+                                              dense: true,
+                                              contentPadding: EdgeInsets.zero,
+                                              leading: Icon(
+                                                supplier.isActive
+                                                    ? Symbols.pause_circle_rounded
+                                                    : Symbols.play_circle_rounded,
+                                              ),
+                                              title: Text(
+                                                supplier.isActive
+                                                    ? 'Désactiver'
+                                                    : 'Réactiver',
+                                              ),
                                             ),
                                           ),
+                                          const PopupMenuDivider(),
+                                          const PopupMenuItem<String>(
+                                            value: 'delete',
+                                            child: ListTile(
+                                              dense: true,
+                                              contentPadding: EdgeInsets.zero,
+                                              leading: Icon(
+                                                Symbols.delete_rounded,
+                                                color: IzyTelColors.error,
+                                              ),
+                                              title: Text(
+                                                'Supprimer',
+                                                style: TextStyle(color: IzyTelColors.error),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    else
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
                                         ),
-                                      ],
-                                    ),
+                                        decoration: BoxDecoration(
+                                          color: IzyTelColors.primarySoft,
+                                          borderRadius: BorderRadius.circular(99),
+                                        ),
+                                        child: const Text(
+                                          'Lecture seule',
+                                          style: TextStyle(
+                                            color: IzyTelColors.primary,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
                                   ],
                                 ),
                                 const SizedBox(height: 12),
@@ -740,35 +765,56 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                                   ],
                                 ),
                                 const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: OutlinedButton.icon(
-                                        onPressed: !_busy && supplier.isActive
-                                            ? () => _recharge(supplier)
-                                            : null,
-                                        icon: const Icon(
-                                          Symbols.add_card_rounded,
+                                if (_canManage)
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: !_busy && supplier.isActive
+                                              ? () => _recharge(supplier)
+                                              : null,
+                                          icon: const Icon(
+                                            Symbols.add_card_rounded,
+                                          ),
+                                          label: const Text('Recharge'),
                                         ),
-                                        label: const Text('Recharge'),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: FilledButton.icon(
+                                          onPressed:
+                                              !_busy &&
+                                                  (account?.balance ?? 0) > 0
+                                              ? () => _pay(supplier, account)
+                                              : null,
+                                          icon: const Icon(
+                                            Symbols.payments_rounded,
+                                          ),
+                                          label: const Text('Régler'),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                else
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 9,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: IzyTelColors.surfaceMuted,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Text(
+                                      'Le Manager consulte les mouvements ; les opérations fournisseur restent réservées à l’Administrateur.',
+                                      style: TextStyle(
+                                        color: IzyTelColors.textSecondary,
+                                        fontSize: 11,
+                                        height: 1.35,
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: FilledButton.icon(
-                                        onPressed:
-                                            !_busy &&
-                                                (account?.balance ?? 0) > 0
-                                            ? () => _pay(supplier, account)
-                                            : null,
-                                        icon: const Icon(
-                                          Symbols.payments_rounded,
-                                        ),
-                                        label: const Text('Régler'),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                  ),
                                 const SizedBox(height: 4),
                                 Align(
                                   alignment: Alignment.centerRight,

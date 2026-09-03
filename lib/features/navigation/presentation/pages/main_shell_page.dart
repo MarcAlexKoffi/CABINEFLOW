@@ -77,6 +77,8 @@ class _MainShellPageState extends State<MainShellPage> {
   Timer? _automaticAssignmentDebounce;
   bool _automaticAssignmentSyncRunning = false;
   bool _automaticAssignmentSyncPending = false;
+  bool _managerSupabaseStaffDenied = false;
+  bool _managerSupabaseWarningShown = false;
   bool _isLoggingOut = false;
   DateTime? _lastBackPressAt;
 
@@ -128,6 +130,7 @@ class _MainShellPageState extends State<MainShellPage> {
   }
 
   void _scheduleAutomaticAssignmentSync({bool immediate = false}) {
+    if (_managerSupabaseStaffDenied) return;
     if (WidgetsBinding.instance.runtimeType.toString().contains('Test')) {
       if (immediate) {
         unawaited(_synchronizeAutomaticAssignmentBacklog());
@@ -155,8 +158,27 @@ class _MainShellPageState extends State<MainShellPage> {
     try {
       await widget.ordersRepository.synchronizeAutomaticAssignmentBacklog();
     } catch (error, stackTrace) {
-      debugPrint('[AutoAssignment][backlog] $error');
-      debugPrint('[AutoAssignment][backlog] stack:\n$stackTrace');
+      final String raw = error.toString();
+      if (widget.user.isManager && raw.contains('STAFF_REQUIRED')) {
+        _managerSupabaseStaffDenied = true;
+        debugPrint(
+          '[Manager][Supabase] accès staff absent : synchronisation Phase 4 suspendue jusqu’à la prochaine connexion.',
+        );
+        if (mounted && !_managerSupabaseWarningShown) {
+          _managerSupabaseWarningShown = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            IzyTelFeedback.show(
+              context,
+              'Accès Supabase Manager incomplet. Enregistre ce compte dans izytel_staff_access puis reconnecte-toi.',
+              tone: IzyTelFeedbackTone.warning,
+            );
+          });
+        }
+      } else {
+        debugPrint('[AutoAssignment][backlog] $error');
+        debugPrint('[AutoAssignment][backlog] stack:\n$stackTrace');
+      }
     } finally {
       _automaticAssignmentSyncRunning = false;
       if (_automaticAssignmentSyncPending) {
@@ -385,6 +407,8 @@ class _MainShellPageState extends State<MainShellPage> {
         adminOfferRepository: widget.adminOfferRepository,
         agentRepository: widget.agentRepository,
         ordersRepository: widget.ordersRepository,
+        commissionRepository: widget.commissionRepository,
+        onOpenPayments: _openPaymentsTab,
       ),
     ];
 

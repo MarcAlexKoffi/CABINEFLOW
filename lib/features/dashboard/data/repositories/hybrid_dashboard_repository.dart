@@ -4,16 +4,15 @@ import 'package:cabine_flow/features/dashboard/data/repositories/firestore_dashb
 import 'package:cabine_flow/features/dashboard/domain/models/dashboard_data.dart';
 import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/supabase_phase4_assignment_repository.dart';
-import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:flutter/foundation.dart';
 
 /// Dashboard hybride de la Phase 4.
 ///
 /// Toutes les statistiques historiques/financières restent calculées par
-/// Firebase. On corrige uniquement `unassignedOrders` pour les affectations
-/// automatiques encore exclusivement présentes dans Supabase avant le handoff
-/// vers Firestore. Les affectations manuelles sont désormais matérialisées
-/// immédiatement dans les deux sources.
+/// Firebase. On corrige uniquement `unassignedOrders` avec l'état canonique
+/// Phase 4 : toute affectation active encore uniquement présente dans Supabase
+/// ne doit plus être présentée comme une commande sans agent. Cela couvre les
+/// affectations automatiques ET manuelles avant le handoff vers Firestore.
 class HybridDashboardRepository implements DashboardRepository {
   HybridDashboardRepository({
     FirestoreDashboardRepository? firestoreRepository,
@@ -100,8 +99,8 @@ class HybridDashboardRepository implements DashboardRepository {
     final int supabaseOnlyAssigned = snapshots
         .where(
           (Phase4AssignmentSnapshot item) =>
-              item.assignmentMode == OrderAssignmentMode.automatic &&
               (item.isAssigned || item.isAccepted) &&
+              item.assignedAgentId?.trim().isNotEmpty == true &&
               item.firebaseAssignmentSyncedAt == null,
         )
         .length;

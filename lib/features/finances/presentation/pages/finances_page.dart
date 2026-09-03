@@ -7,12 +7,15 @@ import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
+import 'package:cabine_flow/features/commissions/data/repositories/manager_read_only_commission_repository.dart';
 import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:cabine_flow/features/commissions/presentation/pages/commission_management_page.dart';
 import 'package:cabine_flow/features/finances/data/repositories/fake_finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/firestore_finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/hybrid_finance_operations_repository.dart';
+import 'package:cabine_flow/features/finances/data/repositories/manager_read_only_finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/fake_network_finance_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/firestore_network_finance_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/hybrid_network_finance_repository.dart';
@@ -68,6 +71,7 @@ class _FinancesPageState extends State<FinancesPage> {
   late final RefundRepository _refundRepository;
   late final NetworkFinanceRepository _networkFinanceRepository;
   late final FinanceOperationsRepository _financeOperationsRepository;
+  late final CommissionRepository _commissionRepository;
 
   OrderHistoryRepository? get _historyRepository {
     final OrdersRepository repository = widget.ordersRepository;
@@ -86,6 +90,24 @@ class _FinancesPageState extends State<FinancesPage> {
   @override
   void initState() {
     super.initState();
+
+    if (widget.user.isManager && Firebase.apps.isNotEmpty) {
+      // M4 : le Manager ne doit ouvrir aucune collection financière
+      // Firestore Admin-only. Les lectures autorisées passent uniquement par
+      // le registre Supabase Phase 5.
+      _refundRepository = FakeRefundRepository();
+      _networkFinanceRepository = SupabaseBootstrap.isInitialized
+          ? HybridNetworkFinanceRepository()
+          : FakeNetworkFinanceRepository();
+      _financeOperationsRepository = SupabaseBootstrap.isInitialized
+          ? ManagerReadOnlyFinanceOperationsRepository()
+          : FakeFinanceOperationsRepository();
+      _commissionRepository = SupabaseBootstrap.isInitialized
+          ? ManagerReadOnlyCommissionRepository()
+          : widget.commissionRepository;
+      return;
+    }
+
     _refundRepository = Firebase.apps.isNotEmpty
         ? FirestoreRefundRepository()
         : FakeRefundRepository();
@@ -99,6 +121,7 @@ class _FinancesPageState extends State<FinancesPage> {
               ? HybridFinanceOperationsRepository()
               : FirestoreFinanceOperationsRepository())
         : FakeFinanceOperationsRepository();
+    _commissionRepository = widget.commissionRepository;
   }
 
   @override
@@ -218,7 +241,7 @@ class _FinancesPageState extends State<FinancesPage> {
       MaterialPageRoute<void>(
         builder: (_) => CommissionManagementPage(
           user: widget.user,
-          repository: widget.commissionRepository,
+          repository: _commissionRepository,
           agentRepository: widget.agentRepository,
         ),
       ),
@@ -243,7 +266,7 @@ class _FinancesPageState extends State<FinancesPage> {
         builder: (_) => FinancialMovementsPage(
           ordersRepository: widget.ordersRepository,
           refundRepository: _refundRepository,
-          commissionRepository: widget.commissionRepository,
+          commissionRepository: _commissionRepository,
           networkFinanceRepository: _networkFinanceRepository,
           financeRepository: _financeOperationsRepository,
         ),
@@ -270,7 +293,7 @@ class _FinancesPageState extends State<FinancesPage> {
           user: widget.user,
           ordersRepository: widget.ordersRepository,
           refundRepository: _refundRepository,
-          commissionRepository: widget.commissionRepository,
+          commissionRepository: _commissionRepository,
           financeRepository: _financeOperationsRepository,
         ),
       ),
@@ -306,7 +329,7 @@ class _FinancesPageState extends State<FinancesPage> {
         builder: (_) => WorkingCapitalPage(
           ordersRepository: widget.ordersRepository,
           refundRepository: _refundRepository,
-          commissionRepository: widget.commissionRepository,
+          commissionRepository: _commissionRepository,
           agentRepository: widget.agentRepository,
           networkFinanceRepository: _networkFinanceRepository,
           financeRepository: _financeOperationsRepository,
@@ -322,7 +345,7 @@ class _FinancesPageState extends State<FinancesPage> {
           user: widget.user,
           ordersRepository: widget.ordersRepository,
           refundRepository: _refundRepository,
-          commissionRepository: widget.commissionRepository,
+          commissionRepository: _commissionRepository,
           agentRepository: widget.agentRepository,
           networkFinanceRepository: _networkFinanceRepository,
           financeRepository: _financeOperationsRepository,
@@ -331,12 +354,317 @@ class _FinancesPageState extends State<FinancesPage> {
     );
   }
 
+  Widget _buildManagerOperationalFinance(BuildContext context) {
+    return SafeArea(
+      bottom: false,
+      child: StreamBuilder<List<QueueOrder>>(
+        stream: _ordersStream,
+        builder: (BuildContext context, AsyncSnapshot<List<QueueOrder>> orderSnapshot) {
+          return StreamBuilder<List<CommissionAccount>>(
+            stream: _commissionRepository.watchAccounts(),
+            builder: (BuildContext context, AsyncSnapshot<List<CommissionAccount>> commissionSnapshot) {
+              return StreamBuilder<List<SupplierAccount>>(
+                stream: _financeOperationsRepository.watchSupplierAccounts(),
+                builder: (BuildContext context, AsyncSnapshot<List<SupplierAccount>> supplierAccountSnapshot) {
+                  return StreamBuilder<List<SupplierRecharge>>(
+                    stream: _financeOperationsRepository.watchSupplierRecharges(),
+                    builder: (BuildContext context, AsyncSnapshot<List<SupplierRecharge>> rechargeSnapshot) {
+                      return StreamBuilder<List<NetworkTransaction>>(
+                        stream: _networkFinanceRepository.watchTransactions(),
+                        builder: (BuildContext context, AsyncSnapshot<List<NetworkTransaction>> networkSnapshot) {
+                          final Object? firstError =
+                              commissionSnapshot.error ??
+                              supplierAccountSnapshot.error ??
+                              rechargeSnapshot.error ??
+                              networkSnapshot.error;
+                          final bool waiting =
+                              (!commissionSnapshot.hasData &&
+                                  commissionSnapshot.connectionState == ConnectionState.waiting) ||
+                              (!supplierAccountSnapshot.hasData &&
+                                  supplierAccountSnapshot.connectionState == ConnectionState.waiting) ||
+                              (!rechargeSnapshot.hasData &&
+                                  rechargeSnapshot.connectionState == ConnectionState.waiting) ||
+                              (!networkSnapshot.hasData &&
+                                  networkSnapshot.connectionState == ConnectionState.waiting);
+
+                          if (firstError != null &&
+                              !commissionSnapshot.hasData &&
+                              !supplierAccountSnapshot.hasData &&
+                              !rechargeSnapshot.hasData &&
+                              !networkSnapshot.hasData) {
+                            return _ManagerFinanceErrorState(
+                              message: _managerFinanceError(firstError),
+                            );
+                          }
+                          if (waiting) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+
+                          final List<QueueOrder> orders =
+                              orderSnapshot.data ?? const <QueueOrder>[];
+                          final List<CommissionAccount> commissionAccounts =
+                              commissionSnapshot.data ?? const <CommissionAccount>[];
+                          final List<SupplierAccount> supplierAccounts =
+                              supplierAccountSnapshot.data ?? const <SupplierAccount>[];
+                          final List<SupplierRecharge> recharges =
+                              rechargeSnapshot.data ?? const <SupplierRecharge>[];
+                          final List<NetworkTransaction> movements =
+                              networkSnapshot.data ?? const <NetworkTransaction>[];
+
+                          final int confirmedToday = _confirmedAmountToday(orders);
+                          final int commissionBalance = commissionAccounts.fold<int>(
+                            0,
+                            (int total, CommissionAccount account) =>
+                                total + account.balance,
+                          );
+                          final int supplierDebt = supplierAccounts.fold<int>(
+                            0,
+                            (int total, SupplierAccount account) =>
+                                total + account.balance,
+                          );
+                          final int receivedToday = recharges
+                              .where((SupplierRecharge item) => _isToday(item.createdAt))
+                              .fold<int>(
+                                0,
+                                (int total, SupplierRecharge item) =>
+                                    total + item.receivedAmount,
+                              );
+                          final List<NetworkTransaction> todayMovements = movements
+                              .where((NetworkTransaction item) => _isToday(item.createdAt))
+                              .toList(growable: false);
+                          final int networkIncomingToday = todayMovements
+                              .where((NetworkTransaction item) => item.isIncoming)
+                              .fold<int>(
+                                0,
+                                (int total, NetworkTransaction item) =>
+                                    total + item.amount,
+                              );
+                          final int networkOutgoingToday = todayMovements
+                              .where((NetworkTransaction item) => item.isOutgoing)
+                              .fold<int>(
+                                0,
+                                (int total, NetworkTransaction item) =>
+                                    total + item.amount,
+                              );
+
+                          return RefreshIndicator(
+                            onRefresh: () async => setState(() {}),
+                            color: IzyTelColors.primary,
+                            child: ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
+                              children: <Widget>[
+                                IzyTelPageHeader(
+                                  title: 'Finances opérationnelles',
+                                  subtitle:
+                                      'Supervision Manager en lecture seule depuis Supabase.',
+                                  actions: <Widget>[
+                                    IzyTelAvatar(
+                                      name: widget.user.name,
+                                      size: 42,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: IzyTelSpacing.lg),
+                                Container(
+                                  padding: const EdgeInsets.all(IzyTelSpacing.lg),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: <Color>[
+                                        IzyTelColors.primary,
+                                        IzyTelColors.primaryStrong,
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(
+                                      IzyTelRadii.largeCard,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Text(
+                                        'Encaissements confirmés aujourd’hui',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              color: Colors.white.withAlpha(220),
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 5),
+                                      Text(
+                                        formatCfaFull(confirmedToday),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .headlineMedium
+                                            ?.copyWith(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Lecture opérationnelle uniquement · aucune écriture financière Admin n’est exposée.',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: Colors.white.withAlpha(195),
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: IzyTelSpacing.lg),
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: FinancialMetricCard(
+                                        label: 'Commissions à payer',
+                                        value: formatCfa(commissionBalance),
+                                        icon: Symbols.account_balance_wallet_rounded,
+                                        accent: IzyTelColors.warning,
+                                        caption:
+                                            '${commissionAccounts.where((CommissionAccount item) => item.balance > 0).length} agent(s)',
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: FinancialMetricCard(
+                                        label: 'Dette fournisseurs',
+                                        value: formatCfa(supplierDebt),
+                                        icon: Symbols.inventory_2_rounded,
+                                        accent: IzyTelColors.orange,
+                                        caption:
+                                            '${supplierAccounts.where((SupplierAccount item) => item.balance > 0).length} compte(s)',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: FinancialMetricCard(
+                                        label: 'Recharges reçues',
+                                        value: formatCfa(receivedToday),
+                                        icon: Symbols.add_card_rounded,
+                                        accent: IzyTelColors.success,
+                                        caption: 'Aujourd’hui',
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: FinancialMetricCard(
+                                        label: 'Flux réseaux',
+                                        value: formatCfa(networkIncomingToday),
+                                        icon: Symbols.swap_vert_rounded,
+                                        accent: IzyTelColors.primary,
+                                        caption:
+                                            '- ${formatCfa(networkOutgoingToday)} sortants',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: IzyTelSpacing.xl),
+                                const IzyTelSectionHeader(
+                                  title: 'Supervision détaillée',
+                                ),
+                                const SizedBox(height: 8),
+                                FinanceActionTile(
+                                  icon: Symbols.payments_rounded,
+                                  title: 'Commissions',
+                                  subtitle:
+                                      'Consulter les soldes et performances sans effectuer de versement.',
+                                  accent: IzyTelColors.warning,
+                                  badge: 'Lecture seule',
+                                  onTap: _openCommissions,
+                                ),
+                                const SizedBox(height: 8),
+                                FinanceActionTile(
+                                  icon: Symbols.inventory_2_rounded,
+                                  title: 'Fournisseurs',
+                                  subtitle:
+                                      'Consulter le registre, les recharges, règlements et soldes fournisseurs.',
+                                  accent: IzyTelColors.orange,
+                                  badge: 'Lecture seule',
+                                  onTap: _openSuppliers,
+                                ),
+                                const SizedBox(height: 8),
+                                FinanceActionTile(
+                                  icon: Symbols.swap_vert_rounded,
+                                  title: 'Mouvements',
+                                  subtitle:
+                                      'Consulter les paiements, commissions et mouvements réseau disponibles.',
+                                  accent: IzyTelColors.primary,
+                                  badge: 'Supabase',
+                                  onTap: _openMovements,
+                                ),
+                                const SizedBox(height: IzyTelSpacing.md),
+                                IzyTelSurface(
+                                  padding: const EdgeInsets.all(IzyTelSpacing.md),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      const Icon(
+                                        Symbols.lock_rounded,
+                                        color: IzyTelColors.textSecondary,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          'Caisse Wave, crédits clients, dépenses, clôture, paiements fournisseurs et versements de commissions restent réservés à l’Administrateur.',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: IzyTelColors.textSecondary,
+                                                height: 1.4,
+                                              ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  String _managerFinanceError(Object error) {
+    final String raw = error.toString();
+    if (raw.contains('STAFF_REQUIRED') || raw.contains('permission')) {
+      return 'Le compte Manager n’est pas encore autorisé dans Supabase. '
+          'Ajoute son UID Firebase au registre izytel_staff_access avec le rôle manager.';
+    }
+    return 'Impossible de charger la supervision financière pour le moment.';
+  }
+
   void _showUnavailable(String message) {
     IzyTelFeedback.show(context, message, tone: IzyTelFeedbackTone.warning);
   }
 
   @override
   Widget build(BuildContext context) {
+    if (widget.user.isManager) {
+      return _buildManagerOperationalFinance(context);
+    }
+
     return SafeArea(
       bottom: false,
       child: StreamBuilder<List<QueueOrder>>(
@@ -346,14 +674,14 @@ class _FinancesPageState extends State<FinancesPage> {
             stream: _refundRepository.watchAll(),
             builder: (BuildContext context, AsyncSnapshot<List<RefundCase>> refundSnapshot) {
               return StreamBuilder<List<CommissionAccount>>(
-                stream: widget.commissionRepository.watchAccounts(),
+                stream: _commissionRepository.watchAccounts(),
                 builder:
                     (
                       BuildContext context,
                       AsyncSnapshot<List<CommissionAccount>> accountSnapshot,
                     ) {
                       return StreamBuilder<List<CommissionPayout>>(
-                        stream: widget.commissionRepository.watchPayouts(),
+                        stream: _commissionRepository.watchPayouts(),
                         builder:
                             (
                               BuildContext context,
@@ -1116,6 +1444,51 @@ class _HeroTag extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ManagerFinanceErrorState extends StatelessWidget {
+  const _ManagerFinanceErrorState({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: IzyTelSurface(
+          padding: const EdgeInsets.all(IzyTelSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const Icon(
+                Symbols.admin_panel_settings_rounded,
+                color: IzyTelColors.warning,
+                size: 34,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Accès Manager incomplet',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: IzyTelColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: IzyTelColors.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

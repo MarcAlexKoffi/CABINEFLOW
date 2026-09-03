@@ -3,6 +3,7 @@ import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/orders/presentation/view_models/agent_assignment_view_model.dart';
@@ -36,6 +37,7 @@ class _AgentAssignmentPageState extends State<AgentAssignmentPage> {
     _viewModel = AgentAssignmentViewModel(
       order: widget.order,
       adminUserId: widget.user.id,
+      isManager: widget.user.isManager,
       agentRepository: widget.agentRepository,
       ordersRepository: widget.ordersRepository,
     );

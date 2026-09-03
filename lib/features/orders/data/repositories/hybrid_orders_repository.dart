@@ -57,6 +57,13 @@ class HybridOrdersRepository
   final AutomaticAssignmentSelector _selector =
       const AutomaticAssignmentSelector();
 
+  // Les règles Firestore actuellement gelées n'autorisent pas toujours le
+  // compte Manager (alias technique supervisor) à nettoyer un ancien miroir
+  // /orders. Après le premier permission-denied pour un UID donné, on cesse
+  // de retenter cette écriture legacy pendant la session afin de ne pas
+  // polluer la console ni interrompre la synchronisation Phase 4.
+  String? _legacyMirrorCleanupDeniedUid;
+
   @override
   Future<QueueOrder> createOrder({required CreateOrderRequest request}) {
     return _firestore.createOrder(request: request);
@@ -220,6 +227,13 @@ class HybridOrdersRepository
           snapshot,
         ];
       } catch (error, stackTrace) {
+        // Un compte Manager reconnu par Firebase mais absent du registre
+        // Supabase ne doit pas provoquer une erreur par commande à chaque
+        // réveil du backlog. On remonte le refus au shell afin qu’il suspende
+        // la synchronisation et affiche une seule alerte de provisioning.
+        if (error.toString().contains('STAFF_REQUIRED')) {
+          rethrow;
+        }
         debugPrint('[Phase4][backlog] order=${order.id}: $error');
         debugPrintStack(stackTrace: stackTrace);
       }
@@ -273,6 +287,35 @@ class HybridOrdersRepository
         debugPrint('[Phase4][close-obsolete] ${snapshot.orderId}: $error');
         debugPrintStack(stackTrace: stackTrace);
       }
+    }
+  }
+
+  Future<QueueOrder> _releaseLegacyMirrorBestEffort(QueueOrder order) async {
+    if (order.assignedAgentId == null &&
+        order.assignmentStatus == OrderAssignmentStatus.unassigned) {
+      return order;
+    }
+
+    final String uid = (_firebaseAuth.currentUser?.uid ?? '').trim();
+    if (uid.isNotEmpty && _legacyMirrorCleanupDeniedUid == uid) {
+      return order.copyWith(clearAgentAssignment: true);
+    }
+
+    try {
+      return await _firestore.releaseHybridStaleAssignmentAsStaff(
+        orderId: order.id,
+      );
+    } on FirebaseException catch (error, stackTrace) {
+      if (error.code != 'permission-denied') rethrow;
+      if (uid.isNotEmpty) {
+        _legacyMirrorCleanupDeniedUid = uid;
+      }
+      debugPrint(
+        '[Phase4][legacy-mirror-skip] order=${order.id}: '
+        'nettoyage Firestore non autorise pour ce compte; Phase 4 reste canonique.',
+      );
+      debugPrintStack(stackTrace: stackTrace);
+      return order.copyWith(clearAgentAssignment: true);
     }
   }
 
@@ -400,8 +443,7 @@ class HybridOrdersRepository
             debugPrintStack(stackTrace: stackTrace);
           }
         } else {
-          final QueueOrder released = await _firestore
-              .releaseHybridStaleAssignmentAsStaff(orderId: order.id);
+          final QueueOrder released = await _releaseLegacyMirrorBestEffort(order);
           await _firestore.ensureHybridAssignmentQueue(released);
         }
       }
@@ -411,7 +453,7 @@ class HybridOrdersRepository
     if (snapshot.isManualRequired) {
       if (order.assignedAgentId != null ||
           order.assignmentStatus != OrderAssignmentStatus.unassigned) {
-        await _firestore.releaseHybridStaleAssignmentAsStaff(orderId: order.id);
+        await _releaseLegacyMirrorBestEffort(order);
       }
       await _firestore.ensureHybridAssignmentQueue(
         order.copyWith(clearAgentAssignment: true),
@@ -450,9 +492,7 @@ class HybridOrdersRepository
         QueueOrder cleanOrder = order;
         if (order.assignedAgentId != null ||
             order.assignmentStatus != OrderAssignmentStatus.unassigned) {
-          cleanOrder = await _firestore.releaseHybridStaleAssignmentAsStaff(
-            orderId: order.id,
-          );
+          cleanOrder = await _releaseLegacyMirrorBestEffort(order);
         }
         await _firestore.ensureHybridAssignmentQueue(
           cleanOrder.copyWith(clearAgentAssignment: true),
@@ -479,9 +519,7 @@ class HybridOrdersRepository
 
       if (snapshot.isManualRequired) {
         if (order.assignedAgentId != null) {
-          await _firestore.releaseHybridStaleAssignmentAsStaff(
-            orderId: order.id,
-          );
+          await _releaseLegacyMirrorBestEffort(order);
         }
         await _firestore.ensureHybridAssignmentQueue(
           order.copyWith(clearAgentAssignment: true),
@@ -490,9 +528,7 @@ class HybridOrdersRepository
       }
       if (snapshot.isWaiting) {
         if (order.assignedAgentId != null) {
-          await _firestore.releaseHybridStaleAssignmentAsStaff(
-            orderId: order.id,
-          );
+          await _releaseLegacyMirrorBestEffort(order);
         }
         await _firestore.ensureHybridAssignmentQueue(
           order.copyWith(clearAgentAssignment: true),
@@ -504,9 +540,7 @@ class HybridOrdersRepository
         QueueOrder queueOrder = order;
         if (order.assignedAgentId != null ||
             order.assignmentStatus != OrderAssignmentStatus.unassigned) {
-          queueOrder = await _firestore.releaseHybridStaleAssignmentAsStaff(
-            orderId: order.id,
-          );
+          queueOrder = await _releaseLegacyMirrorBestEffort(order);
         }
         await _firestore.ensureHybridAssignmentQueue(
           queueOrder.copyWith(clearAgentAssignment: true),
@@ -748,7 +782,7 @@ class HybridOrdersRepository
     final String uid = (_firebaseAuth.currentUser?.uid ?? '').trim();
     final String targetAgentId = agentId.trim();
     if (uid.isEmpty || uid != assignedByUserId.trim()) {
-      throw StateError('La session administrateur ne correspond pas.');
+      throw StateError('La session du compte connecté ne correspond pas.');
     }
     if (targetAgentId.isEmpty) {
       throw StateError('Agent invalide.');
@@ -808,6 +842,16 @@ class HybridOrdersRepository
     // partir de Phase 4 ; l'acceptation Agent effectuera le handoff Firebase.
     await _phase4.syncOrder(order.copyWith(clearAgentAssignment: true));
 
+    // Une intervention manuelle ouvre un NOUVEAU cycle de tentative. Les refus
+    // du cycle précédent restent dans l'historique Phase 4, mais ne doivent pas
+    // empêcher les autres Agents éligibles d'être essayés à nouveau. Sans ce
+    // reset, une vieille commande de test pouvait avoir tous ses Agents déjà
+    // présents dans refused_agent_ids et repasser immédiatement en manuel dès
+    // le premier refus du nouveau cycle.
+    if (canonical?.isManualRequired == true) {
+      await _phase4.resetForManualAssignment(order.id);
+    }
+
     final List<AutomaticAssignmentAgent> agents = await _firestore
         .fetchAutomaticAssignmentCandidatesForHybrid();
     final AutomaticAssignmentAgent? rawTarget = _findAgent(
@@ -834,9 +878,27 @@ class HybridOrdersRepository
       );
     }
 
+    // L'affectation manuelle choisit le premier Agent, mais le plan Phase 4
+    // doit conserver tous les autres Agents actuellement eligibles. Ainsi, si
+    // le premier refuse, Supabase peut poursuivre automatiquement avec le
+    // suivant. Le mode manual_required n'est atteint qu'apres refus de tous
+    // les candidats eligibles conserves dans ce plan.
+    final List<AutomaticAssignmentAgent> rankedFallback = _rankCandidates(
+      order: order.copyWith(clearAgentAssignment: true),
+      baseCandidates: agents,
+      allSnapshots: currentSnapshots,
+    );
+    final List<AutomaticAssignmentAgent> manualPlanCandidates =
+        <AutomaticAssignmentAgent>[
+          target,
+          ...rankedFallback.where(
+            (AutomaticAssignmentAgent item) => item.agentId != targetAgentId,
+          ),
+        ];
+
     final Phase4AssignmentSnapshot assigned = await _phase4.assignRanked(
       orderId: order.id,
-      candidates: <AutomaticAssignmentAgent>[target],
+      candidates: manualPlanCandidates,
       mode: OrderAssignmentMode.manual,
     );
 
@@ -1139,7 +1201,25 @@ class HybridOrdersRepository
     if (before == null || before.assignedAgentId != agentId) {
       throw StateError('Cette affectation n’est plus disponible.');
     }
-    await _phase4.refuse(orderId: orderId, reason: cleanedReason);
+    final Phase4AssignmentSnapshot afterRefusal = await _phase4.refuse(
+      orderId: orderId,
+      reason: cleanedReason,
+    );
+
+    if (afterRefusal.isAssigned &&
+        afterRefusal.assignedAgentId != null &&
+        afterRefusal.assignedAgentId != agentId) {
+      debugPrint(
+        '[Phase4][refusal-auto-reassigned] order=$orderId '
+        'from=$agentId to=${afterRefusal.assignedAgentId} '
+        'mode=${afterRefusal.assignmentMode?.name}',
+      );
+    } else if (afterRefusal.isManualRequired) {
+      debugPrint(
+        '[Phase4][refusal-manual-required] order=$orderId '
+        'lastAgent=$agentId',
+      );
+    }
 
     final List<String> refusedForLocalSnapshot = <String>[agentId];
     return before
@@ -1430,7 +1510,14 @@ class HybridOrdersRepository
         order,
         refusedAgentIds: plan?.refusedAgentIds ?? const <String>[],
       );
-    } catch (_) {
+    } catch (error) {
+      // STAFF_REQUIRED signifie que le compte n'a pas le droit de lire l'etat
+      // canonique Phase 4. Ne jamais masquer ce cas par un vieux snapshot
+      // Firestore : une page d'affectation pourrait sinon proposer une seconde
+      // affectation sur une commande deja assignee dans Supabase.
+      if (error.toString().contains('STAFF_REQUIRED')) {
+        rethrow;
+      }
       return order;
     }
   }

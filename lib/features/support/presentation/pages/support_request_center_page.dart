@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
@@ -116,9 +117,13 @@ class _SupportRequestCenterPageState extends State<SupportRequestCenterPage> {
                     children: [
                       IzyTelPageHeader(
                         title: 'Centre d’assistance',
-                        subtitle: newCount == 0
-                            ? 'Aucune nouvelle demande ne nécessite ton attention.'
-                            : '$newCount demande${newCount > 1 ? 's' : ''} à traiter maintenant.',
+                        subtitle: widget.user.permissions.canProcessSupportRequests
+                            ? (newCount == 0
+                                  ? 'Aucune nouvelle demande ne nécessite ton attention.'
+                                  : '$newCount demande${newCount > 1 ? 's' : ''} à traiter maintenant.')
+                            : (newCount == 0
+                                  ? 'Aucune nouvelle demande client à superviser.'
+                                  : '$newCount demande${newCount > 1 ? 's' : ''} à superviser en lecture seule.'),
                       ),
                       const SizedBox(height: IzyTelSpacing.lg),
                       _SupportSummary(
@@ -519,6 +524,11 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
     required QueueOrder? order,
     required RefundCase? refund,
   }) {
+    if (!widget.user.permissions.canProcessSupportRequests) {
+      return const <Widget>[
+        _SupportReadOnlyInfo(),
+      ];
+    }
     if (_isSubmitting) {
       return const <Widget>[Center(child: CircularProgressIndicator())];
     }
@@ -1652,6 +1662,29 @@ class _ErrorState extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SupportReadOnlyInfo extends StatelessWidget {
+  const _SupportReadOnlyInfo();
+
+  @override
+  Widget build(BuildContext context) {
+    return IzyTelSurface(
+      padding: const EdgeInsets.all(14),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(Symbols.visibility_rounded, color: IzyTelColors.primary),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Consultation Manager : le traitement, les remboursements et la clôture restent réservés à l’Administrateur.',
+            ),
+          ),
+        ],
       ),
     );
   }

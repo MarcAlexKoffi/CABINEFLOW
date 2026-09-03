@@ -342,12 +342,16 @@ void main() {
 
     expect(app, contains('HybridDashboardRepository()'));
     expect(dashboard, contains('firebase.statistics.unassignedOrders'));
+    expect(dashboard, contains('item.isAssigned || item.isAccepted'));
     expect(
       dashboard,
-      contains('item.assignmentMode == OrderAssignmentMode.automatic'),
+      contains('item.assignedAgentId?.trim().isNotEmpty == true'),
     );
-    expect(dashboard, contains('item.isAssigned || item.isAccepted'));
     expect(dashboard, contains('firebaseAssignmentSyncedAt == null'));
+    expect(
+      dashboard,
+      isNot(contains('item.assignmentMode == OrderAssignmentMode.automatic')),
+    );
   });
 
   test('snapshot Phase 4 construit une commande Agent complète', () {
@@ -443,10 +447,59 @@ void main() {
         'lib/features/more/presentation/pages/more_page.dart',
       );
 
-      expect(more, contains('Affectations & réaffectations'));
+      expect(more, contains('Affectations des commandes'));
       expect(more, contains('Commandes échouées'));
       expect(more, contains('OrdersPage('));
       expect(more, contains('FailedOrdersPage('));
     },
   );
+  test('affectation manuelle conserve les autres agents eligibles pour le refus suivant', () {
+    final String hybrid = File(
+      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+    ).readAsStringSync();
+    final int start = hybrid.indexOf('Future<QueueOrder> assignToAgent');
+    final int end = hybrid.indexOf(
+      'Future<Map<String, int>> fetchActiveAssignmentCounts',
+      start,
+    );
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final String block = hybrid.substring(start, end);
+
+    expect(block, contains('final List<AutomaticAssignmentAgent> rankedFallback'));
+    expect(block, contains('_rankCandidates('));
+    expect(block, contains('final List<AutomaticAssignmentAgent> manualPlanCandidates'));
+    expect(block, contains('target,'));
+    expect(block, contains('item.agentId != targetAgentId'));
+    expect(block, contains('candidates: manualPlanCandidates'));
+    expect(block, isNot(contains('candidates: <AutomaticAssignmentAgent>[target]')));
+  });
+
+
+  test('une affectation manuelle ouvre un nouveau cycle de refus', () {
+    final String hybrid = read(
+      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+    );
+    final int start = hybrid.indexOf('Future<QueueOrder> assignToAgent');
+    final int end = hybrid.indexOf('Future<Map<String, int>> fetchActiveAssignmentCounts', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final String block = hybrid.substring(start, end);
+
+    expect(block, contains('canonical?.isManualRequired == true'));
+    expect(block, contains('_phase4.resetForManualAssignment(order.id)'));
+    expect(block, contains('manualPlanCandidates'));
+    expect(block, contains('mode: OrderAssignmentMode.manual'));
+  });
+
+  test('un refus de nettoyage legacy ne casse plus le backlog Manager', () {
+    final String hybrid = read(
+      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+    );
+    expect(hybrid, contains('_releaseLegacyMirrorBestEffort'));
+    expect(hybrid, contains("error.code != 'permission-denied'"));
+    expect(hybrid, contains('_legacyMirrorCleanupDeniedUid'));
+    expect(hybrid, contains('[Phase4][legacy-mirror-skip]'));
+  });
+
 }

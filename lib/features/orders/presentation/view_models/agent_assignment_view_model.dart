@@ -32,12 +32,14 @@ class AgentAssignmentViewModel extends ChangeNotifier {
   AgentAssignmentViewModel({
     required this.order,
     required this.adminUserId,
+    required this.isManager,
     required this.agentRepository,
     required this.ordersRepository,
   });
 
   QueueOrder order;
   final String adminUserId;
+  final bool isManager;
   final AgentRepository agentRepository;
   final OrdersRepository ordersRepository;
 
@@ -53,6 +55,7 @@ class AgentAssignmentViewModel extends ChangeNotifier {
   String? _errorMessage;
   bool _isLoading = true;
   bool _isDisposed = false;
+  bool _canonicalStateVerified = true;
   bool _reservedRefreshInFlight = false;
   bool _reservedRefreshPending = false;
 
@@ -61,6 +64,9 @@ class AgentAssignmentViewModel extends ChangeNotifier {
   String? get assigningAgentId => _assigningAgentId;
 
   List<AgentAssignmentCandidate> get candidates {
+    if (isManager && !_canonicalStateVerified) {
+      return const <AgentAssignmentCandidate>[];
+    }
     final AgentNetwork requiredNetwork = _agentNetwork(order.network);
     final List<AgentAssignmentCandidate> result = <AgentAssignmentCandidate>[];
 
@@ -133,6 +139,7 @@ class AgentAssignmentViewModel extends ChangeNotifier {
   Future<void> start() async {
     _errorMessage = null;
     _isLoading = true;
+    _canonicalStateVerified = true;
     notifyListeners();
 
     // La liste Admin peut momentanement afficher la vue Firebase de secours si
@@ -146,6 +153,17 @@ class AgentAssignmentViewModel extends ChangeNotifier {
       } catch (error, stackTrace) {
         debugPrint('[AgentAssignment][refresh-order] $error');
         debugPrintStack(stackTrace: stackTrace);
+        // Pour un Manager, une affectation manuelle ne doit jamais partir d'un
+        // snapshot Firestore potentiellement obsolète. Si Phase 4 n'est pas
+        // lisible (par exemple STAFF_REQUIRED), on bloque l'action au lieu de
+        // présenter de faux agents « disponibles ».
+        if (isManager) {
+          _canonicalStateVerified = false;
+          _errorMessage = _friendlyError(error);
+          _isLoading = false;
+          notifyListeners();
+          return;
+        }
       }
     }
 
@@ -246,7 +264,11 @@ class AgentAssignmentViewModel extends ChangeNotifier {
   }
 
   Future<bool> assign(AgentAssignmentCandidate candidate) async {
-    if (_assigningAgentId != null || !candidate.isAssignable) return false;
+    if (_assigningAgentId != null ||
+        !candidate.isAssignable ||
+        (isManager && !_canonicalStateVerified)) {
+      return false;
+    }
 
     _assigningAgentId = candidate.agent.userId;
     _errorMessage = null;
@@ -258,7 +280,7 @@ class AgentAssignmentViewModel extends ChangeNotifier {
         agentId: candidate.agent.userId,
         assignedByUserId: adminUserId,
       );
-      // Le listener Firestore met à jour automatiquement la charge de l'agent.
+      // Phase 4 est la source canonique avant l'acceptation Agent.
       return true;
     } on FirebaseException catch (error, stackTrace) {
       debugPrint(
@@ -287,6 +309,9 @@ class AgentAssignmentViewModel extends ChangeNotifier {
     final String raw = error.toString();
     if (raw.startsWith('Bad state: ')) {
       return raw.substring('Bad state: '.length);
+    }
+    if (raw.contains('STAFF_REQUIRED')) {
+      return 'Ce compte Manager n’est pas encore activé dans Supabase. '           'Ajoute son UID dans izytel_staff_access avec le rôle manager, puis reconnecte-toi.';
     }
     if (raw.contains('SocketException') ||
         raw.contains('ClientException') ||

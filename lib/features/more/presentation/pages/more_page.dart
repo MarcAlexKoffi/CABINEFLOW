@@ -8,6 +8,9 @@ import 'package:cabine_flow/features/agents/presentation/pages/agent_management_
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
+import 'package:cabine_flow/features/auth/presentation/widgets/manager_profile_avatar.dart';
+import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
+import 'package:cabine_flow/features/finances/presentation/pages/finances_page.dart';
 import 'package:cabine_flow/features/more/presentation/pages/admin_activity_journal_page.dart';
 import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
 import 'package:cabine_flow/features/offers/presentation/pages/offer_management_page.dart';
@@ -38,6 +41,8 @@ class MorePage extends StatelessWidget {
     required this.adminOfferRepository,
     required this.agentRepository,
     required this.ordersRepository,
+    this.commissionRepository,
+    this.onOpenPayments,
   });
 
   final AppUser user;
@@ -45,6 +50,8 @@ class MorePage extends StatelessWidget {
   final AdminOfferRepository adminOfferRepository;
   final AgentRepository agentRepository;
   final OrdersRepository ordersRepository;
+  final CommissionRepository? commissionRepository;
+  final VoidCallback? onOpenPayments;
 
   Future<void> _logout(BuildContext context) async {
     final bool? confirmed = await showDialog<bool>(
@@ -445,6 +452,34 @@ class MorePage extends StatelessWidget {
 
   Widget _buildManager(BuildContext context) {
     final UserPermissions permissions = user.permissions;
+    final SupportRequestRepository supportRepository = Firebase.apps.isNotEmpty
+        ? FirestoreSupportRequestRepository()
+        : FakeSupportRequestRepository();
+    final OrderHistoryRepository? historyRepository =
+        ordersRepository is OrderHistoryRepository
+        ? ordersRepository as OrderHistoryRepository
+        : null;
+
+    void openSupportRequests() {
+      final OrderHistoryRepository? history = historyRepository;
+      if (history == null) {
+        _historyUnavailable(context);
+        return;
+      }
+      Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (BuildContext context) => SupportRequestCenterPage(
+            user: user,
+            repository: supportRepository,
+            // /refunds reste Admin-only dans les rules gelees. Le Manager
+            // supervise donc les demandes sans ouvrir de listener Firestore
+            // sur les remboursements.
+            refundRepository: FakeRefundRepository(),
+            orderHistoryRepository: history,
+          ),
+        ),
+      );
+    }
 
     void openAssignments() {
       Navigator.of(context).push<void>(
@@ -480,6 +515,29 @@ class MorePage extends StatelessWidget {
       );
     }
 
+    void openOperationalFinances() {
+      final CommissionRepository? commissions = commissionRepository;
+      if (commissions == null) {
+        IzyTelFeedback.show(
+          context,
+          'La supervision financière n’est pas disponible dans ce contexte.',
+          tone: IzyTelFeedbackTone.warning,
+        );
+        return;
+      }
+      Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (BuildContext context) => FinancesPage(
+            user: user,
+            ordersRepository: ordersRepository,
+            commissionRepository: commissions,
+            agentRepository: agentRepository,
+            onOpenPayments: onOpenPayments ?? () {},
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: IzyTelColors.background,
       body: SafeArea(
@@ -491,8 +549,8 @@ class MorePage extends StatelessWidget {
               title: 'Espace Manager',
               subtitle: 'Supervision opérationnelle et suivi de la cabine.',
               actions: <Widget>[
-                IzyTelAvatar(
-                  name: user.name,
+                ManagerProfileAvatar(
+                  user: user,
                   size: 42,
                   onTap: () {
                     showIzyTelAccountSheet(
@@ -500,6 +558,12 @@ class MorePage extends StatelessWidget {
                       name: user.name,
                       role: user.roleLabel,
                       actions: <IzyTelAccountAction>[
+                        if (permissions.canViewSupportRequests)
+                          IzyTelAccountAction(
+                            icon: Symbols.support_agent_rounded,
+                            label: 'Demandes clients',
+                            onTap: openSupportRequests,
+                          ),
                         if (permissions.canAssignOrders)
                           IzyTelAccountAction(
                             icon: Symbols.assignment_rounded,
@@ -517,6 +581,13 @@ class MorePage extends StatelessWidget {
                             icon: Symbols.report_problem_rounded,
                             label: 'Signalements agents',
                             onTap: openIssues,
+                          ),
+                        if (permissions.canViewOperationalFinances &&
+                            commissionRepository != null)
+                          IzyTelAccountAction(
+                            icon: Symbols.account_balance_rounded,
+                            label: 'Finances opérationnelles',
+                            onTap: openOperationalFinances,
                           ),
                         IzyTelAccountAction(
                           icon: Symbols.logout_rounded,
@@ -540,12 +611,24 @@ class MorePage extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
+                  if (permissions.canViewSupportRequests)
+                    IzyTelMenuRow(
+                      icon: Symbols.support_agent_rounded,
+                      title: 'Demandes clients',
+                      subtitle:
+                          'Consulter les demandes et leur suivi sans modifier le dossier.',
+                      iconColor: IzyTelColors.orange,
+                      onTap: openSupportRequests,
+                    ),
+                  if (permissions.canViewSupportRequests &&
+                      permissions.canAssignOrders)
+                    const Divider(height: 1),
                   if (permissions.canAssignOrders)
                     IzyTelMenuRow(
                       icon: Symbols.assignment_rounded,
-                      title: 'Affectations & réaffectations',
+                      title: 'Affectations des commandes',
                       subtitle:
-                          'Suivre les commandes à affecter et les affectations Phase 4.',
+                          'Consulter les commandes réellement sans agent et leur affectation Phase 4.',
                       iconColor: IzyTelColors.primary,
                       onTap: openAssignments,
                     ),
@@ -584,6 +667,23 @@ class MorePage extends StatelessWidget {
                         onTap: openIssues,
                       ),
                   ],
+                ),
+              ),
+            ],
+            if (permissions.canViewOperationalFinances &&
+                commissionRepository != null) ...<Widget>[
+              const SizedBox(height: IzyTelSpacing.lg),
+              const _SectionLabel('Suivi financier'),
+              const SizedBox(height: 6),
+              IzyTelSurface(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: IzyTelMenuRow(
+                  icon: Symbols.account_balance_rounded,
+                  title: 'Finances opérationnelles',
+                  subtitle:
+                      'Consulter commissions, fournisseurs et mouvements déjà migrés vers Supabase.',
+                  iconColor: IzyTelColors.success,
+                  onTap: openOperationalFinances,
                 ),
               ),
             ],
@@ -641,11 +741,14 @@ class _StaffIdentityCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          IzyTelAvatar(
-            name: user.name,
-            size: 52,
-            initialsOverride: _initials(user.name),
-          ),
+          if (user.isManager)
+            ManagerProfileAvatar(user: user, size: 52, editable: true)
+          else
+            IzyTelAvatar(
+              name: user.name,
+              size: 52,
+              initialsOverride: _initials(user.name),
+            ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -669,6 +772,15 @@ class _StaffIdentityCard extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                if (user.isManager) ...<Widget>[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Touchez la photo pour la modifier',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Colors.white.withAlpha(180),
+                    ),
+                  ),
+                ],
                 if (user.phoneNumber.trim().isNotEmpty) ...[
                   const SizedBox(height: 3),
                   Text(

@@ -3,6 +3,7 @@ import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:cabine_flow/features/commissions/domain/services/commission_performance_calculator.dart';
@@ -37,7 +38,11 @@ class _AgentPerformancePageState extends State<AgentPerformancePage> {
   CommissionPeriod _period = CommissionPeriod.thisMonth;
 
   Future<void> _openPayout(AgentPerformanceSnapshot performance) async {
-    if (!widget.isAdminView || performance.commissionBalance <= 0) return;
+    if (!widget.isAdminView ||
+        !widget.user.permissions.canManageFinanceSettings ||
+        performance.commissionBalance <= 0) {
+      return;
+    }
     final bool? saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -365,7 +370,8 @@ class _AgentPerformancePageState extends State<AgentPerformancePage> {
           _CommissionSummaryCard(
             performance: performance,
             isAdminView: widget.isAdminView,
-            onPay: performance.commissionBalance > 0
+            onPay: widget.user.permissions.canManageFinanceSettings &&
+                    performance.commissionBalance > 0
                 ? () => _openPayout(performance)
                 : null,
           ),
