@@ -271,8 +271,12 @@ class FirebaseAuthRepository implements AuthRepository {
       case 'admin':
       case 'administrator':
         return UserRole.administrator;
+      case 'manager':
+        return UserRole.manager;
       case 'supervisor':
-        return UserRole.supervisor;
+        // Alias Firestore temporaire : le backend garde `supervisor`,
+        // l application expose officiellement le role Manager.
+        return UserRole.manager;
       case 'operator':
         return UserRole.operator;
       case 'agent':

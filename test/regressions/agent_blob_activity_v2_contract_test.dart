@@ -25,18 +25,17 @@ void main() {
     expect(profilePage, contains('espace privé Supabase'));
   });
 
-  test('les règles B2 bornent strictement les médias privés Agent', () {
-    final String rules = _read('firestore.rules');
-
-    expect(rules, contains('match /agentPersonalMedia/{agentId}/items/{kind}'));
-    expect(rules, contains('request.resource.data.contentBytes is bytes'));
-    expect(rules, contains('request.resource.data.sizeBytes <= 250000'));
-    expect(rules, contains('request.resource.data.sizeBytes <= 850000'));
-    expect(rules, contains("profileAfter.verificationStatus != 'verified'"));
-    expect(
-      rules,
-      contains('adminAgentVerificationHasRequiredIdentity(agentId)'),
+  test('les medias prives sont bornes par le repository Supabase', () {
+    final String repository = _read(
+      'lib/features/agents/data/repositories/'
+      'supabase_agent_personal_profile_repository.dart',
     );
+
+    expect(repository, contains("bucketName = 'agent-personal'"));
+    expect(repository, contains('avatarMaxBytes = 250000'));
+    expect(repository, contains('identityMaxBytes = 850000'));
+    expect(repository, contains('.uploadBinary('));
+    expect(repository, contains('.download(path)'));
   });
 
   test('C agrège uniquement les données métier existantes', () {

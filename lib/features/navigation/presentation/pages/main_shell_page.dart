@@ -11,7 +11,9 @@ import 'package:cabine_flow/features/agents/domain/repositories/agent_repository
 import 'package:cabine_flow/features/agents/presentation/pages/agent_activity_page.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_activity_v2_dashboard_page.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_home_page.dart';
+import 'package:cabine_flow/features/agents/presentation/pages/agent_management_page.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:cabine_flow/features/commissions/presentation/pages/agent_commissions_page.dart';
@@ -365,13 +367,18 @@ class _MainShellPageState extends State<MainShellPage> {
         onOpenOrders: _openOrdersTab,
         onOpenOrder: (QueueOrder order) => unawaited(_openSpecificOrder(order)),
       ),
-      FinancesPage(
-        user: widget.user,
-        ordersRepository: widget.ordersRepository,
-        commissionRepository: widget.commissionRepository,
-        agentRepository: widget.agentRepository,
-        onOpenPayments: _openPaymentsTab,
-      ),
+      widget.user.isManager
+          ? AgentManagementPage(
+              user: widget.user,
+              repository: widget.agentRepository,
+            )
+          : FinancesPage(
+              user: widget.user,
+              ordersRepository: widget.ordersRepository,
+              commissionRepository: widget.commissionRepository,
+              agentRepository: widget.agentRepository,
+              onOpenPayments: _openPaymentsTab,
+            ),
       MorePage(
         user: widget.user,
         authRepository: widget.authRepository,
@@ -398,6 +405,7 @@ class _MainShellPageState extends State<MainShellPage> {
         bottomNavigationBar: CabineBottomNavigationBar(
           selectedIndex: _selectedIndex,
           onDestinationSelected: _selectDestination,
+          managerMode: widget.user.isManager,
         ),
       ),
     );

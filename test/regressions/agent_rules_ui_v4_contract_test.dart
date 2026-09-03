@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
-    'profil Agent utilise Supabase et conserve les règles Firestore legacy',
+    'profil Agent utilise Supabase et conserve seulement le profil Firestore legacy',
     () {
       final String rules = File('firestore.rules').readAsStringSync();
       final String profile = File(
@@ -20,40 +20,51 @@ void main() {
       expect(profile, contains('identityPresent'));
       expect(repository, contains("tableName = 'agent_personal_profiles'"));
       expect(repository, contains("bucketName = 'agent-personal'"));
-      // Les contrats Firestore restent présents tant que la migration complète
-      // n'est pas terminée.
-      expect(
-        rules,
-        contains('match /agentPersonalMedia/{agentId}/items/{kind}'),
-      );
+      expect(repository, contains('avatarMaxBytes = 250000'));
+      expect(repository, contains('identityMaxBytes = 850000'));
+      // Firestore ne conserve que le contrat de profil legacy. Les blobs sont
+      // désormais stockés dans le bucket privé Supabase.
+      expect(rules, contains('match /agentPersonalProfiles/{agentId}'));
     },
   );
 
-  test('refus Agent ne retombe plus dans le lien generique circulaire', () {
-    final String rules = File('firestore.rules').readAsStringSync();
+  test('refus Agent utilise Phase 4 et ne retombe pas dans le lien Firestore', () {
+    final String hybrid = File(
+      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+    ).readAsStringSync();
+    final String phase4 = File(
+      'lib/features/orders/data/repositories/'
+      'supabase_phase4_assignment_repository.dart',
+    ).readAsStringSync();
 
-    expect(rules, contains('function isValidAgentAssignmentRefusedEvent()'));
-    expect(
-      rules,
-      contains(
-        "request.resource.data.type == 'ASSIGNMENT_REFUSED'\n"
-        '        && isValidAgentAssignmentRefusedEvent()',
-      ),
-    );
-    expect(rules, contains("'ASSIGNED',\n          'ASSIGNMENT_REFUSED'"));
+    expect(hybrid, contains('Future<QueueOrder> refuseAgentAssignment'));
+    expect(hybrid, contains('_phase4.refuse(orderId: orderId'));
+    expect(phase4, contains("'phase4_agent_action'"));
+    expect(phase4, contains("action: 'refuse'"));
   });
 
   test(
-    'signalements et fournisseurs conservent les correctifs fonctionnels',
+    'signalements et fournisseurs conservent les correctifs Supabase',
     () {
-      final String rules = File('firestore.rules').readAsStringSync();
+      final String issues = File(
+        'lib/features/agents/data/repositories/'
+        'supabase_agent_issue_repository.dart',
+      ).readAsStringSync();
+      final String hybridFinance = File(
+        'lib/features/finances/data/repositories/'
+        'hybrid_finance_operations_repository.dart',
+      ).readAsStringSync();
+      final String suppliers = File(
+        'lib/features/finances/data/repositories/'
+        'supabase_supplier_registry_repository.dart',
+      ).readAsStringSync();
 
-      expect(rules, contains("'in_progress'"));
-      expect(rules, contains('function isValidFinanceSupplierDelete'));
-      expect(
-        rules,
-        contains('allow delete: if isValidFinanceSupplierDelete(supplierId);'),
-      );
+      expect(issues, contains("'in_progress'"));
+      expect(issues, contains('closesIssue'));
+      expect(issues, contains("'resolved_by': closesIssue"));
+      expect(hybridFinance, contains('_supplierRegistry.softDeleteSupplier('));
+      expect(suppliers, contains('Future<void> softDeleteSupplier'));
+      expect(suppliers, contains("tableName = 'finance_suppliers'"));
     },
   );
 

@@ -8,6 +8,7 @@ import 'package:cabine_flow/features/agents/presentation/pages/agent_detail_page
 import 'package:cabine_flow/features/agents/presentation/widgets/agent_directory_avatar.dart';
 import 'package:cabine_flow/features/agents/presentation/view_models/agent_management_view_model.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
@@ -57,6 +58,7 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
           agent: agent,
           zones: _viewModel.zones,
           repository: widget.repository,
+          readOnly: !widget.user.permissions.canManageAgents,
         ),
       ),
     );
@@ -377,6 +379,7 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
         child: ListenableBuilder(
           listenable: _viewModel,
           builder: (_, _) {
+            final bool canManageAgents = widget.user.permissions.canManageAgents;
             final List<AgentDirectoryEntry> agents = _viewModel.filteredAgents;
             final int activeFilters = <Object?>[
               _viewModel.availabilityFilter,
@@ -393,9 +396,10 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                 children: [
                   IzyTelPageHeader(
-                    title: 'Agents & zones',
-                    subtitle:
-                        'Pilote la disponibilité, les réseaux et les capacités de l’équipe.',
+                    title: canManageAgents ? 'Agents & zones' : 'Agents',
+                    subtitle: canManageAgents
+                        ? 'Pilote la disponibilité, les réseaux et les capacités de l’équipe.'
+                        : 'Supervise la disponibilité, les réseaux, les zones et les capacités de l’équipe.',
                     actions: [IzyTelAvatar(name: widget.user.name, size: 42)],
                   ),
                   const SizedBox(height: IzyTelSpacing.lg),
@@ -432,15 +436,17 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: IzyTelSpacing.md),
-                  SizedBox(
-                    height: 48,
-                    child: FilledButton.icon(
-                      onPressed: _addAgent,
-                      icon: const Icon(Symbols.person_add_rounded, size: 20),
-                      label: const Text('Ajouter un agent'),
+                  if (canManageAgents) ...[
+                    const SizedBox(height: IzyTelSpacing.md),
+                    SizedBox(
+                      height: 48,
+                      child: FilledButton.icon(
+                        onPressed: _addAgent,
+                        icon: const Icon(Symbols.person_add_rounded, size: 20),
+                        label: const Text('Ajouter un agent'),
+                      ),
                     ),
-                  ),
+                  ],
                   const SizedBox(height: IzyTelSpacing.md),
                   IzyTelSearchField(
                     controller: _searchController,

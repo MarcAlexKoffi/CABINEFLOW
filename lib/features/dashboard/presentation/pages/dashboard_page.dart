@@ -4,6 +4,7 @@ import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/dashboard/domain/models/dashboard_data.dart';
 import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_repository.dart';
@@ -90,20 +91,24 @@ class _DashboardPageState extends State<DashboardPage> {
     _refundRepository = Firebase.apps.isNotEmpty
         ? FirestoreRefundRepository()
         : FakeRefundRepository();
-    _refundSubscription = _refundRepository.watchAll().listen((
-      List<RefundCase> refunds,
-    ) {
-      if (!mounted) return;
-      _handledFailureOrderIds = refunds
-          .where(
-            (RefundCase refund) =>
-                refund.status == RefundStatus.refunded ||
-                refund.status == RefundStatus.reconciled,
-          )
-          .map((RefundCase refund) => refund.orderId)
-          .toSet();
-      _refreshVisibleFailedOrders(notifyNewFailures: false);
-    }, onError: (_) {});
+    // /refunds reste strictement Admin dans les rules Firestore gelees.
+    // Un Manager ne doit donc meme pas ouvrir ce listener en arriere-plan.
+    if (widget.user.permissions.canManageRefunds) {
+      _refundSubscription = _refundRepository.watchAll().listen((
+        List<RefundCase> refunds,
+      ) {
+        if (!mounted) return;
+        _handledFailureOrderIds = refunds
+            .where(
+              (RefundCase refund) =>
+                  refund.status == RefundStatus.refunded ||
+                  refund.status == RefundStatus.reconciled,
+            )
+            .map((RefundCase refund) => refund.orderId)
+            .toSet();
+        _refreshVisibleFailedOrders(notifyNewFailures: false);
+      }, onError: (_) {});
+    }
 
     final OrderHistoryRepository? history = widget.orderHistoryRepository;
     if (history != null) {
@@ -158,7 +163,9 @@ class _DashboardPageState extends State<DashboardPage> {
         if (!mounted) return;
         IzyTelFeedback.show(
           context,
-          'Commande ${newest.reference} échouée : intervention Admin requise.',
+          widget.user.permissions.canManageFailedOrders
+              ? 'Commande ${newest.reference} échouée : intervention requise.'
+              : 'Commande ${newest.reference} échouée : intervention Admin requise.',
           tone: IzyTelFeedbackTone.error,
         );
       });
@@ -197,6 +204,14 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _openFailedOrdersCenter() async {
+    if (!widget.user.permissions.canManageFailedOrders) {
+      IzyTelFeedback.show(
+        context,
+        'La réaffectation d’une commande échouée et les remboursements restent réservés à l’Administrateur.',
+        tone: IzyTelFeedbackTone.warning,
+      );
+      return;
+    }
     final OrderHistoryRepository? history = widget.orderHistoryRepository;
     final OrdersRepository? orders = widget.ordersRepository;
     final AgentRepository? agents = widget.agentRepository;
@@ -254,10 +269,11 @@ class _DashboardPageState extends State<DashboardPage> {
       if (widget.onOpenMore != null)
         IzyTelAccountAction(
           icon: Symbols.person_rounded,
-          label: 'Administration',
+          label: widget.user.isManager ? 'Espace Manager' : 'Administration',
           onTap: widget.onOpenMore!,
         ),
-      if (widget.onOpenMore != null)
+      if (widget.onOpenMore != null &&
+          widget.user.permissions.canProcessSupportRequests)
         IzyTelAccountAction(
           icon: Symbols.notifications_rounded,
           label: 'Demandes & notifications',
@@ -362,7 +378,9 @@ class _DashboardPageState extends State<DashboardPage> {
                             icon: Symbols.person_rounded,
                             iconColor: IzyTelColors.orange,
                             title: '$_customerRequestsCount demandes client',
-                            onTap: widget.onOpenMore,
+                            onTap: widget.user.permissions.canProcessSupportRequests
+                                ? widget.onOpenMore
+                                : null,
                           ),
                         ],
                       ),
@@ -403,8 +421,12 @@ class _DashboardPageState extends State<DashboardPage> {
                     const SizedBox(height: 20),
                     IzyTelSectionHeader(
                       title: 'Disponibilité réseau',
-                      actionLabel: 'Voir tout',
-                      onAction: widget.onOpenMore,
+                      actionLabel: widget.user.permissions.canManageFinanceSettings
+                          ? 'Voir tout'
+                          : null,
+                      onAction: widget.user.permissions.canManageFinanceSettings
+                          ? widget.onOpenMore
+                          : null,
                     ),
                     const SizedBox(height: 8),
                     Row(

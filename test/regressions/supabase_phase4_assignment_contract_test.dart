@@ -170,7 +170,13 @@ void main() {
     expect(block, contains('canonicalHasAssignment'));
     expect(block, contains('ignorePreviousRefusals: true'));
     expect(block, contains('assigned.overlayOn('));
-    expect(block, isNot(contains('_firestore.assignToAgent(')));
+    // Les commentaires documentent volontairement l'ancienne méthode. On ne
+    // doit interdire que son appel exécutable dans le bloc d'affectation.
+    final String executableBlock = block
+        .split('\n')
+        .where((String line) => !line.trimLeft().startsWith('//'))
+        .join('\n');
+    expect(executableBlock, isNot(contains('_firestore.assignToAgent(')));
     expect(block, isNot(contains('releaseHybridStaleAssignmentAsStaff(')));
     expect(
       RegExp(r'_phase4\s*\.\s*markFirebaseAssignmentSynced\s*\(')

@@ -855,12 +855,14 @@ class CabineBottomNavigationBar extends StatelessWidget {
     super.key,
     required this.selectedIndex,
     required this.onDestinationSelected,
+    this.managerMode = false,
   });
 
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
+  final bool managerMode;
 
-  static const List<_CabineNavigationItem> _items = [
+  static const List<_CabineNavigationItem> _adminItems = [
     _CabineNavigationItem(
       label: 'Accueil',
       icon: Symbols.home_rounded,
@@ -888,8 +890,39 @@ class CabineBottomNavigationBar extends StatelessWidget {
     ),
   ];
 
+  static const List<_CabineNavigationItem> _managerItems = [
+    _CabineNavigationItem(
+      label: 'Accueil',
+      icon: Symbols.home_rounded,
+      selectedIcon: Symbols.home_rounded,
+    ),
+    _CabineNavigationItem(
+      label: 'Commandes',
+      icon: Symbols.receipt_long_rounded,
+      selectedIcon: Symbols.receipt_long_rounded,
+    ),
+    _CabineNavigationItem(
+      label: 'Paiements',
+      icon: Symbols.wallet_rounded,
+      selectedIcon: Symbols.wallet_rounded,
+    ),
+    _CabineNavigationItem(
+      label: 'Agents',
+      icon: Symbols.groups_rounded,
+      selectedIcon: Symbols.groups_rounded,
+    ),
+    _CabineNavigationItem(
+      label: 'Plus',
+      icon: Symbols.menu_rounded,
+      selectedIcon: Symbols.menu_rounded,
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
+    final List<_CabineNavigationItem> items = managerMode
+        ? _managerItems
+        : _adminItems;
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: IzyTelColors.surface,
@@ -907,8 +940,8 @@ class CabineBottomNavigationBar extends StatelessWidget {
         child: SizedBox(
           height: 62,
           child: Row(
-            children: List<Widget>.generate(_items.length, (int index) {
-              final _CabineNavigationItem item = _items[index];
+            children: List<Widget>.generate(items.length, (int index) {
+              final _CabineNavigationItem item = items[index];
               final bool selected = index == selectedIndex;
               final Color color = selected
                   ? IzyTelColors.primary
@@ -917,7 +950,7 @@ class CabineBottomNavigationBar extends StatelessWidget {
               return Expanded(
                 child: InkWell(
                   key: ValueKey<String>(
-                    'admin-nav-${item.label.toLowerCase()}',
+                    '${managerMode ? 'manager' : 'admin'}-nav-${item.label.toLowerCase()}',
                   ),
                   onTap: () => onDestinationSelected(index),
                   child: AnimatedContainer(

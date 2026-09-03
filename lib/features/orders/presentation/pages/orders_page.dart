@@ -4,6 +4,7 @@ import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_history_filters.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
@@ -632,7 +633,7 @@ class _OrdersPageState extends State<OrdersPage> {
                               isProcessing: _viewModel.isTakingCharge(order.id),
                               actionLabel: order.isAssignedToAgent
                                   ? 'En attente de l’agent'
-                                  : widget.user.role == UserRole.administrator
+                                  : widget.user.permissions.canAssignOrders
                                   ? order.manualAssignmentRequired
                                         ? 'Affecter manuellement'
                                         : 'Affecter'
@@ -658,8 +659,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                   }
                                   return;
                                 }
-                                if (widget.user.role ==
-                                    UserRole.administrator) {
+                                if (widget.user.permissions.canAssignOrders) {
                                   _openAgentAssignment(order);
                                 } else {
                                   _confirmTakeCharge(order);

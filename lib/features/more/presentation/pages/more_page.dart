@@ -6,6 +6,7 @@ import 'package:cabine_flow/features/agents/domain/repositories/agent_repository
 import 'package:cabine_flow/features/agents/presentation/pages/agent_issue_center_page.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_management_page.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:cabine_flow/features/more/presentation/pages/admin_activity_journal_page.dart';
 import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
@@ -51,8 +52,10 @@ class MorePage extends StatelessWidget {
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('Se déconnecter ?'),
-          content: const Text(
-            'Tu devras te reconnecter pour accéder de nouveau à l’espace Administration.',
+          content: Text(
+            user.isManager
+              ? 'Tu devras te reconnecter pour accéder de nouveau à ton espace Manager.'
+              : 'Tu devras te reconnecter pour accéder de nouveau à l’espace Administration.',
           ),
           actions: [
             TextButton(
@@ -89,6 +92,9 @@ class MorePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (user.isManager) {
+      return _buildManager(context);
+    }
     if (user.role != UserRole.administrator) {
       return const FeaturePlaceholderPage(
         title: 'Plus',
@@ -222,7 +228,7 @@ class MorePage extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: IzyTelSpacing.lg),
-                _AdminIdentityCard(user: user),
+                _StaffIdentityCard(user: user),
                 const SizedBox(height: IzyTelSpacing.xl),
                 const _SectionLabel('Clients & assistance'),
                 const SizedBox(height: 6),
@@ -437,6 +443,169 @@ class MorePage extends StatelessWidget {
     );
   }
 
+  Widget _buildManager(BuildContext context) {
+    final UserPermissions permissions = user.permissions;
+
+    void openAssignments() {
+      Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (BuildContext context) => OrdersPage(
+            user: user,
+            ordersRepository: ordersRepository,
+            agentRepository: agentRepository,
+          ),
+        ),
+      );
+    }
+
+    void openIssues() {
+      Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (BuildContext context) => AgentIssueCenterPage(
+            user: user,
+            repository: agentRepository,
+          ),
+        ),
+      );
+    }
+
+    void openAgents() {
+      Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (BuildContext context) => AgentManagementPage(
+            user: user,
+            repository: agentRepository,
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: IzyTelColors.background,
+      body: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          children: <Widget>[
+            IzyTelPageHeader(
+              title: 'Espace Manager',
+              subtitle: 'Supervision opérationnelle et suivi de la cabine.',
+              actions: <Widget>[
+                IzyTelAvatar(
+                  name: user.name,
+                  size: 42,
+                  onTap: () {
+                    showIzyTelAccountSheet(
+                      context: context,
+                      name: user.name,
+                      role: user.roleLabel,
+                      actions: <IzyTelAccountAction>[
+                        if (permissions.canAssignOrders)
+                          IzyTelAccountAction(
+                            icon: Symbols.assignment_rounded,
+                            label: 'Affectations',
+                            onTap: openAssignments,
+                          ),
+                        if (permissions.canViewAgentDirectory)
+                          IzyTelAccountAction(
+                            icon: Symbols.groups_rounded,
+                            label: 'Agents',
+                            onTap: openAgents,
+                          ),
+                        if (permissions.canResolveAgentIssues)
+                          IzyTelAccountAction(
+                            icon: Symbols.report_problem_rounded,
+                            label: 'Signalements agents',
+                            onTap: openIssues,
+                          ),
+                        IzyTelAccountAction(
+                          icon: Symbols.logout_rounded,
+                          label: 'Se déconnecter',
+                          destructive: true,
+                          onTap: () => _logout(context),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: IzyTelSpacing.lg),
+            _StaffIdentityCard(user: user),
+            const SizedBox(height: IzyTelSpacing.xl),
+            const _SectionLabel('Opérations'),
+            const SizedBox(height: 6),
+            IzyTelSurface(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  if (permissions.canAssignOrders)
+                    IzyTelMenuRow(
+                      icon: Symbols.assignment_rounded,
+                      title: 'Affectations & réaffectations',
+                      subtitle:
+                          'Suivre les commandes à affecter et les affectations Phase 4.',
+                      iconColor: IzyTelColors.primary,
+                      onTap: openAssignments,
+                    ),
+                ],
+              ),
+            ),
+            if (permissions.canViewAgentDirectory ||
+                permissions.canResolveAgentIssues) ...<Widget>[
+              const SizedBox(height: IzyTelSpacing.lg),
+              const _SectionLabel('Équipe'),
+              const SizedBox(height: 6),
+              IzyTelSurface(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    if (permissions.canViewAgentDirectory)
+                      IzyTelMenuRow(
+                        icon: Symbols.groups_rounded,
+                        title: 'Agents',
+                        subtitle:
+                            'Superviser disponibilité, réseaux, zones et capacités.',
+                        iconColor: IzyTelColors.moov,
+                        onTap: openAgents,
+                      ),
+                    if (permissions.canViewAgentDirectory &&
+                        permissions.canResolveAgentIssues)
+                      const Divider(height: 1),
+                    if (permissions.canResolveAgentIssues)
+                      IzyTelMenuRow(
+                        icon: Symbols.report_problem_rounded,
+                        title: 'Signalements agents',
+                        subtitle:
+                            'Consulter, filtrer et traiter les incidents remontés par les agents.',
+                        iconColor: IzyTelColors.warning,
+                        onTap: openIssues,
+                      ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: IzyTelSpacing.lg),
+            const _SectionLabel('Compte'),
+            const SizedBox(height: 6),
+            IzyTelSurface(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: IzyTelMenuRow(
+                icon: Symbols.logout_rounded,
+                title: 'Se déconnecter',
+                subtitle: 'Fermer la session Manager sur cet appareil.',
+                destructive: true,
+                onTap: () => _logout(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _historyUnavailable(BuildContext context) {
     IzyTelFeedback.show(
       context,
@@ -446,8 +615,8 @@ class MorePage extends StatelessWidget {
   }
 }
 
-class _AdminIdentityCard extends StatelessWidget {
-  const _AdminIdentityCard({required this.user});
+class _StaffIdentityCard extends StatelessWidget {
+  const _StaffIdentityCard({required this.user});
 
   final AppUser user;
 

@@ -1,4 +1,4 @@
-enum UserRole { administrator, supervisor, operator, agent }
+enum UserRole { administrator, manager, supervisor, operator, agent }
 
 class AppUser {
   const AppUser({
@@ -18,8 +18,13 @@ class AppUser {
       case UserRole.administrator:
         return 'Administrateur';
 
+      case UserRole.manager:
+        return 'Manager';
+
+      // Compatibilite Firestore temporaire : un document staff dont le role
+      // backend vaut encore `supervisor` est presente comme Manager dans l UI.
       case UserRole.supervisor:
-        return 'Superviseur';
+        return 'Manager';
 
       case UserRole.operator:
         return 'Opérateur';

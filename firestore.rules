@@ -1,27 +1,23 @@
-// PHASE 9E AUTO ASSIGNMENT FIX V2 - artefacts unidirectionnels
 rules_version = '2';
-// IZYTEL CONSOLIDATED RULESET - AGENT MEDIA / REFUS / SIGNALEMENTS / FOURNISSEURS
-// AUTO ASSIGNMENT - artefacts unidirectionnels
+// PHASE 9E AUTO ASSIGNMENT FIX V2 - artefacts unidirectionnels
 
 service cloud.firestore {
   match /databases/{database}/documents {
     function isSignedIn() {
       return request.auth != null;
     }
-
-    function staffProfile() {
+ function staffProfile() {
       return get(
         /databases/$(database)/documents/users/$(request.auth.uid)
       ).data;
     }
-
     function isStaff() {
       return isSignedIn()
         && exists(
           /databases/$(database)/documents/users/$(request.auth.uid)
         )
         && staffProfile().isActive == true
-        && staffProfile().role in ['operator', 'supervisor', 'admin'];
+        && staffProfile().role in ['operator', 'manager', 'supervisor', 'admin'];
     }
 
     function isAdmin() {
@@ -997,7 +993,7 @@ service cloud.firestore {
         && hasMatchingOrderEvent(orderId, 'ASSIGNMENT_ACCEPTED');
     }
 
-    function isValidAgentAssignmentRefusal(orderId) {
+      function isValidAgentAssignmentRefusal(orderId) {
       return isCurrentAssignedAgent()
         && resource.data.status == 'paidReady'
         && paymentStatusAllowsProcessing(resource.data.paymentStatus)
@@ -1727,8 +1723,6 @@ service cloud.firestore {
           'identityDocumentNumber',
           'avatarStoragePath',
           'identityDocumentStoragePath',
-          'hasAvatarMedia',
-          'hasIdentityDocumentMedia',
           'identityDocumentFileName',
           'identityDocumentMimeType',
           'verificationStatus',
@@ -1779,8 +1773,6 @@ service cloud.firestore {
           || request.resource.data.identityDocumentStoragePath
             == 'agent_profiles/' + agentId + '/identity/document'
         )
-        && request.resource.data.get('hasAvatarMedia', false) is bool
-        && request.resource.data.get('hasIdentityDocumentMedia', false) is bool
         && (
           request.resource.data.identityDocumentFileName == null
           || (
@@ -1863,21 +1855,6 @@ service cloud.firestore {
         );
     }
 
-    function adminAgentVerificationHasRequiredIdentity(agentId) {
-      return (
-          request.resource.data.get('avatarStoragePath', null) is string
-          || exists(
-            /databases/$(database)/documents/agentPersonalMedia/$(agentId)/items/avatar
-          )
-        )
-        && (
-          request.resource.data.get('identityDocumentStoragePath', null) is string
-          || exists(
-            /databases/$(database)/documents/agentPersonalMedia/$(agentId)/items/identity
-          )
-        );
-    }
-
     function isValidAdminAgentPersonalProfileVerification(agentId) {
       return isAdmin()
         && hasValidAgentPersonalProfileValues(agentId)
@@ -1888,85 +1865,7 @@ service cloud.firestore {
           'verificationNote',
           'updatedAt'
         ])
-        && (
-          request.resource.data.verificationStatus != 'verified'
-          || adminAgentVerificationHasRequiredIdentity(agentId)
-        )
         && request.resource.data.updatedAt == request.time;
-    }
-
-    function hasValidAgentPersonalMediaValues(agentId, kind) {
-      return request.resource.data.keys().hasOnly([
-          'schemaVersion',
-          'agentId',
-          'kind',
-          'fileName',
-          'mimeType',
-          'contentBytes',
-          'sizeBytes',
-          'createdAt',
-          'updatedAt'
-        ])
-        && request.resource.data.schemaVersion == 1
-        && request.resource.data.agentId == agentId
-        && kind in ['avatar', 'identity']
-        && request.resource.data.kind == kind
-        && request.resource.data.fileName is string
-        && request.resource.data.fileName.size() >= 1
-        && request.resource.data.fileName.size() <= 220
-        && request.resource.data.mimeType is string
-        && request.resource.data.contentBytes is bytes
-        && request.resource.data.sizeBytes is int
-        && request.resource.data.sizeBytes > 0
-        && request.resource.data.contentBytes.size() == request.resource.data.sizeBytes
-        && (
-          (
-            kind == 'avatar'
-            && request.resource.data.mimeType == 'image/jpeg'
-            && request.resource.data.sizeBytes <= 250000
-          )
-          || (
-            kind == 'identity'
-            && request.resource.data.mimeType in ['image/jpeg', 'application/pdf']
-            && request.resource.data.sizeBytes <= 850000
-          )
-        )
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.updatedAt is timestamp;
-    }
-
-    function isValidAgentPersonalMediaCreation(agentId, kind) {
-      let profileAfter = getAfter(
-        /databases/$(database)/documents/agentPersonalProfiles/$(agentId)
-      ).data;
-
-      return isAgent()
-        && request.auth.uid == agentId
-        && hasValidAgentPersonalMediaValues(agentId, kind)
-        && request.resource.data.createdAt == request.time
-        && request.resource.data.updatedAt == request.time
-        && (
-          kind != 'identity'
-          || profileAfter.verificationStatus != 'verified'
-        );
-    }
-
-    function isValidAgentPersonalMediaUpdate(agentId, kind) {
-      let profileAfter = getAfter(
-        /databases/$(database)/documents/agentPersonalProfiles/$(agentId)
-      ).data;
-
-      return isAgent()
-        && request.auth.uid == agentId
-        && hasValidAgentPersonalMediaValues(agentId, kind)
-        && resource.data.agentId == agentId
-        && resource.data.kind == kind
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.updatedAt == request.time
-        && (
-          kind != 'identity'
-          || profileAfter.verificationStatus != 'verified'
-        );
     }
 
     function isValidAgentOwnUserContactUpdate(userId) {
@@ -2069,7 +1968,6 @@ service cloud.firestore {
         && request.resource.data.status in [
           'open',
           'acknowledged',
-          'in_progress',
           'resolved',
           'cancelled'
         ]
@@ -2097,34 +1995,11 @@ service cloud.firestore {
     }
 
     function isValidAdminAgentIssueUpdate() {
-      let nextStatus = request.resource.data.status;
-      let closesIssue = nextStatus in ['resolved', 'cancelled'];
-
       return isAdmin()
         && hasValidAgentIssueValues()
         && request.resource.data.agentId == resource.data.agentId
         && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status',
-          'updatedAt',
-          'resolvedAt',
-          'resolvedBy'
-        ])
-        && request.resource.data.updatedAt == request.time
-        && (
-          (
-            closesIssue
-            && request.resource.data.resolvedAt == request.time
-            && request.resource.data.resolvedBy is string
-            && request.resource.data.resolvedBy.size() >= 2
-            && request.resource.data.resolvedBy.size() <= 120
-          )
-          || (
-            !closesIssue
-            && request.resource.data.resolvedAt == null
-            && request.resource.data.resolvedBy == null
-          )
-        );
+        && request.resource.data.updatedAt == request.time;
     }
 
     function hasValidStaffUserValues() {
@@ -2148,6 +2023,7 @@ service cloud.firestore {
         && request.resource.data.role in [
           'pending',
           'operator',
+          'manager',
           'supervisor',
           'agent',
           'admin'
@@ -2596,7 +2472,7 @@ service cloud.firestore {
           && isAdmin()
           && request.resource.data.actorId == request.auth.uid
         ) || (
-          actorRole in ['operator', 'supervisor', 'admin']
+          actorRole in ['operator', 'manager', 'supervisor', 'admin']
           && eventType in [
             'ORDER_CREATED',
             'PAYMENT_CONFIRMED',
@@ -2812,6 +2688,7 @@ service cloud.firestore {
             !isSelfAssignment
             && request.resource.data.actorRole in [
               'operator',
+              'manager',
               'supervisor',
               'admin'
             ]
@@ -2819,41 +2696,6 @@ service cloud.firestore {
             && request.resource.data.actorRole == staffProfile().role
           )
         );
-    }
-
-    // Le refus d'affectation est validé à partir de l'état courant de la
-    // commande. La mise à jour de orders conserve le lien getAfter vers
-    // l'événement, mais l'événement ne dépend plus de la commande mise à jour.
-    function isValidAgentAssignmentRefusedEvent() {
-      let orderId = request.resource.data.orderId;
-      let orderBefore = get(
-        /databases/$(database)/documents/orders/$(orderId)
-      ).data;
-      let metadata = request.resource.data.metadata;
-
-      return isAgent()
-        && hasValidOrderEventKeys()
-        && request.resource.data.schemaVersion == 1
-        && orderId is string
-        && orderId.size() >= 1
-        && request.resource.data.orderReference is string
-        && request.resource.data.orderReference.size() >= 8
-        && request.resource.data.type == 'ASSIGNMENT_REFUSED'
-        && request.resource.data.actorId == request.auth.uid
-        && request.resource.data.actorRole == 'agent'
-        && request.resource.data.createdAt == request.time
-        && hasValidOrderEventMetadata()
-        && metadata.get('assignmentId', null) is string
-        && metadata.get('assignmentId', '').size() >= 1
-        && metadata.get('reason', null) is string
-        && metadata.get('reason', '').size() >= 3
-        && metadata.get('reason', '').size() <= 500
-        && metadata.get('releasedToQueue', false) == true
-        && orderBefore.reference == request.resource.data.orderReference
-        && orderBefore.status == 'paidReady'
-        && paymentStatusAllowsProcessing(orderBefore.paymentStatus)
-        && orderBefore.get('assignedAgentId', null) == request.auth.uid
-        && orderBefore.get('assignmentStatus', 'unassigned') == 'assigned';
     }
 
     function isValidOrderEventCreation(eventId) {
@@ -2869,16 +2711,12 @@ service cloud.firestore {
         request.resource.data.type == 'ASSIGNED'
         && isValidAssignedOrderEventCreation()
       ) || (
-        request.resource.data.type == 'ASSIGNMENT_REFUSED'
-        && isValidAgentAssignmentRefusedEvent()
-      ) || (
-        // Les événements ci-dessus ont leurs validations dédiées et ne
-        // retombent jamais dans la branche générique getAfter.
+        // ORDER_CREATED, PAYMENT_DECLARED et ASSIGNED ont leurs validations
+        // dediees et ne retombent jamais dans la branche generique getAfter.
         !(request.resource.data.type in [
           'ORDER_CREATED',
           'PAYMENT_DECLARED',
-          'ASSIGNED',
-          'ASSIGNMENT_REFUSED'
+          'ASSIGNED'
         ])
         && hasValidOrderEventKeys()
         && request.resource.data.schemaVersion == 1
@@ -2892,6 +2730,7 @@ service cloud.firestore {
         && request.resource.data.actorRole in [
           'customer',
           'operator',
+          'manager',
           'supervisor',
           'agent',
           'admin'
@@ -4040,39 +3879,17 @@ service cloud.firestore {
     }
 
     function hasValidFinanceSupplierValues() {
-      return request.resource.data.keys().hasOnly([
-          'schemaVersion',
-          'name',
-          'phoneNumber',
-          'isActive',
-          'note',
-          'createdAt',
-          'createdBy',
-          'createdByName',
-          'updatedAt',
-          'updatedBy',
-          'updatedByName'
-        ])
-        && request.resource.data.schemaVersion == 1
+      return request.resource.data.schemaVersion == 1
         && request.resource.data.name is string
         && request.resource.data.name.size() >= 2
         && request.resource.data.name.size() <= 120
         && request.resource.data.phoneNumber is string
         && request.resource.data.phoneNumber.size() <= 30
         && request.resource.data.isActive is bool
-        && (
-          request.resource.data.get('note', null) == null
-          || (
-            request.resource.data.note is string
-            && request.resource.data.note.size() <= 500
-          )
-        )
         && request.resource.data.createdAt is timestamp
         && request.resource.data.createdBy is string
-        && request.resource.data.createdByName is string
         && request.resource.data.updatedAt is timestamp
-        && request.resource.data.updatedBy is string
-        && request.resource.data.updatedByName is string;
+        && request.resource.data.updatedBy is string;
     }
 
     function isValidFinanceSupplierCreation() {
@@ -4090,25 +3907,13 @@ service cloud.firestore {
         && hasValidFinanceSupplierValues()
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.createdBy == resource.data.createdBy
-        && request.resource.data.createdByName == resource.data.createdByName
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.phoneNumber == resource.data.phoneNumber
         && request.resource.data.updatedAt == request.time
         && request.resource.data.updatedBy == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'name',
-          'phoneNumber',
-          'note',
-          'isActive',
-          'updatedAt',
-          'updatedBy',
-          'updatedByName'
+          'isActive', 'updatedAt', 'updatedBy', 'updatedByName'
         ]);
-    }
-
-    function isValidFinanceSupplierDelete(supplierId) {
-      return isAdmin()
-        && !exists(
-          /databases/$(database)/documents/supplierAccounts/$(supplierId)
-        );
     }
 
     function hasValidSupplierRechargeValues() {
@@ -4522,7 +4327,7 @@ service cloud.firestore {
       allow get, list: if isAdmin();
       allow create: if isValidFinanceSupplierCreation();
       allow update: if isValidFinanceSupplierUpdate();
-      allow delete: if isValidFinanceSupplierDelete(supplierId);
+      allow delete: if false;
     }
 
     match /supplierRecharges/{rechargeId} {
@@ -4767,16 +4572,6 @@ service cloud.firestore {
       allow get, list: if isStaff() || resource.data.isActive == true;
       allow create: if isValidOfferCreation();
       allow update: if isValidOfferUpdate();
-      allow delete: if false;
-    }
-
-    match /agentPersonalMedia/{agentId}/items/{kind} {
-      allow get: if isAdmin()
-        || (isAgent() && request.auth.uid == agentId);
-      allow list: if isAdmin()
-        || (isAgent() && request.auth.uid == agentId);
-      allow create: if isValidAgentPersonalMediaCreation(agentId, kind);
-      allow update: if isValidAgentPersonalMediaUpdate(agentId, kind);
       allow delete: if false;
     }
 

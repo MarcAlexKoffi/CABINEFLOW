@@ -51,8 +51,9 @@ class OrderAuditEntry {
         return 'Agent';
       case 'operator':
         return 'Opérateur';
+      case 'manager':
       case 'supervisor':
-        return 'Superviseur';
+        return 'Manager';
       case 'admin':
         return 'Administrateur';
       case 'system':
@@ -70,8 +71,9 @@ class OrderAuditEntry {
         return 'Agent';
       case 'operator':
         return 'Opérateur';
+      case 'manager':
       case 'supervisor':
-        return 'Superviseur';
+        return 'Manager';
       case 'admin':
         return 'Administrateur';
       case 'system':

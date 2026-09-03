@@ -14,11 +14,13 @@ class AgentDetailPage extends StatefulWidget {
     required this.agent,
     required this.zones,
     required this.repository,
+    this.readOnly = false,
   });
 
   final AgentDirectoryEntry agent;
   final List<AgentZone> zones;
   final AgentRepository repository;
+  final bool readOnly;
 
   @override
   State<AgentDetailPage> createState() => _AgentDetailPageState();
@@ -257,7 +259,9 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
     final AgentProfile? profile = widget.agent.profile;
     return Scaffold(
       backgroundColor: IzyTelColors.background,
-      appBar: AppBar(title: const Text('Profil Agent')),
+      appBar: AppBar(
+        title: Text(widget.readOnly ? 'Supervision Agent' : 'Profil Agent'),
+      ),
       body: SafeArea(
         top: false,
         child: ListenableBuilder(
@@ -270,15 +274,17 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                   agent: widget.agent,
                   isActive: _viewModel.isActive,
                 ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _openDetailedProfile,
-                    icon: const Icon(Symbols.manage_accounts_rounded),
-                    label: const Text('Identité et activité détaillée'),
+                if (!widget.readOnly) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _openDetailedProfile,
+                      icon: const Icon(Symbols.manage_accounts_rounded),
+                      label: const Text('Identité et activité détaillée'),
+                    ),
                   ),
-                ),
+                ],
                 const SizedBox(height: 16),
                 _SectionCard(
                   title: 'Identité',
@@ -287,6 +293,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                     children: [
                       TextField(
                         controller: _nameController,
+                        readOnly: widget.readOnly,
                         style: const TextStyle(
                           color: IzyTelColors.textPrimary,
                           fontWeight: FontWeight.w600,
@@ -297,6 +304,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                       const SizedBox(height: 10),
                       TextField(
                         controller: _phoneController,
+                        readOnly: widget.readOnly,
                         keyboardType: TextInputType.phone,
                         style: const TextStyle(
                           color: IzyTelColors.textPrimary,
@@ -319,15 +327,21 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                 _SectionCard(
                   title: 'Zones assignées',
                   icon: Symbols.location_on_rounded,
-                  trailing: TextButton.icon(
-                    onPressed: _createZone,
-                    icon: const Icon(Symbols.add_rounded, size: 18),
-                    label: const Text('Créer'),
-                  ),
+                  trailing: widget.readOnly
+                      ? null
+                      : TextButton.icon(
+                          onPressed: _createZone,
+                          icon: const Icon(Symbols.add_rounded, size: 18),
+                          label: const Text('Créer'),
+                        ),
                   child: widget.zones.isEmpty
-                      ? const Text(
-                          'Aucune zone n’existe encore. Crée la première zone puis assigne-la à l’agent.',
-                          style: TextStyle(color: IzyTelColors.textSecondary),
+                      ? Text(
+                          widget.readOnly
+                              ? 'Aucune zone n’est assignée à cet agent.'
+                              : 'Aucune zone n’existe encore. Crée la première zone puis assigne-la à l’agent.',
+                          style: const TextStyle(
+                            color: IzyTelColors.textSecondary,
+                          ),
                         )
                       : Wrap(
                           spacing: 8,
@@ -340,8 +354,9 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                                 return FilterChip(
                                   label: Text(zone.displayLabel),
                                   selected: selected,
-                                  onSelected: (_) =>
-                                      _viewModel.toggleZone(zone.id),
+                                  onSelected: widget.readOnly
+                                      ? null
+                                      : (_) => _viewModel.toggleZone(zone.id),
                                   selectedColor: IzyTelColors.primary.withAlpha(
                                     55,
                                   ),
@@ -363,6 +378,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                     children: [
                       TextField(
                         controller: _dailyLimitController,
+                        readOnly: widget.readOnly,
                         keyboardType: TextInputType.number,
                         style: const TextStyle(
                           color: IzyTelColors.textPrimary,
@@ -376,6 +392,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                       const SizedBox(height: 10),
                       TextField(
                         controller: _maxTransactionsController,
+                        readOnly: widget.readOnly,
                         keyboardType: TextInputType.number,
                         style: const TextStyle(
                           color: IzyTelColors.textPrimary,
@@ -392,6 +409,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                           padding: const EdgeInsets.only(bottom: 10),
                           child: TextField(
                             controller: _capacityControllers[network],
+                            readOnly: widget.readOnly,
                             keyboardType: TextInputType.number,
                             style: const TextStyle(
                               color: IzyTelColors.textPrimary,
@@ -466,8 +484,9 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                                 ),
                                 Switch(
                                   value: enabled,
-                                  onChanged: (_) =>
-                                      _viewModel.toggleNetwork(network),
+                                  onChanged: widget.readOnly
+                                      ? null
+                                      : (_) => _viewModel.toggleNetwork(network),
                                 ),
                               ],
                             ),
@@ -500,39 +519,41 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 18),
-                FilledButton.icon(
-                  onPressed: _viewModel.isSaving ? null : _save,
-                  icon: _viewModel.isSaving
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Symbols.save_rounded),
-                  label: const Text('Enregistrer les modifications'),
-                ),
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: _viewModel.isSaving
-                      ? null
-                      : _toggleAgentActiveState,
-                  icon: Icon(
-                    _viewModel.isActive
-                        ? Symbols.block_rounded
-                        : Symbols.check_circle_rounded,
+                if (!widget.readOnly) ...[
+                  const SizedBox(height: 18),
+                  FilledButton.icon(
+                    onPressed: _viewModel.isSaving ? null : _save,
+                    icon: _viewModel.isSaving
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Symbols.save_rounded),
+                    label: const Text('Enregistrer les modifications'),
                   ),
-                  label: Text(
-                    _viewModel.isActive
-                        ? 'Suspendre l’agent'
-                        : 'Réactiver l’agent',
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: _viewModel.isSaving
+                        ? null
+                        : _toggleAgentActiveState,
+                    icon: Icon(
+                      _viewModel.isActive
+                          ? Symbols.block_rounded
+                          : Symbols.check_circle_rounded,
+                    ),
+                    label: Text(
+                      _viewModel.isActive
+                          ? 'Suspendre l’agent'
+                          : 'Réactiver l’agent',
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _viewModel.isActive
+                          ? IzyTelColors.error
+                          : IzyTelColors.success,
+                    ),
                   ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _viewModel.isActive
-                        ? IzyTelColors.error
-                        : IzyTelColors.success,
-                  ),
-                ),
+                ],
                 if (_viewModel.errorMessage != null) ...[
                   const SizedBox(height: 10),
                   Text(
