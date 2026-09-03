@@ -20,9 +20,11 @@ class FirestoreOrdersRepository
     FirebaseFirestore? firestore,
     FirebaseAuth? firebaseAuth,
     bool enableNativeAutoAssignment = true,
+    bool requireFirestoreProof = true,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
        _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
-       _enableNativeAutoAssignment = enableNativeAutoAssignment;
+       _enableNativeAutoAssignment = enableNativeAutoAssignment,
+       _requireFirestoreProof = requireFirestoreProof;
 
   static const Duration paymentValidity = Duration(hours: 6);
   static const int maximumLoadedOrders = 250;
@@ -31,6 +33,7 @@ class FirestoreOrdersRepository
   final FirebaseFirestore _firestore;
   final FirebaseAuth _firebaseAuth;
   final bool _enableNativeAutoAssignment;
+  final bool _requireFirestoreProof;
 
   CollectionReference<Map<String, dynamic>> get _ordersCollection {
     return _firestore.collection('orders');
@@ -1473,15 +1476,15 @@ class FirestoreOrdersRepository
           await transaction.get(orderRef);
       final DocumentSnapshot<Map<String, dynamic>> assignmentSnapshot =
           await transaction.get(assignmentRef);
-      final DocumentSnapshot<Map<String, dynamic>> proofSnapshot =
-          await transaction.get(proofRef);
+      final DocumentSnapshot<Map<String, dynamic>>? proofSnapshot =
+          _requireFirestoreProof ? await transaction.get(proofRef) : null;
       final DocumentSnapshot<Map<String, dynamic>> profileSnapshot =
           await transaction.get(profileRef);
       final DocumentSnapshot<Map<String, dynamic>> commissionAccountSnapshot =
           await transaction.get(commissionAccountRef);
       final Map<String, dynamic>? orderData = orderSnapshot.data();
       final Map<String, dynamic>? assignmentData = assignmentSnapshot.data();
-      final Map<String, dynamic>? proofData = proofSnapshot.data();
+      final Map<String, dynamic>? proofData = proofSnapshot?.data();
       final Map<String, dynamic>? profileData = profileSnapshot.data();
       final Map<String, dynamic>? commissionAccountData =
           commissionAccountSnapshot.data();
@@ -1492,7 +1495,10 @@ class FirestoreOrdersRepository
       if (!assignmentSnapshot.exists || assignmentData == null) {
         throw StateError('L’affectation active est introuvable.');
       }
-      if (!proofSnapshot.exists || proofData == null) {
+      if (_requireFirestoreProof &&
+          (proofSnapshot == null ||
+              !proofSnapshot.exists ||
+              proofData == null)) {
         throw StateError('Ajoute une preuve avant de valider la réussite.');
       }
       if (!profileSnapshot.exists || profileData == null) {
@@ -1514,8 +1520,9 @@ class FirestoreOrdersRepository
       if (order.status != QueueOrderStatus.inProgress) {
         throw StateError('Cette commande n’est pas en cours de traitement.');
       }
-      if (proofData['agentId'] != cleanedAgentId ||
-          proofData['orderId'] != orderId) {
+      if (_requireFirestoreProof &&
+          (proofData?['agentId'] != cleanedAgentId ||
+              proofData?['orderId'] != orderId)) {
         throw StateError('La preuve enregistrée est invalide.');
       }
 

@@ -1,7 +1,9 @@
+import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
 import 'package:cabine_flow/features/finances/domain/models/financial_reconciliation_models.dart';
 import 'package:cabine_flow/features/finances/domain/repositories/financial_reconciliation_repository.dart';
 import 'package:cabine_flow/features/finances/domain/services/financial_reconciliation_engine.dart';
 import 'package:cabine_flow/features/orders/data/mappers/firestore_order_mapper.dart';
+import 'package:cabine_flow/features/orders/data/repositories/supabase_order_proof_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -11,11 +13,14 @@ class FirestoreFinancialReconciliationRepository
     FirebaseFirestore? firestore,
     FinancialReconciliationEngine engine =
         const FinancialReconciliationEngine(),
+    SupabaseOrderProofRepository? supabaseProofRepository,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
-       _engine = engine;
+       _engine = engine,
+       _supabaseProofRepository = supabaseProofRepository;
 
   final FirebaseFirestore _firestore;
   final FinancialReconciliationEngine _engine;
+  final SupabaseOrderProofRepository? _supabaseProofRepository;
 
   @override
   Future<List<FinancialReconciliationResult>> load() async {
@@ -107,6 +112,14 @@ class FirestoreFinancialReconciliationRepository
         })
         .where((String orderId) => orderId.isNotEmpty)
         .toSet();
+
+    // Phase 5B1 : les nouvelles preuves sont Supabase-only. Les anciennes
+    // preuves Firestore restent unionnees ici pour conserver l historique.
+    if (SupabaseBootstrap.isInitialized) {
+      final SupabaseOrderProofRepository proofRepository =
+          _supabaseProofRepository ?? SupabaseOrderProofRepository();
+      proofOrderIds.addAll(await proofRepository.fetchProofOrderIdsForStaff());
+    }
 
     final Map<String, ReconciliationNetworkMovementEvidence>
     networkMovementsByOrder = <String, ReconciliationNetworkMovementEvidence>{};

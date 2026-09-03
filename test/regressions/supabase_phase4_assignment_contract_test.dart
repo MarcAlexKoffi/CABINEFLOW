@@ -113,7 +113,7 @@ void main() {
   });
 
   test(
-    'traitement preuve capacité et succès restent sur Firebase après handoff',
+    'traitement reste Firebase mais la preuve passe par Supabase apres handoff',
     () {
       final String hybrid = read(
         'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
@@ -121,8 +121,37 @@ void main() {
 
       expect(hybrid, contains('_firestore.startAgentProcessing('));
       expect(hybrid, contains('_firestore.resumeAgentProcessing('));
-      expect(hybrid, contains('_firestore.saveOrderProof('));
-      expect(hybrid, contains('_firestore.markAgentSuccessful('));
+
+      final int saveProofStart = hybrid.indexOf(
+        'Future<OrderProof> saveOrderProof',
+      );
+      final int successStart = hybrid.indexOf(
+        'Future<QueueOrder> markAgentSuccessful',
+        saveProofStart,
+      );
+      final int failedStart = hybrid.indexOf(
+        'Future<QueueOrder> markAgentFailed',
+        successStart,
+      );
+
+      expect(saveProofStart, greaterThanOrEqualTo(0));
+      expect(successStart, greaterThan(saveProofStart));
+      expect(failedStart, greaterThan(successStart));
+
+      final String saveProofBody = hybrid.substring(
+        saveProofStart,
+        successStart,
+      );
+      expect(saveProofBody, contains('_proofs.saveProof('));
+      expect(saveProofBody, isNot(contains('_firestore.saveOrderProof(')));
+
+      // Phase 5B1 : les nouvelles preuves restent Supabase-only au dépôt.
+      // Le miroir Firestore n'est autorisé que dans la finalisation, tant que
+      // la règle legacy exige encore orderProofs/{orderId} pour completed.
+      final String successBody = hybrid.substring(successStart, failedStart);
+      expect(successBody, contains('_firestore.saveOrderProof('));
+      expect(successBody, contains('_firestore.markAgentSuccessful('));
+
       expect(hybrid, contains('_firestore.markAgentFailed('));
       expect(hybrid, contains('_firestore.putAgentOnHold('));
     },

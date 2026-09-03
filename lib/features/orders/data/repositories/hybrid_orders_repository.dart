@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cabine_flow/features/orders/data/repositories/firestore_orders_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/supabase_phase4_assignment_repository.dart';
+import 'package:cabine_flow/features/orders/data/repositories/supabase_order_proof_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/automatic_assignment.dart';
 import 'package:cabine_flow/features/orders/domain/models/create_order_request.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_proof.dart';
@@ -18,8 +19,9 @@ import 'package:flutter/foundation.dart';
 /// Supabase est la source de vérité uniquement pendant la négociation
 /// d'affectation (automatique/manuelle, acceptation, refus, réaffectation).
 /// Dès qu'un agent accepte, la commande est matérialisée dans le flux Firebase
-/// existant afin de conserver sans régression preuve, traitement, capacité,
-/// commissions et mouvements financiers.
+/// existant pour le traitement operationnel. Depuis la Phase 5B1, les preuves
+/// sont Supabase-only pour les nouvelles commandes ; capacite, commissions et
+/// mouvements financiers restent encore atomiques dans Firebase.
 class HybridOrdersRepository
     implements
         OrdersRepository,
@@ -28,17 +30,23 @@ class HybridOrdersRepository
   HybridOrdersRepository({
     FirestoreOrdersRepository? firestoreRepository,
     SupabasePhase4AssignmentRepository? phase4Repository,
+    SupabaseOrderProofRepository? proofRepository,
     FirebaseAuth? firebaseAuth,
   }) : _firestore =
            firestoreRepository ??
-           FirestoreOrdersRepository(enableNativeAutoAssignment: false),
+           FirestoreOrdersRepository(
+             enableNativeAutoAssignment: false,
+             requireFirestoreProof: false,
+           ),
        _phase4 = phase4Repository ?? SupabasePhase4AssignmentRepository(),
+       _proofs = proofRepository ?? SupabaseOrderProofRepository(),
        _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance;
 
   static const int _maximumBacklogOrders = 50;
 
   final FirestoreOrdersRepository _firestore;
   final SupabasePhase4AssignmentRepository _phase4;
+  final SupabaseOrderProofRepository _proofs;
   final FirebaseAuth _firebaseAuth;
   final AutomaticAssignmentSelector _selector =
       const AutomaticAssignmentSelector();
@@ -1052,7 +1060,12 @@ class HybridOrdersRepository
   }
 
   @override
-  Future<OrderProof?> fetchOrderProof({required String orderId}) {
+  Future<OrderProof?> fetchOrderProof({required String orderId}) async {
+    final OrderProof? proof = await _proofs.fetchProof(orderId: orderId);
+    if (proof != null) return proof;
+
+    // Compatibilite historique uniquement : les anciennes preuves deja
+    // presentes dans Firestore restent consultables pendant la transition.
     return _firestore.fetchOrderProof(orderId: orderId);
   }
 
@@ -1065,7 +1078,7 @@ class HybridOrdersRepository
     required String mimeType,
     required List<int> bytes,
   }) {
-    return _firestore.saveOrderProof(
+    return _proofs.saveProof(
       orderId: orderId,
       orderReference: orderReference,
       agentId: agentId,
@@ -1079,8 +1092,56 @@ class HybridOrdersRepository
   Future<QueueOrder> markAgentSuccessful({
     required String orderId,
     required String agentId,
-  }) {
-    return _firestore.markAgentSuccessful(orderId: orderId, agentId: agentId);
+  }) async {
+    final String cleanedAgentId = agentId.trim();
+    final OrderProof? supabaseProof = await _proofs.fetchProof(
+      orderId: orderId,
+    );
+    OrderProof? firestoreCompatibilityProof = await _firestore.fetchOrderProof(
+      orderId: orderId,
+    );
+
+    if (supabaseProof != null) {
+      if (supabaseProof.agentId.trim() != cleanedAgentId) {
+        throw StateError('La preuve enregistree appartient a un autre agent.');
+      }
+
+      if (firestoreCompatibilityProof == null) {
+        // Pont de transition Phase 5B1 -> 5B2.
+        // Les regles Firestore actuellement publiees exigent encore
+        // orderProofs/{orderId} pour autoriser le passage inProgress ->
+        // completed. Supabase reste la source de verite et ce miroir n'est
+        // cree qu'au moment de finaliser une commande, jusqu'a migration
+        // complete du bloc capacite + commission en Phase 5B2.
+        debugPrint(
+          '[Phase5B1][proof-bridge] orderId=$orderId agentId=$cleanedAgentId',
+        );
+        firestoreCompatibilityProof = await _firestore.saveOrderProof(
+          orderId: supabaseProof.orderId,
+          orderReference: supabaseProof.orderReference,
+          agentId: cleanedAgentId,
+          fileName: supabaseProof.fileName,
+          mimeType: supabaseProof.mimeType,
+          bytes: supabaseProof.bytes,
+        );
+      }
+    }
+
+    final OrderProof? effectiveProof =
+        supabaseProof ?? firestoreCompatibilityProof;
+    if (effectiveProof == null ||
+        effectiveProof.agentId.trim() != cleanedAgentId) {
+      throw StateError('Ajoute une preuve avant de valider la reussite.');
+    }
+
+    // La transaction Firebase conserve temporairement le bloc atomique encore
+    // non migre : commande + capacite + mouvement + commission. Le pont
+    // ci-dessus satisfait seulement la regle legacy de preuve sans redevenir
+    // la source de lecture des nouvelles preuves.
+    return _firestore.markAgentSuccessful(
+      orderId: orderId,
+      agentId: cleanedAgentId,
+    );
   }
 
   @override
