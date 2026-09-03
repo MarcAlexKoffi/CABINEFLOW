@@ -215,6 +215,14 @@ class OrdersViewModel extends ChangeNotifier {
     }).length;
   }
 
+  int get reassignedAfterRefusalCount {
+    return allReadyOrders.where((QueueOrder order) {
+      return order.isAssignedToAgent &&
+          order.assignmentMode == OrderAssignmentMode.automatic &&
+          order.lastAssignmentRefusedAgentId != null;
+    }).length;
+  }
+
   List<QueueOrder> get allReadyOrders {
     final List<QueueOrder> readyOrders = _orders.where((QueueOrder order) {
       return order.status == QueueOrderStatus.paidReady;

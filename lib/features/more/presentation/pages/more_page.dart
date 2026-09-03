@@ -12,6 +12,8 @@ import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repo
 import 'package:cabine_flow/features/offers/presentation/pages/offer_management_page.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/features/orders/presentation/pages/failed_orders_page.dart';
+import 'package:cabine_flow/features/orders/presentation/pages/orders_page.dart';
 import 'package:cabine_flow/features/refunds/data/repositories/fake_refund_repository.dart';
 import 'package:cabine_flow/features/refunds/data/repositories/firestore_refund_repository.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
@@ -340,6 +342,52 @@ class MorePage extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      IzyTelMenuRow(
+                        icon: Symbols.assignment_rounded,
+                        title: 'Affectations & réaffectations',
+                        subtitle:
+                            'Suivre les commandes affectées, réaffectées après refus ou à affecter manuellement.',
+                        iconColor: IzyTelColors.primary,
+                        onTap: () {
+                          Navigator.of(context).push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (BuildContext context) {
+                                return OrdersPage(
+                                  user: user,
+                                  ordersRepository: ordersRepository,
+                                  agentRepository: agentRepository,
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                      const Divider(height: 1),
+                      IzyTelMenuRow(
+                        icon: Symbols.error_rounded,
+                        title: 'Commandes échouées',
+                        subtitle:
+                            'Traiter officiellement les échecs : réaffectation ou remboursement.',
+                        iconColor: IzyTelColors.error,
+                        onTap: historyRepository == null
+                            ? () => _historyUnavailable(context)
+                            : () {
+                                Navigator.of(context).push<void>(
+                                  MaterialPageRoute<void>(
+                                    builder: (BuildContext context) {
+                                      return FailedOrdersPage(
+                                        user: user,
+                                        ordersRepository: ordersRepository,
+                                        orderHistoryRepository:
+                                            historyRepository,
+                                        agentRepository: agentRepository,
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
+                      ),
+                      const Divider(height: 1),
                       IzyTelMenuRow(
                         icon: Symbols.history_rounded,
                         title: 'Journal d’activité',

@@ -4,6 +4,7 @@ import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
 import 'package:cabine_flow/features/agents/data/repositories/supabase_agent_issue_repository.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_activity_v2_models.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
+import 'package:cabine_flow/features/orders/data/repositories/supabase_phase4_assignment_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FirestoreAgentActivityV2Repository {
@@ -20,6 +21,10 @@ class FirestoreAgentActivityV2Repository {
     List<AgentActivityOrderV2> orders = const <AgentActivityOrderV2>[];
     List<AgentActivityAssignmentV2> assignments =
         const <AgentActivityAssignmentV2>[];
+    List<AgentActivityAssignmentV2> firestoreAssignments =
+        const <AgentActivityAssignmentV2>[];
+    List<AgentActivityAssignmentV2> phase4RefusedAssignments =
+        const <AgentActivityAssignmentV2>[];
     List<AgentNetworkMovementV2> movements = const <AgentNetworkMovementV2>[];
     List<AgentCommissionV2> commissions = const <AgentCommissionV2>[];
     AgentCommissionAccountV2? commissionAccount;
@@ -30,6 +35,8 @@ class FirestoreAgentActivityV2Repository {
 
     bool hasOrders = false;
     bool hasAssignments = false;
+    bool hasFirestoreAssignments = false;
+    bool hasPhase4Assignments = !SupabaseBootstrap.isInitialized;
     bool hasMovements = false;
     bool hasCommissions = false;
     bool hasCommissionAccount = false;
@@ -74,6 +81,27 @@ class FirestoreAgentActivityV2Repository {
       unavailableSources.remove(source);
     }
 
+    void mergeAssignments() {
+      if (!hasFirestoreAssignments || !hasPhase4Assignments) return;
+      final Map<String, AgentActivityAssignmentV2> merged =
+          <String, AgentActivityAssignmentV2>{};
+      for (final AgentActivityAssignmentV2 item in firestoreAssignments) {
+        final int stamp =
+            (item.refusedAt ?? item.assignedAt)?.millisecondsSinceEpoch ?? 0;
+        merged['${item.orderId}|$stamp|${item.status}'] = item;
+      }
+      for (final AgentActivityAssignmentV2 item in phase4RefusedAssignments) {
+        final int stamp =
+            (item.refusedAt ?? item.assignedAt)?.millisecondsSinceEpoch ?? 0;
+        merged['${item.orderId}|$stamp|refused'] = item;
+      }
+      assignments = merged.values.toList(growable: false)
+        ..sort((a, b) => _compareDates(b.assignedAt, a.assignedAt));
+      hasAssignments = true;
+      markAvailable(AgentActivityV2Sources.assignments);
+      emit();
+    }
+
     void start() {
       subscriptions.add(
         _firestore
@@ -113,27 +141,55 @@ class FirestoreAgentActivityV2Repository {
             .snapshots()
             .listen(
               (snapshot) {
-                assignments =
-                    snapshot.docs
-                        .map(AgentActivityAssignmentV2.fromSnapshot)
-                        .whereType<AgentActivityAssignmentV2>()
-                        .toList(growable: false)
-                      ..sort(
-                        (a, b) => _compareDates(b.assignedAt, a.assignedAt),
-                      );
-                hasAssignments = true;
-                markAvailable(AgentActivityV2Sources.assignments);
-                emit();
+                firestoreAssignments = snapshot.docs
+                    .map(AgentActivityAssignmentV2.fromSnapshot)
+                    .whereType<AgentActivityAssignmentV2>()
+                    .toList(growable: false);
+                hasFirestoreAssignments = true;
+                mergeAssignments();
               },
               onError: (Object error, StackTrace stackTrace) {
-                assignments = const <AgentActivityAssignmentV2>[];
-                markUnavailable(
-                  AgentActivityV2Sources.assignments,
-                  () => hasAssignments = true,
-                );
+                firestoreAssignments = const <AgentActivityAssignmentV2>[];
+                hasFirestoreAssignments = true;
+                unavailableSources.add(AgentActivityV2Sources.assignments);
+                mergeAssignments();
               },
             ),
       );
+      if (SupabaseBootstrap.isInitialized) {
+        subscriptions.add(
+          SupabasePhase4AssignmentRepository()
+              .watchAgentRefusalHistory(agentId)
+              .listen(
+                (List<Phase4RefusalHistorySnapshot> items) {
+                  phase4RefusedAssignments = items
+                      .map(
+                        (Phase4RefusalHistorySnapshot item) =>
+                            AgentActivityAssignmentV2(
+                              id: 'phase4_${item.id}',
+                              orderId: item.orderId,
+                              orderReference: item.orderReference,
+                              status: 'refused',
+                              assignedAt: item.assignedAt,
+                              refusedAt: item.refusedAt,
+                              refusalReason: item.refusalReason,
+                            ),
+                      )
+                      .toList(growable: false);
+                  hasPhase4Assignments = true;
+                  mergeAssignments();
+                },
+                onError: (Object error, StackTrace stackTrace) {
+                  phase4RefusedAssignments =
+                      const <AgentActivityAssignmentV2>[];
+                  hasPhase4Assignments = true;
+                  mergeAssignments();
+                },
+              ),
+        );
+      } else {
+        hasPhase4Assignments = true;
+      }
       subscriptions.add(
         _firestore
             .collection('networkTransactions')

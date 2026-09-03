@@ -38,7 +38,8 @@ void main() {
       'supabase_supplier_registry_repository.dart',
     );
 
-    expect(hybrid, contains('watchSupplierAccounts().first'));
+    expect(hybrid, contains('.watchSupplierAccounts()'));
+    expect(hybrid, contains('.first;'));
     expect(hybrid, contains('historique financier'));
     expect(hybrid, contains('softDeleteSupplier('));
     expect(supabase, contains("'is_deleted': true"));

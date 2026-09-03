@@ -1,6 +1,5 @@
 import 'package:cabine_flow/features/orders/data/mappers/firestore_order_mapper.dart';
 import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
-
 import 'package:cabine_flow/features/orders/domain/models/automatic_assignment.dart';
 import 'package:cabine_flow/features/orders/domain/models/create_order_request.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_event.dart';
@@ -20,8 +19,10 @@ class FirestoreOrdersRepository
   FirestoreOrdersRepository({
     FirebaseFirestore? firestore,
     FirebaseAuth? firebaseAuth,
+    bool enableNativeAutoAssignment = true,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
-       _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance;
+       _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
+       _enableNativeAutoAssignment = enableNativeAutoAssignment;
 
   static const Duration paymentValidity = Duration(hours: 6);
   static const int maximumLoadedOrders = 250;
@@ -29,6 +30,7 @@ class FirestoreOrdersRepository
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _firebaseAuth;
+  final bool _enableNativeAutoAssignment;
 
   CollectionReference<Map<String, dynamic>> get _ordersCollection {
     return _firestore.collection('orders');
@@ -271,10 +273,15 @@ class FirestoreOrdersRepository
           );
         });
 
-    // Phase 9E : une confirmation de paiement déclenche immédiatement une
-    // tentative d'affectation automatique. Si aucun agent n'est éligible,
-    // l'entrée autoAssignmentQueue reste disponible pour le prochain agent
-    // qui devient disponible.
+    // En mode hybride Phase 4, Firestore conserve la commande et la file
+    // technique, mais Supabase devient la source de vérité de la négociation
+    // d'affectation. On évite donc l'affectation native Firestore ici.
+    if (!_enableNativeAutoAssignment) {
+      return confirmedOrder;
+    }
+
+    // Phase 9E native : une confirmation de paiement déclenche immédiatement
+    // une tentative d'affectation automatique.
     try {
       return await tryAutomaticAssignment(orderId: orderId) ?? confirmedOrder;
     } catch (error, stackTrace) {
@@ -2515,6 +2522,143 @@ class FirestoreOrdersRepository
         assignmentStatus: OrderAssignmentStatus.assigned,
       );
     });
+  }
+
+  /// Lecture seule des critères 9E utilisée par le moteur hybride Supabase.
+  /// Les données opérationnelles de l'agent restent sur Firebase pendant cette
+  /// migration afin de ne pas casser disponibilité, réseaux et capacités.
+  Future<List<AutomaticAssignmentAgent>>
+  fetchAutomaticAssignmentCandidatesForHybrid() {
+    return _loadAutomaticAssignmentAgents();
+  }
+
+  /// Garantit qu'une commande financée possède la file Firestore technique
+  /// nécessaire au handoff lorsqu'un agent accepte finalement dans Supabase.
+  Future<void> ensureHybridAssignmentQueue(QueueOrder order) async {
+    if (order.status != QueueOrderStatus.paidReady ||
+        !order.isFundedForProcessing) {
+      throw StateError(
+        'Cette commande ne peut pas entrer dans la file hybride.',
+      );
+    }
+    await _autoAssignmentQueueCollection
+        .doc(order.id)
+        .set(
+          _automaticQueueDocumentData(
+            order: order,
+            createdAt: order.paidAt ?? order.createdAt,
+            lastRefusedAgentId: order.lastAssignmentRefusedAgentId,
+            refusedAgentIds: order.autoAssignmentRefusedAgentIds,
+          ),
+        );
+  }
+
+  /// Nettoie uniquement le miroir d'affectation Firestore lorsqu'une ancienne
+  /// affectation est devenue obsolète après un refus géré dans Supabase.
+  /// L'historique officiel du refus reste dans Supabase Phase 4.
+  Future<QueueOrder> releaseHybridStaleAssignmentAsStaff({
+    required String orderId,
+  }) async {
+    final _AuditActor actor = await _currentStaffActor();
+    if (actor.role != 'admin' && actor.role != 'supervisor') {
+      throw StateError('Un compte de supervision est requis.');
+    }
+
+    final DocumentReference<Map<String, dynamic>> ref = _ordersCollection.doc(
+      orderId.trim(),
+    );
+    final DocumentSnapshot<Map<String, dynamic>> snapshot = await ref.get();
+    final Map<String, dynamic>? data = snapshot.data();
+    if (!snapshot.exists || data == null) {
+      throw StateError('La commande est introuvable.');
+    }
+    final QueueOrder order = FirestoreOrderMapper.fromMap(
+      id: snapshot.id,
+      data: data,
+    );
+    if (order.status != QueueOrderStatus.paidReady ||
+        !order.isFundedForProcessing) {
+      return order;
+    }
+    if (order.assignedAgentId == null &&
+        order.assignmentStatus == OrderAssignmentStatus.unassigned) {
+      return order;
+    }
+
+    await ref.update(<String, dynamic>{
+      'assignedAgentId': null,
+      'assignedAgentName': null,
+      'assignedByUserId': null,
+      'assignedAt': null,
+      'assignmentMode': null,
+      'assignmentStatus': OrderAssignmentStatus.unassigned.name,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    return order.copyWith(clearAgentAssignment: true);
+  }
+
+  /// Transforme une acceptation Supabase en affectation Firestore classique.
+  /// Après cette étape, preuve, traitement, capacité et commission continuent
+  /// d'utiliser exactement le flux Firebase déjà validé.
+  ///
+  /// On tente d'abord d'accepter un miroir déjà existant (affectation manuelle
+  /// ou héritée). S'il n'existe pas encore, l'agent réclame la file technique
+  /// 9E puis accepte l'affectation ainsi créée. Cette méthode évite toute
+  /// lecture directe d'une commande Firestore encore non affectée, lecture qui
+  /// n'est volontairement pas autorisée à un agent.
+  Future<QueueOrder> handoffHybridAcceptedAssignment({
+    required String orderId,
+    required String agentId,
+  }) async {
+    final String cleanedAgentId = agentId.trim();
+    final User? user = _firebaseAuth.currentUser;
+    if (cleanedAgentId.isEmpty || user == null || user.uid != cleanedAgentId) {
+      throw StateError('La session agent ne correspond pas à cette action.');
+    }
+
+    try {
+      return await acceptAgentAssignment(
+        orderId: orderId,
+        agentId: cleanedAgentId,
+      );
+    } on StateError catch (error) {
+      if (!error.toString().contains('Aucune affectation en attente')) {
+        rethrow;
+      }
+    }
+
+    final DocumentSnapshot<Map<String, dynamic>> queueSnapshot =
+        await _autoAssignmentQueueCollection.doc(orderId).get();
+    final AutomaticAssignmentQueueItem? item = _automaticQueueItemFromSnapshot(
+      queueSnapshot,
+    );
+    if (!queueSnapshot.exists || item == null) {
+      throw StateError(
+        'La file technique Firebase est absente. Ouvre le compte Admin pour resynchroniser cette commande.',
+      );
+    }
+
+    final bool claimed = await claimAutomaticQueueItem(
+      item: item,
+      agentId: cleanedAgentId,
+    );
+    if (!claimed) {
+      // Une course peut avoir créé l'affectation entre-temps. Dans ce cas une
+      // seconde tentative d'acceptation suffit et reste idempotente.
+      try {
+        return await acceptAgentAssignment(
+          orderId: orderId,
+          agentId: cleanedAgentId,
+        );
+      } on StateError {
+        throw StateError(
+          "Cette affectation n'est plus compatible avec la capacité actuelle de l'agent.",
+        );
+      }
+    }
+
+    return acceptAgentAssignment(orderId: orderId, agentId: cleanedAgentId);
   }
 
   Future<List<AutomaticAssignmentAgent>>

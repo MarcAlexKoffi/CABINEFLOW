@@ -87,7 +87,8 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
               final List<QueueOrder> orders = switch (_tab) {
                 0 => _viewModel.inProgressOrders,
                 1 => _viewModel.successfulHistoryOrders,
-                _ => _viewModel.failedOrders,
+                2 => _viewModel.failedOrders,
+                _ => _viewModel.refusedHistoryOrders,
               };
 
               return RefreshIndicator(
@@ -109,7 +110,7 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      'Retrouve tes commandes en cours, réussies et échouées.',
+                      'Retrouve tes commandes en cours, réussies, échouées et refusées.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: IzyTelColors.textSecondary,
                         fontSize: IzyTelTypeScale.label,
@@ -128,7 +129,7 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
                             onTap: () => setState(() => _tab = 0),
                           ),
                         ),
-                        const SizedBox(width: 7),
+                        const SizedBox(width: 5),
                         Expanded(
                           child: _HistoryTab(
                             label: 'Réussies',
@@ -137,13 +138,22 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
                             onTap: () => setState(() => _tab = 1),
                           ),
                         ),
-                        const SizedBox(width: 7),
+                        const SizedBox(width: 5),
                         Expanded(
                           child: _HistoryTab(
                             label: 'Échecs',
                             count: _viewModel.failedCount,
                             selected: _tab == 2,
                             onTap: () => setState(() => _tab = 2),
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: _HistoryTab(
+                            label: 'Refus',
+                            count: _viewModel.refusedHistoryCount,
+                            selected: _tab == 3,
+                            onTap: () => setState(() => _tab = 3),
                           ),
                         ),
                       ],
@@ -160,9 +170,11 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
                         child: Text(
                           _tab == 0
                               ? 'Aucune commande en cours.'
-                              : (_tab == 1
-                                    ? 'Aucune commande réussie.'
-                                    : 'Aucun échec enregistré.'),
+                              : _tab == 1
+                              ? 'Aucune commande réussie.'
+                              : _tab == 2
+                              ? 'Aucun échec enregistré.'
+                              : 'Aucun refus enregistré.',
                           textAlign: TextAlign.center,
                         ),
                       )
@@ -219,15 +231,18 @@ class _HistoryTab extends StatelessWidget {
               color: selected ? IzyTelColors.primary : IzyTelColors.outline,
             ),
           ),
-          child: Text(
-            '$label  $count',
-            maxLines: 1,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: selected
-                  ? IzyTelColors.surface
-                  : IzyTelColors.textSecondary,
-              fontSize: IzyTelTypeScale.label,
-              fontWeight: FontWeight.w700,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              '$label  $count',
+              maxLines: 1,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: selected
+                    ? IzyTelColors.surface
+                    : IzyTelColors.textSecondary,
+                fontSize: IzyTelTypeScale.label,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ),
@@ -254,7 +269,12 @@ class _HistoryOrderCard extends StatelessWidget {
       MobileNetwork.mtn => IzyTelColors.mtn,
       MobileNetwork.moov => IzyTelColors.moov,
     };
-    final (String statusLabel, Color statusColor) = isCompleted
+    final (
+      String statusLabel,
+      Color statusColor,
+    ) = order.assignmentStatus == OrderAssignmentStatus.refused
+        ? ('Refusée', IzyTelColors.warning)
+        : isCompleted
         ? switch (order.status) {
             QueueOrderStatus.failed => ('Échouée', IzyTelColors.error),
             QueueOrderStatus.refunded => ('Remboursée', IzyTelColors.success),
@@ -351,6 +371,24 @@ class _HistoryOrderCard extends StatelessWidget {
                     ),
                   ],
                 ],
+              ),
+            ),
+          ],
+          if (order.assignmentStatus == OrderAssignmentStatus.refused &&
+              order.lastAssignmentRefusalReason?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+              decoration: BoxDecoration(
+                color: IzyTelColors.warningSoft,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'Motif : ${order.lastAssignmentRefusalReason!.trim()}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: IzyTelColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],

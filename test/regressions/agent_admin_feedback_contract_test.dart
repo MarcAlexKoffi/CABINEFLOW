@@ -88,7 +88,10 @@ void main() {
 
     expect(cards, contains("'Non affect\u00e9e'"));
     expect(cards, contains("'Affectation manuelle requise'"));
-    expect(page, contains('unassignedPaidCount'));
+    // La page Commandes n'affiche plus de grosse bulle permanente pour les
+    // commandes sans Agent. L'etat reste porte par chaque carte/action.
+    expect(page, contains('order.manualAssignmentRequired'));
+    expect(page, isNot(contains('unassignedPaidCount')));
     expect(dashboard, contains('unassignedOrders'));
     expect(dashboard, contains('sans agent \u00e0 v\u00e9rifier'));
   });

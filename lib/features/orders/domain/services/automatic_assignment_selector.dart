@@ -21,6 +21,24 @@ class AutomaticAssignmentSelector {
     return List<AutomaticAssignmentAgent>.unmodifiable(eligible);
   }
 
+  List<AutomaticAssignmentAgent> rankEligibleIgnoringPreviousRefusals({
+    required QueueOrder order,
+    required Iterable<AutomaticAssignmentAgent> agents,
+  }) {
+    final List<AutomaticAssignmentAgent> eligible = agents
+        .where(
+          (AutomaticAssignmentAgent agent) =>
+              agent.canReceiveIgnoringPreviousRefusals(order: order),
+        )
+        .toList(growable: false);
+
+    eligible.sort(
+      (AutomaticAssignmentAgent first, AutomaticAssignmentAgent second) =>
+          _compareAgents(order, first, second),
+    );
+    return List<AutomaticAssignmentAgent>.unmodifiable(eligible);
+  }
+
   AutomaticAssignmentAgent? select({
     required QueueOrder order,
     required Iterable<AutomaticAssignmentAgent> agents,

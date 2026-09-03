@@ -4,6 +4,7 @@ import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_proof.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/agent_assignment_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/services/agent_order_priority_policy.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -23,12 +24,14 @@ class AgentOrdersViewModel extends ChangeNotifier {
   final AgentRepository? agentRepository;
 
   StreamSubscription<List<QueueOrder>>? _subscription;
+  StreamSubscription<List<QueueOrder>>? _refusedHistorySubscription;
   StreamSubscription<AgentProfile?>? _profileSubscription;
   StreamSubscription<AgentPersonalProfile?>? _personalProfileSubscription;
   AgentProfile? _agentProfile;
   AgentPersonalProfile? _personalProfile;
   String? _avatarUrl;
   List<QueueOrder> _orders = const <QueueOrder>[];
+  List<QueueOrder> _refusedHistoryOrders = const <QueueOrder>[];
   AgentOrdersTab _selectedTab = AgentOrdersTab.toAccept;
   String? _busyOrderId;
   String? _errorMessage;
@@ -81,6 +84,9 @@ class AgentOrdersViewModel extends ChangeNotifier {
     }),
   );
 
+  List<QueueOrder> get refusedHistoryOrders =>
+      AgentOrderPriorityPolicy.sortCompleted(_refusedHistoryOrders);
+
   List<QueueOrder> get visibleOrders {
     switch (_selectedTab) {
       case AgentOrdersTab.toAccept:
@@ -97,9 +103,13 @@ class AgentOrdersViewModel extends ChangeNotifier {
   int get completedCount => completedOrders.length;
   int get successfulHistoryCount => successfulHistoryOrders.length;
   int get failedCount => failedOrders.length;
+  int get refusedHistoryCount => refusedHistoryOrders.length;
 
   QueueOrder? orderById(String orderId) {
     for (final QueueOrder order in _orders) {
+      if (order.id == orderId) return order;
+    }
+    for (final QueueOrder order in _refusedHistoryOrders) {
       if (order.id == orderId) return order;
     }
     return null;
@@ -111,6 +121,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
     notifyListeners();
 
     await _subscription?.cancel();
+    await _refusedHistorySubscription?.cancel();
     await _profileSubscription?.cancel();
     await _personalProfileSubscription?.cancel();
 
@@ -131,6 +142,24 @@ class AgentOrdersViewModel extends ChangeNotifier {
             notifyListeners();
           },
         );
+
+    if (ordersRepository is AgentAssignmentHistoryRepository) {
+      final AgentAssignmentHistoryRepository historyRepository =
+          ordersRepository as AgentAssignmentHistoryRepository;
+      _refusedHistorySubscription = historyRepository
+          .watchAgentRefusedOrders(agentId: agentId)
+          .listen(
+            (List<QueueOrder> orders) {
+              _refusedHistoryOrders = orders;
+              notifyListeners();
+            },
+            onError: (Object error) {
+              debugPrint('[Phase4][refused-history] $error');
+            },
+          );
+    } else {
+      _refusedHistoryOrders = const <QueueOrder>[];
+    }
 
     final AgentRepository? repository = agentRepository;
     if (repository != null) {
@@ -232,7 +261,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await ordersRepository.refuseAgentAssignment(
+      final QueueOrder refused = await ordersRepository.refuseAgentAssignment(
         orderId: order.id,
         agentId: agentId,
         reason: cleanedReason,
@@ -240,6 +269,12 @@ class AgentOrdersViewModel extends ChangeNotifier {
       _orders = _orders
           .where((QueueOrder item) => item.id != order.id)
           .toList(growable: false);
+      _refusedHistoryOrders = <QueueOrder>[
+        refused,
+        ..._refusedHistoryOrders.where(
+          (QueueOrder item) => item.id != refused.id,
+        ),
+      ];
       return true;
     } catch (error, stackTrace) {
       _logActionError('refuse', error, stackTrace);
@@ -494,6 +529,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _subscription?.cancel();
+    _refusedHistorySubscription?.cancel();
     _profileSubscription?.cancel();
     _personalProfileSubscription?.cancel();
     super.dispose();

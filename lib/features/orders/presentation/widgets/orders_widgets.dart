@@ -357,6 +357,11 @@ class QueueOrderCard extends StatelessWidget {
           : 'Non affectée';
     }
     if (order.isCreditSale) return 'Crédit autorisé';
+    if (order.isAssignedToAgent && order.lastAssignmentRefusedAgentId != null) {
+      return order.assignmentMode == OrderAssignmentMode.manual
+          ? 'Réaffectée manuellement'
+          : 'Réaffectée automatiquement';
+    }
     if (order.paymentStatus == OrderPaymentStatus.confirmed) {
       return 'Paiement confirmé';
     }
@@ -534,6 +539,39 @@ class QueueOrderCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (assignmentLabel?.trim().isNotEmpty == true ||
+                    order.lastAssignmentRefusalReason?.trim().isNotEmpty ==
+                        true) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Symbols.person_rounded,
+                        size: IzyTelIconSize.info,
+                        color: IzyTelColors.textSecondary,
+                      ),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Text(
+                          order.lastAssignmentRefusalReason
+                                      ?.trim()
+                                      .isNotEmpty ==
+                                  true
+                              ? 'Réaffectée à ${assignmentLabel?.trim().isNotEmpty == true ? assignmentLabel!.trim() : 'un agent'} après refus · ${order.lastAssignmentRefusalReason!.trim()}'
+                              : 'Affectée à ${assignmentLabel!.trim()}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: IzyTelColors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 8),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,

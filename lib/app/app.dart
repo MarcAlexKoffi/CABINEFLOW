@@ -16,6 +16,7 @@ import 'package:cabine_flow/features/commissions/data/repositories/fake_commissi
 import 'package:cabine_flow/features/commissions/data/repositories/firestore_commission_repository.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:cabine_flow/features/dashboard/data/repositories/firestore_dashboard_repository.dart';
+import 'package:cabine_flow/features/dashboard/data/repositories/hybrid_dashboard_repository.dart';
 import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_repository.dart';
 import 'package:cabine_flow/features/navigation/presentation/pages/main_shell_page.dart';
 import 'package:cabine_flow/features/offers/data/repositories/fake_admin_offer_repository.dart';
@@ -25,6 +26,8 @@ import 'package:cabine_flow/features/orders/data/repositories/fake_offer_catalog
 import 'package:cabine_flow/features/orders/data/repositories/firestore_offer_catalog_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/firestore_orders_repository.dart';
+import 'package:cabine_flow/features/orders/data/repositories/hybrid_orders_repository.dart';
+import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/offer_catalog_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/payments/data/repositories/wave_payment_link_repository.dart';
@@ -78,13 +81,17 @@ class CabineFlowApp extends StatelessWidget {
     final DashboardRepository effectiveDashboardRepository =
         dashboardRepository ??
         (isFirebaseInitialized
-            ? FirestoreDashboardRepository()
+            ? SupabaseBootstrap.isInitialized
+                  ? HybridDashboardRepository()
+                  : FirestoreDashboardRepository()
             : const FakeDashboardRepository());
 
     final OrdersRepository effectiveOrdersRepository =
         ordersRepository ??
         (isFirebaseInitialized
-            ? FirestoreOrdersRepository()
+            ? SupabaseBootstrap.isInitialized
+                  ? HybridOrdersRepository()
+                  : FirestoreOrdersRepository()
             : FakeOrdersRepository());
 
     final OfferCatalogRepository effectiveOfferCatalogRepository =
