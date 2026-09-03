@@ -51,6 +51,25 @@ class SupabaseAgentPersonalProfileRepository {
         .createSignedUrl(path, expiresInSeconds);
   }
 
+  Future<String?> fetchDirectoryAvatarUrl(
+    String agentId, {
+    int expiresInSeconds = 3600,
+  }) async {
+    final String normalizedAgentId = agentId.trim();
+    if (normalizedAgentId.isEmpty) return null;
+
+    final dynamic response = await _client.rpc(
+      'agent_directory_avatar_path',
+      params: <String, dynamic>{'p_agent_id': normalizedAgentId},
+    );
+    if (response is! String || response.trim().isEmpty) return null;
+
+    return createSignedMediaUrl(
+      response.trim(),
+      expiresInSeconds: expiresInSeconds,
+    );
+  }
+
   Future<AgentPersonalMedia?> fetchMedia({
     required String agentId,
     required AgentPersonalMediaKind kind,

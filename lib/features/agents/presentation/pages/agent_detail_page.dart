@@ -2,6 +2,7 @@ import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/agents/presentation/view_models/agent_detail_view_model.dart';
+import 'package:cabine_flow/features/agents/presentation/widgets/agent_directory_avatar.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -567,17 +568,10 @@ class _ProfileHeader extends StatelessWidget {
         Stack(
           clipBehavior: Clip.none,
           children: [
-            CircleAvatar(
-              radius: 44,
-              backgroundColor: IzyTelColors.primary.withAlpha(35),
-              child: Text(
-                _initials(agent.name),
-                style: const TextStyle(
-                  color: IzyTelColors.primary,
-                  fontSize: 23,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
+            AgentDirectoryAvatar(
+              agentId: agent.userId,
+              name: agent.name,
+              size: 88,
             ),
             Positioned(
               right: 1,
@@ -796,18 +790,6 @@ InputDecoration _darkInputDecoration(
       borderSide: const BorderSide(color: IzyTelColors.error, width: 1.5),
     ),
   );
-}
-
-String _initials(String value) {
-  final List<String> parts = value
-      .trim()
-      .split(RegExp(r'\s+'))
-      .where((e) => e.isNotEmpty)
-      .toList();
-  if (parts.isEmpty) return '?';
-  if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-  return '${parts.first.substring(0, 1)}${parts.last.substring(0, 1)}'
-      .toUpperCase();
 }
 
 String _formatDate(DateTime value) {

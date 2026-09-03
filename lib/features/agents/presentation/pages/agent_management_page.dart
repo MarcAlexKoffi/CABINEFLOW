@@ -5,6 +5,7 @@ import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_detail_page.dart';
+import 'package:cabine_flow/features/agents/presentation/widgets/agent_directory_avatar.dart';
 import 'package:cabine_flow/features/agents/presentation/view_models/agent_management_view_model.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
@@ -594,7 +595,12 @@ class _AgentCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              IzyTelAvatar(name: agent.name, size: 44),
+              AgentDirectoryAvatar(
+                key: ValueKey<String>(agent.userId),
+                agentId: agent.userId,
+                name: agent.name,
+                size: 44,
+              ),
               const SizedBox(width: 11),
               Expanded(
                 child: Column(
