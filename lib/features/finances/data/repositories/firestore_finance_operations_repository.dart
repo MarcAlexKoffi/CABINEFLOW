@@ -83,6 +83,37 @@ class FirestoreFinanceOperationsRepository
         );
   }
 
+  Future<SupplierRecharge?> fetchSupplierRechargeById(String rechargeId) async {
+    final String id = rechargeId.trim();
+    if (id.isEmpty) return null;
+    final DocumentSnapshot<Map<String, dynamic>> doc = await _supplierRecharges
+        .doc(id)
+        .get();
+    final Map<String, dynamic>? data = doc.data();
+    if (!doc.exists || data == null) return null;
+    final AgentNetwork? network = _network(data['network']);
+    final DateTime? createdAt = _date(data['createdAt']);
+    if (network == null || createdAt == null) return null;
+    return SupplierRecharge(
+      id: doc.id,
+      supplierId: _string(data['supplierId']),
+      supplierName: _string(data['supplierName']),
+      agentId: _string(data['agentId']),
+      agentName: _string(data['agentName']),
+      network: network,
+      principalAmount: _int(data['principalAmount']),
+      bonusAmount: _int(data['bonusAmount']),
+      receivedAmount: _int(data['receivedAmount']),
+      amountOwed: _int(data['amountOwed']),
+      capacityBefore: _int(data['capacityBefore']),
+      capacityAfter: _int(data['capacityAfter']),
+      note: _nullableString(data['note']),
+      createdAt: createdAt,
+      createdBy: _string(data['createdBy']),
+      createdByName: _string(data['createdByName']),
+    );
+  }
+
   @override
   Stream<List<SupplierPayment>> watchSupplierPayments() {
     return _supplierPayments

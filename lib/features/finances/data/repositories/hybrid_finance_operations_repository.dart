@@ -1,5 +1,6 @@
 import 'package:cabine_flow/features/finances/data/repositories/firestore_finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/supabase_supplier_registry_repository.dart';
+import 'package:cabine_flow/features/finances/data/repositories/supabase_phase5_history_repository.dart';
 import 'package:cabine_flow/features/finances/domain/models/finance_operations_models.dart';
 import 'package:cabine_flow/features/finances/domain/repositories/finance_operations_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -17,16 +18,20 @@ class HybridFinanceOperationsRepository implements FinanceOperationsRepository {
     FirestoreFinanceOperationsRepository? firestoreRepository,
     SupabaseSupplierRegistryRepository? supplierRegistry,
     FirebaseFirestore? firestore,
+    SupabasePhase5HistoryRepository? phase5HistoryRepository,
   }) : _firestore =
            firestoreRepository ??
            FirestoreFinanceOperationsRepository(firestore: firestore),
        _supplierRegistry =
            supplierRegistry ?? SupabaseSupplierRegistryRepository(),
-       _firestoreDb = firestore ?? FirebaseFirestore.instance;
+       _firestoreDb = firestore ?? FirebaseFirestore.instance,
+       _phase5History =
+           phase5HistoryRepository ?? SupabasePhase5HistoryRepository();
 
   final FirestoreFinanceOperationsRepository _firestore;
   final SupabaseSupplierRegistryRepository _supplierRegistry;
   final FirebaseFirestore _firestoreDb;
+  final SupabasePhase5HistoryRepository _phase5History;
   Future<void>? _legacyImportFuture;
 
   @override
@@ -166,11 +171,26 @@ class HybridFinanceOperationsRepository implements FinanceOperationsRepository {
       throw StateError('Ce fournisseur est indisponible.');
     }
 
-    return _firestore.recordSupplierRecharge(
+    final String rechargeId = await _firestore.recordSupplierRecharge(
       draft: draft,
       staffId: staffId,
       staffName: staffName,
     );
+    try {
+      final SupplierRecharge? created = await _firestore
+          .fetchSupplierRechargeById(rechargeId);
+      if (created != null) {
+        await _phase5History.upsertSupplierRecharges(<SupplierRecharge>[
+          created,
+        ]);
+      }
+    } catch (error, stackTrace) {
+      // La transaction financière Firebase est déjà validée. La synchronisation
+      // Phase 5 est reprise par lots au prochain passage Admin.
+      debugPrint('[Phase5][RechargeMirror] $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+    return rechargeId;
   }
 
   @override

@@ -122,7 +122,7 @@ void main() {
     final String history = source(
       'lib/features/orders/presentation/pages/agent_history_page.dart',
     );
-    expect(history, contains("label: 'Échecs'"));
+    expect(history, contains("_tabBox('Échecs'"));
     expect(history, contains('failedOrders'));
     expect(history, contains("'Motif : "));
     expect(history, contains('order.observation'));

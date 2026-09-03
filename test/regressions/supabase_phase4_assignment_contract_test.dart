@@ -251,7 +251,7 @@ void main() {
     expect(supabase, contains('OrderAssignmentStatus.refused'));
     expect(viewModel, contains('refusedHistoryOrders'));
     expect(viewModel, contains('refusedHistoryCount'));
-    expect(historyPage, contains("label: 'Refus'"));
+    expect(historyPage, contains("_tabBox('Refus'"));
     expect(historyPage, contains('Aucun refus enregistré.'));
   });
 
