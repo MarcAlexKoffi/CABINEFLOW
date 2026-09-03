@@ -1496,9 +1496,7 @@ class FirestoreOrdersRepository
         throw StateError('L’affectation active est introuvable.');
       }
       if (_requireFirestoreProof &&
-          (proofSnapshot == null ||
-              !proofSnapshot.exists ||
-              proofData == null)) {
+          (proofSnapshot == null || !proofSnapshot.exists || proofData == null)) {
         throw StateError('Ajoute une preuve avant de valider la réussite.');
       }
       if (!profileSnapshot.exists || profileData == null) {
@@ -2609,11 +2607,11 @@ class FirestoreOrdersRepository
   /// Après cette étape, preuve, traitement, capacité et commission continuent
   /// d'utiliser exactement le flux Firebase déjà validé.
   ///
-  /// On tente d'abord d'accepter un miroir déjà existant (affectation manuelle
-  /// ou héritée). S'il n'existe pas encore, l'agent réclame la file technique
-  /// 9E puis accepte l'affectation ainsi créée. Cette méthode évite toute
-  /// lecture directe d'une commande Firestore encore non affectée, lecture qui
-  /// n'est volontairement pas autorisée à un agent.
+  /// On consulte d'abord la file technique 9E, que l'Agent a le droit de lire.
+  /// Si elle existe, l'Agent cree son miroir Firestore puis l'accepte. Si elle
+  /// n'existe plus, on tente seulement alors l'acceptation d'un miroir manuel
+  /// ou legacy deja affecte. Cela evite toute lecture prematuree d'une commande
+  /// Firestore encore non affectee, volontairement interdite a l'Agent.
   Future<QueueOrder> handoffHybridAcceptedAssignment({
     required String orderId,
     required String agentId,
@@ -2624,48 +2622,68 @@ class FirestoreOrdersRepository
       throw StateError('La session agent ne correspond pas à cette action.');
     }
 
-    try {
-      return await acceptAgentAssignment(
-        orderId: orderId,
-        agentId: cleanedAgentId,
-      );
-    } on StateError catch (error) {
-      if (!error.toString().contains('Aucune affectation en attente')) {
-        rethrow;
-      }
-    }
-
+    // IMPORTANT : un Agent n'a volontairement pas le droit de lire une
+    // commande Firestore encore non affectee. L'ancien code essayait pourtant
+    // acceptAgentAssignment() en premier ; le transaction.get(order) pouvait
+    // donc produire permission-denied avant meme de tenter le claim 9E.
+    // La file technique est, elle, lisible par l'Agent : on la teste en premier.
     final DocumentSnapshot<Map<String, dynamic>> queueSnapshot =
         await _autoAssignmentQueueCollection.doc(orderId).get();
     final AutomaticAssignmentQueueItem? item = _automaticQueueItemFromSnapshot(
       queueSnapshot,
     );
-    if (!queueSnapshot.exists || item == null) {
-      throw StateError(
-        'La file technique Firebase est absente. Ouvre le compte Admin pour resynchroniser cette commande.',
-      );
-    }
 
-    final bool claimed = await claimAutomaticQueueItem(
-      item: item,
-      agentId: cleanedAgentId,
-    );
-    if (!claimed) {
-      // Une course peut avoir créé l'affectation entre-temps. Dans ce cas une
-      // seconde tentative d'acceptation suffit et reste idempotente.
+    if (queueSnapshot.exists && item != null) {
+      final bool claimed = await claimAutomaticQueueItem(
+        item: item,
+        agentId: cleanedAgentId,
+      );
+      if (claimed) {
+        return acceptAgentAssignment(
+          orderId: orderId,
+          agentId: cleanedAgentId,
+        );
+      }
+
+      // Une course peut avoir cree le miroir entre la lecture de la file et le
+      // claim. Dans ce cas, une acceptation classique doit maintenant passer.
       try {
         return await acceptAgentAssignment(
           orderId: orderId,
           agentId: cleanedAgentId,
         );
+      } on FirebaseException catch (error) {
+        if (error.code != 'permission-denied') rethrow;
       } on StateError {
-        throw StateError(
-          "Cette affectation n'est plus compatible avec la capacité actuelle de l'agent.",
-        );
+        // Converti ci-dessous en message fonctionnel unique.
       }
+      throw StateError(
+        "Cette affectation n'est plus compatible avec la capacité actuelle de l'agent.",
+      );
     }
 
-    return acceptAgentAssignment(orderId: orderId, agentId: cleanedAgentId);
+    // Pas de file : il peut s'agir d'un miroir manuel/legacy deja affecte a
+    // l'Agent. Celui-ci est alors lisible et peut etre accepte directement.
+    try {
+      return await acceptAgentAssignment(
+        orderId: orderId,
+        agentId: cleanedAgentId,
+      );
+    } on FirebaseException catch (error) {
+      if (error.code != 'permission-denied') rethrow;
+      throw StateError(
+        'Le miroir Firebase de cette affectation est absent. '
+        'Ouvre le compte Admin pour resynchroniser la commande.',
+      );
+    } on StateError catch (error) {
+      if (!error.toString().contains('Aucune affectation en attente')) {
+        rethrow;
+      }
+      throw StateError(
+        'La file technique Firebase est absente. '
+        'Ouvre le compte Admin pour resynchroniser cette commande.',
+      );
+    }
   }
 
   Future<List<AutomaticAssignmentAgent>>
@@ -3079,6 +3097,26 @@ class FirestoreOrdersRepository
     }
 
     return _AuditActor(id: currentUser.uid, role: role);
+  }
+
+  Future<Map<MobileNetwork, int>> fetchAgentCapacitiesForPhase5({
+    required String agentId,
+  }) async {
+    final String cleanedAgentId = agentId.trim();
+    if (cleanedAgentId.isEmpty) {
+      throw StateError('Agent invalide.');
+    }
+    final DocumentSnapshot<Map<String, dynamic>> snapshot =
+        await _agentProfilesCollection.doc(cleanedAgentId).get();
+    final Map<String, dynamic>? data = snapshot.data();
+    if (!snapshot.exists || data == null) {
+      throw StateError('Le profil opérationnel de cet agent est introuvable.');
+    }
+    return <MobileNetwork, int>{
+      MobileNetwork.orange: _agentCapacityForNetwork(data, MobileNetwork.orange),
+      MobileNetwork.mtn: _agentCapacityForNetwork(data, MobileNetwork.mtn),
+      MobileNetwork.moov: _agentCapacityForNetwork(data, MobileNetwork.moov),
+    };
   }
 
   String _agentCapacityFieldForNetwork(MobileNetwork network) {

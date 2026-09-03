@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   String read(String path) => File(path).readAsStringSync();
 
-  test('Phase 5 utilise une pagination serveur pour les recharges Agent', () {
+  test('Phase 5 garde la pagination serveur des recharges Agent', () {
     final String repository = read(
       'lib/features/finances/data/repositories/supabase_agent_recharge_history_repository.dart',
     );
@@ -17,7 +17,7 @@ void main() {
     expect(repository, isNot(contains('.snapshots()')));
   });
 
-  test('Historique Agent expose Recharges avec recherche filtres et pages', () {
+  test('Historique Agent conserve recherche filtres et pagination', () {
     final String page = read(
       'lib/features/orders/presentation/pages/agent_history_page.dart',
     );
@@ -31,41 +31,41 @@ void main() {
     expect(page, contains('pageSize: 50'));
   });
 
-  test('Backfill Phase 5 progresse par lots avec curseur persistant', () {
+  test('le backfill Phase 5 est désormais consolidé et idempotent', () {
     final String synchronizer = read(
-      'lib/features/finances/data/services/phase5_recharge_history_synchronizer.dart',
+      'lib/features/finances/data/services/phase5_consolidated_synchronizer.dart',
     );
     expect(synchronizer, contains('defaultBatchSize = 100'));
     expect(synchronizer, contains("collection('supplierRecharges')"));
-    expect(synchronizer, contains("orderBy('createdAt')"));
-    expect(synchronizer, contains('orderBy(FieldPath.documentId)'));
-    expect(synchronizer, contains('startAfter'));
+    expect(synchronizer, contains('importRechargeHistoryBatch'));
+    expect(synchronizer, contains('importLegacyBatch'));
     expect(synchronizer, contains('saveSyncCursor'));
-    expect(synchronizer, contains('upsertSupplierRecharges'));
+    expect(synchronizer, contains('if (cursor.backfillComplete) return'));
+    expect(synchronizer, contains('_reconcileRecentState'));
   });
 
-  test('Nouvelle recharge financière alimente immédiatement Phase 5', () {
+  test('une nouvelle recharge alimente tout le registre financier Phase 5', () {
     final String hybrid = read(
       'lib/features/finances/data/repositories/hybrid_finance_operations_repository.dart',
     );
-    final String firestore = read(
-      'lib/features/finances/data/repositories/firestore_finance_operations_repository.dart',
+    final String phase5 = read(
+      'lib/features/finances/data/repositories/supabase_phase5_finance_repository.dart',
     );
-    expect(hybrid, contains('fetchSupplierRechargeById'));
-    expect(hybrid, contains('upsertSupplierRecharges'));
+    expect(hybrid, contains('fetchAgentCapacitiesForPhase5'));
+    expect(hybrid, contains('ensureCapacitySeed'));
+    expect(hybrid, contains('mirrorSupplierRecharge'));
     expect(hybrid, contains('[Phase5][RechargeMirror]'));
-    expect(
-      firestore,
-      contains('Future<SupplierRecharge?> fetchSupplierRechargeById'),
-    );
+    expect(phase5, contains("'phase5_record_supplier_recharge'"));
+    expect(phase5, contains("'phase5_network_movements'"));
   });
 
-  test('Admin lance la reprise progressive sans bloquer son interface', () {
+  test('seul Admin lance le backfill financier consolidé', () {
     final String shell = read(
       'lib/features/navigation/presentation/pages/main_shell_page.dart',
     );
-    expect(shell, contains('Phase5RechargeHistorySynchronizer'));
-    expect(shell, contains('unawaited(_synchronizePhase5RechargeHistory())'));
+    expect(shell, contains('Phase5ConsolidatedSynchronizer'));
+    expect(shell, contains('_synchronizePhase5ConsolidatedBackfill'));
+    expect(shell, contains('widget.user.role == UserRole.administrator'));
     expect(shell, contains('SupabaseBootstrap.isInitialized'));
   });
 }

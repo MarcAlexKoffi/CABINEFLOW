@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cabine_flow/features/finances/data/repositories/supabase_phase5_finance_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/firestore_orders_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/supabase_phase4_assignment_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/supabase_order_proof_repository.dart';
@@ -16,12 +17,14 @@ import 'package:flutter/foundation.dart';
 
 /// Phase 4 IzyTel.
 ///
-/// Supabase est la source de vérité uniquement pendant la négociation
-/// d'affectation (automatique/manuelle, acceptation, refus, réaffectation).
-/// Dès qu'un agent accepte, la commande est matérialisée dans le flux Firebase
-/// existant pour le traitement operationnel. Depuis la Phase 5B1, les preuves
-/// sont Supabase-only pour les nouvelles commandes ; capacite, commissions et
-/// mouvements financiers restent encore atomiques dans Firebase.
+/// Supabase reste la source de négociation pour l'affectation automatique,
+/// l'acceptation, le refus et la réaffectation. Les affectations manuelles sont
+/// matérialisées immédiatement dans Firestore afin de rester compatibles avec
+/// le traitement opérationnel encore Firebase. Pour l'automatique, le handoff
+/// Firebase intervient à l'acceptation. La Phase 5 consolide preuves,
+/// capacités, mouvements, paiements et commissions dans Supabase. La transaction
+/// Firebase de réussite reste seulement un pont de compatibilité jusqu’à la
+/// migration du domaine Commandes post-handoff.
 class HybridOrdersRepository
     implements
         OrdersRepository,
@@ -31,6 +34,7 @@ class HybridOrdersRepository
     FirestoreOrdersRepository? firestoreRepository,
     SupabasePhase4AssignmentRepository? phase4Repository,
     SupabaseOrderProofRepository? proofRepository,
+    SupabasePhase5FinanceRepository? phase5FinanceRepository,
     FirebaseAuth? firebaseAuth,
   }) : _firestore =
            firestoreRepository ??
@@ -40,6 +44,7 @@ class HybridOrdersRepository
            ),
        _phase4 = phase4Repository ?? SupabasePhase4AssignmentRepository(),
        _proofs = proofRepository ?? SupabaseOrderProofRepository(),
+       _phase5Finance = phase5FinanceRepository ?? SupabasePhase5FinanceRepository(),
        _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance;
 
   static const int _maximumBacklogOrders = 50;
@@ -47,6 +52,7 @@ class HybridOrdersRepository
   final FirestoreOrdersRepository _firestore;
   final SupabasePhase4AssignmentRepository _phase4;
   final SupabaseOrderProofRepository _proofs;
+  final SupabasePhase5FinanceRepository _phase5Finance;
   final FirebaseAuth _firebaseAuth;
   final AutomaticAssignmentSelector _selector =
       const AutomaticAssignmentSelector();
@@ -82,6 +88,12 @@ class HybridOrdersRepository
       paidAt: paidAt,
       paymentReference: paymentReference,
     );
+    try {
+      await _phase5Finance.mirrorOrderPayment(confirmed);
+    } catch (error, stackTrace) {
+      debugPrint('[Phase5][OrderPaymentMirror] $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
 
     // Le paiement ne doit jamais être annulé parce que le moteur d'affectation
     // est temporairement indisponible. La file Firestore reste persistée et le
@@ -308,18 +320,37 @@ class HybridOrdersRepository
       );
     }
 
-    Phase4AssignmentSnapshot snapshot = await _phase4.syncOrder(order);
+    // Un etat Phase 4 deja actif est canonique : ne le reecrivons pas a
+    // chaque passage avec phase4_sync_order(). Outre le trafic inutile, cette
+    // reecriture modifiait updated_at et pouvait masquer l'anciennete reelle
+    // d'une acceptation en attente de handoff.
+    Phase4AssignmentSnapshot snapshot =
+        existing != null &&
+            (existing.isAssigned ||
+                existing.isAccepted ||
+                existing.isHandedOff ||
+                existing.isManualRequired)
+        ? existing
+        : await _phase4.syncOrder(order);
 
     final List<String> legacyRefusedIds = <String>{
       ...order.autoAssignmentRefusedAgentIds,
       if (order.lastAssignmentRefusedAgentId != null)
         order.lastAssignmentRefusedAgentId!,
     }.where((String id) => id.trim().isNotEmpty).toList(growable: false);
-    if (legacyRefusedIds.isNotEmpty || order.manualAssignmentRequired) {
+    // Un vieux miroir Firestore peut conserver manualAssignmentRequired=true
+    // quelques secondes apres une affectation Supabase. Cet indicateur legacy
+    // ne doit JAMAIS retrograder une affectation Phase 4 deja active vers
+    // manual_required, sinon l'UI oscille entre "affectee" et "sans agent".
+    final bool phase4HasActiveAssignment =
+        snapshot.isAssigned || snapshot.isAccepted || snapshot.isHandedOff;
+    final bool importManualRequired =
+        order.manualAssignmentRequired && !phase4HasActiveAssignment;
+    if (legacyRefusedIds.isNotEmpty || importManualRequired) {
       snapshot = await _phase4.importLegacyRefusals(
         orderId: order.id,
         refusedAgentIds: legacyRefusedIds,
-        manualRequired: order.manualAssignmentRequired,
+        manualRequired: importManualRequired,
       );
     }
 
@@ -395,10 +426,11 @@ class HybridOrdersRepository
           return _phase4.resetForManualAssignment(order.id);
         }
 
-        // Phase 4 : une affectation manuelle reste Supabase-only tant que
-        // l'Agent ne l'a pas acceptée. On ne recrée plus ici une affectation
-        // manuelle Firestore, car les rules historiques peuvent la refuser.
-        // Le handoff Firebase est effectué par l'Agent au moment de Accepter.
+        // Compatibilité avec les affectations manuelles créées avant le
+        // dual-write : elles peuvent encore n'exister que dans Supabase. Les
+        // nouvelles affectations passent par assignToAgent() et possèdent déjà
+        // leur miroir Firestore. Pour une ancienne ligne, on conserve la file
+        // technique afin que l'Agent puisse réparer le handoff à l'acceptation.
         final bool sameLegacyFirebaseMirror =
             order.assignedAgentId == targetAgentId &&
             order.assignmentStatus == OrderAssignmentStatus.assigned &&
@@ -544,7 +576,12 @@ class HybridOrdersRepository
       return null;
     }
 
-    Phase4AssignmentSnapshot snapshot = await _phase4.syncOrder(order);
+    // Ne pas re-synchroniser une ligne Phase 4 deja existante a chaque
+    // reveil du moteur. phase4_sync_order() met updated_at a now() meme si
+    // l'affectation n'a pas change ; cela faisait paraitre une acceptation
+    // ancienne comme recente et entretenait les oscillations Firestore/Supabase.
+    Phase4AssignmentSnapshot snapshot =
+        await _phase4.fetchOrder(order.id) ?? await _phase4.syncOrder(order);
     if (snapshot.isAssigned || snapshot.isAccepted || snapshot.isHandedOff) {
       final Phase4AssignmentPlan? plan = await _phase4.fetchPlan(order.id);
       return snapshot.overlayOn(
@@ -709,33 +746,74 @@ class HybridOrdersRepository
     required String assignedByUserId,
   }) async {
     final String uid = (_firebaseAuth.currentUser?.uid ?? '').trim();
+    final String targetAgentId = agentId.trim();
     if (uid.isEmpty || uid != assignedByUserId.trim()) {
       throw StateError('La session administrateur ne correspond pas.');
     }
+    if (targetAgentId.isEmpty) {
+      throw StateError('Agent invalide.');
+    }
 
-    QueueOrder order = await _firestore.fetchOrderById(orderId: orderId);
+    final QueueOrder order = await _firestore.fetchOrderById(orderId: orderId);
     if (order.status != QueueOrderStatus.paidReady ||
         !order.isFundedForProcessing) {
       throw StateError('Cette commande ne peut pas être affectée.');
     }
 
-    final bool existingManualMirror =
-        order.assignedAgentId == agentId &&
-        order.assignmentStatus == OrderAssignmentStatus.assigned &&
-        order.assignmentMode == OrderAssignmentMode.manual;
+    // Phase 4 reste la source canonique de la negociation avant acceptation.
+    // Une affectation manuelle n'ecrit volontairement PAS dans /orders ici :
+    // le miroir Firebase est materialise par l'Agent au moment de l'acceptation.
+    // Cela evite les permission-denied historiques de l'affectation Admin tout
+    // en conservant l'etat immediatement visible via les streams hybrides.
+    final Phase4AssignmentSnapshot? canonical = await _phase4.fetchOrder(
+      order.id,
+    );
+    final bool canonicalHasAssignment =
+        canonical != null &&
+        (canonical.isAssigned || canonical.isAccepted || canonical.isHandedOff) &&
+        canonical.assignedAgentId != null;
 
-    // L'affectation manuelle Phase 4 ne doit effectuer AUCUNE écriture
-    // Firestore avant l'acceptation de l'Agent. On neutralise localement un
-    // éventuel miroir historique et Supabase reste l'unique source de décision.
-    final QueueOrder phase4SourceOrder = existingManualMirror
-        ? order
-        : order.copyWith(clearAgentAssignment: true);
+    if (canonicalHasAssignment) {
+      final Phase4AssignmentSnapshot activeCanonical = canonical;
+      final String canonicalAgentId = activeCanonical.assignedAgentId!.trim();
+      final String canonicalAgentName =
+          activeCanonical.assignedAgentName?.trim().isNotEmpty == true
+          ? activeCanonical.assignedAgentName!.trim()
+          : 'un agent';
+      final bool sameTarget = canonicalAgentId == targetAgentId;
 
-    await _phase4.syncOrder(phase4SourceOrder);
+      if (!sameTarget ||
+          activeCanonical.isAccepted ||
+          activeCanonical.isHandedOff) {
+        throw StateError(
+          'Cette commande est déjà affectée à $canonicalAgentName. '
+          'Actualise la liste avant toute réaffectation.',
+        );
+      }
+
+      if (activeCanonical.assignmentMode != OrderAssignmentMode.manual) {
+        throw StateError(
+          'Cette commande possède déjà une affectation automatique en attente. '
+          'Actualise la liste.',
+        );
+      }
+
+      // Idempotence : si le double-clic ou un ancien écran relance exactement
+      // la même affectation manuelle, on renvoie simplement l'état canonique.
+      return activeCanonical.overlayOn(order);
+    }
+
+    // Ne jamais tenter de nettoyer/écrire le vieux miroir Firestore dans le
+    // chemin Admin. Les vues hybrides masquent déjà les miroirs obsolètes à
+    // partir de Phase 4 ; l'acceptation Agent effectuera le handoff Firebase.
+    await _phase4.syncOrder(order.copyWith(clearAgentAssignment: true));
 
     final List<AutomaticAssignmentAgent> agents = await _firestore
         .fetchAutomaticAssignmentCandidatesForHybrid();
-    final AutomaticAssignmentAgent? rawTarget = _findAgent(agents, agentId);
+    final AutomaticAssignmentAgent? rawTarget = _findAgent(
+      agents,
+      targetAgentId,
+    );
     if (rawTarget == null) {
       throw StateError('Le profil opérationnel de cet agent est introuvable.');
     }
@@ -762,21 +840,10 @@ class HybridOrdersRepository
       mode: OrderAssignmentMode.manual,
     );
 
-    if (existingManualMirror) {
-      try {
-        final Phase4AssignmentSnapshot marked = await _phase4
-            .markFirebaseAssignmentSynced(order.id);
-        return marked.overlayOn(order);
-      } catch (error, stackTrace) {
-        debugPrint('[Phase4][manual-existing-marker] $error');
-        debugPrintStack(stackTrace: stackTrace);
-      }
-    }
-
-    // Ne pas appeler FirestoreOrdersRepository.assignToAgent ici : cette
-    // transition manuelle dépend d'un ruleset historique qui peut renvoyer
-    // permission-denied. Supabase est la source de vérité avant acceptation.
-    return assigned.overlayOn(phase4SourceOrder);
+    // IMPORTANT : pas de _firestore.assignToAgent() ici. Phase 4 est visible
+    // immédiatement côté Admin et Agent ; Firestore ne devient opérationnel
+    // qu'au handoff d'acceptation de l'Agent.
+    return assigned.overlayOn(order.copyWith(clearAgentAssignment: true));
   }
 
   @override
@@ -784,12 +851,19 @@ class HybridOrdersRepository
     final Map<String, int> result = Map<String, int>.from(
       await _firestore.fetchActiveAssignmentCounts(),
     );
-    final List<Phase4AssignmentSnapshot> snapshots = await _phase4
-        .fetchAllForStaff();
-    for (final Phase4AssignmentSnapshot snapshot in snapshots) {
-      final String? agentId = snapshot.assignedAgentId;
-      if (!snapshot.reservesCapacityInSupabase || agentId == null) continue;
-      result[agentId] = (result[agentId] ?? 0) + 1;
+    try {
+      final List<Phase4AssignmentSnapshot> snapshots = await _phase4
+          .fetchAllForStaff();
+      for (final Phase4AssignmentSnapshot snapshot in snapshots) {
+        final String? agentId = snapshot.assignedAgentId;
+        if (!snapshot.reservesCapacityInSupabase || agentId == null) continue;
+        result[agentId] = (result[agentId] ?? 0) + 1;
+      }
+    } catch (error, stackTrace) {
+      // La charge Firebase reste une valeur de repli sure. Ne jamais vider ou
+      // faire mourir l'ecran d'affectation pour une panne Supabase transitoire.
+      debugPrint('[Phase4][active-counts-fallback] $error');
+      debugPrintStack(stackTrace: stackTrace);
     }
     return Map<String, int>.unmodifiable(result);
   }
@@ -805,7 +879,9 @@ class HybridOrdersRepository
       } catch (error, stackTrace) {
         debugPrint('[Phase4][active-counts] $error');
         debugPrintStack(stackTrace: stackTrace);
-        if (lastSuccessful == null) rethrow;
+        // Comme les autres pollers Phase 4, une erreur initiale ne doit pas
+        // detruire le stream pour toute la session.
+        yield lastSuccessful ?? const <String, int>{};
       }
       await Future<void>.delayed(
         SupabasePhase4AssignmentRepository.pollInterval,
@@ -822,14 +898,19 @@ class HybridOrdersRepository
       agentId: agentId,
       network: network,
     );
-    final List<Phase4AssignmentSnapshot> snapshots = await _phase4
-        .fetchAllForStaff();
-    for (final Phase4AssignmentSnapshot snapshot in snapshots) {
-      if (snapshot.reservesCapacityInSupabase &&
-          snapshot.assignedAgentId == agentId &&
-          snapshot.network == network) {
-        amount += snapshot.amount;
+    try {
+      final List<Phase4AssignmentSnapshot> snapshots = await _phase4
+          .fetchAllForStaff();
+      for (final Phase4AssignmentSnapshot snapshot in snapshots) {
+        if (snapshot.reservesCapacityInSupabase &&
+            snapshot.assignedAgentId == agentId &&
+            snapshot.network == network) {
+          amount += snapshot.amount;
+        }
       }
+    } catch (error, stackTrace) {
+      debugPrint('[Phase4][reserved-amount-fallback] $error');
+      debugPrintStack(stackTrace: stackTrace);
     }
     return amount;
   }
@@ -977,31 +1058,62 @@ class HybridOrdersRepository
     required String agentId,
   }) async {
     final String uid = (_firebaseAuth.currentUser?.uid ?? '').trim();
-    if (uid.isEmpty || uid != agentId.trim()) {
+    final String cleanedAgentId = agentId.trim();
+    if (uid.isEmpty || uid != cleanedAgentId) {
       throw StateError('La session agent ne correspond pas à cette action.');
     }
 
     await _phase4.accept(orderId);
     try {
       final QueueOrder accepted = await _firestore
-          .handoffHybridAcceptedAssignment(orderId: orderId, agentId: agentId);
+          .handoffHybridAcceptedAssignment(
+            orderId: orderId,
+            agentId: cleanedAgentId,
+          );
       try {
         await _phase4.markHandoff(orderId);
       } catch (error, stackTrace) {
-        // Le handoff Firebase est déjà effectif. Ne jamais faire échouer une
+        // Le handoff Firebase est deja effectif. Ne jamais faire echouer une
         // acceptation fonctionnelle uniquement parce que le marqueur Supabase
-        // n'a pas pu être mis à jour ; le staff le verra comme accepté.
+        // n'a pas pu etre mis a jour ; le staff le verra comme accepte.
         debugPrint('[Phase4][handoff-marker] $error');
         debugPrintStack(stackTrace: stackTrace);
       }
       return accepted;
-    } catch (error) {
+    } catch (error, stackTrace) {
+      // Si la requete Firebase a atteint le serveur mais que sa reponse a ete
+      // perdue, ne surtout pas rouvrir Supabase en "assigned". Une lecture
+      // Firestore est alors autorisee a l'Agent et permet de confirmer le
+      // handoff avant toute compensation.
+      try {
+        final QueueOrder firebase = await _firestore.fetchOrderById(
+          orderId: orderId,
+        );
+        final bool handoffActuallySucceeded =
+            firebase.assignedAgentId == cleanedAgentId &&
+            firebase.assignmentStatus == OrderAssignmentStatus.accepted;
+        if (handoffActuallySucceeded) {
+          try {
+            await _phase4.markHandoff(orderId);
+          } catch (markerError, markerStackTrace) {
+            debugPrint('[Phase4][handoff-confirm-marker] $markerError');
+            debugPrintStack(stackTrace: markerStackTrace);
+          }
+          return firebase;
+        }
+      } catch (verificationError, verificationStackTrace) {
+        debugPrint('[Phase4][handoff-confirm-read] $verificationError');
+        debugPrintStack(stackTrace: verificationStackTrace);
+      }
+
       try {
         await _phase4.reopenAcceptance(orderId);
-      } catch (_) {
-        // Le prochain rafraîchissement réconciliera l'état.
+      } catch (reopenError, reopenStackTrace) {
+        // Le prochain rafraichissement reconciliara l'etat.
+        debugPrint('[Phase4][handoff-reopen] $reopenError');
+        debugPrintStack(stackTrace: reopenStackTrace);
       }
-      rethrow;
+      Error.throwWithStackTrace(error, stackTrace);
     }
   }
 
@@ -1047,8 +1159,70 @@ class HybridOrdersRepository
   Future<QueueOrder> startAgentProcessing({
     required String orderId,
     required String agentId,
-  }) {
-    return _firestore.startAgentProcessing(orderId: orderId, agentId: agentId);
+  }) async {
+    final String cleanedAgentId = agentId.trim();
+
+    Future<QueueOrder> repairAndRetry(
+      Object originalError,
+      StackTrace originalStackTrace,
+    ) async {
+      // Une ancienne acceptation Supabase peut avoir ete conservee alors que
+      // le handoff Firebase n'a jamais ete materialise. Selon l'etat du miroir,
+      // Firestore peut refuser le transaction.get (permission-denied) OU laisser
+      // lire la commande mais la voir encore avec assignmentStatus=assigned.
+      final Phase4AssignmentSnapshot? snapshot = await _phase4.fetchOrder(
+        orderId,
+      );
+      final bool canRepairHandoff =
+          snapshot != null &&
+          snapshot.assignedAgentId == cleanedAgentId &&
+          (snapshot.isAccepted || snapshot.isHandedOff);
+      if (!canRepairHandoff) {
+        debugPrint(
+          '[Phase4][processing-start-denied] order=$orderId agent=$cleanedAgentId',
+        );
+        debugPrintStack(stackTrace: originalStackTrace);
+        Error.throwWithStackTrace(originalError, originalStackTrace);
+      }
+
+      debugPrint(
+        '[Phase4][processing-start-repair] order=$orderId agent=$cleanedAgentId',
+      );
+      await _firestore.handoffHybridAcceptedAssignment(
+        orderId: orderId,
+        agentId: cleanedAgentId,
+      );
+      try {
+        await _phase4.markHandoff(orderId);
+      } catch (markerError, markerStackTrace) {
+        debugPrint(
+          '[Phase4][processing-start-repair-marker] order=$orderId: $markerError',
+        );
+        debugPrintStack(stackTrace: markerStackTrace);
+      }
+
+      return _firestore.startAgentProcessing(
+        orderId: orderId,
+        agentId: cleanedAgentId,
+      );
+    }
+
+    try {
+      return await _firestore.startAgentProcessing(
+        orderId: orderId,
+        agentId: cleanedAgentId,
+      );
+    } on FirebaseException catch (error, stackTrace) {
+      if (error.code != 'permission-denied') rethrow;
+      return repairAndRetry(error, stackTrace);
+    } on StateError catch (error, stackTrace) {
+      // Cas d'un miroir Firebase existant mais reste au statut "assigned"
+      // alors que Phase 4 est deja accepted/handed_off.
+      if (!error.toString().contains('Cette commande ne t’est plus affectée')) {
+        rethrow;
+      }
+      return repairAndRetry(error, stackTrace);
+    }
   }
 
   @override
@@ -1094,9 +1268,7 @@ class HybridOrdersRepository
     required String agentId,
   }) async {
     final String cleanedAgentId = agentId.trim();
-    final OrderProof? supabaseProof = await _proofs.fetchProof(
-      orderId: orderId,
-    );
+    final OrderProof? supabaseProof = await _proofs.fetchProof(orderId: orderId);
     OrderProof? firestoreCompatibilityProof = await _firestore.fetchOrderProof(
       orderId: orderId,
     );
@@ -1134,14 +1306,53 @@ class HybridOrdersRepository
       throw StateError('Ajoute une preuve avant de valider la reussite.');
     }
 
-    // La transaction Firebase conserve temporairement le bloc atomique encore
-    // non migre : commande + capacite + mouvement + commission. Le pont
-    // ci-dessus satisfait seulement la regle legacy de preuve sans redevenir
-    // la source de lecture des nouvelles preuves.
-    return _firestore.markAgentSuccessful(
+    // Phase 5 consolidée : on initialise une seule fois le registre de
+    // capacité Supabase depuis le profil Firebase encore opérationnel. La
+    // transaction Firebase reste le pont de compatibilité tant que ses règles
+    // l'imposent, puis le registre financier Supabase est finalisé de manière
+    // idempotente pour les lectures Agent / Manager / Admin web.
+    final Map<MobileNetwork, int> legacyCapacities = await _firestore
+        .fetchAgentCapacitiesForPhase5(agentId: cleanedAgentId);
+    final QueueOrder currentOrder = await _firestore.fetchOrderById(
+      orderId: orderId,
+    );
+    final String agentName = (
+      currentOrder.assignedAgentName ??
+      currentOrder.assignedAgentId ??
+      'Agent'
+    ).trim();
+    try {
+      await _phase5Finance.ensureCapacitySeed(
+        agentId: cleanedAgentId,
+        agentName: agentName,
+        orangeCapacity: legacyCapacities[MobileNetwork.orange] ?? 0,
+        mtnCapacity: legacyCapacities[MobileNetwork.mtn] ?? 0,
+        moovCapacity: legacyCapacities[MobileNetwork.moov] ?? 0,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('[Phase5][CapacitySeed] $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+
+    final QueueOrder completed = await _firestore.markAgentSuccessful(
       orderId: orderId,
       agentId: cleanedAgentId,
     );
+
+    try {
+      await _phase5Finance.finalizeOrderSuccess(
+        order: completed,
+        agentId: cleanedAgentId,
+        agentName: agentName,
+      );
+      await _phase5Finance.markFirestoreSuccessMirrored(orderId);
+    } catch (error, stackTrace) {
+      // La commande Firebase est déjà réussie. Le synchroniseur Phase 5
+      // récupère ce miroir plus tard sans jamais redéduire la capacité.
+      debugPrint('[Phase5][SuccessMirror] $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+    return completed;
   }
 
   @override

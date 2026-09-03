@@ -313,6 +313,21 @@ class OrdersViewModel extends ChangeNotifier {
     }
   }
 
+  void applyQueueOrder(QueueOrder updatedOrder) {
+    final int index = _orders.indexWhere(
+      (QueueOrder order) => order.id == updatedOrder.id,
+    );
+    if (index < 0) {
+      _orders = <QueueOrder>[..._orders, updatedOrder];
+    } else {
+      _orders = <QueueOrder>[
+        for (int i = 0; i < _orders.length; i++)
+          if (i == index) updatedOrder else _orders[i],
+      ];
+    }
+    notifyListeners();
+  }
+
   Future<void> loadQueue() async {
     if (_isLoading) {
       return;

@@ -1,6 +1,7 @@
+import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/finances/data/repositories/firestore_finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/supabase_supplier_registry_repository.dart';
-import 'package:cabine_flow/features/finances/data/repositories/supabase_phase5_history_repository.dart';
+import 'package:cabine_flow/features/finances/data/repositories/supabase_phase5_finance_repository.dart';
 import 'package:cabine_flow/features/finances/domain/models/finance_operations_models.dart';
 import 'package:cabine_flow/features/finances/domain/repositories/finance_operations_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -18,20 +19,20 @@ class HybridFinanceOperationsRepository implements FinanceOperationsRepository {
     FirestoreFinanceOperationsRepository? firestoreRepository,
     SupabaseSupplierRegistryRepository? supplierRegistry,
     FirebaseFirestore? firestore,
-    SupabasePhase5HistoryRepository? phase5HistoryRepository,
+    SupabasePhase5FinanceRepository? phase5FinanceRepository,
   }) : _firestore =
            firestoreRepository ??
            FirestoreFinanceOperationsRepository(firestore: firestore),
        _supplierRegistry =
            supplierRegistry ?? SupabaseSupplierRegistryRepository(),
        _firestoreDb = firestore ?? FirebaseFirestore.instance,
-       _phase5History =
-           phase5HistoryRepository ?? SupabasePhase5HistoryRepository();
+       _phase5Finance =
+           phase5FinanceRepository ?? SupabasePhase5FinanceRepository();
 
   final FirestoreFinanceOperationsRepository _firestore;
   final SupabaseSupplierRegistryRepository _supplierRegistry;
   final FirebaseFirestore _firestoreDb;
-  final SupabasePhase5HistoryRepository _phase5History;
+  final SupabasePhase5FinanceRepository _phase5Finance;
   Future<void>? _legacyImportFuture;
 
   @override
@@ -131,9 +132,7 @@ class HybridFinanceOperationsRepository implements FinanceOperationsRepository {
 
   @override
   Future<void> deleteSupplier({required String supplierId}) async {
-    final List<SupplierAccount> accounts = await _firestore
-        .watchSupplierAccounts()
-        .first;
+    final List<SupplierAccount> accounts = await watchSupplierAccounts().first;
     if (accounts.any((SupplierAccount item) => item.supplierId == supplierId)) {
       throw StateError(
         'Ce fournisseur possède déjà un historique financier. '
@@ -171,6 +170,23 @@ class HybridFinanceOperationsRepository implements FinanceOperationsRepository {
       throw StateError('Ce fournisseur est indisponible.');
     }
 
+    try {
+      final Map<AgentNetwork, int> capacities = await _firestore
+          .fetchAgentCapacitiesForPhase5(draft.agentId);
+      await _phase5Finance.ensureCapacitySeed(
+        agentId: draft.agentId,
+        agentName: draft.agentName,
+        orangeCapacity: capacities[AgentNetwork.orange] ?? 0,
+        mtnCapacity: capacities[AgentNetwork.mtn] ?? 0,
+        moovCapacity: capacities[AgentNetwork.moov] ?? 0,
+      );
+    } catch (error, stackTrace) {
+      // Le backfill Admin peut reconstruire le seed. Ne jamais bloquer une
+      // transaction Firebase déjà validée à cause du miroir de migration.
+      debugPrint('[Phase5][RechargeSeed] $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+
     final String rechargeId = await _firestore.recordSupplierRecharge(
       draft: draft,
       staffId: staffId,
@@ -180,13 +196,11 @@ class HybridFinanceOperationsRepository implements FinanceOperationsRepository {
       final SupplierRecharge? created = await _firestore
           .fetchSupplierRechargeById(rechargeId);
       if (created != null) {
-        await _phase5History.upsertSupplierRecharges(<SupplierRecharge>[
-          created,
-        ]);
+        await _phase5Finance.mirrorSupplierRecharge(created);
       }
     } catch (error, stackTrace) {
-      // La transaction financière Firebase est déjà validée. La synchronisation
-      // Phase 5 est reprise par lots au prochain passage Admin.
+      // La transaction financière Firebase est déjà validée. Le synchroniseur
+      // consolidé Phase 5 réconciliera le registre au prochain passage Admin.
       debugPrint('[Phase5][RechargeMirror] $error');
       debugPrintStack(stackTrace: stackTrace);
     }
@@ -195,26 +209,39 @@ class HybridFinanceOperationsRepository implements FinanceOperationsRepository {
 
   @override
   Stream<List<SupplierAccount>> watchSupplierAccounts() =>
-      _firestore.watchSupplierAccounts();
+      _phase5Finance.watchSupplierAccounts();
 
   @override
   Stream<List<SupplierRecharge>> watchSupplierRecharges() =>
-      _firestore.watchSupplierRecharges();
+      _phase5Finance.watchSupplierRecharges();
 
   @override
   Stream<List<SupplierPayment>> watchSupplierPayments() =>
-      _firestore.watchSupplierPayments();
+      _phase5Finance.watchSupplierPayments();
 
   @override
   Future<String> recordSupplierPayment({
     required SupplierPaymentDraft draft,
     required String staffId,
     required String staffName,
-  }) => _firestore.recordSupplierPayment(
-    draft: draft,
-    staffId: staffId,
-    staffName: staffName,
-  );
+  }) async {
+    final String paymentId = await _firestore.recordSupplierPayment(
+      draft: draft,
+      staffId: staffId,
+      staffName: staffName,
+    );
+    try {
+      final SupplierPayment? created = await _firestore
+          .fetchSupplierPaymentById(paymentId);
+      if (created != null) {
+        await _phase5Finance.mirrorSupplierPayment(created);
+      }
+    } catch (error, stackTrace) {
+      debugPrint('[Phase5][SupplierPaymentMirror] $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+    return paymentId;
+  }
 
   @override
   Stream<List<CustomerCredit>> watchCustomerCredits() =>
@@ -244,11 +271,38 @@ class HybridFinanceOperationsRepository implements FinanceOperationsRepository {
     required CustomerCreditDraft draft,
     required String staffId,
     required String staffName,
-  }) => _firestore.createCustomerCredit(
-    draft: draft,
-    staffId: staffId,
-    staffName: staffName,
-  );
+  }) async {
+    final String creditId = await _firestore.createCustomerCredit(
+      draft: draft,
+      staffId: staffId,
+      staffName: staffName,
+    );
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> order = await _firestoreDb
+          .collection('orders')
+          .doc(draft.orderId)
+          .get();
+      final Map<String, dynamic>? data = order.data();
+      if (order.exists && data != null) {
+        await _phase5Finance.mirrorOrderPaymentSnapshot(
+          orderId: order.id,
+          orderReference: (data['reference'] as String? ?? '').trim(),
+          amount: data['amount'] is num ? (data['amount'] as num).toInt() : 0,
+          status: (data['paymentStatus'] as String? ?? '').trim(),
+          paymentReference: data['paymentReference'] as String?,
+          payerName: data['paymentPayerName'] as String?,
+          channel: data['paymentChannel'] as String?,
+          paidAt: _date(data['paidAt']),
+          confirmedAt: _date(data['paymentConfirmedAt']),
+          source: (data['source'] as String? ?? 'operatorApp').trim(),
+        );
+      }
+    } catch (error, stackTrace) {
+      debugPrint('[Phase5][CreditPaymentMirror] $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+    return creditId;
+  }
 
   @override
   Future<String> settleCustomerCredit({
@@ -303,4 +357,11 @@ class HybridFinanceOperationsRepository implements FinanceOperationsRepository {
     staffId: staffId,
     staffName: staffName,
   );
+  DateTime? _date(Object? value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    return null;
+  }
+
 }

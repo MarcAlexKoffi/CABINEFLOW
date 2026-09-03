@@ -51,9 +51,10 @@ class SupabasePhase5HistoryRepository {
           },
         )
         .toList(growable: false);
-    await _client
-        .from(rechargeTable)
-        .upsert(rows, onConflict: 'source_firestore_id');
+    await _client.rpc(
+      'phase5_import_recharge_history_batch',
+      params: <String, dynamic>{'p_rows': rows},
+    );
   }
 
   Future<Phase5SyncCursor> fetchSyncCursor(String key) async {

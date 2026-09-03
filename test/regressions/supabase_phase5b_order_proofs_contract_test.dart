@@ -38,32 +38,30 @@ void main() {
     expect(hybrid, contains('_proofs.fetchProof(orderId: orderId)'));
   });
 
-  test(
-    'la finalisation cree un pont Firestore uniquement pour la regle legacy',
-    () {
-      final String hybrid = read(
-        'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
-      );
 
-      final int successStart = hybrid.indexOf(
-        'Future<QueueOrder> markAgentSuccessful',
-      );
-      final int failedStart = hybrid.indexOf(
-        'Future<QueueOrder> markAgentFailed',
-        successStart,
-      );
-      expect(successStart, greaterThanOrEqualTo(0));
-      expect(failedStart, greaterThan(successStart));
-      final String successBlock = hybrid.substring(successStart, failedStart);
+  test('la finalisation cree un pont Firestore uniquement pour la regle legacy', () {
+    final String hybrid = read(
+      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+    );
 
-      expect(successBlock, contains('[Phase5B1][proof-bridge]'));
-      expect(successBlock, contains('_proofs.fetchProof('));
-      expect(successBlock, contains('orderId: orderId'));
-      expect(successBlock, contains('_firestore.fetchOrderProof('));
-      expect(successBlock, contains('_firestore.saveOrderProof('));
-      expect(successBlock, contains('_firestore.markAgentSuccessful('));
-    },
-  );
+    final int successStart = hybrid.indexOf(
+      'Future<QueueOrder> markAgentSuccessful',
+    );
+    final int failedStart = hybrid.indexOf(
+      'Future<QueueOrder> markAgentFailed',
+      successStart,
+    );
+    expect(successStart, greaterThanOrEqualTo(0));
+    expect(failedStart, greaterThan(successStart));
+    final String successBlock = hybrid.substring(successStart, failedStart);
+
+    expect(successBlock, contains('[Phase5B1][proof-bridge]'));
+    expect(successBlock, contains('_proofs.fetchProof('));
+    expect(successBlock, contains('orderId: orderId'));
+    expect(successBlock, contains('_firestore.fetchOrderProof('));
+    expect(successBlock, contains('_firestore.saveOrderProof('));
+    expect(successBlock, contains('_firestore.markAgentSuccessful('));
+  });
 
   test('les anciennes preuves Firestore restent lisibles en transition', () {
     final String hybrid = read(

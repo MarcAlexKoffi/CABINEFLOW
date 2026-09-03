@@ -14,6 +14,7 @@ import 'package:cabine_flow/features/auth/presentation/pages/pending_account_pag
 import 'package:cabine_flow/features/dashboard/data/repositories/fake_dashboard_repository.dart';
 import 'package:cabine_flow/features/commissions/data/repositories/fake_commission_repository.dart';
 import 'package:cabine_flow/features/commissions/data/repositories/firestore_commission_repository.dart';
+import 'package:cabine_flow/features/commissions/data/repositories/hybrid_commission_repository.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:cabine_flow/features/dashboard/data/repositories/firestore_dashboard_repository.dart';
 import 'package:cabine_flow/features/dashboard/data/repositories/hybrid_dashboard_repository.dart';
@@ -119,7 +120,9 @@ class CabineFlowApp extends StatelessWidget {
     final CommissionRepository effectiveCommissionRepository =
         commissionRepository ??
         (isFirebaseInitialized
-            ? FirestoreCommissionRepository()
+            ? SupabaseBootstrap.isInitialized
+                  ? HybridCommissionRepository()
+                  : FirestoreCommissionRepository()
             : FakeCommissionRepository());
 
     return MaterialApp(

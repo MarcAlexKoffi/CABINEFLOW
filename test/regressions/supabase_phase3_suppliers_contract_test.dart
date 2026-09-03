@@ -46,7 +46,7 @@ void main() {
     expect(supabase, contains("'is_active': false"));
   });
 
-  test('recharges et règlements restent Firebase pendant la phase hybride', () {
+  test('Phase 5 conserve le pont Firebase mais lit les finances fournisseur sur Supabase', () {
     final String hybrid = read(
       'lib/features/finances/data/repositories/'
       'hybrid_finance_operations_repository.dart',
@@ -58,8 +58,8 @@ void main() {
 
     expect(hybrid, contains('_firestore.recordSupplierRecharge('));
     expect(hybrid, contains('_firestore.recordSupplierPayment('));
-    expect(hybrid, contains('_firestore.watchSupplierRecharges()'));
-    expect(hybrid, contains('_firestore.watchSupplierPayments()'));
+    expect(hybrid, contains('_phase5Finance.watchSupplierRecharges()'));
+    expect(hybrid, contains('_phase5Finance.watchSupplierPayments()'));
     expect(firestore, contains('createSupplierCompatibilityMirror'));
     expect(firestore, contains('compatibilitySupplierName'));
   });

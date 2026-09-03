@@ -80,6 +80,17 @@ class FirestoreDashboardRepository implements DashboardRepository {
     final int readyCount = orders
         .where((QueueOrder order) => order.status == QueueOrderStatus.paidReady)
         .length;
+    final int paidTodayCount = orders
+        .where(
+          (QueueOrder order) =>
+              order.paymentStatus == OrderPaymentStatus.confirmed &&
+              _isBetween(
+                order.paymentConfirmedAt ?? order.paidAt,
+                todayStart,
+                tomorrowStart,
+              ),
+        )
+        .length;
     final int unassignedOrders = orders
         .where(
           (QueueOrder order) =>
@@ -146,7 +157,10 @@ class FirestoreDashboardRepository implements DashboardRepository {
         yesterdayRevenue: yesterdayRevenue,
       ),
       statistics: DashboardStatistics(
-        newRequests: readyCount,
+        // `newRequests` alimente la carte "Payées" de l'activité du jour.
+        // Il doit donc compter les paiements confirmés aujourd'hui et non
+        // toutes les commandes encore présentes dans la file paidReady.
+        newRequests: paidTodayCount,
         paymentsToVerify: paymentsToVerify,
         inProgress: inProgressCount,
         completed: completedToday,

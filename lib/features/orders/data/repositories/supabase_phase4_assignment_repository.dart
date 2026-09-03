@@ -411,9 +411,14 @@ class SupabasePhase4AssignmentRepository {
         lastSuccessful = value;
         yield value;
       } catch (error, stackTrace) {
+        // Une coupure reseau ou un jeton Supabase momentanement indisponible ne
+        // doit jamais tuer le flux pour toute la session. Sans ce retry, les
+        // ecrans Admin restaient ensuite en mode Firebase-only meme lorsque
+        // Supabase redevenait joignable, d'ou les statuts d'affectation qui
+        // semblaient revenir en arriere.
         debugPrint('[Phase4Assignment][staff-watch] $error');
         debugPrintStack(stackTrace: stackTrace);
-        if (lastSuccessful == null) rethrow;
+        yield lastSuccessful ?? const <Phase4AssignmentSnapshot>[];
       }
       await Future<void>.delayed(pollInterval);
     }
@@ -481,7 +486,10 @@ class SupabasePhase4AssignmentRepository {
       } catch (error, stackTrace) {
         debugPrint('[Phase4Assignment][agent-watch] $error');
         debugPrintStack(stackTrace: stackTrace);
-        if (lastSuccessful == null) rethrow;
+        yield lastSuccessful ?? const Phase4AgentAssignmentState(
+          currentAssignments: <Phase4AssignmentSnapshot>[],
+          knownPhase4OrderIds: <String>{},
+        );
       }
       await Future<void>.delayed(pollInterval);
     }
@@ -523,7 +531,7 @@ class SupabasePhase4AssignmentRepository {
       } catch (error, stackTrace) {
         debugPrint('[Phase4Assignment][refusal-history] $error');
         debugPrintStack(stackTrace: stackTrace);
-        if (lastSuccessful == null) rethrow;
+        yield lastSuccessful ?? const <Phase4RefusalHistorySnapshot>[];
       }
       await Future<void>.delayed(pollInterval);
     }
@@ -554,7 +562,7 @@ class SupabasePhase4AssignmentRepository {
       } catch (error, stackTrace) {
         debugPrint('[Phase4Assignment][refused-orders] $error');
         debugPrintStack(stackTrace: stackTrace);
-        if (lastSuccessful == null) rethrow;
+        yield lastSuccessful ?? const <QueueOrder>[];
       }
       await Future<void>.delayed(pollInterval);
     }

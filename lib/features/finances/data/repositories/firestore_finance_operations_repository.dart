@@ -114,6 +114,35 @@ class FirestoreFinanceOperationsRepository
     );
   }
 
+  Future<Map<AgentNetwork, int>> fetchAgentCapacitiesForPhase5(
+    String agentId,
+  ) async {
+    final String id = agentId.trim();
+    if (id.isEmpty) throw ArgumentError('Agent invalide.');
+    final DocumentSnapshot<Map<String, dynamic>> doc = await _agentProfiles
+        .doc(id)
+        .get();
+    final Map<String, dynamic>? data = doc.data();
+    if (!doc.exists || data == null) {
+      throw StateError('Le profil Agent est introuvable.');
+    }
+    return <AgentNetwork, int>{
+      AgentNetwork.orange: _int(data['orangeCapacity']),
+      AgentNetwork.mtn: _int(data['mtnCapacity']),
+      AgentNetwork.moov: _int(data['moovCapacity']),
+    };
+  }
+
+  Future<SupplierPayment?> fetchSupplierPaymentById(String paymentId) async {
+    final String id = paymentId.trim();
+    if (id.isEmpty) return null;
+    final DocumentSnapshot<Map<String, dynamic>> doc = await _supplierPayments
+        .doc(id)
+        .get();
+    if (!doc.exists || doc.data() == null) return null;
+    return _supplierPaymentFromDocument(doc);
+  }
+
   @override
   Stream<List<SupplierPayment>> watchSupplierPayments() {
     return _supplierPayments
@@ -920,9 +949,12 @@ class FirestoreFinanceOperationsRepository
   }
 
   SupplierPayment? _supplierPaymentFromDocument(
-    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+    DocumentSnapshot<Map<String, dynamic>> doc,
   ) {
-    final Map<String, dynamic> data = doc.data();
+    final Map<String, dynamic>? data = doc.data();
+    if (data == null) {
+      return null;
+    }
     final DateTime? paidAt = _date(data['paidAt']);
     if (paidAt == null) {
       return null;

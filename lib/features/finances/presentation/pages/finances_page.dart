@@ -15,6 +15,7 @@ import 'package:cabine_flow/features/finances/data/repositories/firestore_financ
 import 'package:cabine_flow/features/finances/data/repositories/hybrid_finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/fake_network_finance_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/firestore_network_finance_repository.dart';
+import 'package:cabine_flow/features/finances/data/repositories/hybrid_network_finance_repository.dart';
 import 'package:cabine_flow/features/finances/domain/models/finance_operations_models.dart';
 import 'package:cabine_flow/features/finances/domain/models/network_finance_models.dart';
 import 'package:cabine_flow/features/finances/domain/repositories/finance_operations_repository.dart';
@@ -89,7 +90,9 @@ class _FinancesPageState extends State<FinancesPage> {
         ? FirestoreRefundRepository()
         : FakeRefundRepository();
     _networkFinanceRepository = Firebase.apps.isNotEmpty
-        ? FirestoreNetworkFinanceRepository()
+        ? (SupabaseBootstrap.isInitialized
+              ? HybridNetworkFinanceRepository()
+              : FirestoreNetworkFinanceRepository())
         : FakeNetworkFinanceRepository();
     _financeOperationsRepository = Firebase.apps.isNotEmpty
         ? (SupabaseBootstrap.isInitialized

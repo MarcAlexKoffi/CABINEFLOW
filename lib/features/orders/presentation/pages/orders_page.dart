@@ -323,6 +323,10 @@ class _OrdersPageState extends State<OrdersPage> {
 
     if (!mounted || updatedOrder == null) return;
 
+    // Applique immédiatement le résultat confirmé par le repository. Le flux
+    // temps réel resynchronise ensuite la source distante, sans laisser la
+    // carte afficher brièvement l'ancien état "sans agent".
+    _viewModel.applyQueueOrder(updatedOrder);
     await _viewModel.loadQueue();
     if (!mounted) return;
 
@@ -636,14 +640,22 @@ class _OrdersPageState extends State<OrdersPage> {
                               assignmentLabel: order.assignedAgentName,
                               isActionEnabled: true,
                               onTakeCharge: () {
-                                if (order.isAssignedToAgent &&
-                                    _historyRepository != null) {
-                                  _openOrderDetail(
-                                    order,
-                                    '',
-                                    const OrderHistoryFilters(),
-                                    origin: _OrderDetailOrigin.queue,
-                                  );
+                                if (order.isAssignedToAgent) {
+                                  if (_historyRepository != null) {
+                                    _openOrderDetail(
+                                      order,
+                                      '',
+                                      const OrderHistoryFilters(),
+                                      origin: _OrderDetailOrigin.queue,
+                                    );
+                                  } else {
+                                    IzyTelFeedback.show(
+                                      context,
+                                      'Cette commande est déjà affectée à '
+                                      '${order.assignedAgentName ?? 'un agent'}.',
+                                      tone: IzyTelFeedbackTone.neutral,
+                                    );
+                                  }
                                   return;
                                 }
                                 if (widget.user.role ==

@@ -3,6 +3,7 @@ import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
+import 'package:cabine_flow/features/commissions/domain/repositories/agent_commission_summary_repository.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
@@ -21,6 +22,10 @@ class AgentCommissionsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AgentCommissionSummaryRepository? summaryRepository =
+        repository is AgentCommissionSummaryRepository
+        ? repository as AgentCommissionSummaryRepository
+        : null;
     return Scaffold(
       backgroundColor: IzyTelColors.background,
       appBar: AppBar(
@@ -38,231 +43,226 @@ class AgentCommissionsPage extends StatelessWidget {
       ),
       body: StreamBuilder<List<CommissionEntry>>(
         stream: repository.watchCommissions(agentId: user.id),
-        builder:
-            (
-              BuildContext context,
-              AsyncSnapshot<List<CommissionEntry>> commissionSnapshot,
-            ) {
-              return StreamBuilder<List<CommissionPayout>>(
-                stream: repository.watchPayouts(agentId: user.id),
-                builder:
-                    (
-                      BuildContext context,
-                      AsyncSnapshot<List<CommissionPayout>> payoutSnapshot,
-                    ) {
-                      if ((commissionSnapshot.connectionState ==
-                                  ConnectionState.waiting &&
-                              !commissionSnapshot.hasData) ||
-                          (payoutSnapshot.connectionState ==
-                                  ConnectionState.waiting &&
-                              !payoutSnapshot.hasData)) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
+        builder: (context, commissionSnapshot) {
+          return StreamBuilder<List<CommissionPayout>>(
+            stream: repository.watchPayouts(agentId: user.id),
+            builder: (context, payoutSnapshot) {
+              return StreamBuilder<AgentCommissionSummary?>(
+                stream: summaryRepository?.watchAgentCommissionSummary() ??
+                    Stream<AgentCommissionSummary?>.value(null),
+                builder: (context, summarySnapshot) {
+                  if ((commissionSnapshot.connectionState ==
+                              ConnectionState.waiting &&
+                          !commissionSnapshot.hasData) ||
+                      (payoutSnapshot.connectionState ==
+                              ConnectionState.waiting &&
+                          !payoutSnapshot.hasData)) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                      if (commissionSnapshot.hasError ||
-                          payoutSnapshot.hasError) {
-                        return const _AgentCommissionState(
-                          icon: Symbols.cloud_off_rounded,
-                          title: 'Commissions indisponibles',
-                          message:
-                              'Impossible de charger tes commissions pour le moment.',
-                        );
-                      }
+                  if (commissionSnapshot.hasError || payoutSnapshot.hasError) {
+                    return const _AgentCommissionState(
+                      icon: Symbols.cloud_off_rounded,
+                      title: 'Commissions indisponibles',
+                      message:
+                          'Impossible de charger tes commissions pour le moment.',
+                    );
+                  }
 
-                      final List<CommissionEntry> commissions =
-                          commissionSnapshot.data ?? const <CommissionEntry>[];
-                      final List<CommissionPayout> payouts =
-                          payoutSnapshot.data ?? const <CommissionPayout>[];
-                      final DateTime now = DateTime.now();
-                      final int earnedTotal = commissions.fold<int>(
+                  final List<CommissionEntry> commissions =
+                      commissionSnapshot.data ?? const <CommissionEntry>[];
+                  final List<CommissionPayout> payouts =
+                      payoutSnapshot.data ?? const <CommissionPayout>[];
+                  final AgentCommissionSummary? summary = summarySnapshot.data;
+                  final DateTime now = DateTime.now();
+                  final int fallbackEarned = commissions.fold<int>(
+                    0,
+                    (total, value) => total + value.commissionAmount,
+                  );
+                  final int fallbackPaid = payouts.fold<int>(
+                    0,
+                    (total, value) => total + value.amount,
+                  );
+                  final int fallbackMonth = commissions
+                      .where(
+                        (value) =>
+                            value.earnedAt.year == now.year &&
+                            value.earnedAt.month == now.month,
+                      )
+                      .fold<int>(
                         0,
-                        (int total, CommissionEntry value) =>
-                            total + value.commissionAmount,
+                        (total, value) => total + value.commissionAmount,
                       );
-                      final int paidTotal = payouts.fold<int>(
-                        0,
-                        (int total, CommissionPayout value) =>
-                            total + value.amount,
-                      );
-                      final int balance = earnedTotal - paidTotal;
-                      final int earnedThisMonth = commissions
-                          .where(
-                            (CommissionEntry value) =>
-                                value.earnedAt.year == now.year &&
-                                value.earnedAt.month == now.month,
-                          )
-                          .fold<int>(
-                            0,
-                            (int total, CommissionEntry value) =>
-                                total + value.commissionAmount,
-                          );
+                  final int earnedTotal = summary?.earnedTotal ?? fallbackEarned;
+                  final int paidTotal = summary?.paidTotal ?? fallbackPaid;
+                  final int balance =
+                      summary?.balance ?? (earnedTotal - paidTotal);
+                  final int earnedThisMonth =
+                      summary?.earnedThisMonth ?? fallbackMonth;
 
-                      return ListView(
-                        padding: const EdgeInsets.fromLTRB(
-                          IzyTelSpacing.lg,
-                          IzyTelSpacing.sm,
-                          IzyTelSpacing.lg,
-                          IzyTelSpacing.xxl,
-                        ),
+                  return ListView(
+                    padding: const EdgeInsets.fromLTRB(
+                      IzyTelSpacing.lg,
+                      IzyTelSpacing.sm,
+                      IzyTelSpacing.lg,
+                      IzyTelSpacing.xxl,
+                    ),
+                    children: <Widget>[
+                      _CommissionHero(
+                        balance: balance,
+                        earnedThisMonth: earnedThisMonth,
+                      ),
+                      const SizedBox(height: IzyTelSpacing.md),
+                      Row(
                         children: <Widget>[
-                          _CommissionHero(
-                            balance: balance,
-                            earnedThisMonth: earnedThisMonth,
+                          Flexible(
+                            child: _CommissionMetric(
+                              label: 'Total acquis',
+                              value: formatCfa(earnedTotal),
+                              icon: Symbols.savings_rounded,
+                              color: IzyTelColors.primary,
+                            ),
                           ),
-                          const SizedBox(height: IzyTelSpacing.md),
-                          Row(
+                          const SizedBox(width: IzyTelSpacing.sm),
+                          Flexible(
+                            child: _CommissionMetric(
+                              label: 'Déjà versé',
+                              value: formatCfa(paidTotal),
+                              icon: Symbols.check_circle_rounded,
+                              color: IzyTelColors.success,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: IzyTelSpacing.md),
+                      IzyTelSurface(
+                        padding: const EdgeInsets.all(IzyTelSpacing.md),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Container(
+                              width: 40,
+                              height: 40,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: IzyTelColors.primarySoft,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Symbols.info_rounded,
+                                color: IzyTelColors.primary,
+                                size: IzyTelIconSize.action,
+                              ),
+                            ),
+                            const SizedBox(width: IzyTelSpacing.sm),
+                            Flexible(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    'Règle actuelle',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                          color: IzyTelColors.textPrimary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    CommissionPolicy.current.label,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: IzyTelColors.textSecondary,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Une commission est acquise uniquement lorsqu’une commande est terminée avec succès.',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          color: IzyTelColors.textMuted,
+                                          height: 1.35,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: IzyTelSpacing.xl),
+                      const IzyTelSectionHeader(title: 'Dernières commissions'),
+                      const SizedBox(height: IzyTelSpacing.sm),
+                      if (commissions.isEmpty)
+                        const _AgentCommissionState(
+                          icon: Symbols.payments_rounded,
+                          title: 'Aucune commission',
+                          message:
+                              'Tes commissions apparaîtront ici après tes premières transactions réussies.',
+                          compact: true,
+                        )
+                      else
+                        IzyTelSurface(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             children: <Widget>[
-                              Flexible(
-                                child: _CommissionMetric(
-                                  label: 'Total acquis',
-                                  value: formatCfa(earnedTotal),
-                                  icon: Symbols.savings_rounded,
-                                  color: IzyTelColors.primary,
-                                ),
-                              ),
-                              const SizedBox(width: IzyTelSpacing.sm),
-                              Flexible(
-                                child: _CommissionMetric(
-                                  label: 'Déjà versé',
-                                  value: formatCfa(paidTotal),
-                                  icon: Symbols.check_circle_rounded,
-                                  color: IzyTelColors.success,
-                                ),
-                              ),
+                              for (
+                                int index = 0;
+                                index < commissions.take(8).length;
+                                index++
+                              ) ...<Widget>[
+                                _CommissionEntryRow(entry: commissions[index]),
+                                if (index < commissions.take(8).length - 1)
+                                  const Divider(height: 1),
+                              ],
                             ],
                           ),
-                          const SizedBox(height: IzyTelSpacing.md),
-                          IzyTelSurface(
-                            padding: const EdgeInsets.all(IzyTelSpacing.md),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Container(
-                                  width: 40,
-                                  height: 40,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    color: IzyTelColors.primarySoft,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Icon(
-                                    Symbols.info_rounded,
-                                    color: IzyTelColors.primary,
-                                    size: IzyTelIconSize.action,
-                                  ),
-                                ),
-                                const SizedBox(width: IzyTelSpacing.sm),
-                                Flexible(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: <Widget>[
-                                      Text(
-                                        'Règle actuelle',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleMedium
-                                            ?.copyWith(
-                                              color: IzyTelColors.textPrimary,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 3),
-                                      Text(
-                                        CommissionPolicy.current.label,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium
-                                            ?.copyWith(
-                                              color: IzyTelColors.textSecondary,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Une commission est acquise uniquement lorsqu’une commande est terminée avec succès.',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: IzyTelColors.textMuted,
-                                              height: 1.35,
-                                            ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                        ),
+                      const SizedBox(height: IzyTelSpacing.xl),
+                      const IzyTelSectionHeader(title: 'Versements reçus'),
+                      const SizedBox(height: IzyTelSpacing.sm),
+                      if (payouts.isEmpty)
+                        const _AgentCommissionState(
+                          icon: Symbols.account_balance_wallet_rounded,
+                          title: 'Aucun versement',
+                          message:
+                              'Les versements de commissions enregistrés par l’administration apparaîtront ici.',
+                          compact: true,
+                        )
+                      else
+                        IzyTelSurface(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              for (
+                                int index = 0;
+                                index < payouts.take(6).length;
+                                index++
+                              ) ...<Widget>[
+                                _PayoutRow(payout: payouts[index]),
+                                if (index < payouts.take(6).length - 1)
+                                  const Divider(height: 1),
                               ],
-                            ),
+                            ],
                           ),
-                          const SizedBox(height: IzyTelSpacing.xl),
-                          const IzyTelSectionHeader(
-                            title: 'Dernières commissions',
-                          ),
-                          const SizedBox(height: IzyTelSpacing.sm),
-                          if (commissions.isEmpty)
-                            const _AgentCommissionState(
-                              icon: Symbols.payments_rounded,
-                              title: 'Aucune commission',
-                              message:
-                                  'Tes commissions apparaîtront ici après tes premières transactions réussies.',
-                              compact: true,
-                            )
-                          else
-                            IzyTelSurface(
-                              padding: EdgeInsets.zero,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
-                                  for (
-                                    int index = 0;
-                                    index < commissions.take(8).length;
-                                    index++
-                                  ) ...<Widget>[
-                                    _CommissionEntryRow(
-                                      entry: commissions[index],
-                                    ),
-                                    if (index < commissions.take(8).length - 1)
-                                      const Divider(height: 1),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          const SizedBox(height: IzyTelSpacing.xl),
-                          const IzyTelSectionHeader(title: 'Versements reçus'),
-                          const SizedBox(height: IzyTelSpacing.sm),
-                          if (payouts.isEmpty)
-                            const _AgentCommissionState(
-                              icon: Symbols.account_balance_wallet_rounded,
-                              title: 'Aucun versement',
-                              message:
-                                  'Les versements de commissions enregistrés par l’administration apparaîtront ici.',
-                              compact: true,
-                            )
-                          else
-                            IzyTelSurface(
-                              padding: EdgeInsets.zero,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
-                                  for (
-                                    int index = 0;
-                                    index < payouts.take(6).length;
-                                    index++
-                                  ) ...<Widget>[
-                                    _PayoutRow(payout: payouts[index]),
-                                    if (index < payouts.take(6).length - 1)
-                                      const Divider(height: 1),
-                                  ],
-                                ],
-                              ),
-                            ),
-                        ],
-                      );
-                    },
+                        ),
+                    ],
+                  );
+                },
               );
             },
+          );
+        },
       ),
     );
   }

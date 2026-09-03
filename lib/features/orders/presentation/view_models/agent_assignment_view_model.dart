@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -52,6 +53,8 @@ class AgentAssignmentViewModel extends ChangeNotifier {
   String? _errorMessage;
   bool _isLoading = true;
   bool _isDisposed = false;
+  bool _reservedRefreshInFlight = false;
+  bool _reservedRefreshPending = false;
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
@@ -73,12 +76,17 @@ class AgentAssignmentViewModel extends ChangeNotifier {
       final int capacity = (declaredCapacity - reserved)
           .clamp(0, declaredCapacity)
           .toInt();
+      final bool orderAlreadyAssigned = order.isAssignedToAgent;
       final bool isCurrent =
-          order.assignedAgentId == agent.userId &&
-          order.assignmentStatus == OrderAssignmentStatus.assigned;
+          orderAlreadyAssigned && order.assignedAgentId == agent.userId;
       String? reason;
 
-      if (!agent.isActive) {
+      // Une page ouverte depuis un etat Firebase obsolete peut apprendre, au
+      // rafraichissement Supabase, que la commande est deja affectee. Dans ce
+      // cas aucun bouton ne doit permettre une seconde affectation implicite.
+      if (orderAlreadyAssigned) {
+        reason = isCurrent ? 'Déjà affecté' : 'Commande déjà affectée';
+      } else if (!agent.isActive) {
         reason = 'Agent suspendu';
       } else if (profile.availability != AgentAvailability.available) {
         reason = 'Indisponible';
@@ -86,8 +94,6 @@ class AgentAssignmentViewModel extends ChangeNotifier {
         reason = 'Réseau désactivé';
       } else if (capacity < order.amount) {
         reason = 'Capacité insuffisante';
-      } else if (isCurrent) {
-        reason = 'Déjà affecté';
       }
 
       final List<AgentZone> zones = _zones
@@ -129,6 +135,20 @@ class AgentAssignmentViewModel extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
+    // La liste Admin peut momentanement afficher la vue Firebase de secours si
+    // Supabase etait indisponible au premier poll. Avant d'autoriser une
+    // affectation, on recharge donc la commande via le repository d'historique
+    // hybride afin de recuperer l'etat Phase 4 canonique le plus recent.
+    final Object repository = ordersRepository;
+    if (repository is OrderHistoryRepository) {
+      try {
+        order = await repository.fetchOrderById(orderId: order.id);
+      } catch (error, stackTrace) {
+        debugPrint('[AgentAssignment][refresh-order] $error');
+        debugPrintStack(stackTrace: stackTrace);
+      }
+    }
+
     await _agentsSubscription?.cancel();
     await _zonesSubscription?.cancel();
     await _assignmentCountsSubscription?.cancel();
@@ -166,6 +186,7 @@ class AgentAssignmentViewModel extends ChangeNotifier {
           (Map<String, int> counts) {
             _activeAssignmentCounts = counts;
             notifyListeners();
+            unawaited(_refreshReservedAmounts());
           },
           onError: (_) {
             _activeAssignmentCounts = const <String, int>{};
@@ -175,32 +196,52 @@ class AgentAssignmentViewModel extends ChangeNotifier {
   }
 
   Future<void> _refreshReservedAmounts() async {
-    final MobileNetwork network = order.network;
-    final List<AgentDirectoryEntry> currentAgents =
-        List<AgentDirectoryEntry>.from(_agents);
-    if (currentAgents.isEmpty) {
-      _reservedAmounts = const <String, int>{};
+    if (_reservedRefreshInFlight) {
+      _reservedRefreshPending = true;
       return;
     }
+    _reservedRefreshInFlight = true;
+    _reservedRefreshPending = false;
+    try {
+      final MobileNetwork network = order.network;
+      final List<AgentDirectoryEntry> currentAgents =
+          List<AgentDirectoryEntry>.from(_agents);
+      if (currentAgents.isEmpty) {
+        _reservedAmounts = const <String, int>{};
+        return;
+      }
 
-    final List<MapEntry<String, int>> entries = await Future.wait(
-      currentAgents.map((AgentDirectoryEntry agent) async {
-        try {
-          final int amount = await ordersRepository.fetchActiveReservedAmount(
-            agentId: agent.userId,
-            network: network,
-          );
-          return MapEntry<String, int>(agent.userId, amount);
-        } catch (_) {
-          return MapEntry<String, int>(agent.userId, 0);
-        }
-      }),
-    );
-    if (_isDisposed) return;
-    _reservedAmounts = <String, int>{
-      for (final MapEntry<String, int> entry in entries) entry.key: entry.value,
-    };
-    notifyListeners();
+      final List<MapEntry<String, int>> entries = await Future.wait(
+        currentAgents.map((AgentDirectoryEntry agent) async {
+          try {
+            final int amount = await ordersRepository.fetchActiveReservedAmount(
+              agentId: agent.userId,
+              network: network,
+            );
+            return MapEntry<String, int>(agent.userId, amount);
+          } catch (_) {
+            // Le repository hybride fournit deja la valeur Firebase de repli.
+            // On conserve ici l'ancienne valeur plutot que d'afficher 0 et de
+            // faire croire que toute la capacite est redevenue disponible.
+            return MapEntry<String, int>(
+              agent.userId,
+              _reservedAmounts[agent.userId] ?? 0,
+            );
+          }
+        }),
+      );
+      if (_isDisposed) return;
+      _reservedAmounts = <String, int>{
+        for (final MapEntry<String, int> entry in entries) entry.key: entry.value,
+      };
+      notifyListeners();
+    } finally {
+      _reservedRefreshInFlight = false;
+      if (_reservedRefreshPending && !_isDisposed) {
+        _reservedRefreshPending = false;
+        unawaited(_refreshReservedAmounts());
+      }
+    }
   }
 
   Future<bool> assign(AgentAssignmentCandidate candidate) async {
@@ -245,6 +286,13 @@ class AgentAssignmentViewModel extends ChangeNotifier {
     final String raw = error.toString();
     if (raw.startsWith('Bad state: ')) {
       return raw.substring('Bad state: '.length);
+    }
+    if (raw.contains('SocketException') ||
+        raw.contains('ClientException') ||
+        raw.contains('Failed host lookup') ||
+        raw.contains('PostgrestException')) {
+      return 'La synchronisation des affectations est temporairement '
+          'indisponible. Réessaie dans quelques secondes.';
     }
     if (error is FirebaseException) {
       switch (error.code) {

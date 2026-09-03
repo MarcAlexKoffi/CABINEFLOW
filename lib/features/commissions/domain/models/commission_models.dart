@@ -150,6 +150,22 @@ class CommissionAccount {
   int get balance => earnedTotal - paidTotal;
 }
 
+class AgentCommissionSummary {
+  const AgentCommissionSummary({
+    required this.earnedTotal,
+    required this.paidTotal,
+    required this.balance,
+    required this.earnedTransactions,
+    required this.earnedThisMonth,
+  });
+
+  final int earnedTotal;
+  final int paidTotal;
+  final int balance;
+  final int earnedTransactions;
+  final int earnedThisMonth;
+}
+
 class AgentAssignmentMetric {
   const AgentAssignmentMetric({
     required this.id,

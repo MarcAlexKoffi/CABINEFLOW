@@ -5,7 +5,7 @@ import 'package:cabine_flow/core/services/session_preferences.dart';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
-import 'package:cabine_flow/features/finances/data/services/phase5_recharge_history_synchronizer.dart';
+import 'package:cabine_flow/features/finances/data/services/phase5_consolidated_synchronizer.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_activity_page.dart';
@@ -91,18 +91,19 @@ class _MainShellPageState extends State<MainShellPage> {
     if (widget.user.role != UserRole.agent) {
       _startAutomaticAssignmentWatchers();
       _scheduleAutomaticAssignmentSync(immediate: true);
-      if (SupabaseBootstrap.isInitialized) {
-        unawaited(_synchronizePhase5RechargeHistory());
+      if (SupabaseBootstrap.isInitialized &&
+          widget.user.role == UserRole.administrator) {
+        unawaited(_synchronizePhase5ConsolidatedBackfill());
       }
     }
   }
 
-  Future<void> _synchronizePhase5RechargeHistory() async {
+  Future<void> _synchronizePhase5ConsolidatedBackfill() async {
     try {
       await Future<void>.delayed(const Duration(milliseconds: 800));
-      await Phase5RechargeHistorySynchronizer().synchronize();
+      await Phase5ConsolidatedSynchronizer().synchronize();
     } catch (error, stackTrace) {
-      debugPrint('[Phase5][RechargeSync] $error');
+      debugPrint('[Phase5][ConsolidatedSync] $error');
       debugPrintStack(stackTrace: stackTrace);
     }
   }

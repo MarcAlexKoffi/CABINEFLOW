@@ -141,9 +141,7 @@ class SupabaseOrderProofRepository {
         .eq('order_id', cleanedOrderId)
         .maybeSingle();
     if (saved == null) {
-      throw StateError(
-        'La preuve vient d etre enregistree mais reste illisible.',
-      );
+      throw StateError('La preuve vient d etre enregistree mais reste illisible.');
     }
     return _fromRow(saved, proofBytes);
   }

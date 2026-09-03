@@ -122,9 +122,7 @@ void main() {
       expect(hybrid, contains('_firestore.startAgentProcessing('));
       expect(hybrid, contains('_firestore.resumeAgentProcessing('));
 
-      final int saveProofStart = hybrid.indexOf(
-        'Future<OrderProof> saveOrderProof',
-      );
+      final int saveProofStart = hybrid.indexOf('Future<OrderProof> saveOrderProof');
       final int successStart = hybrid.indexOf(
         'Future<QueueOrder> markAgentSuccessful',
         saveProofStart,
@@ -138,10 +136,7 @@ void main() {
       expect(successStart, greaterThan(saveProofStart));
       expect(failedStart, greaterThan(successStart));
 
-      final String saveProofBody = hybrid.substring(
-        saveProofStart,
-        successStart,
-      );
+      final String saveProofBody = hybrid.substring(saveProofStart, successStart);
       expect(saveProofBody, contains('_proofs.saveProof('));
       expect(saveProofBody, isNot(contains('_firestore.saveOrderProof(')));
 
@@ -157,7 +152,7 @@ void main() {
     },
   );
 
-  test('affectation manuelle reste Supabase-only avant acceptation', () {
+  test('affectation manuelle reste Supabase-only avant acceptation Agent', () {
     final String hybrid = read(
       'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
     );
@@ -172,13 +167,131 @@ void main() {
     final String block = hybrid.substring(start, end);
 
     expect(block, contains('_phase4.assignRanked('));
-    expect(block, isNot(contains('_firestore.assignToAgent(')));
-    expect(block, isNot(contains('_firestore.ensureHybridAssignmentQueue(')));
-    expect(
-      block,
-      isNot(contains('_firestore.releaseHybridStaleAssignmentAsStaff(')),
-    );
+    expect(block, contains('canonicalHasAssignment'));
     expect(block, contains('ignorePreviousRefusals: true'));
+    expect(block, contains('assigned.overlayOn('));
+    expect(block, isNot(contains('_firestore.assignToAgent(')));
+    expect(block, isNot(contains('releaseHybridStaleAssignmentAsStaff(')));
+    expect(
+      RegExp(r'_phase4\s*\.\s*markFirebaseAssignmentSynced\s*\(')
+          .hasMatch(block),
+      isFalse,
+    );
+  });
+
+  test('manualRequired Firestore ne rétrograde pas une affectation Phase 4 active', () {
+    final String hybrid = read(
+      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+    );
+
+    expect(hybrid, contains('phase4HasActiveAssignment'));
+    expect(
+      hybrid,
+      contains(
+        'order.manualAssignmentRequired && !phase4HasActiveAssignment',
+      ),
+    );
+    expect(hybrid, contains('manualRequired: importManualRequired'));
+  });
+
+  test('démarrer le traitement répare un ancien handoff accepté', () {
+    final String hybrid = read(
+      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+    );
+    final int start = hybrid.indexOf(
+      'Future<QueueOrder> startAgentProcessing',
+    );
+    final int end = hybrid.indexOf(
+      'Future<QueueOrder> resumeAgentProcessing',
+      start,
+    );
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final String block = hybrid.substring(start, end);
+
+    expect(block, contains("error.code != 'permission-denied'"));
+    expect(block, contains('_phase4.fetchOrder('));
+    expect(block, contains('snapshot.isAccepted || snapshot.isHandedOff'));
+    expect(block, contains('handoffHybridAcceptedAssignment('));
+    expect(block, contains('_phase4.markHandoff('));
+  });
+
+  test('handoff Firebase essaie la file 9E avant de lire la commande', () {
+    final String firestore = read(
+      'lib/features/orders/data/repositories/firestore_orders_repository.dart',
+    );
+    final int start = firestore.indexOf(
+      'Future<QueueOrder> handoffHybridAcceptedAssignment',
+    );
+    final int end = firestore.indexOf(
+      'Future<List<AutomaticAssignmentAgent>>',
+      start,
+    );
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final String block = firestore.substring(start, end);
+
+    final int queueRead = block.indexOf('_autoAssignmentQueueCollection');
+    final int claim = block.indexOf('claimAutomaticQueueItem(');
+    // Cherche l'appel effectif seulement apres le claim. Le commentaire du
+    // repository mentionne aussi acceptAgentAssignment() avant le claim et ne
+    // doit pas etre interprete comme un appel de methode par ce test de contrat.
+    final int accept = block.indexOf('acceptAgentAssignment(', claim + 1);
+    expect(queueRead, greaterThanOrEqualTo(0));
+    expect(claim, greaterThan(queueRead));
+    expect(accept, greaterThan(claim));
+  });
+
+  test('les pollers Phase 4 survivent a une erreur initiale', () {
+    final String supabase = read(
+      'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
+    );
+    expect(supabase, contains("yield lastSuccessful ?? const <Phase4AssignmentSnapshot>[];"));
+    expect(
+      supabase,
+      isNot(contains("if (lastSuccessful == null) rethrow;")),
+    );
+  });
+
+
+  test('le moteur ne retouche pas updatedAt Phase 4 pour une affectation existante', () {
+    final String hybrid = read(
+      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+    );
+    final int start = hybrid.indexOf(
+      'Future<QueueOrder?> tryAutomaticAssignment',
+    );
+    final int end = hybrid.indexOf(
+      'Future<Phase4AssignmentSnapshot?> _tryAutomaticAssignmentWithContext',
+      start,
+    );
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final String block = hybrid.substring(start, end);
+    final int fetch = block.indexOf('_phase4.fetchOrder(order.id)');
+    final int sync = block.indexOf('_phase4.syncOrder(order)');
+    expect(fetch, greaterThanOrEqualTo(0));
+    expect(sync, greaterThan(fetch));
+    expect(block, contains('?? await _phase4.syncOrder(order)'));
+  });
+
+  test('demarrer peut reparer un miroir Firebase encore seulement assigned', () {
+    final String hybrid = read(
+      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+    );
+    final int start = hybrid.indexOf(
+      'Future<QueueOrder> startAgentProcessing',
+    );
+    final int end = hybrid.indexOf(
+      'Future<QueueOrder> resumeAgentProcessing',
+      start,
+    );
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final String block = hybrid.substring(start, end);
+    expect(block, contains('on StateError catch'));
+    expect(block, contains('processing-start-repair'));
+    expect(block, contains('handoffHybridAcceptedAssignment('));
   });
 
   test('les changements Phase 4 reveillent le moteur staff', () {
@@ -223,7 +336,11 @@ void main() {
 
     expect(app, contains('HybridDashboardRepository()'));
     expect(dashboard, contains('firebase.statistics.unassignedOrders'));
-    expect(dashboard, contains('item.isAssigned'));
+    expect(
+      dashboard,
+      contains('item.assignmentMode == OrderAssignmentMode.automatic'),
+    );
+    expect(dashboard, contains('item.isAssigned || item.isAccepted'));
     expect(dashboard, contains('firebaseAssignmentSyncedAt == null'));
   });
 
