@@ -220,7 +220,7 @@ class AgentAssignmentViewModel extends ChangeNotifier {
             );
             return MapEntry<String, int>(agent.userId, amount);
           } catch (_) {
-            // Le repository hybride fournit deja la valeur Firebase de repli.
+            // Le repository hybride fournit deja la valeur Firebase de repli..
             // On conserve ici l'ancienne valeur plutot que d'afficher 0 et de
             // faire croire que toute la capacite est redevenue disponible.
             return MapEntry<String, int>(
@@ -232,7 +232,8 @@ class AgentAssignmentViewModel extends ChangeNotifier {
       );
       if (_isDisposed) return;
       _reservedAmounts = <String, int>{
-        for (final MapEntry<String, int> entry in entries) entry.key: entry.value,
+        for (final MapEntry<String, int> entry in entries)
+          entry.key: entry.value,
       };
       notifyListeners();
     } finally {
