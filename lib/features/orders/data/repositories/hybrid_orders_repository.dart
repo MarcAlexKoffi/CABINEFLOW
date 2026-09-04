@@ -1201,25 +1201,7 @@ class HybridOrdersRepository
     if (before == null || before.assignedAgentId != agentId) {
       throw StateError('Cette affectation n’est plus disponible.');
     }
-    final Phase4AssignmentSnapshot afterRefusal = await _phase4.refuse(
-      orderId: orderId,
-      reason: cleanedReason,
-    );
-
-    if (afterRefusal.isAssigned &&
-        afterRefusal.assignedAgentId != null &&
-        afterRefusal.assignedAgentId != agentId) {
-      debugPrint(
-        '[Phase4][refusal-auto-reassigned] order=$orderId '
-        'from=$agentId to=${afterRefusal.assignedAgentId} '
-        'mode=${afterRefusal.assignmentMode?.name}',
-      );
-    } else if (afterRefusal.isManualRequired) {
-      debugPrint(
-        '[Phase4][refusal-manual-required] order=$orderId '
-        'lastAgent=$agentId',
-      );
-    }
+    await _phase4.refuse(orderId: orderId, reason: cleanedReason);
 
     final List<String> refusedForLocalSnapshot = <String>[agentId];
     return before
