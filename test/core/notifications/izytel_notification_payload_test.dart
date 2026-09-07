@@ -9,6 +9,8 @@ void main() {
           'orderId': 'order-123',
           'orderReference': 'CF-20260903-ABC123',
           'route': 'order_detail',
+          'title': 'Nouvelle commande',
+          'body': 'CF-20260903-ABC123 - MTN - 5000 F',
           'ignoredNull': null,
         });
 
@@ -16,6 +18,9 @@ void main() {
     expect(payload.orderId, 'order-123');
     expect(payload.orderReference, 'CF-20260903-ABC123');
     expect(payload.route, 'order_detail');
+    expect(payload.title, 'Nouvelle commande');
+    expect(payload.body, 'CF-20260903-ABC123 - MTN - 5000 F');
+    expect(payload.displayMessage, 'CF-20260903-ABC123 - MTN - 5000 F');
     expect(payload.targetsOrder, isTrue);
     expect(payload.rawData.containsKey('ignoredNull'), isFalse);
   });

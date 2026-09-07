@@ -16,12 +16,20 @@ Future<void> izytelFirebaseMessagingBackgroundHandler(
     );
   }
 
-  final IzyTelNotificationPayload payload =
-      IzyTelNotificationPayload.fromMap(message.data);
+  final IzyTelNotificationPayload payload = _payloadFromRemoteMessage(message);
   debugPrint(
     '[FCM][background] id=${message.messageId ?? '-'} '
     'type=${payload.type} order=${payload.orderReference ?? payload.orderId ?? '-'}',
   );
+}
+
+IzyTelNotificationPayload _payloadFromRemoteMessage(RemoteMessage message) {
+  final Map<String, dynamic> data = <String, dynamic>{...message.data};
+  final String? title = message.notification?.title?.trim();
+  final String? body = message.notification?.body?.trim();
+  if (title != null && title.isNotEmpty) data.putIfAbsent('title', () => title);
+  if (body != null && body.isNotEmpty) data.putIfAbsent('body', () => body);
+  return IzyTelNotificationPayload.fromMap(data);
 }
 
 class FirebaseMessagingBootstrapResult {
@@ -36,21 +44,19 @@ class FirebaseMessagingBootstrapResult {
   final String? token;
 }
 
-/// Socle FCM de la Phase 1 Mobile Readiness.
+/// Socle FCM Mobile Readiness IzyTel.
 ///
-/// Cette classe est volontairement isolee du backend metier :
+/// Firebase reste uniquement le transport de notifications :
 /// - aucune ecriture Firestore ;
 /// - aucun App Check ;
-/// - aucune Cloud Function ;
-/// - aucun stockage Supabase du token pour cette premiere validation.
-///
-/// L'objectif est d'abord de confirmer que ce build Android peut recevoir FCM
-/// sans introduire de dependance critique dans le demarrage d'IzyTel.
+/// - aucune Cloud Function Firebase ;
+/// - aucun secret serveur embarque dans le mobile.
 class FirebaseMessagingBootstrap {
   FirebaseMessagingBootstrap._();
 
   static bool _initialized = false;
   static String? _currentToken;
+  static IzyTelNotificationPayload? _pendingOpenedPayload;
   static StreamSubscription<RemoteMessage>? _foregroundSubscription;
   static StreamSubscription<RemoteMessage>? _openedSubscription;
   static StreamSubscription<String>? _tokenRefreshSubscription;
@@ -63,13 +69,24 @@ class FirebaseMessagingBootstrap {
       _openedPayloadController =
       StreamController<IzyTelNotificationPayload>.broadcast();
 
+  static final StreamController<String> _tokenController =
+      StreamController<String>.broadcast();
+
   static String? get currentToken => _currentToken;
+
+  static Stream<String> get tokenChanges => _tokenController.stream;
 
   static Stream<IzyTelNotificationPayload> get foregroundPayloads =>
       _foregroundPayloadController.stream;
 
   static Stream<IzyTelNotificationPayload> get openedPayloads =>
       _openedPayloadController.stream;
+
+  static IzyTelNotificationPayload? takePendingOpenedPayload() {
+    final IzyTelNotificationPayload? payload = _pendingOpenedPayload;
+    _pendingOpenedPayload = null;
+    return payload;
+  }
 
   static bool get _isSupportedPlatform {
     if (kIsWeb) return false;
@@ -113,19 +130,21 @@ class FirebaseMessagingBootstrap {
       );
 
       _currentToken = await messaging.getToken();
-      debugPrint(
-        '[FCM][permission] ${settings.authorizationStatus.name}',
-      );
+      debugPrint('[FCM][permission] ${settings.authorizationStatus.name}');
       debugPrint(
         _currentToken == null
             ? '[FCM][token] indisponible'
             : '[FCM][token] $_currentToken',
       );
+      final String? initialToken = _currentToken;
+      if (initialToken != null && initialToken.trim().isNotEmpty) {
+        scheduleMicrotask(() => _tokenController.add(initialToken));
+      }
 
       _foregroundSubscription = FirebaseMessaging.onMessage.listen(
         (RemoteMessage message) {
           final IzyTelNotificationPayload payload =
-              IzyTelNotificationPayload.fromMap(message.data);
+              _payloadFromRemoteMessage(message);
           debugPrint(
             '[FCM][foreground] id=${message.messageId ?? '-'} '
             'type=${payload.type} '
@@ -142,13 +161,17 @@ class FirebaseMessagingBootstrap {
       _openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
         (RemoteMessage message) {
           final IzyTelNotificationPayload payload =
-              IzyTelNotificationPayload.fromMap(message.data);
+              _payloadFromRemoteMessage(message);
           debugPrint(
             '[FCM][opened] id=${message.messageId ?? '-'} '
             'type=${payload.type} '
             'order=${payload.orderReference ?? payload.orderId ?? '-'}',
           );
-          _openedPayloadController.add(payload);
+          if (_openedPayloadController.hasListener) {
+            _openedPayloadController.add(payload);
+          } else {
+            _pendingOpenedPayload = payload;
+          }
         },
         onError: (Object error, StackTrace stackTrace) {
           debugPrint('[FCM][opened-error] $error');
@@ -159,7 +182,8 @@ class FirebaseMessagingBootstrap {
       _tokenRefreshSubscription = messaging.onTokenRefresh.listen(
         (String token) {
           _currentToken = token;
-          debugPrint('[FCM][token-refresh] $token');
+          debugPrint('[FCM][token-refresh] token mis a jour');
+          _tokenController.add(token);
         },
         onError: (Object error, StackTrace stackTrace) {
           debugPrint('[FCM][token-refresh-error] $error');
@@ -170,14 +194,15 @@ class FirebaseMessagingBootstrap {
       final RemoteMessage? initialMessage = await messaging.getInitialMessage();
       if (initialMessage != null) {
         final IzyTelNotificationPayload payload =
-            IzyTelNotificationPayload.fromMap(initialMessage.data);
+            _payloadFromRemoteMessage(initialMessage);
         debugPrint(
           '[FCM][initial] id=${initialMessage.messageId ?? '-'} '
           'type=${payload.type} '
           'order=${payload.orderReference ?? payload.orderId ?? '-'}',
         );
-        // Le routage vers les ecrans metier sera branche apres validation FCM.
-        scheduleMicrotask(() => _openedPayloadController.add(payload));
+        // Le payload est conserve jusqu'a l'ouverture de l'espace Agent/Manager,
+        // y compris si une reconnexion est necessaire apres le tap.
+        _pendingOpenedPayload = payload;
       }
 
       return FirebaseMessagingBootstrapResult(
@@ -204,6 +229,7 @@ class FirebaseMessagingBootstrap {
     _foregroundSubscription = null;
     _openedSubscription = null;
     _tokenRefreshSubscription = null;
+    _pendingOpenedPayload = null;
     _currentToken = null;
     _initialized = false;
   }

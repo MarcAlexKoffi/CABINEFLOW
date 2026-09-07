@@ -285,12 +285,27 @@ class SupabasePhase4AssignmentRepository {
     return snapshot;
   }
 
-  Future<void> refuse({required String orderId, required String reason}) {
-    return _agentAction(
+  Future<Phase4AssignmentSnapshot> refuse({
+    required String orderId,
+    required String reason,
+  }) async {
+    await _agentAction(
       orderId: orderId,
       action: 'refuse',
       reason: reason.trim(),
     );
+
+    // Le trigger Phase 4 choisit le prochain Agent dans la meme transaction.
+    // On relit donc immediatement l'etat canonique pour confirmer si la
+    // commande a ete reaffectee automatiquement ou si tous les candidats ont
+    // ete epuises et que manual_required est reellement justifie.
+    final Phase4AssignmentSnapshot? snapshot = await fetchOrder(orderId);
+    if (snapshot == null) {
+      throw StateError(
+        'Le refus a ete enregistre, mais l etat Phase 4 est introuvable.',
+      );
+    }
+    return snapshot;
   }
 
   Future<void> _agentAction({

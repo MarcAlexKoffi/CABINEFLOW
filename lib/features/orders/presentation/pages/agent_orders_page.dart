@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cabine_flow/core/notifications/izytel_notification_payload.dart';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
@@ -13,6 +14,7 @@ import 'package:cabine_flow/features/orders/presentation/view_models/agent_order
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -26,6 +28,7 @@ class AgentOrdersPage extends StatefulWidget {
     this.onOpenPerformance,
     this.onOpenCommissions,
     this.onLogout,
+    this.notificationOrderRequest,
   });
 
   final AppUser user;
@@ -35,6 +38,7 @@ class AgentOrdersPage extends StatefulWidget {
   final VoidCallback? onOpenPerformance;
   final VoidCallback? onOpenCommissions;
   final VoidCallback? onLogout;
+  final ValueListenable<IzyTelNotificationPayload?>? notificationOrderRequest;
 
   @override
   State<AgentOrdersPage> createState() => _AgentOrdersPageState();
@@ -57,13 +61,83 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
       agentRepository: widget.agentRepository,
     );
     _viewModel.start();
+    widget.notificationOrderRequest?.addListener(_handleNotificationOrderRequest);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_openNotificationOrderIfAvailable());
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant AgentOrdersPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.notificationOrderRequest != widget.notificationOrderRequest) {
+      oldWidget.notificationOrderRequest
+          ?.removeListener(_handleNotificationOrderRequest);
+      widget.notificationOrderRequest
+          ?.addListener(_handleNotificationOrderRequest);
+      unawaited(_openNotificationOrderIfAvailable());
+    }
   }
 
   @override
   void dispose() {
+    widget.notificationOrderRequest?.removeListener(_handleNotificationOrderRequest);
     _clockTimer?.cancel();
     _viewModel.dispose();
     super.dispose();
+  }
+
+  void _handleNotificationOrderRequest() {
+    unawaited(_openNotificationOrderIfAvailable());
+  }
+
+  Future<void> _openNotificationOrderIfAvailable() async {
+    final IzyTelNotificationPayload? payload =
+        widget.notificationOrderRequest?.value;
+    if (payload == null || !payload.targetsOrder || !mounted) return;
+
+    QueueOrder? findOrder() {
+      final String? orderId = payload.orderId;
+      if (orderId != null && orderId.trim().isNotEmpty) {
+        final QueueOrder? byId = _viewModel.orderById(orderId.trim());
+        if (byId != null) return byId;
+      }
+      final String? reference = payload.orderReference;
+      if (reference != null && reference.trim().isNotEmpty) {
+        return _viewModel.orderByReference(reference);
+      }
+      return null;
+    }
+
+    QueueOrder? order = findOrder();
+    for (int attempt = 0; order == null && attempt < 3; attempt += 1) {
+      if (attempt == 0) await _viewModel.start();
+      await Future<void>.delayed(const Duration(milliseconds: 650));
+      if (!mounted) return;
+      order = findOrder();
+    }
+
+    if (!mounted) return;
+    if (order == null) {
+      final String label = payload.orderReference ?? payload.orderId ?? '';
+      _showMessage(
+        label.isEmpty
+            ? 'Nouvelle commande recue. La file se met a jour.'
+            : 'Commande $label recue. La file se met a jour.',
+      );
+      return;
+    }
+
+    final QueueOrder resolvedOrder = order;
+    if (resolvedOrder.assignmentStatus == OrderAssignmentStatus.assigned) {
+      _viewModel.selectTab(AgentOrdersTab.toAccept);
+    } else {
+      _viewModel.selectTab(AgentOrdersTab.inProgress);
+    }
+
+    if (_openedOrderId != resolvedOrder.id) {
+      setState(() => _openedOrderId = resolvedOrder.id);
+    }
   }
 
   Future<void> _accept(QueueOrder order) async {

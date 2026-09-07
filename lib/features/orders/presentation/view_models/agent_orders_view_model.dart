@@ -115,6 +115,18 @@ class AgentOrdersViewModel extends ChangeNotifier {
     return null;
   }
 
+  QueueOrder? orderByReference(String reference) {
+    final String normalized = reference.trim().toUpperCase();
+    if (normalized.isEmpty) return null;
+    for (final QueueOrder order in _orders) {
+      if (order.reference.trim().toUpperCase() == normalized) return order;
+    }
+    for (final QueueOrder order in _refusedHistoryOrders) {
+      if (order.reference.trim().toUpperCase() == normalized) return order;
+    }
+    return null;
+  }
+
   Future<void> start() async {
     _isLoading = true;
     _errorMessage = null;

@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:cabine_flow/app/app_routes.dart';
+import 'package:cabine_flow/core/notifications/firebase_messaging_bootstrap.dart';
+import 'package:cabine_flow/core/notifications/izytel_notification_device_registry.dart';
+import 'package:cabine_flow/core/notifications/izytel_notification_payload.dart';
 import 'package:cabine_flow/core/services/session_preferences.dart';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
@@ -11,6 +14,8 @@ import 'package:cabine_flow/features/agents/domain/repositories/agent_repository
 import 'package:cabine_flow/features/agents/presentation/pages/agent_activity_page.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_activity_v2_dashboard_page.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_home_page.dart';
+import 'package:cabine_flow/features/agents/presentation/pages/agent_issue_center_page.dart';
+import 'package:cabine_flow/features/agents/presentation/pages/agent_issues_page.dart';
 import 'package:cabine_flow/features/agents/presentation/pages/agent_management_page.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
@@ -81,6 +86,8 @@ class _MainShellPageState extends State<MainShellPage> {
   bool _managerSupabaseWarningShown = false;
   bool _isLoggingOut = false;
   DateTime? _lastBackPressAt;
+  StreamSubscription<IzyTelNotificationPayload>? _notificationOpenedSubscription;
+  StreamSubscription<IzyTelNotificationPayload>? _notificationForegroundSubscription;
 
   final List<GlobalKey<NavigatorState>> _tabNavigatorKeys =
       List<GlobalKey<NavigatorState>>.generate(
@@ -92,13 +99,93 @@ class _MainShellPageState extends State<MainShellPage> {
   @override
   void initState() {
     super.initState();
+    unawaited(IzyTelNotificationDeviceRegistry.start(user: widget.user));
     if (widget.user.role != UserRole.agent) {
+      _wireStaffNotifications();
       _startAutomaticAssignmentWatchers();
       _scheduleAutomaticAssignmentSync(immediate: true);
       if (SupabaseBootstrap.isInitialized &&
           widget.user.role == UserRole.administrator) {
         unawaited(_synchronizePhase5ConsolidatedBackfill());
       }
+    }
+  }
+
+  void _wireStaffNotifications() {
+    _notificationForegroundSubscription =
+        FirebaseMessagingBootstrap.foregroundPayloads.listen(
+      (IzyTelNotificationPayload payload) {
+        if (!mounted) return;
+        IzyTelFeedback.show(context, payload.displayMessage);
+      },
+      onError: (Object error) {
+        debugPrint('[FCM][staff-foreground-stream] $error');
+      },
+    );
+    _notificationOpenedSubscription =
+        FirebaseMessagingBootstrap.openedPayloads.listen(
+      (IzyTelNotificationPayload payload) {
+        unawaited(_handleStaffNotificationOpen(payload));
+      },
+      onError: (Object error) {
+        debugPrint('[FCM][staff-opened-stream] $error');
+      },
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final IzyTelNotificationPayload? pending =
+          FirebaseMessagingBootstrap.takePendingOpenedPayload();
+      if (pending != null) unawaited(_handleStaffNotificationOpen(pending));
+    });
+  }
+
+  Future<void> _handleStaffNotificationOpen(
+    IzyTelNotificationPayload payload,
+  ) async {
+    if (!mounted) return;
+
+    if (payload.targetsOrder ||
+        payload.type == 'order_assigned' ||
+        payload.type == 'order_reassigned' ||
+        payload.type == 'order_manual_required') {
+      final String? orderId = payload.orderId?.trim();
+      final OrdersRepository rawRepository = widget.ordersRepository;
+      if (orderId == null ||
+          orderId.isEmpty ||
+          rawRepository is! OrderHistoryRepository) {
+        _openOrdersTab();
+        return;
+      }
+      try {
+        final OrderHistoryRepository history =
+            rawRepository as OrderHistoryRepository;
+        final QueueOrder order =
+            await history.fetchOrderById(orderId: orderId);
+        if (!mounted) return;
+        await _openSpecificOrder(order);
+      } catch (_) {
+        if (mounted) _openOrdersTab();
+      }
+      return;
+    }
+
+    if (payload.type == 'agent_issue_new') {
+      _openMoreTab();
+      await Future<void>.delayed(Duration.zero);
+      if (!mounted) return;
+      _tabNavigatorKeys[4].currentState?.push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => AgentIssueCenterPage(
+            user: widget.user,
+            repository: widget.agentRepository,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (payload.type.startsWith('payment_')) {
+      _openPaymentsTab();
     }
   }
 
@@ -197,6 +284,8 @@ class _MainShellPageState extends State<MainShellPage> {
     _automaticAssignmentDebounce?.cancel();
     _staffAgentsSubscription?.cancel();
     _staffQueueSubscription?.cancel();
+    _notificationOpenedSubscription?.cancel();
+    _notificationForegroundSubscription?.cancel();
     super.dispose();
   }
 
@@ -282,6 +371,7 @@ class _MainShellPageState extends State<MainShellPage> {
     });
 
     try {
+      await IzyTelNotificationDeviceRegistry.deactivateCurrentDevice();
       await widget.authRepository.logout();
       await SessionPreferences.clear();
       if (!mounted) return;
@@ -459,12 +549,83 @@ class _AgentShellState extends State<_AgentShell> {
   int _selectedIndex = 0;
   bool _isLoggingOut = false;
   DateTime? _lastBackPressAt;
+  StreamSubscription<IzyTelNotificationPayload>? _notificationOpenedSubscription;
+  StreamSubscription<IzyTelNotificationPayload>? _notificationForegroundSubscription;
+  final ValueNotifier<IzyTelNotificationPayload?> _notificationOrderRequest =
+      ValueNotifier<IzyTelNotificationPayload?>(null);
   final List<GlobalKey<NavigatorState>> _tabNavigatorKeys =
       List<GlobalKey<NavigatorState>>.generate(
         4,
         (int index) =>
             GlobalKey<NavigatorState>(debugLabel: 'agent-tab-$index'),
       );
+
+  @override
+  void initState() {
+    super.initState();
+    _notificationForegroundSubscription =
+        FirebaseMessagingBootstrap.foregroundPayloads.listen(
+      (IzyTelNotificationPayload payload) {
+        if (!mounted) return;
+        IzyTelFeedback.show(context, payload.displayMessage);
+      },
+      onError: (Object error) {
+        debugPrint('[FCM][agent-foreground-stream] $error');
+      },
+    );
+    _notificationOpenedSubscription =
+        FirebaseMessagingBootstrap.openedPayloads.listen(
+      (IzyTelNotificationPayload payload) {
+        _handleAgentNotificationOpen(payload);
+      },
+      onError: (Object error) {
+        debugPrint('[FCM][agent-opened-stream] $error');
+      },
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final IzyTelNotificationPayload? pending =
+          FirebaseMessagingBootstrap.takePendingOpenedPayload();
+      if (pending != null) _handleAgentNotificationOpen(pending);
+    });
+  }
+
+  void _handleAgentNotificationOpen(IzyTelNotificationPayload payload) {
+    if (!mounted) return;
+    if (payload.targetsOrder ||
+        payload.type == 'order_assigned' ||
+        payload.type == 'order_reassigned') {
+      setState(() => _selectedIndex = 1);
+      _notificationOrderRequest.value = null;
+      scheduleMicrotask(() {
+        if (mounted) _notificationOrderRequest.value = payload;
+      });
+      return;
+    }
+
+    if (payload.type == 'agent_issue_resolved') {
+      setState(() => _selectedIndex = 3);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _tabNavigatorKeys[3].currentState?.push<void>(
+          MaterialPageRoute<void>(
+            builder: (_) => AgentIssuesPage(
+              agentId: widget.user.id,
+              repository: widget.agentRepository,
+            ),
+          ),
+        );
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _notificationOpenedSubscription?.cancel();
+    _notificationForegroundSubscription?.cancel();
+    _notificationOrderRequest.dispose();
+    super.dispose();
+  }
 
   Future<void> _logout() async {
     if (_isLoggingOut) return;
@@ -499,6 +660,7 @@ class _AgentShellState extends State<_AgentShell> {
     });
 
     try {
+      await IzyTelNotificationDeviceRegistry.deactivateCurrentDevice();
       await widget.authRepository.logout();
       await SessionPreferences.clear();
       if (!mounted) return;
@@ -624,6 +786,7 @@ class _AgentShellState extends State<_AgentShell> {
         user: widget.user,
         ordersRepository: widget.ordersRepository,
         agentRepository: widget.agentRepository,
+        notificationOrderRequest: _notificationOrderRequest,
         onOpenProfile: _openAgentProfile,
         onOpenPerformance: _openAgentPerformance,
         onOpenCommissions: _openAgentCommissions,

@@ -1,6 +1,8 @@
 class IzyTelNotificationPayload {
   const IzyTelNotificationPayload({
     required this.type,
+    this.title,
+    this.body,
     this.orderId,
     this.orderReference,
     this.route,
@@ -10,6 +12,8 @@ class IzyTelNotificationPayload {
   });
 
   final String type;
+  final String? title;
+  final String? body;
   final String? orderId;
   final String? orderReference;
   final String? route;
@@ -18,6 +22,9 @@ class IzyTelNotificationPayload {
   final Map<String, String> rawData;
 
   bool get targetsOrder => orderId != null || orderReference != null;
+
+  String get displayMessage =>
+      body ?? title ?? 'Nouvelle notification IzyTel.';
 
   static IzyTelNotificationPayload fromMap(Map<String, dynamic> data) {
     String? valueOf(String key) {
@@ -35,6 +42,8 @@ class IzyTelNotificationPayload {
 
     return IzyTelNotificationPayload(
       type: valueOf('type') ?? 'generic',
+      title: valueOf('title'),
+      body: valueOf('body'),
       orderId: valueOf('orderId'),
       orderReference: valueOf('orderReference'),
       route: valueOf('route'),
