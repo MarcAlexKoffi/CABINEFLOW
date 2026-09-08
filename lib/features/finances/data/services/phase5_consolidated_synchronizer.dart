@@ -6,8 +6,10 @@ import 'package:flutter/foundation.dart';
 /// Reprise historique consolidée de la Phase 5.
 ///
 /// L'import est réservé à l'Administrateur côté Supabase. Chaque collection
-/// possède son propre curseur et un document invalide stoppe le lot au lieu
-/// d'être ignoré silencieusement. Les RPC Supabase sont idempotentes.
+/// possède son propre curseur. Les champs financiers structurants restent
+/// strictement valides ; seule l'identité historique d'un Agent peut recevoir
+/// un libellé de secours afin qu'un ancien profil incomplet ne bloque pas tout
+/// le backfill. Les RPC Supabase sont idempotentes.
 class Phase5ConsolidatedSynchronizer {
   Phase5ConsolidatedSynchronizer({
     FirebaseFirestore? firestore,
@@ -380,7 +382,7 @@ class Phase5ConsolidatedSynchronizer {
     final Map<String, dynamic> data = doc.data();
     return <String, dynamic>{
       'agent_id': doc.id,
-      'agent_name': _requiredName(data['name'] ?? data['displayName'], doc.id),
+      'agent_name': _legacyAgentName(data['name'] ?? data['displayName'], doc.id),
       'orange_capacity': _nonNegative(data['orangeCapacity'], doc.id),
       'mtn_capacity': _nonNegative(data['mtnCapacity'], doc.id),
       'moov_capacity': _nonNegative(data['moovCapacity'], doc.id),
@@ -597,6 +599,21 @@ class Phase5ConsolidatedSynchronizer {
     final String text = value is String ? value.trim() : '';
     if (text.isEmpty) throw StateError('$id: champ $field invalide.');
     return text;
+  }
+
+  String _legacyAgentName(Object? value, String id) {
+    final String text = value is String ? value.trim() : '';
+    if (text.length >= 2) return text;
+
+    final String normalizedId = id.trim();
+    final String suffix = normalizedId.length > 6
+        ? normalizedId.substring(0, 6)
+        : normalizedId;
+    final String fallback = suffix.isEmpty ? 'Agent' : 'Agent $suffix';
+    debugPrint(
+      '[Phase5][Backfill][capacity-name-fallback] id=$id fallback=$fallback',
+    );
+    return fallback;
   }
 
   String _requiredName(Object? value, String id) {

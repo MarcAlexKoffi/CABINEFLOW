@@ -15,7 +15,10 @@ void main() {
     );
 
     expect(hybrid, contains('Future<QueueOrder> refuseAgentAssignment'));
-    expect(hybrid, contains('_phase4.refuse(orderId: orderId'));
+    expect(
+      hybrid,
+      matches(RegExp(r'_phase4\.refuse\(\s*orderId:\s*orderId')),
+    );
     expect(phase4, contains("'phase4_agent_action'"));
     expect(phase4, contains("action: 'refuse'"));
   });

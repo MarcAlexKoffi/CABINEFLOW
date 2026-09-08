@@ -345,9 +345,14 @@ class SupabasePhase5FinanceRepository {
         lastSuccessful = value;
         yield value;
       } catch (error, stackTrace) {
+        // Un jeton Supabase momentanement refuse (par exemple un leger
+        // decalage d'horloge lors d'un renouvellement JWT) ou une coupure
+        // reseau ne doit jamais fermer definitivement le StreamBuilder.
+        // On conserve la derniere vue connue et le polling reprendra au tour
+        // suivant. Au premier echec, une liste vide garde l'ecran utilisable.
         debugPrint('[Phase5][$label] $error');
         debugPrintStack(stackTrace: stackTrace);
-        if (lastSuccessful == null) rethrow;
+        yield lastSuccessful ?? <T>[];
       }
       await Future<void>.delayed(pollInterval);
     }
