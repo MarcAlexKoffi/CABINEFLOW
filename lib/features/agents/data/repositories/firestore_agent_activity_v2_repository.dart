@@ -126,7 +126,7 @@ class FirestoreAgentActivityV2Repository {
                 emit();
               },
               onError: (Object error, StackTrace stackTrace) {
-                orders = const <AgentActivityOrderV2>[];
+                // Conserve le dernier snapshot connu si le réseau tombe.
                 markUnavailable(
                   AgentActivityV2Sources.orders,
                   () => hasOrders = true,
@@ -149,7 +149,7 @@ class FirestoreAgentActivityV2Repository {
                 mergeAssignments();
               },
               onError: (Object error, StackTrace stackTrace) {
-                firestoreAssignments = const <AgentActivityAssignmentV2>[];
+                // Conserve le dernier historique Firestore déjà reçu.
                 hasFirestoreAssignments = true;
                 unavailableSources.add(AgentActivityV2Sources.assignments);
                 mergeAssignments();
@@ -180,8 +180,7 @@ class FirestoreAgentActivityV2Repository {
                   mergeAssignments();
                 },
                 onError: (Object error, StackTrace stackTrace) {
-                  phase4RefusedAssignments =
-                      const <AgentActivityAssignmentV2>[];
+                  // Conserve les refus Phase 4 déjà chargés pendant une coupure.
                   hasPhase4Assignments = true;
                   mergeAssignments();
                 },
@@ -208,7 +207,7 @@ class FirestoreAgentActivityV2Repository {
                 emit();
               },
               onError: (Object error, StackTrace stackTrace) {
-                movements = const <AgentNetworkMovementV2>[];
+                // Ne remplace pas les dernières données par une liste vide.
                 markUnavailable(
                   AgentActivityV2Sources.movements,
                   () => hasMovements = true,
@@ -234,7 +233,6 @@ class FirestoreAgentActivityV2Repository {
                 emit();
               },
               onError: (Object error, StackTrace stackTrace) {
-                commissions = const <AgentCommissionV2>[];
                 markUnavailable(
                   AgentActivityV2Sources.commissions,
                   () => hasCommissions = true,
@@ -257,7 +255,6 @@ class FirestoreAgentActivityV2Repository {
                 emit();
               },
               onError: (Object error, StackTrace stackTrace) {
-                commissionAccount = null;
                 markUnavailable(
                   AgentActivityV2Sources.commissionAccount,
                   () => hasCommissionAccount = true,
@@ -283,7 +280,6 @@ class FirestoreAgentActivityV2Repository {
                 emit();
               },
               onError: (Object error, StackTrace stackTrace) {
-                payouts = const <AgentCommissionPayoutV2>[];
                 markUnavailable(
                   AgentActivityV2Sources.payouts,
                   () => hasPayouts = true,
@@ -306,7 +302,6 @@ class FirestoreAgentActivityV2Repository {
                 emit();
               },
               onError: (Object error, StackTrace stackTrace) {
-                operationalProfile = null;
                 markUnavailable(
                   AgentActivityV2Sources.operationalProfile,
                   () => hasOperationalProfile = true,
@@ -338,7 +333,6 @@ class FirestoreAgentActivityV2Repository {
                   emit();
                 },
                 onError: (Object error, StackTrace stackTrace) {
-                  issues = const <AgentIssueSnapshotV2>[];
                   markUnavailable(
                     AgentActivityV2Sources.issues,
                     () => hasIssues = true,

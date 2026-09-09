@@ -13,7 +13,7 @@ import 'package:cabine_flow/features/finances/domain/models/finance_operations_m
 import 'package:cabine_flow/features/finances/domain/repositories/agent_recharge_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
-import 'package:cabine_flow/features/orders/presentation/pages/agent_order_detail_view.dart';
+import 'package:cabine_flow/features/orders/presentation/pages/agent_order_detail_route_page.dart';
 import 'package:cabine_flow/features/orders/presentation/view_models/agent_orders_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
@@ -44,7 +44,7 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
   final TextEditingController _rechargeSearchController =
       TextEditingController();
   Timer? _searchDebounce;
-  String? _openedOrderId;
+  String? _openDetailRouteOrderId;
   int _tab = 0;
 
   List<SupplierRecharge> _recharges = const <SupplierRecharge>[];
@@ -89,9 +89,25 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
     super.dispose();
   }
 
-  void _closeOpenedOrder() {
-    if (_openedOrderId == null) return;
-    setState(() => _openedOrderId = null);
+  Future<void> _openOrder(QueueOrder order) async {
+    if (_openDetailRouteOrderId == order.id) return;
+    _openDetailRouteOrderId = order.id;
+    try {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          settings: RouteSettings(name: 'agent-history-order/${order.id}'),
+          builder: (_) => AgentOrderDetailRoutePage(
+            user: widget.user,
+            initialOrder: order,
+            viewModel: _viewModel,
+          ),
+        ),
+      );
+    } finally {
+      if (_openDetailRouteOrderId == order.id) {
+        _openDetailRouteOrderId = null;
+      }
+    }
   }
 
   void _selectTab(int value) {
@@ -242,31 +258,13 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: _openedOrderId == null,
-      onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (!didPop && _openedOrderId != null) _closeOpenedOrder();
-      },
-      child: Scaffold(
-        backgroundColor: IzyTelColors.background,
-        body: SafeArea(
-          bottom: false,
-          child: ListenableBuilder(
-            listenable: _viewModel,
-            builder: (BuildContext context, Widget? child) {
-              final String? openedId = _openedOrderId;
-              if (openedId != null) {
-                final QueueOrder? order = _viewModel.orderById(openedId);
-                if (order != null) {
-                  return AgentOrderDetailView(
-                    user: widget.user,
-                    order: order,
-                    viewModel: _viewModel,
-                    onBack: _closeOpenedOrder,
-                  );
-                }
-              }
-
+    return Scaffold(
+      backgroundColor: IzyTelColors.background,
+      body: SafeArea(
+        bottom: false,
+        child: ListenableBuilder(
+          listenable: _viewModel,
+          builder: (BuildContext context, Widget? child) {
               final List<QueueOrder> orders = switch (_tab) {
                 0 => _viewModel.inProgressOrders,
                 1 => _viewModel.successfulHistoryOrders,
@@ -335,16 +333,14 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
                           child: _HistoryOrderCard(
                             order: order,
                             isCompleted: _tab != 0,
-                            onTap: () =>
-                                setState(() => _openedOrderId = order.id),
+                            onTap: () => unawaited(_openOrder(order)),
                           ),
                         ),
                       ),
                   ],
                 ),
               );
-            },
-          ),
+          },
         ),
       ),
     );

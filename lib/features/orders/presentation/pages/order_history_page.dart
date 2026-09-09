@@ -224,7 +224,7 @@ class _HistoryTopBar extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            tooltip: 'Retour aux commandes',
+            tooltip: 'Retour',
             onPressed: onBack,
             icon: const Icon(Symbols.arrow_back_rounded),
             color: IzyTelColors.textPrimary,

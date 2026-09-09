@@ -60,7 +60,7 @@ class _AgentActivityV2DashboardPageState
           }
           final AgentActivityV2Snapshot data = snapshot.data!;
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
             children: <Widget>[
               _Header(
                 name: widget.agentName,
@@ -68,15 +68,15 @@ class _AgentActivityV2DashboardPageState
                 profile: data.operationalProfile,
               ),
               if (data.hasUnavailableSources) ...<Widget>[
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 _PartialDataWarning(sources: data.unavailableSources),
               ],
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               const _SectionTitle(
                 title: 'Performance',
                 trailing: 'Données réelles',
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               if (data.isUnavailable(AgentActivityV2Sources.orders) ||
                   data.isUnavailable(AgentActivityV2Sources.assignments))
                 const _UnavailableCard(
@@ -84,24 +84,24 @@ class _AgentActivityV2DashboardPageState
                 )
               else
                 _PerformanceGrid(data: data),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               const _SectionTitle(
                 title: 'Capacités actuelles',
                 trailing: 'Profil opérationnel',
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               if (data.isUnavailable(AgentActivityV2Sources.operationalProfile))
                 const _UnavailableCard(
                   text: 'Les capacités sont temporairement indisponibles.',
                 )
               else
                 _CapacityCard(profile: data.operationalProfile),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               _SectionTitle(
                 title: 'Commissions',
                 trailing: '${data.commissionTransactionCount} transaction(s)',
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               if (data.isUnavailable(AgentActivityV2Sources.commissions) ||
                   data.isUnavailable(AgentActivityV2Sources.commissionAccount))
                 const _UnavailableCard(
@@ -135,12 +135,12 @@ class _AgentActivityV2DashboardPageState
                 else
                   ...data.commissions.take(8).map(_CommissionCard.new),
               ],
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               _SectionTitle(
                 title: 'Versements de commissions',
                 trailing: _formatCfa(data.commissionPaid),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               if (data.isUnavailable(AgentActivityV2Sources.payouts))
                 const _UnavailableCard(
                   text: 'Les versements de commissions sont temporairement indisponibles.',
@@ -149,26 +149,26 @@ class _AgentActivityV2DashboardPageState
                 const _EmptyCard(text: 'Aucun versement enregistré.')
               else
                 ...data.payouts.take(8).map(_PayoutCard.new),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               _SectionTitle(
                 title: 'Mouvements & recharges',
                 trailing: 'Recharges ${_formatCfa(data.rechargeAmount)}',
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               if (data.isUnavailable(AgentActivityV2Sources.movements))
                 const _UnavailableCard(
-                  text: 'Les mouvements et recharges sont temporairement indisponibles. Réessaie un peu plus tard.',
+                  text: 'Mouvements non actualisés. Les dernières données connues restent affichées.',
                 )
               else if (data.movements.isEmpty)
                 const _EmptyCard(text: 'Aucun mouvement réseau disponible.')
               else
                 ...data.movements.take(12).map(_MovementCard.new),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               _SectionTitle(
                 title: 'Signalements',
                 trailing: '${data.openIssueCount} en cours',
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               if (data.isUnavailable(AgentActivityV2Sources.issues))
                 const _UnavailableCard(
                   text: 'Les signalements sont temporairement indisponibles.',
@@ -177,12 +177,12 @@ class _AgentActivityV2DashboardPageState
                 const _EmptyCard(text: 'Aucun signalement pour cet Agent.')
               else
                 ...data.issues.take(10).map(_IssueCard.new),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               _SectionTitle(
                 title: 'Dernières commandes',
                 trailing: '${data.orders.length} au total',
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               if (data.isUnavailable(AgentActivityV2Sources.orders))
                 const _UnavailableCard(
                   text: 'L’historique des commandes est temporairement indisponible.',
@@ -209,12 +209,12 @@ class _AgentActivityV2DashboardPageState
                   label: const Text('Voir l’historique complet'),
                 ),
               ],
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               _SectionTitle(
                 title: 'Affectations refusées',
                 trailing: '${data.refusedCount}',
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               if (data.isUnavailable(AgentActivityV2Sources.assignments))
                 const _UnavailableCard(
                   text: 'Les affectations sont temporairement indisponibles.',
@@ -247,16 +247,16 @@ class _PartialDataWarning extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const Icon(Icons.cloud_off_outlined),
-            const SizedBox(width: 10),
+            const Icon(Icons.cloud_off_outlined, size: 19),
+            const SizedBox(width: 9),
             Expanded(
               child: Text(
-                'Certaines données sont temporairement indisponibles : ${labels.join(', ')}. '
-                'Les autres sections restent utilisables.',
+                'Données non actualisées : ${labels.join(', ')}. Les dernières valeurs connues restent disponibles quand elles existent.',
+                style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
           ],
@@ -290,13 +290,15 @@ class _UnavailableCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const Icon(Icons.cloud_off_outlined),
-            const SizedBox(width: 10),
-            Expanded(child: Text(text)),
+            const Icon(Icons.cloud_off_outlined, size: 19),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(text, style: Theme.of(context).textTheme.bodySmall),
+            ),
           ],
         ),
       ),
@@ -322,20 +324,22 @@ class _Header extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(14, 13, 14, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             if (cleanName.isNotEmpty)
               Text(
                 cleanName,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-            if (cleanName.isNotEmpty) const SizedBox(height: 4),
+            if (cleanName.isNotEmpty) const SizedBox(height: 7),
             Wrap(
-              spacing: 8,
+              spacing: 7,
               runSpacing: 6,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: <Widget>[
@@ -346,12 +350,12 @@ class _Header extends StatelessWidget {
                 if (adminMode) const _ChipLabel(text: 'Vue Admin'),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
-              'Synthèse en lecture seule construite depuis les commandes, '
-              'affectations, capacités, commissions, versements, mouvements '
-              'et signalements déjà enregistrés.',
-              style: Theme.of(context).textTheme.bodySmall,
+              'Vue consolidée de l’activité opérationnelle.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -506,7 +510,7 @@ class _NetworkCapacity extends StatelessWidget {
           Text(_formatCfa(capacity)),
           Text(
             active ? 'Actif' : 'Inactif',
-            style: Theme.of(context).textTheme.bodySmall,
+            style: Theme.of(context).textTheme.labelSmall,
           ),
         ],
       ),
@@ -556,7 +560,7 @@ class _ResponsiveCards extends StatelessWidget {
         int columns;
         if (constraints.maxWidth >= 760) {
           columns = preferredColumns ?? 3;
-        } else if (constraints.maxWidth >= 430) {
+        } else if (constraints.maxWidth >= 340) {
           columns = 2;
         } else {
           columns = 1;
@@ -595,7 +599,7 @@ class _MetricCard extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Row(
           children: <Widget>[
-            Icon(icon, size: 22),
+            Icon(icon, size: 20),
             const SizedBox(width: 10),
             Flexible(
               child: Column(
@@ -608,8 +612,8 @@ class _MetricCard extends StatelessWidget {
                     value,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ],
@@ -835,8 +839,8 @@ class _SectionTitle extends StatelessWidget {
       builder: (context, constraints) {
         final Text titleWidget = Text(
           title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w800,
           ),
         );
         final Text trailingWidget = Text(
@@ -877,8 +881,8 @@ class _EmptyCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Text(text),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+        child: Text(text, style: Theme.of(context).textTheme.bodySmall),
       ),
     );
   }

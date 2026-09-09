@@ -115,324 +115,27 @@ class _PaymentsPageState extends State<PaymentsPage> {
   }
 
   Future<void> _openPaymentConfirmation(QueueOrder order) async {
-    final TextEditingController referenceController = TextEditingController();
-    bool paymentWasChecked = false;
-
     final String? paymentReference = await showModalBottomSheet<String>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (BuildContext sheetContext) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setSheetState) {
-            final double keyboardHeight = MediaQuery.viewInsetsOf(
-              sheetContext,
-            ).bottom;
-
-            return Padding(
-              padding: EdgeInsets.only(bottom: keyboardHeight),
-              child: Container(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(sheetContext).height * .90,
-                ),
-                decoration: const BoxDecoration(
-                  color: IzyTelColors.surface,
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(IzyTelRadii.sheet),
-                  ),
-                ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 22),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Align(
-                        alignment: Alignment.center,
-                        child: Container(
-                          width: 42,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: IzyTelColors.outlineStrong,
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      Text(
-                        order.hasPaymentToReviewAfterExpiration
-                            ? 'Examiner le paiement'
-                            : 'Vérifier le paiement',
-                        style: Theme.of(sheetContext).textTheme.titleLarge
-                            ?.copyWith(
-                              color: IzyTelColors.textPrimary,
-                              fontSize: IzyTelTypeScale.title2,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -.35,
-                            ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        order.reference,
-                        style: Theme.of(sheetContext).textTheme.bodySmall
-                            ?.copyWith(
-                              color: IzyTelColors.textMuted,
-                              fontSize: IzyTelTypeScale.micro,
-                            ),
-                      ),
-                      if (order.hasPaymentToReviewAfterExpiration) ...[
-                        const SizedBox(height: 14),
-                        _PaymentWarning(
-                          icon: Symbols.timer_off_rounded,
-                          title: 'Paiement déclaré après expiration',
-                          message:
-                              'Vérifie attentivement la transaction dans Wave avant toute confirmation.',
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      _PaymentSheetSummary(
-                        order: order,
-                        formattedPhone: _formatIvorianPhone(
-                          order.beneficiaryPhone,
-                        ),
-                      ),
-                      if (_hasDeclaredPaymentDetails(order)) ...[
-                        const SizedBox(height: 14),
-                        Container(
-                          padding: const EdgeInsets.fromLTRB(13, 12, 13, 10),
-                          decoration: BoxDecoration(
-                            color: IzyTelColors.warningSoft,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: IzyTelColors.warning.withAlpha(70),
-                            ),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const Row(
-                                children: [
-                                  Icon(
-                                    Symbols.receipt_long_rounded,
-                                    color: IzyTelColors.warning,
-                                    size: IzyTelIconSize.info,
-                                  ),
-                                  SizedBox(width: 7),
-                                  Text(
-                                    'Déclaration du client',
-                                    style: TextStyle(
-                                      color: IzyTelColors.textPrimary,
-                                      fontSize: IzyTelTypeScale.label,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              if (order.paymentPayerName != null)
-                                _PaymentDeclarationCheckRow(
-                                  label: 'Nom Wave',
-                                  value: order.paymentPayerName!,
-                                ),
-                              if (order.paymentPayerPhone != null)
-                                _PaymentDeclarationCheckRow(
-                                  label: 'Numéro payeur',
-                                  value: _formatIvorianPhone(
-                                    order.paymentPayerPhone!,
-                                  ),
-                                ),
-                              if (order.paymentApproximateTime != null)
-                                _PaymentDeclarationCheckRow(
-                                  label: 'Heure annoncée',
-                                  value: order.paymentApproximateTime!,
-                                ),
-                              if (order.paymentDeclaredReference != null)
-                                _PaymentDeclarationCheckRow(
-                                  label: 'Référence déclarée',
-                                  value: order.paymentDeclaredReference!,
-                                  isLast: true,
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Référence Wave',
-                        style: TextStyle(
-                          color: IzyTelColors.textPrimary,
-                          fontSize: IzyTelTypeScale.label,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 7),
-                      TextField(
-                        controller: referenceController,
-                        textCapitalization: TextCapitalization.characters,
-                        style: const TextStyle(
-                          color: IzyTelColors.textPrimary,
-                          fontSize: IzyTelTypeScale.text,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Facultatif — Ex. W-8942AB',
-                          prefixIcon: const Icon(
-                            Symbols.tag_rounded,
-                            color: IzyTelColors.textSecondary,
-                            size: IzyTelIconSize.info,
-                          ),
-                          filled: true,
-                          fillColor: IzyTelColors.surfaceMuted,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                              IzyTelRadii.input,
-                            ),
-                            borderSide: const BorderSide(
-                              color: IzyTelColors.outline,
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                              IzyTelRadii.input,
-                            ),
-                            borderSide: const BorderSide(
-                              color: IzyTelColors.outline,
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                              IzyTelRadii.input,
-                            ),
-                            borderSide: const BorderSide(
-                              color: IzyTelColors.primary,
-                              width: 1.4,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Si elle est vide, une référence MAN-… sera générée automatiquement.',
-                        style: TextStyle(
-                          color: IzyTelColors.textMuted,
-                          fontSize: IzyTelTypeScale.micro,
-                          height: 1.3,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () {
-                          setSheetState(() {
-                            paymentWasChecked = !paymentWasChecked;
-                          });
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 5),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Checkbox(
-                                value: paymentWasChecked,
-                                onChanged: (bool? value) {
-                                  setSheetState(() {
-                                    paymentWasChecked = value ?? false;
-                                  });
-                                },
-                                activeColor: IzyTelColors.primary,
-                                checkColor: IzyTelColors.surface,
-                                materialTapTargetSize:
-                                    MaterialTapTargetSize.shrinkWrap,
-                                visualDensity: VisualDensity.compact,
-                              ),
-                              const SizedBox(width: 7),
-                              const Flexible(
-                                fit: FlexFit.loose,
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'J’ai vérifié ce paiement dans Wave.',
-                                      style: TextStyle(
-                                        color: IzyTelColors.textPrimary,
-                                        fontSize: IzyTelTypeScale.label,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    SizedBox(height: 2),
-                                    Text(
-                                      'La commande sera envoyée dans la file à traiter après confirmation.',
-                                      style: TextStyle(
-                                        color: IzyTelColors.textSecondary,
-                                        fontSize: IzyTelTypeScale.micro,
-                                        height: 1.3,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      SizedBox(
-                        height: 48,
-                        child: FilledButton.icon(
-                          onPressed: paymentWasChecked
-                              ? () {
-                                  Navigator.of(
-                                    sheetContext,
-                                  ).pop(referenceController.text.trim());
-                                }
-                              : null,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: IzyTelColors.primary,
-                            foregroundColor: IzyTelColors.surface,
-                            disabledBackgroundColor: IzyTelColors.surfaceMuted,
-                            disabledForegroundColor: IzyTelColors.textMuted,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                IzyTelRadii.button,
-                              ),
-                            ),
-                          ),
-                          icon: const Icon(
-                            Symbols.verified_rounded,
-                            size: IzyTelIconSize.info,
-                          ),
-                          label: const Text(
-                            'Confirmer le paiement',
-                            style: TextStyle(
-                              fontSize: IzyTelTypeScale.label,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      TextButton(
-                        onPressed: () => Navigator.of(sheetContext).pop(),
-                        style: TextButton.styleFrom(
-                          foregroundColor: IzyTelColors.textSecondary,
-                        ),
-                        child: const Text('Annuler'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
+        return _PaymentConfirmationSheet(
+          order: order,
+          formattedPhone: _formatIvorianPhone(order.beneficiaryPhone),
+          formatPhone: _formatIvorianPhone,
+          showDeclaredPaymentDetails: _hasDeclaredPaymentDetails(order),
         );
       },
     );
 
-    referenceController.dispose();
     if (paymentReference == null || !mounted) return;
+
+    // Laisse la route du bottom sheet terminer sa désactivation avant de
+    // notifier le ViewModel et de reconstruire la liste des paiements.
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
 
     final bool successful = await _viewModel.confirmPayment(
       order: order,
@@ -569,6 +272,314 @@ class _PaymentsPageState extends State<PaymentsPage> {
           ),
         );
       },
+    );
+  }
+}
+
+class _PaymentConfirmationSheet extends StatefulWidget {
+  const _PaymentConfirmationSheet({
+    required this.order,
+    required this.formattedPhone,
+    required this.formatPhone,
+    required this.showDeclaredPaymentDetails,
+  });
+
+  final QueueOrder order;
+  final String formattedPhone;
+  final String Function(String value) formatPhone;
+  final bool showDeclaredPaymentDetails;
+
+  @override
+  State<_PaymentConfirmationSheet> createState() =>
+      _PaymentConfirmationSheetState();
+}
+
+class _PaymentConfirmationSheetState
+    extends State<_PaymentConfirmationSheet> {
+  final TextEditingController _referenceController = TextEditingController();
+  bool _paymentWasChecked = false;
+
+  @override
+  void dispose() {
+    _referenceController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final QueueOrder order = widget.order;
+    final double keyboardHeight = MediaQuery.viewInsetsOf(context).bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: keyboardHeight),
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * .90,
+        ),
+        decoration: const BoxDecoration(
+          color: IzyTelColors.surface,
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(IzyTelRadii.sheet),
+          ),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Align(
+                alignment: Alignment.center,
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: IzyTelColors.outlineStrong,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                order.hasPaymentToReviewAfterExpiration
+                    ? 'Examiner le paiement'
+                    : 'Vérifier le paiement',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: IzyTelColors.textPrimary,
+                  fontSize: IzyTelTypeScale.title2,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -.35,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                order.reference,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: IzyTelColors.textMuted,
+                  fontSize: IzyTelTypeScale.micro,
+                ),
+              ),
+              if (order.hasPaymentToReviewAfterExpiration) ...<Widget>[
+                const SizedBox(height: 14),
+                const _PaymentWarning(
+                  icon: Symbols.timer_off_rounded,
+                  title: 'Paiement déclaré après expiration',
+                  message:
+                      'Vérifie attentivement la transaction dans Wave avant toute confirmation.',
+                ),
+              ],
+              const SizedBox(height: 16),
+              _PaymentSheetSummary(
+                order: order,
+                formattedPhone: widget.formattedPhone,
+              ),
+              if (widget.showDeclaredPaymentDetails) ...<Widget>[
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(13, 12, 13, 10),
+                  decoration: BoxDecoration(
+                    color: IzyTelColors.warningSoft,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: IzyTelColors.warning.withAlpha(70),
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      const Row(
+                        children: <Widget>[
+                          Icon(
+                            Symbols.receipt_long_rounded,
+                            color: IzyTelColors.warning,
+                            size: IzyTelIconSize.info,
+                          ),
+                          SizedBox(width: 7),
+                          Text(
+                            'Déclaration du client',
+                            style: TextStyle(
+                              color: IzyTelColors.textPrimary,
+                              fontSize: IzyTelTypeScale.label,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (order.paymentPayerName != null)
+                        _PaymentDeclarationCheckRow(
+                          label: 'Nom Wave',
+                          value: order.paymentPayerName!,
+                        ),
+                      if (order.paymentPayerPhone != null)
+                        _PaymentDeclarationCheckRow(
+                          label: 'Numéro payeur',
+                          value: widget.formatPhone(order.paymentPayerPhone!),
+                        ),
+                      if (order.paymentApproximateTime != null)
+                        _PaymentDeclarationCheckRow(
+                          label: 'Heure annoncée',
+                          value: order.paymentApproximateTime!,
+                        ),
+                      if (order.paymentDeclaredReference != null)
+                        _PaymentDeclarationCheckRow(
+                          label: 'Référence déclarée',
+                          value: order.paymentDeclaredReference!,
+                          isLast: true,
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              const Text(
+                'Référence Wave',
+                style: TextStyle(
+                  color: IzyTelColors.textPrimary,
+                  fontSize: IzyTelTypeScale.label,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 7),
+              TextField(
+                controller: _referenceController,
+                textCapitalization: TextCapitalization.characters,
+                style: const TextStyle(
+                  color: IzyTelColors.textPrimary,
+                  fontSize: IzyTelTypeScale.text,
+                  fontWeight: FontWeight.w500,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Facultatif — Ex. W-8942AB',
+                  prefixIcon: const Icon(
+                    Symbols.tag_rounded,
+                    color: IzyTelColors.textSecondary,
+                    size: IzyTelIconSize.info,
+                  ),
+                  filled: true,
+                  fillColor: IzyTelColors.surfaceMuted,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(IzyTelRadii.input),
+                    borderSide: const BorderSide(color: IzyTelColors.outline),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(IzyTelRadii.input),
+                    borderSide: const BorderSide(color: IzyTelColors.outline),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(IzyTelRadii.input),
+                    borderSide: const BorderSide(
+                      color: IzyTelColors.primary,
+                      width: 1.4,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Si elle est vide, une référence MAN-… sera générée automatiquement.',
+                style: TextStyle(
+                  color: IzyTelColors.textMuted,
+                  fontSize: IzyTelTypeScale.micro,
+                  height: 1.3,
+                ),
+              ),
+              const SizedBox(height: 12),
+              InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  setState(() => _paymentWasChecked = !_paymentWasChecked);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Checkbox(
+                        value: _paymentWasChecked,
+                        onChanged: (bool? value) {
+                          setState(() => _paymentWasChecked = value ?? false);
+                        },
+                        activeColor: IzyTelColors.primary,
+                        checkColor: IzyTelColors.surface,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      const SizedBox(width: 7),
+                      const Flexible(
+                        fit: FlexFit.loose,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              'J’ai vérifié ce paiement dans Wave.',
+                              style: TextStyle(
+                                color: IzyTelColors.textPrimary,
+                                fontSize: IzyTelTypeScale.label,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'La commande sera envoyée dans la file à traiter après confirmation.',
+                              style: TextStyle(
+                                color: IzyTelColors.textSecondary,
+                                fontSize: IzyTelTypeScale.micro,
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 48,
+                child: FilledButton.icon(
+                  onPressed: _paymentWasChecked
+                      ? () => Navigator.of(context).pop(
+                          _referenceController.text.trim(),
+                        )
+                      : null,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: IzyTelColors.primary,
+                    foregroundColor: IzyTelColors.surface,
+                    disabledBackgroundColor: IzyTelColors.surfaceMuted,
+                    disabledForegroundColor: IzyTelColors.textMuted,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(IzyTelRadii.button),
+                    ),
+                  ),
+                  icon: const Icon(
+                    Symbols.verified_rounded,
+                    size: IzyTelIconSize.info,
+                  ),
+                  label: const Text(
+                    'Confirmer le paiement',
+                    style: TextStyle(
+                      fontSize: IzyTelTypeScale.label,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 5),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: TextButton.styleFrom(
+                  foregroundColor: IzyTelColors.textSecondary,
+                ),
+                child: const Text('Annuler'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

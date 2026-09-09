@@ -9,7 +9,7 @@ import 'package:cabine_flow/features/agents/domain/repositories/agent_repository
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
-import 'package:cabine_flow/features/orders/presentation/pages/agent_order_detail_view.dart';
+import 'package:cabine_flow/features/orders/presentation/pages/agent_order_detail_route_page.dart';
 import 'package:cabine_flow/features/orders/presentation/view_models/agent_orders_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
@@ -47,7 +47,7 @@ class AgentOrdersPage extends StatefulWidget {
 class _AgentOrdersPageState extends State<AgentOrdersPage> {
   Timer? _clockTimer;
   late final AgentOrdersViewModel _viewModel;
-  String? _openedOrderId;
+  String? _openDetailRouteOrderId;
 
   @override
   void initState() {
@@ -135,9 +135,7 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
       _viewModel.selectTab(AgentOrdersTab.inProgress);
     }
 
-    if (_openedOrderId != resolvedOrder.id) {
-      setState(() => _openedOrderId = resolvedOrder.id);
-    }
+    unawaited(_openOrder(resolvedOrder));
   }
 
   Future<void> _accept(QueueOrder order) async {
@@ -156,14 +154,12 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
     }
     if (!mounted) return;
 
-    setState(() {
-      _openedOrderId = order.id;
-    });
     _showMessage(
       started
           ? 'Commande ${order.reference} acceptée. Traitement démarré.'
           : 'Commande ${order.reference} acceptée. Ouvre le détail pour démarrer le traitement.',
     );
+    unawaited(_openOrder(acceptedOrder ?? order));
   }
 
   Future<void> _refuse(QueueOrder order) async {
@@ -187,17 +183,25 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
     );
   }
 
-  void _openOrder(QueueOrder order) {
-    setState(() {
-      _openedOrderId = order.id;
-    });
-  }
-
-  void _closeOrderDetail() {
-    if (_openedOrderId == null) return;
-    setState(() {
-      _openedOrderId = null;
-    });
+  Future<void> _openOrder(QueueOrder order) async {
+    if (_openDetailRouteOrderId == order.id) return;
+    _openDetailRouteOrderId = order.id;
+    try {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          settings: RouteSettings(name: 'agent-order-detail/${order.id}'),
+          builder: (_) => AgentOrderDetailRoutePage(
+            user: widget.user,
+            initialOrder: order,
+            viewModel: _viewModel,
+          ),
+        ),
+      );
+    } finally {
+      if (_openDetailRouteOrderId == order.id) {
+        _openDetailRouteOrderId = null;
+      }
+    }
   }
 
   void _showMessage(String message) {
@@ -305,35 +309,13 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: _openedOrderId == null,
-      onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (!didPop && _openedOrderId != null) {
-          _closeOrderDetail();
-        }
-      },
-      child: Scaffold(
-        backgroundColor: IzyTelColors.background,
-        body: SafeArea(
-          bottom: false,
-          child: ListenableBuilder(
-            listenable: _viewModel,
-            builder: (_, _) {
-              final String? openedOrderId = _openedOrderId;
-              if (openedOrderId != null) {
-                final QueueOrder? openedOrder = _viewModel.orderById(
-                  openedOrderId,
-                );
-                if (openedOrder != null) {
-                  return AgentOrderDetailView(
-                    user: widget.user,
-                    order: openedOrder,
-                    viewModel: _viewModel,
-                    onBack: _closeOrderDetail,
-                  );
-                }
-              }
-
+    return Scaffold(
+      backgroundColor: IzyTelColors.background,
+      body: SafeArea(
+        bottom: false,
+        child: ListenableBuilder(
+          listenable: _viewModel,
+          builder: (_, _) {
               final List<QueueOrder> queue = _viewModel.visibleOrders;
               final AgentOrdersTab selectedTab = _viewModel.selectedTab;
 
@@ -424,7 +406,6 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
                 ),
               );
             },
-          ),
         ),
       ),
     );

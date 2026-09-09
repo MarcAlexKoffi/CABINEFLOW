@@ -73,17 +73,13 @@ class FirebaseAuthRepository implements AuthRepository {
         );
       }
 
-      await currentUser.reload();
-
-      final User? refreshedUser = _firebaseAuth.currentUser;
-      if (refreshedUser == null) {
-        return const AuthLoginResult.unavailable(
-          message: 'La session a expiré. Reconnecte-toi.',
-        );
-      }
-
+      // Ne force pas `reload()` au démarrage : Firebase Auth restaure déjà la
+      // session locale. Un reload réseau imposé pouvait renvoyer l'utilisateur
+      // à l'écran de connexion après un simple redémarrage ou une coupure.
+      // La lecture du profil Firestore reste la validation des droits et peut
+      // profiter du cache local lorsque le réseau est momentanément absent.
       return _resolveAccess(
-        firebaseUser: refreshedUser,
+        firebaseUser: currentUser,
         createPendingProfileWhenMissing: true,
       );
     } on FirebaseAuthException catch (error) {

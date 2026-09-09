@@ -8,6 +8,7 @@ import 'package:cabine_flow/features/auth/presentation/view_models/login_view_mo
 import 'package:cabine_flow/shared/widgets/izytel/izytel_brand.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 class LoginPage extends StatefulWidget {
@@ -99,6 +100,10 @@ class _LoginPageState extends State<LoginPage> {
 
     if (result.isAuthenticated && result.user != null) {
       await _persistRememberedPreference();
+      // Ferme explicitement le contexte Autofill Android afin que Samsung Pass
+      // (ou le gestionnaire de mots de passe choisi) puisse proposer
+      // d'enregistrer les identifiants après une connexion réussie.
+      TextInput.finishAutofillContext(shouldSave: true);
       if (!mounted) return;
       Navigator.of(
         context,
@@ -242,8 +247,9 @@ class _LoginPageState extends State<LoginPage> {
                                       ),
                                       const SizedBox(height: 8),
                                     ],
-                                    Form(
-                                      key: _formKey,
+                                    AutofillGroup(
+                                      child: Form(
+                                        key: _formKey,
                                       autovalidateMode:
                                           AutovalidateMode.onUnfocus,
                                       child: Column(
@@ -260,6 +266,7 @@ class _LoginPageState extends State<LoginPage> {
                                             textInputAction:
                                                 TextInputAction.next,
                                             autofillHints: const [
+                                              AutofillHints.username,
                                               AutofillHints.email,
                                             ],
                                             style: Theme.of(context)
@@ -385,7 +392,7 @@ class _LoginPageState extends State<LoginPage> {
                                                         alignment: Alignment
                                                             .centerLeft,
                                                         child: Text(
-                                                          'Se souvenir de moi',
+                                                          'Mémoriser mon e-mail',
                                                           maxLines: 1,
                                                           softWrap: false,
                                                           style: TextStyle(
@@ -467,6 +474,7 @@ class _LoginPageState extends State<LoginPage> {
                                           ),
                                         ],
                                       ),
+                                    ),
                                     ),
                                     const SizedBox(height: 10),
                                     const _OrDivider(),

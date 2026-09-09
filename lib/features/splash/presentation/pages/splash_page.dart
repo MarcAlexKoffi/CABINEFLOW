@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:cabine_flow/app/app_routes.dart';
-import 'package:cabine_flow/core/services/session_preferences.dart';
 import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:flutter/material.dart';
@@ -50,34 +49,23 @@ class _SplashPageState extends State<SplashPage>
     final Future<void> minimumDisplay = Future<void>.delayed(
       const Duration(milliseconds: 1850),
     );
-    final RememberedSessionPreference preference =
-        await SessionPreferences.load();
-
-    AuthLoginResult? access;
-    if (preference.rememberMe) {
-      access = await widget.authRepository.refreshCurrentAccess();
-    } else {
-      // Firebase Auth conserve nativement une session entre deux lancements.
-      // Si l'utilisateur n'a pas demandé à être mémorisé, on la ferme au
-      // prochain démarrage afin que la case ait un comportement réel.
-      try {
-        await widget.authRepository.logout();
-      } catch (_) {
-        // Une déconnexion réseau ne doit pas bloquer l'écran de connexion.
-      }
-    }
+    // Sur mobile, une session Firebase authentifiée reste valide jusqu'à une
+    // déconnexion explicite. Le choix « mémoriser mon e-mail » ne doit jamais
+    // déconnecter silencieusement l'utilisateur au prochain lancement.
+    final AuthLoginResult access =
+        await widget.authRepository.refreshCurrentAccess();
 
     await minimumDisplay;
     if (!mounted) return;
 
-    if (preference.rememberMe && access?.isAuthenticated == true) {
+    if (access.isAuthenticated) {
       Navigator.of(
         context,
-      ).pushReplacementNamed(AppRoutes.dashboard, arguments: access!.user);
+      ).pushReplacementNamed(AppRoutes.dashboard, arguments: access.user);
       return;
     }
 
-    if (preference.rememberMe && access?.requiresAccessScreen == true) {
+    if (access.requiresAccessScreen) {
       Navigator.of(
         context,
       ).pushReplacementNamed(AppRoutes.pendingAccount, arguments: access);

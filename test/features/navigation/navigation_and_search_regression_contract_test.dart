@@ -3,19 +3,33 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('retour depuis une commande conserve sa page d’origine', () {
+  test('order navigation preserves the exact previous route', () {
     final String adminOrders = File(
       'lib/features/orders/presentation/pages/orders_page.dart',
+    ).readAsStringSync();
+    final String staffNavigation = File(
+      'lib/features/orders/presentation/navigation/staff_order_navigation.dart',
+    ).readAsStringSync();
+    final String agentOrders = File(
+      'lib/features/orders/presentation/pages/agent_orders_page.dart',
     ).readAsStringSync();
     final String agentHistory = File(
       'lib/features/orders/presentation/pages/agent_history_page.dart',
     ).readAsStringSync();
 
-    expect(adminOrders, contains('enum _OrderDetailOrigin { queue, history }'));
-    expect(adminOrders, contains('origin: _OrderDetailOrigin.queue'));
-    expect(adminOrders, contains('_showHistory = returnToHistory'));
-    expect(agentHistory, contains('canPop: _openedOrderId == null'));
-    expect(agentHistory, contains('_closeOpenedOrder()'));
+    expect(adminOrders, contains('StaffOrderNavigation.openHistory'));
+    expect(adminOrders, contains('StaffOrderNavigation.openOrderDetail'));
+    expect(adminOrders, isNot(contains('bool _showHistory')));
+    expect(adminOrders, isNot(contains('_detailOrder')));
+
+    expect(staffNavigation, contains('context: detailContext'));
+    expect(staffNavigation, contains('context: historyContext'));
+    expect(staffNavigation, contains('staff-customer-order-history'));
+
+    expect(agentOrders, contains('AgentOrderDetailRoutePage'));
+    expect(agentHistory, contains('AgentOrderDetailRoutePage'));
+    expect(agentOrders, isNot(contains('_openedOrderId')));
+    expect(agentHistory, isNot(contains('_openedOrderId')));
   });
 
   test('les recherches ne recréent pas leur stream à chaque caractère', () {

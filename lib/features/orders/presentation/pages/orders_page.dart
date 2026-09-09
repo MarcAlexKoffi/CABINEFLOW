@@ -11,20 +11,13 @@ import 'package:cabine_flow/features/orders/domain/repositories/order_history_re
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/orders/presentation/view_models/orders_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/orders_widgets.dart';
-import 'package:cabine_flow/features/support/data/repositories/fake_support_request_repository.dart';
-import 'package:cabine_flow/features/support/data/repositories/firestore_support_request_repository.dart';
-import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/agent_assignment_page.dart';
-import 'package:cabine_flow/features/orders/presentation/pages/order_detail_page.dart';
-import 'package:cabine_flow/features/orders/presentation/pages/order_history_page.dart';
+import 'package:cabine_flow/features/orders/presentation/navigation/staff_order_navigation.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/order_processing_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/customer_confirmation_page.dart';
-
-enum _OrderDetailOrigin { queue, history }
 
 class OrdersPage extends StatefulWidget {
   const OrdersPage({
@@ -48,14 +41,6 @@ class _OrdersPageState extends State<OrdersPage> {
   Timer? _clockTimer;
   late final OrdersViewModel _viewModel;
   int _activeTabIndex = 0;
-  bool _showHistory = false;
-  bool _openHistoryFiltersOnStart = false;
-  int _historyVersion = 0;
-  String _historyInitialSearchQuery = '';
-  OrderHistoryFilters _historyInitialFilters = const OrderHistoryFilters();
-  QueueOrder? _detailOrder;
-  _OrderDetailOrigin _detailOrigin = _OrderDetailOrigin.queue;
-  late final SupportRequestRepository _supportRequestRepository;
 
   Future<void> _markTransactionSuccessful() async {
     final bool isSuccessful = await _viewModel.markActiveOrderSuccessful();
@@ -166,10 +151,6 @@ class _OrdersPageState extends State<OrdersPage> {
       ordersRepository: widget.ordersRepository,
       orderHistoryRepository: _historyRepository,
     );
-    _supportRequestRepository = Firebase.apps.isNotEmpty
-        ? FirestoreSupportRequestRepository()
-        : FakeSupportRequestRepository();
-
     _viewModel.startRealtime();
   }
 
@@ -196,82 +177,51 @@ class _OrdersPageState extends State<OrdersPage> {
     );
   }
 
-  void _openHistory({
+  Future<void> _openHistory({
     String initialSearchQuery = '',
     OrderHistoryFilters initialFilters = const OrderHistoryFilters(),
     bool openFiltersOnStart = false,
-  }) {
-    if (_historyRepository == null) {
+  }) async {
+    final OrderHistoryRepository? repository = _historyRepository;
+    if (repository == null) {
       _showHistoryUnavailable();
       return;
     }
 
-    setState(() {
-      _showHistory = true;
-      _detailOrder = null;
-      _historyInitialSearchQuery = initialSearchQuery;
-      _historyInitialFilters = initialFilters;
-      _openHistoryFiltersOnStart = openFiltersOnStart;
-      _historyVersion++;
-    });
+    await StaffOrderNavigation.openHistory(
+      context: context,
+      user: widget.user,
+      repository: repository,
+      initialSearchQuery: initialSearchQuery,
+      initialFilters: initialFilters,
+      openFiltersOnStart: openFiltersOnStart,
+    );
+
+    if (!mounted) return;
+    setState(() => _activeTabIndex = 0);
+    await _viewModel.loadQueue();
   }
 
-  void _closeHistory() {
-    setState(() {
-      _showHistory = false;
-      _detailOrder = null;
-      _activeTabIndex = 0;
-    });
-
-    _viewModel.loadQueue();
-  }
-
-  void _openOrderDetail(
-    QueueOrder order,
-    String searchQuery,
-    OrderHistoryFilters filters, {
-    _OrderDetailOrigin origin = _OrderDetailOrigin.history,
-  }) {
-    if (_historyRepository == null) {
+  Future<void> _openOrderDetail(QueueOrder order) async {
+    final OrderHistoryRepository? repository = _historyRepository;
+    if (repository == null) {
       _showHistoryUnavailable();
       return;
     }
 
-    setState(() {
-      _historyInitialSearchQuery = searchQuery;
-      _historyInitialFilters = filters;
-      _openHistoryFiltersOnStart = false;
-      _detailOrder = order;
-      _detailOrigin = origin;
-      _showHistory = false;
-    });
-  }
+    await StaffOrderNavigation.openOrderDetail(
+      context: context,
+      user: widget.user,
+      repository: repository,
+      order: order,
+    );
 
-  void _closeOrderDetail() {
-    final bool returnToHistory = _detailOrigin == _OrderDetailOrigin.history;
-    setState(() {
-      _detailOrder = null;
-      _showHistory = returnToHistory;
-      if (returnToHistory) {
-        _historyVersion++;
-      } else {
-        _activeTabIndex = 0;
-      }
-    });
-    if (!returnToHistory) {
-      _viewModel.loadQueue();
-    }
-  }
-
-  void _openCustomerHistory(String whatsappPhone) {
-    _openHistory(initialSearchQuery: whatsappPhone);
+    if (mounted) await _viewModel.loadQueue();
   }
 
   void _handleOrdersTabChanged(int index) {
     if (index == 0) {
-      setState(() {
-        _activeTabIndex = 0;
-      });
+      if (_activeTabIndex != 0) setState(() => _activeTabIndex = 0);
       return;
     }
 
@@ -279,13 +229,11 @@ class _OrdersPageState extends State<OrdersPage> {
         ? OrderHistoryStateFilter.active
         : OrderHistoryStateFilter.completed;
 
-    setState(() {
-      _activeTabIndex = index;
-    });
-
-    _openHistory(
-      initialFilters: OrderHistoryFilters(
-        states: <OrderHistoryStateFilter>{state},
+    unawaited(
+      _openHistory(
+        initialFilters: OrderHistoryFilters(
+          states: <OrderHistoryStateFilter>{state},
+        ),
       ),
     );
   }
@@ -397,45 +345,6 @@ class _OrdersPageState extends State<OrdersPage> {
 
   @override
   Widget build(BuildContext context) {
-    final QueueOrder? detailOrder = _detailOrder;
-    final OrderHistoryRepository? historyRepository = _historyRepository;
-
-    if (detailOrder != null && historyRepository != null) {
-      return PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (bool didPop, Object? result) {
-          if (!didPop) _closeOrderDetail();
-        },
-        child: OrderDetailPage(
-          user: widget.user,
-          initialOrder: detailOrder,
-          ordersRepository: historyRepository,
-          onBack: _closeOrderDetail,
-          onOpenCustomerHistory: _openCustomerHistory,
-          supportRequestRepository: _supportRequestRepository,
-        ),
-      );
-    }
-
-    if (_showHistory && historyRepository != null) {
-      return PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (bool didPop, Object? result) {
-          if (!didPop) _closeHistory();
-        },
-        child: OrderHistoryPage(
-          key: ValueKey<int>(_historyVersion),
-          user: widget.user,
-          ordersRepository: historyRepository,
-          onBack: _closeHistory,
-          onOpenOrder: _openOrderDetail,
-          initialSearchQuery: _historyInitialSearchQuery,
-          initialFilters: _historyInitialFilters,
-          openFiltersOnStart: _openHistoryFiltersOnStart,
-        ),
-      );
-    }
-
     return ListenableBuilder(
       listenable: _viewModel,
       builder: (BuildContext context, Widget? child) {
@@ -475,10 +384,10 @@ class _OrdersPageState extends State<OrdersPage> {
                 child: OrdersTopBar(
                   user: widget.user,
                   onSearchPressed: () {
-                    _openHistory();
+                    unawaited(_openHistory());
                   },
                   onFiltersPressed: () {
-                    _openHistory(openFiltersOnStart: true);
+                    unawaited(_openHistory(openFiltersOnStart: true));
                   },
                   onNotificationsPressed: () {
                     IzyTelFeedback.show(
@@ -533,7 +442,9 @@ class _OrdersPageState extends State<OrdersPage> {
                                 }),
                                 OutlinedButton.icon(
                                   onPressed: () {
-                                    _openHistory(openFiltersOnStart: true);
+                                    unawaited(
+                                      _openHistory(openFiltersOnStart: true),
+                                    );
                                   },
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: IzyTelColors.textPrimary,
@@ -643,12 +554,7 @@ class _OrdersPageState extends State<OrdersPage> {
                               onTakeCharge: () {
                                 if (order.isAssignedToAgent) {
                                   if (_historyRepository != null) {
-                                    _openOrderDetail(
-                                      order,
-                                      '',
-                                      const OrderHistoryFilters(),
-                                      origin: _OrderDetailOrigin.queue,
-                                    );
+                                    unawaited(_openOrderDetail(order));
                                   } else {
                                     IzyTelFeedback.show(
                                       context,
