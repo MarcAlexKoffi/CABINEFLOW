@@ -1,4 +1,4 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
@@ -223,7 +223,7 @@ class _CustomerConfirmationPageState extends State<CustomerConfirmationPage> {
         }
       },
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: IzyTelColors.background,
         body: SafeArea(
           child: Column(
             children: [
@@ -245,7 +245,7 @@ class _CustomerConfirmationPageState extends State<CustomerConfirmationPage> {
                       Text(
                         'APERÇU DU MESSAGE',
                         style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: AppColors.outline,
+                          color: IzyTelColors.textMuted,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -288,7 +288,7 @@ class _CustomerConfirmationPageState extends State<CustomerConfirmationPage> {
                                 height: 19,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: AppColors.onPrimary,
+                                  color: Colors.white,
                                 ),
                               )
                             : const Icon(Icons.send_rounded),
@@ -305,7 +305,7 @@ class _CustomerConfirmationPageState extends State<CustomerConfirmationPage> {
                             : _confirmFinishWithoutSending,
                         child: const Text(
                           'Terminer sans envoyer',
-                          style: TextStyle(color: AppColors.outline),
+                          style: TextStyle(color: IzyTelColors.textMuted),
                         ),
                       ),
                     ],
@@ -328,7 +328,7 @@ class _ConfirmationTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.background,
+      color: IzyTelColors.background,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       child: Row(
         children: [
@@ -337,15 +337,15 @@ class _ConfirmationTopBar extends StatelessWidget {
             onPressed: onBackPressed,
             icon: const Icon(
               Icons.arrow_back_rounded,
-              color: AppColors.primary,
+              color: IzyTelColors.primary,
             ),
           ),
           Expanded(
             child: Text(
-              'Confirmation Client',
+              'Confirmation client',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: AppColors.primary,
+                color: IzyTelColors.textPrimary,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -365,9 +365,9 @@ class _SuccessBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 26),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
+        color: IzyTelColors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outlineVariant.withAlpha(50)),
+        border: Border.all(color: IzyTelColors.outline),
       ),
       child: Column(
         children: [
@@ -381,12 +381,12 @@ class _SuccessBanner extends StatelessWidget {
             child: const Icon(
               Icons.check_circle_rounded,
               size: 34,
-              color: AppColors.success,
+              color: IzyTelColors.success,
             ),
           ),
           const SizedBox(height: 18),
           Text(
-            'Transaction Réussie',
+            'Transaction réussie',
             style: Theme.of(context).textTheme.headlineMedium,
           ),
           const SizedBox(height: 5),
@@ -395,7 +395,7 @@ class _SuccessBanner extends StatelessWidget {
             textAlign: TextAlign.center,
             style: Theme.of(
               context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.outline),
+            ).textTheme.bodyMedium?.copyWith(color: IzyTelColors.textMuted),
           ),
         ],
       ),
@@ -418,15 +418,15 @@ class _OrderSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
+        color: IzyTelColors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outlineVariant.withAlpha(100)),
+        border: Border.all(color: IzyTelColors.outline),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
           Container(
-            color: AppColors.surfaceContainerHighest,
+            color: IzyTelColors.surfaceMuted,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               children: [
@@ -434,7 +434,7 @@ class _OrderSummaryCard extends StatelessWidget {
                   child: Text(
                     'RÉFÉRENCE',
                     style: TextStyle(
-                      color: AppColors.outline,
+                      color: IzyTelColors.textMuted,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
@@ -443,7 +443,7 @@ class _OrderSummaryCard extends StatelessWidget {
                 Text(
                   '#${order.reference}',
                   style: const TextStyle(
-                    color: AppColors.onSurface,
+                    color: IzyTelColors.textPrimary,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -479,7 +479,7 @@ class _OrderSummaryCard extends StatelessWidget {
                       Text(
                         networkLabel,
                         style: const TextStyle(
-                          color: AppColors.onSurface,
+                          color: IzyTelColors.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -533,13 +533,13 @@ class _SummaryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: AppColors.onSurfaceVariant),
+        Icon(icon, size: 18, color: IzyTelColors.textSecondary),
         const SizedBox(width: 9),
         Expanded(
           child: Text(
             label,
             style: const TextStyle(
-              color: AppColors.onSurfaceVariant,
+              color: IzyTelColors.textSecondary,
               fontSize: 13,
             ),
           ),
@@ -554,8 +554,8 @@ class _SummaryRow extends StatelessWidget {
                 textAlign: TextAlign.right,
                 style: TextStyle(
                   color: emphasizeValue
-                      ? AppColors.primary
-                      : AppColors.onSurface,
+                      ? IzyTelColors.primary
+                      : IzyTelColors.textPrimary,
                   fontSize: emphasizeValue ? 18 : 13,
                   fontWeight: FontWeight.w700,
                 ),
@@ -569,7 +569,7 @@ class _SummaryRow extends StatelessWidget {
 class _SummaryDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Divider(height: 25, color: AppColors.surfaceContainerHighest);
+    return Divider(height: 25, color: IzyTelColors.surfaceMuted);
   }
 }
 
@@ -584,14 +584,14 @@ class _MessagePreview extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
+        color: IzyTelColors.surface,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.outlineVariant),
+        border: Border.all(color: IzyTelColors.outline),
       ),
       child: SelectableText(
         message,
         style: const TextStyle(
-          color: AppColors.onSurface,
+          color: IzyTelColors.textPrimary,
           height: 1.55,
           fontSize: 13,
         ),

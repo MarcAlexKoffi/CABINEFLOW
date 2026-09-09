@@ -234,6 +234,77 @@ class AppTheme {
         titleTextStyle: typography.titleLarge,
         contentTextStyle: typography.bodyMedium,
       ),
+      textSelectionTheme: const TextSelectionThemeData(
+        cursorColor: IzyTelColors.primary,
+        selectionColor: IzyTelColors.primarySoft,
+        selectionHandleColor: IzyTelColors.primary,
+      ),
+      checkboxTheme: CheckboxThemeData(
+        visualDensity: VisualDensity.compact,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+        side: const BorderSide(color: IzyTelColors.outlineStrong, width: 1.4),
+        fillColor: WidgetStateProperty.resolveWith<Color?>((Set<WidgetState> states) {
+          if (states.contains(WidgetState.selected)) return IzyTelColors.primary;
+          return IzyTelColors.surface;
+        }),
+        checkColor: const WidgetStatePropertyAll<Color>(Colors.white),
+      ),
+      radioTheme: const RadioThemeData(
+        fillColor: WidgetStatePropertyAll<Color>(IzyTelColors.primary),
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith<Color?>((Set<WidgetState> states) {
+          return states.contains(WidgetState.selected) ? Colors.white : IzyTelColors.textMuted;
+        }),
+        trackColor: WidgetStateProperty.resolveWith<Color?>((Set<WidgetState> states) {
+          return states.contains(WidgetState.selected)
+              ? IzyTelColors.primary
+              : IzyTelColors.outlineStrong;
+        }),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: IzyTelColors.surface,
+        selectedColor: IzyTelColors.primarySoft,
+        disabledColor: IzyTelColors.surfaceMuted,
+        side: const BorderSide(color: IzyTelColors.outline),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        labelStyle: typography.labelMedium,
+        secondaryLabelStyle: typography.labelMedium?.copyWith(
+          color: IzyTelColors.primaryStrong,
+          fontWeight: FontWeight.w700,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      ),
+      listTileTheme: ListTileThemeData(
+        iconColor: IzyTelColors.textSecondary,
+        textColor: IzyTelColors.textPrimary,
+        titleTextStyle: typography.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+        subtitleTextStyle: typography.bodySmall,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: IzyTelColors.textPrimary,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        textStyle: typography.labelSmall?.copyWith(color: Colors.white),
+        waitDuration: const Duration(milliseconds: 450),
+      ),
+      scrollbarTheme: ScrollbarThemeData(
+        thickness: const WidgetStatePropertyAll<double>(3),
+        radius: const Radius.circular(999),
+        thumbColor: WidgetStateProperty.all<Color>(IzyTelColors.outlineStrong),
+      ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: <TargetPlatform, PageTransitionsBuilder>{
+          TargetPlatform.android: _IzyTelPageTransitionsBuilder(),
+          TargetPlatform.iOS: _IzyTelPageTransitionsBuilder(),
+          TargetPlatform.macOS: _IzyTelPageTransitionsBuilder(),
+          TargetPlatform.windows: _IzyTelPageTransitionsBuilder(),
+          TargetPlatform.linux: _IzyTelPageTransitionsBuilder(),
+        },
+      ),
     );
   }
 
@@ -258,6 +329,40 @@ class AppTheme {
       brightness: Brightness.dark,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.background,
+    );
+  }
+}
+
+class _IzyTelPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _IzyTelPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    if (route.isFirst) return child;
+
+    final Animation<double> curved = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    final Animation<Offset> position = Tween<Offset>(
+      begin: const Offset(0.018, 0),
+      end: Offset.zero,
+    ).animate(curved);
+    final Animation<double> opacity = Tween<double>(
+      begin: 0.94,
+      end: 1,
+    ).animate(curved);
+
+    return FadeTransition(
+      opacity: opacity,
+      child: SlideTransition(position: position, child: child),
     );
   }
 }

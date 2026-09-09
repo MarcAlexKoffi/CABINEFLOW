@@ -1,4 +1,4 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/create_order_request.dart';
 import 'package:cabine_flow/features/orders/domain/models/offer_catalog_item.dart';
@@ -191,7 +191,7 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
   }) {
     final OutlineInputBorder border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(10),
-      borderSide: BorderSide(color: AppColors.outlineVariant.withAlpha(50)),
+      borderSide: BorderSide(color: IzyTelColors.outline),
     );
 
     return InputDecoration(
@@ -207,7 +207,7 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
                   suffixText,
                   maxLines: 1,
                   style: const TextStyle(
-                    color: AppColors.onSurfaceVariant,
+                    color: IzyTelColors.textSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
@@ -218,18 +218,18 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
           ? null
           : const BoxConstraints(minWidth: 72, minHeight: 46),
       filled: true,
-      fillColor: AppColors.surfaceContainer,
+      fillColor: IzyTelColors.surface,
       contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 13),
       border: border,
       enabledBorder: border,
       focusedBorder: border.copyWith(
-        borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
+        borderSide: const BorderSide(color: IzyTelColors.primary, width: 1.4),
       ),
       errorBorder: border.copyWith(
-        borderSide: const BorderSide(color: AppColors.error),
+        borderSide: const BorderSide(color: IzyTelColors.error),
       ),
       focusedErrorBorder: border.copyWith(
-        borderSide: const BorderSide(color: AppColors.error, width: 1.4),
+        borderSide: const BorderSide(color: IzyTelColors.error, width: 1.4),
       ),
     );
   }
@@ -240,7 +240,7 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
       listenable: _viewModel,
       builder: (BuildContext context, Widget? child) {
         return Scaffold(
-          backgroundColor: AppColors.background,
+          backgroundColor: IzyTelColors.background,
           body: SafeArea(
             child: Column(
               children: [
@@ -252,7 +252,7 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
                 ),
                 Divider(
                   height: 1,
-                  color: AppColors.outlineVariant.withAlpha(70),
+                  color: IzyTelColors.outline,
                 ),
                 Expanded(
                   child: Form(
@@ -343,7 +343,7 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
                             DropdownButtonFormField<OrderOperationType>(
                               initialValue: _viewModel.selectedOperationType,
                               isExpanded: true,
-                              dropdownColor: AppColors.surfaceContainer,
+                              dropdownColor: IzyTelColors.surface,
                               decoration: _inputDecoration(
                                 hintText: 'Sélectionner...',
                               ),
@@ -369,7 +369,7 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
                             DropdownButtonFormField<String>(
                               initialValue: _viewModel.selectedOfferId,
                               isExpanded: true,
-                              dropdownColor: AppColors.surfaceContainer,
+                              dropdownColor: IzyTelColors.surface,
                               decoration: _inputDecoration(
                                 hintText: _viewModel.isLoadingOffers
                                     ? 'Chargement...'
@@ -482,12 +482,12 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: AppColors.errorContainer.withAlpha(60),
+                              color: IzyTelColors.errorSoft,
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
                               _viewModel.errorMessage!,
-                              style: const TextStyle(color: AppColors.error),
+                              style: const TextStyle(color: IzyTelColors.error),
                             ),
                           ),
                         ],
@@ -569,7 +569,7 @@ class _CreateOrderTopBar extends StatelessWidget {
             onPressed: onBackPressed,
             icon: const Icon(
               Icons.arrow_back_rounded,
-              color: AppColors.primary,
+              color: IzyTelColors.primary,
             ),
           ),
           Expanded(
@@ -577,7 +577,7 @@ class _CreateOrderTopBar extends StatelessWidget {
               'Nouvelle commande',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: AppColors.primary,
+                color: IzyTelColors.textPrimary,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -586,15 +586,15 @@ class _CreateOrderTopBar extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: AppColors.primary.withAlpha(40),
+              color: IzyTelColors.primarySoft,
               shape: BoxShape.circle,
-              border: Border.all(color: AppColors.primary, width: 1.5),
+              border: Border.all(color: IzyTelColors.primary, width: 1.5),
             ),
             child: Center(
               child: Text(
                 initial,
                 style: const TextStyle(
-                  color: AppColors.primary,
+                  color: IzyTelColors.primary,
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                 ),
@@ -619,9 +619,9 @@ class _FormSection extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLow,
+        color: IzyTelColors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outlineVariant.withAlpha(50)),
+        border: Border.all(color: IzyTelColors.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -629,7 +629,7 @@ class _FormSection extends StatelessWidget {
           Text(
             title.toUpperCase(),
             style: const TextStyle(
-              color: AppColors.primary,
+              color: IzyTelColors.primary,
               fontSize: 11,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.7,
@@ -655,7 +655,7 @@ class _FormLabel extends StatelessWidget {
       child: Text(
         text,
         style: const TextStyle(
-          color: AppColors.onSurfaceVariant,
+          color: IzyTelColors.textSecondary,
           fontSize: 13,
           fontWeight: FontWeight.w500,
         ),
@@ -691,14 +691,18 @@ class _NetworkButton extends StatelessWidget {
   Color get color {
     switch (network) {
       case MobileNetwork.orange:
-        return AppColors.orange;
+        return IzyTelColors.orange;
 
       case MobileNetwork.mtn:
-        return AppColors.mtn;
+        return IzyTelColors.mtn;
 
       case MobileNetwork.moov:
-        return AppColors.moov;
+        return IzyTelColors.moov;
     }
+  }
+
+  Color get labelColor {
+    return network == MobileNetwork.mtn ? IzyTelColors.mtnText : color;
   }
 
   String get assetPath {
@@ -717,7 +721,7 @@ class _NetworkButton extends StatelessWidget {
     return Material(
       color: isSelected
           ? color.withAlpha(25)
-          : AppColors.surfaceContainerLowest,
+          : IzyTelColors.surface,
       borderRadius: BorderRadius.circular(9),
       child: InkWell(
         onTap: onPressed,
@@ -729,7 +733,7 @@ class _NetworkButton extends StatelessWidget {
             border: Border.all(
               color: isSelected
                   ? color
-                  : AppColors.outlineVariant.withAlpha(50),
+                  : IzyTelColors.outline,
             ),
           ),
           child: Column(
@@ -749,7 +753,7 @@ class _NetworkButton extends StatelessWidget {
                 label,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: isSelected ? color : AppColors.onSurface,
+                  color: isSelected ? labelColor : IzyTelColors.textPrimary,
                   fontWeight: FontWeight.w700,
                   fontSize: 12,
                 ),

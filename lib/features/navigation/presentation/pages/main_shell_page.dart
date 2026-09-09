@@ -352,7 +352,7 @@ class _MainShellPageState extends State<MainShellPage> {
         return AlertDialog(
           title: const Text('Se déconnecter ?'),
           content: const Text(
-            'Tu devras te reconnecter pour accéder de nouveau à la cabine.',
+            'Tu devras te reconnecter pour accéder de nouveau à IzyTel.',
           ),
           actions: [
             TextButton(

@@ -4,6 +4,7 @@ import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:cabine_flow/features/auth/presentation/view_models/pending_account_view_model.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_brand.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -81,14 +82,7 @@ class _PendingAccountPageState extends State<PendingAccountPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
-                      Center(
-                        child: Image.asset(
-                          'assets/images/izyTel_logo.png',
-                          width: 76,
-                          height: 76,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
+                      const Center(child: IzyTelBrandMark(size: 76)),
                       const SizedBox(height: 14),
                       const Text(
                         'IzyTel',

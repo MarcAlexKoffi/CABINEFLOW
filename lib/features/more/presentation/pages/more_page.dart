@@ -547,7 +547,7 @@ class MorePage extends StatelessWidget {
           children: <Widget>[
             IzyTelPageHeader(
               title: 'Espace Manager',
-              subtitle: 'Supervision opérationnelle et suivi de la cabine.',
+              subtitle: 'Supervision opérationnelle et suivi IzyTel.',
               actions: <Widget>[
                 ManagerProfileAvatar(
                   user: user,

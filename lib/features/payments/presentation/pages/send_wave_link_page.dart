@@ -1,4 +1,4 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
@@ -174,7 +174,7 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
       listenable: _viewModel,
       builder: (BuildContext context, Widget? child) {
         return Scaffold(
-          backgroundColor: AppColors.background,
+          backgroundColor: IzyTelColors.background,
           body: SafeArea(
             child: Column(
               children: [
@@ -185,7 +185,7 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
                 ),
                 Divider(
                   height: 1,
-                  color: AppColors.outlineVariant.withAlpha(80),
+                  color: IzyTelColors.outline,
                 ),
                 Expanded(child: _buildBody()),
               ],
@@ -221,7 +221,7 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
             'COMMANDE #${widget.order.reference}',
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: AppColors.onSurfaceVariant,
+              color: IzyTelColors.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.8,
@@ -232,7 +232,7 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
             '${formatCfa(widget.order.amount)} CFA',
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: AppColors.primary,
+              color: IzyTelColors.primary,
               fontSize: 32,
               fontWeight: FontWeight.w700,
             ),
@@ -244,7 +244,7 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
               const Icon(
                 Icons.person_outline_rounded,
                 size: 18,
-                color: AppColors.onSurfaceVariant,
+                color: IzyTelColors.textSecondary,
               ),
               const SizedBox(width: 6),
               Flexible(
@@ -252,7 +252,7 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
                   widget.order.clientName,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: AppColors.onSurface,
+                    color: IzyTelColors.textPrimary,
                     fontSize: 14,
                   ),
                 ),
@@ -263,7 +263,7 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
           const Text(
             'APERÇU DU MESSAGE',
             style: TextStyle(
-              color: AppColors.onSurfaceVariant,
+              color: IzyTelColors.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.7,
@@ -274,16 +274,16 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.surfaceContainerLow,
+              color: IzyTelColors.surface,
               borderRadius: BorderRadius.circular(14),
               border: Border(
-                left: const BorderSide(color: AppColors.primary, width: 4),
-                top: BorderSide(color: AppColors.outlineVariant.withAlpha(80)),
+                left: const BorderSide(color: IzyTelColors.primary, width: 4),
+                top: BorderSide(color: IzyTelColors.outline),
                 right: BorderSide(
-                  color: AppColors.outlineVariant.withAlpha(80),
+                  color: IzyTelColors.outline,
                 ),
                 bottom: BorderSide(
-                  color: AppColors.outlineVariant.withAlpha(80),
+                  color: IzyTelColors.outline,
                 ),
               ),
             ),
@@ -294,7 +294,7 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
               softWrap: true,
               overflow: TextOverflow.visible,
               style: const TextStyle(
-                color: AppColors.onSurface,
+                color: IzyTelColors.textPrimary,
                 fontSize: 14,
                 height: 1.55,
               ),
@@ -340,7 +340,7 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
                           height: 18,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: AppColors.onPrimary,
+                            color: Colors.white,
                           ),
                         )
                       : const Icon(Icons.check_circle_rounded, size: 18),
@@ -376,7 +376,7 @@ class _WaveTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.background,
+      color: IzyTelColors.background,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       child: Row(
         children: [
@@ -385,7 +385,7 @@ class _WaveTopBar extends StatelessWidget {
             onPressed: onBackPressed,
             icon: const Icon(
               Icons.arrow_back_rounded,
-              color: AppColors.primary,
+              color: IzyTelColors.primary,
             ),
           ),
           Expanded(
@@ -393,7 +393,7 @@ class _WaveTopBar extends StatelessWidget {
               'Envoi du lien Wave',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: AppColors.primary,
+                color: IzyTelColors.textPrimary,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -416,14 +416,14 @@ class _WaveLinkCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
+        color: IzyTelColors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outlineVariant),
+        border: Border.all(color: IzyTelColors.outline),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x55000000),
-            blurRadius: 22,
-            offset: Offset(0, 10),
+            color: IzyTelColors.shadow,
+            blurRadius: 18,
+            offset: Offset(0, 6),
           ),
         ],
       ),
@@ -445,7 +445,7 @@ class _WaveLinkCard extends StatelessWidget {
               Text(
                 'Lien de paiement',
                 style: TextStyle(
-                  color: AppColors.onSurface,
+                  color: IzyTelColors.textPrimary,
                   fontSize: 17,
                   fontWeight: FontWeight.w700,
                 ),
@@ -461,9 +461,9 @@ class _WaveLinkCard extends StatelessWidget {
               right: 4,
             ),
             decoration: BoxDecoration(
-              color: AppColors.surfaceContainerLowest,
+              color: IzyTelColors.surface,
               borderRadius: BorderRadius.circular(9),
-              border: Border.all(color: AppColors.outlineVariant),
+              border: Border.all(color: IzyTelColors.outline),
             ),
             child: Row(
               children: [
@@ -473,7 +473,7 @@ class _WaveLinkCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: AppColors.onSurfaceVariant,
+                      color: IzyTelColors.textSecondary,
                       fontSize: 12,
                       height: 1.4,
                     ),
@@ -484,7 +484,7 @@ class _WaveLinkCard extends StatelessWidget {
                   onPressed: onCopyPressed,
                   icon: const Icon(
                     Icons.content_copy_rounded,
-                    color: AppColors.primary,
+                    color: IzyTelColors.primary,
                     size: 19,
                   ),
                 ),
@@ -514,7 +514,7 @@ class _WaveErrorState extends StatelessWidget {
             const Icon(
               Icons.link_off_rounded,
               size: 48,
-              color: AppColors.error,
+              color: IzyTelColors.error,
             ),
             const SizedBox(height: 14),
             Text(message, textAlign: TextAlign.center),

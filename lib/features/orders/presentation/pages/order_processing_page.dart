@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
@@ -219,7 +219,7 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                     20 + MediaQuery.viewInsetsOf(sheetContext).bottom,
                   ),
                   decoration: const BoxDecoration(
-                    color: AppColors.surfaceContainer,
+                    color: IzyTelColors.surface,
                     borderRadius: BorderRadius.vertical(
                       top: Radius.circular(24),
                     ),
@@ -236,7 +236,7 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                                 child: Text(
                                   'Raison de l’échec',
                                   style: TextStyle(
-                                    color: AppColors.error,
+                                    color: IzyTelColors.error,
                                     fontSize: 20,
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -274,7 +274,7 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                           const Text(
                             'Observations — optionnel',
                             style: TextStyle(
-                              color: AppColors.onSurfaceVariant,
+                              color: IzyTelColors.textSecondary,
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
@@ -286,7 +286,7 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                             maxLines: 5,
                             decoration: const InputDecoration(
                               hintText: 'Détails supplémentaires...',
-                              fillColor: AppColors.surfaceContainerLowest,
+                              fillColor: IzyTelColors.surface,
                             ),
                           ),
                           const SizedBox(height: 18),
@@ -307,8 +307,8 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                                     );
                                   },
                             style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.error,
-                              foregroundColor: AppColors.onError,
+                              backgroundColor: IzyTelColors.error,
+                              foregroundColor: Colors.white,
                             ),
                             child: const Text('Confirmer l’échec'),
                           ),
@@ -363,14 +363,14 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
       child: Column(
         children: [
           Container(
-            color: AppColors.background,
+            color: IzyTelColors.background,
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 13),
             child: OrdersTopBar(
               user: widget.user,
               onNotificationsPressed: widget.onNotificationsPressed,
             ),
           ),
-          Divider(height: 1, color: AppColors.outlineVariant.withAlpha(80)),
+          Divider(height: 1, color: IzyTelColors.outline),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
@@ -384,9 +384,9 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.warning.withAlpha(0),
+                        color: IzyTelColors.warningSoft,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.warning),
+                        border: Border.all(color: IzyTelColors.warning),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
@@ -394,13 +394,13 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                           Icon(
                             Icons.schedule_rounded,
                             size: 13,
-                            color: AppColors.warning,
+                            color: IzyTelColors.warning,
                           ),
                           SizedBox(width: 6),
                           Text(
                             'EN COURS DE TRAITEMENT',
                             style: TextStyle(
-                              color: AppColors.warning,
+                              color: IzyTelColors.warning,
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.6,
@@ -415,7 +415,7 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                     '#${widget.order.reference}',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      color: AppColors.onBackground,
+                      color: IzyTelColors.textPrimary,
                       fontSize: 28,
                       fontWeight: FontWeight.w700,
                     ),
@@ -424,10 +424,10 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                   Container(
                     padding: const EdgeInsets.all(22),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceContainerLow,
+                      color: IzyTelColors.surface,
                       borderRadius: BorderRadius.circular(15),
                       border: Border.all(
-                        color: AppColors.outlineVariant.withAlpha(80),
+                        color: IzyTelColors.outline,
                       ),
                     ),
                     child: Column(
@@ -435,7 +435,7 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                         const Text(
                           'CHRONOMÈTRE',
                           style: TextStyle(
-                            color: AppColors.onSurfaceVariant,
+                            color: IzyTelColors.textSecondary,
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 1,
@@ -445,7 +445,7 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                         Text(
                           _formattedElapsedTime,
                           style: const TextStyle(
-                            color: AppColors.primary,
+                            color: IzyTelColors.primary,
                             fontSize: 46,
                             height: 1,
                             fontWeight: FontWeight.w700,
@@ -459,10 +459,10 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceContainerLow,
+                      color: IzyTelColors.surface,
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: AppColors.outlineVariant.withAlpha(80),
+                        color: IzyTelColors.outline,
                       ),
                     ),
                     child: Column(
@@ -489,14 +489,14 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                                   const Text(
                                     'Bénéficiaire',
                                     style: TextStyle(
-                                      color: AppColors.onSurfaceVariant,
+                                      color: IzyTelColors.textSecondary,
                                       fontSize: 10,
                                     ),
                                   ),
                                   Text(
                                     widget.order.beneficiaryPhone,
                                     style: const TextStyle(
-                                      color: AppColors.onBackground,
+                                      color: IzyTelColors.textPrimary,
                                       fontSize: 19,
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -509,7 +509,7 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                               onPressed: _copyBeneficiaryPhone,
                               style: IconButton.styleFrom(
                                 backgroundColor:
-                                    AppColors.surfaceContainerHighest,
+                                    IzyTelColors.surfaceMuted,
                               ),
                               icon: const Icon(
                                 Icons.content_copy_rounded,
@@ -521,7 +521,7 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                         const SizedBox(height: 13),
                         Divider(
                           height: 1,
-                          color: AppColors.outlineVariant.withAlpha(65),
+                          color: IzyTelColors.outline,
                         ),
                         const SizedBox(height: 13),
                         Row(
@@ -538,7 +538,7 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                               label: 'Montant à débiter',
                               value: formatCfa(widget.order.amount),
                               alignRight: true,
-                              valueColor: AppColors.primary,
+                              valueColor: IzyTelColors.primary,
                             ),
                           ],
                         ),
@@ -576,7 +576,7 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                   FilledButton.icon(
                     onPressed: widget.isSubmitting ? null : _openFailureSheet,
                     style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.error,
+                      backgroundColor: IzyTelColors.error,
                       foregroundColor: Colors.white,
                     ),
                     icon: const Icon(Icons.cancel_outlined),
@@ -586,8 +586,8 @@ class _OrderProcessingPageState extends State<OrderProcessingPage> {
                   FilledButton.icon(
                     onPressed: widget.isSubmitting ? null : _confirmPutOnHold,
                     style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.surfaceContainerHighest,
-                      foregroundColor: Colors.white,
+                      backgroundColor: IzyTelColors.surfaceMuted,
+                      foregroundColor: IzyTelColors.textPrimary,
                     ),
                     icon: const Icon(Icons.pause_rounded),
                     label: const Text('Mettre en attente'),
@@ -611,7 +611,7 @@ class _ProcessingInformation extends StatelessWidget {
     required this.label,
     required this.value,
     this.alignRight = false,
-    this.valueColor = AppColors.onBackground,
+    this.valueColor = IzyTelColors.textPrimary,
   });
 
   final String label;
@@ -630,7 +630,7 @@ class _ProcessingInformation extends StatelessWidget {
           label,
           textAlign: alignRight ? TextAlign.right : TextAlign.left,
           style: const TextStyle(
-            color: AppColors.onSurfaceVariant,
+            color: IzyTelColors.textSecondary,
             fontSize: 10,
           ),
         ),
@@ -661,9 +661,9 @@ class _ContextCard extends StatelessWidget {
       height: 64,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLow,
+        color: IzyTelColors.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.outlineVariant.withAlpha(75)),
+        border: Border.all(color: IzyTelColors.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -672,7 +672,7 @@ class _ContextCard extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(
-              color: AppColors.onSurfaceVariant,
+              color: IzyTelColors.textSecondary,
               fontSize: 10,
             ),
           ),
@@ -682,7 +682,7 @@ class _ContextCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              color: AppColors.onBackground,
+              color: IzyTelColors.textPrimary,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -708,8 +708,8 @@ class _FailureReasonButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: isSelected
-          ? AppColors.error.withAlpha(22)
-          : AppColors.surfaceContainerLow,
+          ? IzyTelColors.error.withAlpha(22)
+          : IzyTelColors.surface,
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         onTap: onPressed,
@@ -720,13 +720,13 @@ class _FailureReasonButton extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: isSelected ? AppColors.error : AppColors.outlineVariant,
+              color: isSelected ? IzyTelColors.error : IzyTelColors.outline,
             ),
           ),
           child: Text(
             label,
             style: TextStyle(
-              color: isSelected ? AppColors.error : AppColors.onSurface,
+              color: isSelected ? IzyTelColors.error : IzyTelColors.textPrimary,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),

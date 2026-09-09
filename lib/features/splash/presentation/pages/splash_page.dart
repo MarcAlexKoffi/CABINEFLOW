@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cabine_flow/app/app_routes.dart';
 import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_brand.dart';
 import 'package:flutter/material.dart';
 
 class SplashPage extends StatefulWidget {
@@ -133,10 +134,7 @@ class _SplashPageState extends State<SplashPage>
                                   color: Colors.white.withAlpha(42),
                                 ),
                               ),
-                              child: Image.asset(
-                                'assets/images/izyTel_logo.png',
-                                fit: BoxFit.contain,
-                              ),
+                              child: const IzyTelBrandMark(size: 22),
                             ),
                             const SizedBox(width: 10),
                             const Text(
@@ -162,6 +160,22 @@ class _SplashPageState extends State<SplashPage>
                                 'assets/images/New_splash_illustration.png',
                                 fit: BoxFit.contain,
                                 filterQuality: FilterQuality.high,
+                                semanticLabel: 'Illustration IzyTel',
+                                errorBuilder: (_, _, _) => Center(
+                                  child: Container(
+                                    width: compact ? 132 : 154,
+                                    height: compact ? 132 : 154,
+                                    padding: const EdgeInsets.all(24),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withAlpha(24),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white.withAlpha(44),
+                                      ),
+                                    ),
+                                    child: const IzyTelBrandMark(size: 104),
+                                  ),
+                                ),
                               ),
                             ),
                           ),

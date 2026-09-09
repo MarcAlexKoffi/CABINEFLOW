@@ -1,4 +1,4 @@
-/// Tokens officiels du design system IzyTel V1.
+/// Tokens officiels du design system IzyTel.
 ///
 /// Ils reprennent la maquette validée : grille d'espacement 8/12/16/20/24/32,
 /// typographie Manrope et iconographie Material Symbols Rounded.

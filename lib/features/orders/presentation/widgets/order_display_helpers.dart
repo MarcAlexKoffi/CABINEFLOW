@@ -1,4 +1,4 @@
-import 'package:cabine_flow/core/theme/app_colors.dart';
+import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_history_filters.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:flutter/material.dart';
@@ -36,16 +36,16 @@ Color orderStatusColor(QueueOrderStatus status) {
     case QueueOrderStatus.awaitingCustomerConfirmation:
     case QueueOrderStatus.completed:
     case QueueOrderStatus.refunded:
-      return AppColors.success;
+      return IzyTelColors.success;
     case QueueOrderStatus.failed:
     case QueueOrderStatus.cancelled:
-      return AppColors.error;
+      return IzyTelColors.error;
     case QueueOrderStatus.expired:
     case QueueOrderStatus.refundPending:
-      return AppColors.warning;
+      return IzyTelColors.warning;
     case QueueOrderStatus.paidReady:
     case QueueOrderStatus.inProgress:
-      return AppColors.primary;
+      return IzyTelColors.primary;
     case QueueOrderStatus.awaitingPayment:
     case QueueOrderStatus.paymentToVerify:
     case QueueOrderStatus.onHold:
@@ -112,11 +112,11 @@ String networkLabel(MobileNetwork network) {
 Color networkColor(MobileNetwork network) {
   switch (network) {
     case MobileNetwork.orange:
-      return AppColors.orange;
+      return IzyTelColors.orange;
     case MobileNetwork.mtn:
-      return AppColors.mtn;
+      return IzyTelColors.mtn;
     case MobileNetwork.moov:
-      return AppColors.moov;
+      return IzyTelColors.moov;
   }
 }
 

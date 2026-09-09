@@ -59,7 +59,7 @@ class IzyTelWordmark extends StatelessWidget {
         if (showTagline) ...[
           const SizedBox(height: 8),
           Text(
-            'Simple. Rapide. Fiable.',
+            'Simple. Rapide. Izy.',
             textAlign: centered ? TextAlign.center : TextAlign.start,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: IzyTelColors.textSecondary,
