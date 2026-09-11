@@ -1,46 +1,141 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="IzyTel — forfaits Internet, appels et transfert d’unités Orange, MTN et Moov Africa en Côte d’Ivoire.">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0757C9">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="IzyTel Web — achetez vos unités et forfaits Orange, MTN et Moov en ligne, simplement et en toute sécurité.">
 
-  <!-- iOS meta tags & icons -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="IzyTel Web — Recharge en ligne">
+  <meta property="og:description" content="Unités, forfaits et suivi de commande Orange, MTN et Moov depuis votre téléphone.">
+  <meta property="og:image" content="branding/izytel-mark.png">
+  <meta property="og:locale" content="fr_CI">
+
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="IzyTel Web — Recharge en ligne">
+  <meta name="twitter:description" content="Achetez vos unités et forfaits Orange, MTN et Moov en ligne.">
+
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="IzyTel">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
-
-  <title>IzyTel — Forfaits, unités et suivi</title>
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="favicon.png">
   <link rel="manifest" href="manifest.json">
+
+  <title>IzyTel Web — Recharge en ligne</title>
+
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      min-height: 100%;
+      background: #f5f7fb;
+    }
+
+    body {
+      overflow: hidden;
+      font-family: Manrope, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    #izytel-loader {
+      position: fixed;
+      inset: 0;
+      z-index: 999999;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 80% 12%, rgba(41, 182, 246, .12), transparent 30%),
+        radial-gradient(circle at 12% 86%, rgba(7, 87, 201, .09), transparent 34%),
+        #fbfdff;
+      transition: opacity 220ms ease, visibility 220ms ease;
+    }
+
+    #izytel-loader.is-hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .izytel-loader-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      padding: 28px 30px;
+      color: #062b61;
+      text-align: center;
+    }
+
+    .izytel-loader-logo {
+      width: 76px;
+      height: 76px;
+      object-fit: contain;
+    }
+
+    .izytel-loader-brand {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+    }
+
+    .izytel-loader-tagline {
+      margin: -3px 0 2px;
+      color: #6c7b8f;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .izytel-loader-track {
+      width: 120px;
+      height: 4px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #e7eef8;
+    }
+
+    .izytel-loader-progress {
+      width: 46%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #0757c9, #29b6f6);
+      animation: izytel-loading 1.1s ease-in-out infinite alternate;
+    }
+
+    @keyframes izytel-loading {
+      from { transform: translateX(-28%); }
+      to { transform: translateX(145%); }
+    }
+  </style>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
+  <div id="izytel-loader" aria-label="Chargement de IzyTel" role="status">
+    <div class="izytel-loader-card">
+      <img class="izytel-loader-logo" src="branding/izytel-mark.png" alt="">
+      <p class="izytel-loader-brand">IzyTel</p>
+      <p class="izytel-loader-tagline">Simple. Rapide. Izy.</p>
+      <div class="izytel-loader-track" aria-hidden="true">
+        <div class="izytel-loader-progress"></div>
+      </div>
+    </div>
+  </div>
 
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var loader = document.getElementById('izytel-loader');
+      if (!loader) return;
+      loader.classList.add('is-hidden');
+      window.setTimeout(function () { loader.remove(); }, 260);
+    }, { once: true });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

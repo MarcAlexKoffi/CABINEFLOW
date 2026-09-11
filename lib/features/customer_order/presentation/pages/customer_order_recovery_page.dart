@@ -74,9 +74,9 @@ class _CustomerOrderRecoveryPageState extends State<CustomerOrderRecoveryPage> {
   @override
   Widget build(BuildContext context) {
     return IzyTelShell(
-      title: 'IzyTel',
+      title: 'Suivi de commande',
       onBack: widget.onBack,
-      maxContentWidth: 720,
+      maxContentWidth: 760,
       child: Column(
         children: [
           Expanded(

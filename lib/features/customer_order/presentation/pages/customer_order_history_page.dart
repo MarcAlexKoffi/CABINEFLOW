@@ -106,10 +106,12 @@ class _CustomerOrderHistoryPageState extends State<CustomerOrderHistoryPage> {
   @override
   Widget build(BuildContext context) {
     final List<CustomerOrderReceipt> orders = _visibleOrders;
+    final bool desktop = MediaQuery.sizeOf(context).width >= 760;
 
     return IzyTelShell(
-      title: 'IzyTel',
+      title: 'Historique',
       onBack: widget.onBack,
+      maxContentWidth: 960,
       bottomNavigationBar: IzyTelBottomNavigation(
         current: IzyTelCustomerDestination.history,
         onHome: widget.onOpenHome,
@@ -120,7 +122,12 @@ class _CustomerOrderHistoryPageState extends State<CustomerOrderHistoryPage> {
       child: RefreshIndicator(
         onRefresh: widget.viewModel.reloadHistory,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 24, 18, 36),
+          padding: EdgeInsets.fromLTRB(
+            desktop ? 32 : 18,
+            desktop ? 30 : 24,
+            desktop ? 32 : 18,
+            36,
+          ),
           children: [
             Text(
               'Historique des commandes',
@@ -128,7 +135,7 @@ class _CustomerOrderHistoryPageState extends State<CustomerOrderHistoryPage> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Retrouvez vos transactions passées et en cours.',
+              'Retrouvez vos commandes passées et en cours, avec leur statut actuel.',
               style: TextStyle(
                 color: CustomerAppColors.onSurfaceVariant,
                 fontSize: 15,

@@ -36,8 +36,9 @@ class CustomerHelpPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IzyTelShell(
-      title: 'IzyTel',
+      title: 'Aide',
       onBack: onBack,
+      maxContentWidth: 960,
       actions: [
         Padding(
           padding: const EdgeInsets.only(right: 6),
@@ -99,8 +100,11 @@ class CustomerHelpPage extends StatelessWidget {
                   children: [
                     Expanded(
                       child: _HelpCard(
-                        icon: Icons.chat_bubble_outline_rounded,
-                        iconColor: CustomerAppColors.success,
+                        leading: Image.asset(
+                          'assets/images/whatsapp_logo.png',
+                          width: 30,
+                          height: 30,
+                        ),
                         iconBackground: CustomerAppColors.successContainer,
                         title: 'Contacter sur WhatsApp',
                         description:
@@ -111,8 +115,10 @@ class CustomerHelpPage extends StatelessWidget {
                     const SizedBox(width: 14),
                     Expanded(
                       child: _HelpCard(
-                        icon: Icons.search_rounded,
-                        iconColor: CustomerAppColors.primary,
+                        leading: const Icon(
+                          Icons.search_rounded,
+                          color: CustomerAppColors.primary,
+                        ),
                         iconBackground: CustomerAppColors.primaryContainer,
                         title: 'Retrouver ma commande',
                         description:
@@ -124,8 +130,11 @@ class CustomerHelpPage extends StatelessWidget {
                 )
               else ...[
                 _HelpCard(
-                  icon: Icons.chat_bubble_outline_rounded,
-                  iconColor: CustomerAppColors.success,
+                  leading: Image.asset(
+                    'assets/images/whatsapp_logo.png',
+                    width: 30,
+                    height: 30,
+                  ),
                   iconBackground: CustomerAppColors.successContainer,
                   title: 'Contacter sur WhatsApp',
                   description:
@@ -134,8 +143,10 @@ class CustomerHelpPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 _HelpCard(
-                  icon: Icons.search_rounded,
-                  iconColor: CustomerAppColors.primary,
+                  leading: const Icon(
+                    Icons.search_rounded,
+                    color: CustomerAppColors.primary,
+                  ),
                   iconBackground: CustomerAppColors.primaryContainer,
                   title: 'Retrouver ma commande',
                   description:
@@ -180,16 +191,14 @@ class CustomerHelpPage extends StatelessWidget {
 
 class _HelpCard extends StatelessWidget {
   const _HelpCard({
-    required this.icon,
-    required this.iconColor,
+    required this.leading,
     required this.iconBackground,
     required this.title,
     required this.description,
     required this.onTap,
   });
 
-  final IconData icon;
-  final Color iconColor;
+  final Widget leading;
   final Color iconBackground;
   final String title;
   final String description;
@@ -208,7 +217,7 @@ class _HelpCard extends StatelessWidget {
               color: iconBackground,
               borderRadius: BorderRadius.circular(15),
             ),
-            child: Icon(icon, color: iconColor),
+            child: Center(child: leading),
           ),
           const SizedBox(width: 14),
           Expanded(

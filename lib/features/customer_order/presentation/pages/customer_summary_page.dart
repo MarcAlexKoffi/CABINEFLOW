@@ -11,9 +11,14 @@ import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 
 class CustomerSummaryPage extends StatefulWidget {
-  const CustomerSummaryPage({super.key, required this.viewModel});
+  const CustomerSummaryPage({
+    super.key,
+    required this.viewModel,
+    this.onBack,
+  });
 
   final CustomerOrderViewModel viewModel;
+  final VoidCallback? onBack;
 
   @override
   State<CustomerSummaryPage> createState() => _CustomerSummaryPageState();
@@ -50,10 +55,10 @@ class _CustomerSummaryPageState extends State<CustomerSummaryPage> {
           'Vérifiez une dernière fois les informations avant de passer au paiement.',
       onTopBack: orderCreated || widget.viewModel.isSubmitting
           ? null
-          : widget.viewModel.goBack,
+          : widget.onBack ?? widget.viewModel.goBack,
       onBottomBack: orderCreated || widget.viewModel.isSubmitting
           ? null
-          : widget.viewModel.goBack,
+          : widget.onBack ?? widget.viewModel.goBack,
       backLabel: orderCreated ? 'Commande enregistrée' : 'Modifier',
       continueLabel: orderCreated
           ? 'Revenir au paiement'

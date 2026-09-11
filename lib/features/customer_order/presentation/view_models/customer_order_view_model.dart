@@ -931,6 +931,18 @@ class CustomerOrderViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Restores a previously visited step when the browser history moves back
+  /// or forward. This does not replay business actions; it only restores the
+  /// already-built local draft/navigation state.
+  void restoreNavigationStep(int step) {
+    if (step < 1 || step > totalSteps || step == _currentStep) {
+      return;
+    }
+
+    _currentStep = step;
+    notifyListeners();
+  }
+
   void restart() {
     unawaited(_trackingSubscription?.cancel());
     _trackingSubscription = null;

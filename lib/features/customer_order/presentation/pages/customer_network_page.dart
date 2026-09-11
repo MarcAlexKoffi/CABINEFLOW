@@ -7,9 +7,10 @@ import 'package:cabine_flow/shared/widgets/design_system/izy_tel_operator_brand.
 import 'package:flutter/material.dart';
 
 class CustomerNetworkPage extends StatelessWidget {
-  const CustomerNetworkPage({super.key, required this.viewModel});
+  const CustomerNetworkPage({super.key, required this.viewModel, this.onBack});
 
   final CustomerOrderViewModel viewModel;
+  final VoidCallback? onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -21,8 +22,8 @@ class CustomerNetworkPage extends StatelessWidget {
       title: 'Quel est votre réseau ?',
       subtitle: 'Sélectionnez l’opérateur du numéro bénéficiaire.',
       titleTextAlign: TextAlign.center,
-      onTopBack: viewModel.goBack,
-      onBottomBack: viewModel.goBack,
+      onTopBack: onBack ?? viewModel.goBack,
+      onBottomBack: onBack ?? viewModel.goBack,
       onContinue: viewModel.continueFromNetwork,
       isContinueEnabled: viewModel.canContinueFromNetwork,
       content: Column(

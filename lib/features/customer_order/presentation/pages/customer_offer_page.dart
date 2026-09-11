@@ -17,10 +17,12 @@ class CustomerOfferPage extends StatefulWidget {
     super.key,
     required this.viewModel,
     required this.offerRepository,
+    this.onBack,
   });
 
   final CustomerOrderViewModel viewModel;
   final CustomerOfferRepository offerRepository;
+  final VoidCallback? onBack;
 
   @override
   State<CustomerOfferPage> createState() {
@@ -244,8 +246,8 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
       totalSteps: CustomerOrderViewModel.totalSteps,
       title: _pageTitle,
       subtitle: _pageSubtitle,
-      onTopBack: widget.viewModel.goBack,
-      onBottomBack: widget.viewModel.goBack,
+      onTopBack: widget.onBack ?? widget.viewModel.goBack,
+      onBottomBack: widget.onBack ?? widget.viewModel.goBack,
       onContinue: _continue,
       isContinueEnabled: widget.viewModel.canContinueFromOffer,
       content: Column(

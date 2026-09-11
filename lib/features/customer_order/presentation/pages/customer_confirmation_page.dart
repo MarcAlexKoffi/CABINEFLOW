@@ -98,16 +98,37 @@ class _ConfirmationTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
-      height: 64,
+    return Container(
+      height: 68,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          bottom: BorderSide(color: CustomerAppColors.outlineSoft),
+        ),
+      ),
       child: Center(
-        child: Text(
-          'IzyTel',
-          style: TextStyle(
-            color: CustomerAppColors.primary,
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            SizedBox.square(
+              dimension: 30,
+              child: Image.asset(
+                'assets/images/izyTel_logo.png',
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'IzyTel',
+              style: TextStyle(
+                color: CustomerAppColors.primaryDeep,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.4,
+              ),
+            ),
+          ],
         ),
       ),
     );

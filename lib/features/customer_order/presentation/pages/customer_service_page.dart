@@ -6,9 +6,10 @@ import 'package:cabine_flow/shared/widgets/design_system/izy_tel_cards.dart';
 import 'package:flutter/material.dart';
 
 class CustomerServicePage extends StatelessWidget {
-  const CustomerServicePage({super.key, required this.viewModel});
+  const CustomerServicePage({super.key, required this.viewModel, this.onBack});
 
   final CustomerOrderViewModel viewModel;
+  final VoidCallback? onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -21,8 +22,8 @@ class CustomerServicePage extends StatelessWidget {
       subtitle:
           'Sélectionnez le type de recharge que vous souhaitez effectuer.',
       titleTextAlign: TextAlign.start,
-      onTopBack: viewModel.goBack,
-      onBottomBack: viewModel.goBack,
+      onTopBack: onBack ?? viewModel.goBack,
+      onBottomBack: onBack ?? viewModel.goBack,
       onContinue: viewModel.continueFromService,
       isContinueEnabled: viewModel.canContinueFromService,
       content: Column(

@@ -90,8 +90,9 @@ class _CustomerCatalogPageState extends State<CustomerCatalogPage> {
   @override
   Widget build(BuildContext context) {
     return IzyTelShell(
-      title: 'Forfaits',
+      title: 'Offres',
       onBack: widget.onBack,
+      maxContentWidth: 1080,
       actions: [
         Padding(
           padding: const EdgeInsets.only(right: 6),
@@ -127,12 +128,12 @@ class _CustomerCatalogPageState extends State<CustomerCatalogPage> {
                     ),
                     children: [
                       Text(
-                        'Découvrez les offres IzyTel',
+                        'Choisissez votre offre',
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
                       const SizedBox(height: 7),
                       Text(
-                        'Les offres affichées viennent du catalogue actif Firestore. Choisissez celle qui vous convient puis finalisez votre commande.',
+                        'Filtrez par type ou par réseau, puis poursuivez votre commande en quelques étapes.',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 22),
@@ -439,6 +440,10 @@ class _CatalogOfferCard extends StatelessWidget {
             width: double.infinity,
             child: FilledButton(
               onPressed: onChoose,
+              style: FilledButton.styleFrom(
+                backgroundColor: CustomerAppColors.primary,
+                foregroundColor: CustomerAppColors.onPrimary,
+              ),
               child: const Text('Choisir'),
             ),
           ),

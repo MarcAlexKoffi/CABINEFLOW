@@ -88,28 +88,32 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
               onOpenHelp: widget.onOpenHelp,
             ),
       actions: desktopHeader
-          ? [
+          ? <Widget>[
               TextButton(
                 onPressed: widget.onOpenOffers,
                 child: const Text('Offres'),
               ),
               TextButton(
+                onPressed: widget.onOpenHistory,
+                child: const Text('Historique'),
+              ),
+              TextButton(
                 onPressed: widget.onOpenRecovery,
-                child: const Text('Suivre une commande'),
+                child: const Text('Suivre'),
               ),
               TextButton(
                 onPressed: widget.onOpenHelp,
                 child: const Text('Aide'),
               ),
               Padding(
-                padding: const EdgeInsets.only(right: 10),
+                padding: const EdgeInsets.only(right: 14, left: 4),
                 child: FilledButton(
                   onPressed: widget.onStartOrder,
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(0, 42),
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                   ),
-                  child: const Text('Commander maintenant'),
+                  child: const Text('Commander'),
                 ),
               ),
             ]
@@ -122,56 +126,58 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                 ),
               ),
             ],
-      bottomNavigationBar: IzyTelBottomNavigation(
-        current: IzyTelCustomerDestination.home,
-        onHome: () {},
-        onOffers: widget.onOpenOffers,
-        onHistory: widget.onOpenHistory,
-        onHelp: widget.onOpenHelp,
-      ),
+      bottomNavigationBar: desktopHeader
+          ? null
+          : IzyTelBottomNavigation(
+              current: IzyTelCustomerDestination.home,
+              onHome: () {},
+              onOffers: widget.onOpenOffers,
+              onHistory: widget.onOpenHistory,
+              onHelp: widget.onOpenHelp,
+            ),
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
           final bool desktop = constraints.maxWidth >= 820;
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
-              desktop ? 32 : 18,
-              desktop ? 34 : 22,
-              desktop ? 32 : 18,
-              40,
+              desktop ? 34 : 18,
+              desktop ? 42 : 22,
+              desktop ? 34 : 18,
+              desktop ? 54 : 38,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+              children: <Widget>[
                 _HeroSection(
                   desktop: desktop,
                   onStartOrder: widget.onStartOrder,
                   onOpenOffers: widget.onOpenOffers,
                 ),
-                const SizedBox(height: 44),
+                SizedBox(height: desktop ? 62 : 42),
                 _SectionHeader(
-                  eyebrow: 'SERVICES',
-                  title: 'Que voulez-vous faire ?',
+                  eyebrow: 'COMMENCER',
+                  title: 'Choisissez simplement votre besoin',
                   subtitle:
-                      'Choisissez votre besoin. IzyTel vous guide ensuite étape par étape.',
+                      'Un parcours court, sans compte obligatoire, pensé d’abord pour le téléphone.',
                 ),
                 const SizedBox(height: 18),
                 _ServiceGrid(desktop: desktop, onSelect: widget.onStartService),
-                const SizedBox(height: 44),
+                SizedBox(height: desktop ? 54 : 42),
                 const _SectionHeader(
                   eyebrow: 'RÉSEAUX',
-                  title: 'Tous vos réseaux au même endroit',
+                  title: 'Orange, MTN et Moov. Au même endroit.',
                   subtitle:
-                      'Orange, MTN et Moov Africa dans une expérience unique et simple.',
+                      'Retrouvez vos recharges et forfaits dans une seule expérience IzyTel.',
                 ),
                 const SizedBox(height: 18),
                 _NetworkGrid(desktop: desktop),
-                const SizedBox(height: 44),
+                SizedBox(height: desktop ? 54 : 42),
                 _SectionHeader(
-                  eyebrow: 'CATALOGUE',
-                  title: 'Les offres du moment',
+                  eyebrow: 'OFFRES',
+                  title: 'Quelques offres disponibles maintenant',
                   subtitle:
-                      'Quelques forfaits actifs issus de votre catalogue IzyTel.',
-                  actionLabel: 'Voir toutes les offres',
+                      'Des offres actives issues directement du catalogue IzyTel.',
+                  actionLabel: 'Tout voir',
                   onAction: widget.onOpenOffers,
                 ),
                 const SizedBox(height: 18),
@@ -180,12 +186,31 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                   desktop: desktop,
                   onChoose: widget.onChooseOffer,
                 ),
-                const SizedBox(height: 46),
-                const _HowItWorks(),
-                const SizedBox(height: 46),
-                _ControlSection(onOpenRecovery: widget.onOpenRecovery),
-                const SizedBox(height: 28),
-                _SupportSection(onOpenHelp: widget.onOpenHelp),
+                SizedBox(height: desktop ? 54 : 42),
+                _HowItWorks(desktop: desktop),
+                SizedBox(height: desktop ? 34 : 28),
+                if (desktop)
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        Expanded(
+                          child: _ControlSection(
+                            onOpenRecovery: widget.onOpenRecovery,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: _SupportSection(onOpenHelp: widget.onOpenHelp),
+                        ),
+                      ],
+                    ),
+                  )
+                else ...<Widget>[
+                  _ControlSection(onOpenRecovery: widget.onOpenRecovery),
+                  const SizedBox(height: 14),
+                  _SupportSection(onOpenHelp: widget.onOpenHelp),
+                ],
               ],
             ),
           );
@@ -212,54 +237,61 @@ class _HeroSection extends StatelessWidget {
       crossAxisAlignment: desktop
           ? CrossAxisAlignment.start
           : CrossAxisAlignment.center,
-      children: [
+      children: <Widget>[
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           decoration: BoxDecoration(
             color: CustomerAppColors.primaryContainer,
             borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: CustomerAppColors.primary.withValues(alpha: 0.10),
+            ),
           ),
           child: const Text(
-            'SIMPLE • RAPIDE • SUIVI',
+            'IZYTEL WEB  •  CÔTE D’IVOIRE',
             style: TextStyle(
               color: CustomerAppColors.primary,
-              fontSize: 11,
+              fontSize: 10.5,
               fontWeight: FontWeight.w800,
-              letterSpacing: 0.55,
+              letterSpacing: 0.65,
             ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          'Rechargez.\nContinuez.',
+          textAlign: desktop ? TextAlign.start : TextAlign.center,
+          style: Theme.of(context).textTheme.displaySmall?.copyWith(
+            color: CustomerAppColors.primaryDeep,
+            fontSize: desktop ? 56 : 40,
+            height: 0.98,
+            letterSpacing: desktop ? -2.0 : -1.25,
           ),
         ),
         const SizedBox(height: 18),
         Text(
-          'Vos forfaits et unités, simplement.',
+          'Achetez vos unités et forfaits Orange, MTN et Moov depuis votre téléphone, sans créer de compte.',
           textAlign: desktop ? TextAlign.start : TextAlign.center,
-          style: Theme.of(context).textTheme.displaySmall?.copyWith(
-            color: CustomerAppColors.primaryDeep,
-            fontSize: desktop ? 48 : 34,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            fontSize: desktop ? 17 : 15,
+            height: 1.55,
           ),
         ),
-        const SizedBox(height: 14),
-        Text(
-          'Internet, appels et transfert d’unités Orange, MTN et Moov, en quelques instants.',
-          textAlign: desktop ? TextAlign.start : TextAlign.center,
-          style: Theme.of(
-            context,
-          ).textTheme.bodyLarge?.copyWith(fontSize: desktop ? 18 : 15),
-        ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 26),
         if (desktop)
           Row(
-            children: [
+            children: <Widget>[
               SizedBox(
-                width: 210,
+                width: 220,
                 child: IzyTelPrimaryButton(
-                  text: 'Faire une commande',
+                  text: 'Commander maintenant',
+                  icon: Icons.arrow_forward_rounded,
                   onPressed: onStartOrder,
                 ),
               ),
               const SizedBox(width: 12),
               SizedBox(
-                width: 180,
+                width: 170,
                 child: IzyTelSecondaryButton(
                   text: 'Voir les offres',
                   onPressed: onOpenOffers,
@@ -267,9 +299,10 @@ class _HeroSection extends StatelessWidget {
               ),
             ],
           )
-        else ...[
+        else ...<Widget>[
           IzyTelPrimaryButton(
-            text: 'Faire une commande',
+            text: 'Commander maintenant',
+            icon: Icons.arrow_forward_rounded,
             onPressed: onStartOrder,
           ),
           const SizedBox(height: 10),
@@ -278,87 +311,362 @@ class _HeroSection extends StatelessWidget {
             onPressed: onOpenOffers,
           ),
         ],
-        const SizedBox(height: 20),
+        const SizedBox(height: 22),
         Wrap(
           alignment: desktop ? WrapAlignment.start : WrapAlignment.center,
           spacing: 14,
-          runSpacing: 9,
-          children: const [
-            _TrustPill(icon: Icons.no_accounts_outlined, label: 'Aucun compte'),
+          runSpacing: 10,
+          children: const <Widget>[
+            _TrustPill(icon: Icons.person_off_outlined, label: 'Sans compte'),
             _TrustPill(
-              icon: Icons.lock_outline_rounded,
+              icon: Icons.shield_outlined,
               label: 'Paiement sécurisé',
             ),
             _TrustPill(
               icon: Icons.track_changes_rounded,
-              label: 'Suivi de commande',
+              label: 'Suivi en temps réel',
             ),
           ],
         ),
       ],
     );
 
-    final Widget visual = Container(
-      constraints: BoxConstraints(maxHeight: desktop ? 390 : 245),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: CustomerAppColors.outlineSoft),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x120757C9),
-            blurRadius: 36,
-            offset: Offset(0, 16),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(27),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      CustomerAppColors.primarySoft,
-                      Colors.white,
-                      CustomerAppColors.primaryContainer.withValues(
-                        alpha: 0.55,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(10),
-              child: Image.asset(
-                'assets/images/splash_illustration.png',
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.high,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    final Widget visual = _IzyTelWebPreview(desktop: desktop);
 
     if (desktop) {
       return Row(
         crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(flex: 11, child: copy),
-          const SizedBox(width: 42),
+        children: <Widget>[
+          Expanded(flex: 10, child: copy),
+          const SizedBox(width: 44),
           Expanded(flex: 9, child: visual),
         ],
       );
     }
 
-    return Column(children: [visual, const SizedBox(height: 28), copy]);
+    return Column(
+      children: <Widget>[
+        visual,
+        const SizedBox(height: 30),
+        copy,
+      ],
+    );
+  }
+}
+
+class _IzyTelWebPreview extends StatelessWidget {
+  const _IzyTelWebPreview({required this.desktop});
+
+  final bool desktop;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: desktop ? 430 : 330,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(desktop ? 34 : 28),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Color(0xFFF7FBFF),
+            Color(0xFFEAF3FF),
+            Color(0xFFF9FCFF),
+          ],
+        ),
+        border: Border.all(color: CustomerAppColors.outlineSoft),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x120757C9),
+            blurRadius: 38,
+            offset: Offset(0, 18),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          Positioned(
+            right: desktop ? -82 : -62,
+            top: desktop ? -74 : -56,
+            child: Container(
+              width: desktop ? 250 : 190,
+              height: desktop ? 250 : 190,
+              decoration: BoxDecoration(
+                color: CustomerAppColors.cyanAccent.withValues(alpha: 0.10),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned(
+            left: desktop ? -76 : -54,
+            bottom: desktop ? -90 : -64,
+            child: Container(
+              width: desktop ? 230 : 170,
+              height: desktop ? 230 : 170,
+              decoration: BoxDecoration(
+                color: CustomerAppColors.primary.withValues(alpha: 0.07),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Align(
+            alignment: const Alignment(0.08, 0),
+            child: _PhonePreview(desktop: desktop),
+          ),
+          Positioned(
+            left: desktop ? 22 : 14,
+            top: desktop ? 26 : 18,
+            child: _PreviewFloatLabel(
+              icon: Icons.flash_on_rounded,
+              label: 'Rapide',
+              desktop: desktop,
+            ),
+          ),
+          Positioned(
+            right: desktop ? 22 : 14,
+            bottom: desktop ? 28 : 18,
+            child: _PreviewFloatLabel(
+              icon: Icons.verified_user_outlined,
+              label: 'Sécurisé',
+              desktop: desktop,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PhonePreview extends StatelessWidget {
+  const _PhonePreview({required this.desktop});
+
+  final bool desktop;
+
+  @override
+  Widget build(BuildContext context) {
+    final double width = desktop ? 238 : 186;
+    final double height = desktop ? 390 : 292;
+
+    return Container(
+      width: width,
+      height: height,
+      padding: EdgeInsets.all(desktop ? 8 : 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111827),
+        borderRadius: BorderRadius.circular(desktop ? 34 : 28),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x290A1B34),
+            blurRadius: 28,
+            offset: Offset(0, 16),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(desktop ? 27 : 22),
+        child: ColoredBox(
+          color: Colors.white,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              desktop ? 15 : 11,
+              desktop ? 14 : 10,
+              desktop ? 15 : 11,
+              desktop ? 15 : 10,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Align(
+                  alignment: Alignment.topCenter,
+                  child: Container(
+                    width: desktop ? 58 : 44,
+                    height: desktop ? 6 : 5,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1F2937),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+                SizedBox(height: desktop ? 18 : 12),
+                Row(
+                  children: <Widget>[
+                    SizedBox.square(
+                      dimension: desktop ? 27 : 21,
+                      child: Image.asset(
+                        'assets/images/izyTel_logo.png',
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.high,
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Text(
+                      'IzyTel',
+                      style: TextStyle(
+                        color: CustomerAppColors.primaryDeep,
+                        fontSize: desktop ? 16 : 13,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.35,
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(
+                      Icons.menu_rounded,
+                      size: desktop ? 20 : 16,
+                      color: CustomerAppColors.primaryDeep,
+                    ),
+                  ],
+                ),
+                SizedBox(height: desktop ? 22 : 15),
+                Text(
+                  'Vos unités,\nen quelques clics.',
+                  style: TextStyle(
+                    color: CustomerAppColors.primaryDeep,
+                    fontSize: desktop ? 20 : 15.5,
+                    height: 1.08,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.45,
+                  ),
+                ),
+                SizedBox(height: desktop ? 8 : 5),
+                Text(
+                  'Simple. Rapide. Izy.',
+                  style: TextStyle(
+                    color: CustomerAppColors.muted,
+                    fontSize: desktop ? 10.5 : 8.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(height: desktop ? 18 : 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    for (final MobileNetwork network in MobileNetwork.values)
+                      IzyTelOperatorLogo(
+                        network: network,
+                        size: desktop ? 46 : 34,
+                        borderRadius: desktop ? 13 : 10,
+                      ),
+                  ],
+                ),
+                SizedBox(height: desktop ? 17 : 11),
+                Container(
+                  padding: EdgeInsets.all(desktop ? 13 : 9),
+                  decoration: BoxDecoration(
+                    color: CustomerAppColors.primarySoft,
+                    borderRadius: BorderRadius.circular(desktop ? 16 : 12),
+                  ),
+                  child: Row(
+                    children: <Widget>[
+                      Container(
+                        width: desktop ? 34 : 26,
+                        height: desktop ? 34 : 26,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.flash_on_rounded,
+                          color: CustomerAppColors.primary,
+                          size: desktop ? 20 : 15,
+                        ),
+                      ),
+                      SizedBox(width: desktop ? 10 : 7),
+                      Expanded(
+                        child: Text(
+                          'Recharge mobile',
+                          style: TextStyle(
+                            color: CustomerAppColors.onSurface,
+                            fontSize: desktop ? 11.5 : 9,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  height: desktop ? 42 : 32,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: <Color>[
+                        CustomerAppColors.primary,
+                        CustomerAppColors.cyanAccent,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Text(
+                    'Commander',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: desktop ? 11.5 : 9,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewFloatLabel extends StatelessWidget {
+  const _PreviewFloatLabel({
+    required this.icon,
+    required this.label,
+    required this.desktop,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool desktop;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: desktop ? 11 : 9,
+        vertical: desktop ? 8 : 6,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: CustomerAppColors.outlineSoft),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x100A1B34),
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(
+            icon,
+            size: desktop ? 15 : 13,
+            color: CustomerAppColors.primary,
+          ),
+          SizedBox(width: desktop ? 6 : 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: CustomerAppColors.primaryDeep,
+              fontSize: desktop ? 10.5 : 9,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -404,32 +712,55 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                eyebrow,
-                style: const TextStyle(
-                  color: CustomerAppColors.primary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.8,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(title, style: Theme.of(context).textTheme.headlineSmall),
-              const SizedBox(height: 5),
-              Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
-            ],
+    final Widget copy = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          eyebrow,
+          style: const TextStyle(
+            color: CustomerAppColors.primary,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.85,
           ),
         ),
-        if (actionLabel != null && onAction != null)
-          TextButton(onPressed: onAction, child: Text(actionLabel!)),
+        const SizedBox(height: 7),
+        Text(title, style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 5),
+        Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
       ],
+    );
+
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool compact = constraints.maxWidth < 560;
+        if (compact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              copy,
+              if (actionLabel != null && onAction != null) ...<Widget>[
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: onAction,
+                  child: Text(actionLabel!),
+                ),
+              ],
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: <Widget>[
+            Expanded(child: copy),
+            if (actionLabel != null && onAction != null) ...<Widget>[
+              const SizedBox(width: 18),
+              TextButton(onPressed: onAction, child: Text(actionLabel!)),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -740,8 +1071,12 @@ class _FeaturedOfferCard extends StatelessWidget {
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
-            child: OutlinedButton(
+            child: FilledButton(
               onPressed: () => onChoose(offer),
+              style: FilledButton.styleFrom(
+                backgroundColor: CustomerAppColors.primary,
+                foregroundColor: CustomerAppColors.onPrimary,
+              ),
               child: const Text('Choisir'),
             ),
           ),
@@ -789,44 +1124,100 @@ class _LoadingCard extends StatelessWidget {
 }
 
 class _HowItWorks extends StatelessWidget {
-  const _HowItWorks();
+  const _HowItWorks({required this.desktop});
+
+  final bool desktop;
+
   @override
   Widget build(BuildContext context) {
+    final List<_HowStep> steps = <_HowStep>[
+      const _HowStep(
+        number: '01',
+        icon: Icons.touch_app_outlined,
+        title: 'Choisissez',
+        description: 'Le service, le réseau et l’offre qui vous conviennent.',
+      ),
+      const _HowStep(
+        number: '02',
+        icon: Icons.account_balance_wallet_outlined,
+        title: 'Payez',
+        description: 'Finalisez votre paiement via le parcours sécurisé.',
+      ),
+      const _HowStep(
+        number: '03',
+        icon: Icons.track_changes_rounded,
+        title: 'Suivez',
+        description: 'Gardez votre référence et suivez la commande en direct.',
+      ),
+    ];
+
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.all(desktop ? 24 : 18),
       decoration: BoxDecoration(
         color: CustomerAppColors.primaryDeep,
         borderRadius: BorderRadius.circular(24),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x18062B61),
+            blurRadius: 28,
+            offset: Offset(0, 12),
+          ),
+        ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Comment ça marche ?',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Text(
+                      'EN 3 ÉTAPES',
+                      style: TextStyle(
+                        color: CustomerAppColors.cyanAccent,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Simple du début à la fin.',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.arrow_forward_rounded,
+                color: Color(0xFF8FB8E9),
+              ),
+            ],
+          ),
+          SizedBox(height: desktop ? 22 : 18),
+          if (desktop)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                for (int index = 0; index < steps.length; index++) ...<Widget>[
+                  if (index > 0) const SizedBox(width: 12),
+                  Expanded(child: steps[index]),
+                ],
+              ],
+            )
+          else
+            Column(
+              children: <Widget>[
+                for (int index = 0; index < steps.length; index++) ...<Widget>[
+                  if (index > 0) const SizedBox(height: 10),
+                  steps[index],
+                ],
+              ],
             ),
-          ),
-          const SizedBox(height: 18),
-          const _HowStep(
-            number: '1',
-            title: 'Choisissez',
-            description: 'Votre service, votre réseau et votre offre.',
-          ),
-          _HowConnector(),
-          const _HowStep(
-            number: '2',
-            title: 'Payez',
-            description: 'Réglez votre commande avec Wave.',
-          ),
-          _HowConnector(),
-          const _HowStep(
-            number: '3',
-            title: 'Suivez',
-            description: 'Gardez votre référence et suivez chaque étape.',
-          ),
         ],
       ),
     );
@@ -836,71 +1227,65 @@ class _HowItWorks extends StatelessWidget {
 class _HowStep extends StatelessWidget {
   const _HowStep({
     required this.number,
+    required this.icon,
     required this.title,
     required this.description,
   });
+
   final String number;
+  final IconData icon;
   final String title;
   final String description;
+
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 34,
-          height: 34,
-          alignment: Alignment.center,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Container(
+            width: 38,
+            height: 38,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: Colors.white, size: 19),
           ),
-          child: Text(
-            number,
-            style: const TextStyle(
-              color: CustomerAppColors.primaryDeep,
-              fontWeight: FontWeight.w800,
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  '$number  $title',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: const TextStyle(
+                    color: Color(0xFFD5E4F7),
+                    fontSize: 11.5,
+                    height: 1.45,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-        const SizedBox(width: 13),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                description,
-                style: const TextStyle(
-                  color: Color(0xFFD7E5F7),
-                  fontSize: 13,
-                  height: 1.4,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _HowConnector extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.only(left: 16),
-      child: SizedBox(
-        height: 16,
-        child: VerticalDivider(color: Color(0xFF6E8DB6), thickness: 1),
+        ],
       ),
     );
   }
@@ -968,12 +1353,13 @@ class _SupportSection extends StatelessWidget {
     return IzyTelCard(
       child: Row(
         children: [
-          const CircleAvatar(
+          CircleAvatar(
             radius: 25,
             backgroundColor: CustomerAppColors.successContainer,
-            child: Icon(
-              Icons.support_agent_rounded,
-              color: CustomerAppColors.success,
+            child: Image.asset(
+              'assets/images/whatsapp_logo.png',
+              width: 28,
+              height: 28,
             ),
           ),
           const SizedBox(width: 14),

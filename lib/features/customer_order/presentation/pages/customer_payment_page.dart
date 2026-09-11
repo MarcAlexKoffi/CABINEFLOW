@@ -17,10 +17,12 @@ class CustomerPaymentPage extends StatefulWidget {
     super.key,
     required this.viewModel,
     this.linkBuilder = const WavePaymentLinkBuilder(),
+    this.onBack,
   });
 
   final CustomerOrderViewModel viewModel;
   final WavePaymentLinkBuilder linkBuilder;
+  final VoidCallback? onBack;
 
   @override
   State<CustomerPaymentPage> createState() {
@@ -135,13 +137,15 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
       backgroundColor: CustomerAppColors.background,
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
+          constraints: const BoxConstraints(maxWidth: 780),
           child: ColoredBox(
             color: CustomerAppColors.surface,
             child: SafeArea(
               child: Column(
                 children: [
-                  _PaymentTopBar(onBack: widget.viewModel.goBack),
+                  _PaymentTopBar(
+                    onBack: widget.onBack ?? widget.viewModel.goBack,
+                  ),
                   Expanded(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(20, 18, 20, 34),
@@ -261,7 +265,7 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
                         widget.viewModel.paymentLinkWasOpened ||
                         isExpiredWithoutDeclaration,
                     isExpired: isExpiredWithoutDeclaration,
-                    onBack: widget.viewModel.goBack,
+                    onBack: widget.onBack ?? widget.viewModel.goBack,
                     onConfirm: _confirmPaymentDeclaration,
                   ),
                 ],
@@ -281,32 +285,49 @@ class _PaymentTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 64,
+    return Container(
+      height: 68,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          bottom: BorderSide(color: CustomerAppColors.outlineSoft),
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8),
         child: Row(
-          children: [
+          children: <Widget>[
             SizedBox(
               width: 48,
               child: IconButton(
                 tooltip: 'Retour',
                 onPressed: onBack,
-                icon: const Icon(
-                  Icons.arrow_back_rounded,
-                  color: CustomerAppColors.primary,
-                ),
+                icon: const Icon(Icons.arrow_back_rounded),
               ),
             ),
-            const Expanded(
-              child: Text(
-                'IzyTel',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: CustomerAppColors.primary,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                ),
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  SizedBox.square(
+                    dimension: 29,
+                    child: Image.asset(
+                      'assets/images/izyTel_logo.png',
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'IzyTel',
+                    style: TextStyle(
+                      color: CustomerAppColors.primaryDeep,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: 48),
@@ -674,51 +695,75 @@ class _PaymentBottomActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: CustomerAppColors.surfaceContainerLowest,
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x12000000),
-            blurRadius: 20,
-            offset: Offset(0, -4),
+    final bool desktop = MediaQuery.sizeOf(context).width >= 760;
+
+    final Widget actions = Row(
+      children: <Widget>[
+        Expanded(
+          child: OutlinedButton(
+            onPressed: isSubmitting ? null : onBack,
+            child: const Text('Retour', textAlign: TextAlign.center),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: FilledButton(
+            onPressed: isSubmitting || !isPaymentDeclarationEnabled
+                ? null
+                : onConfirm,
+            child: isSubmitting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Text(
+                    isExpired
+                        ? 'Paiement déjà effectué'
+                        : 'Paiement effectué',
+                    textAlign: TextAlign.center,
+                  ),
+          ),
+        ),
+      ],
+    );
+
+    return SafeArea(
+      top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: isSubmitting ? null : onBack,
-                child: const Text('Retour', textAlign: TextAlign.center),
+        padding: EdgeInsets.fromLTRB(
+          desktop ? 28 : 20,
+          10,
+          desktop ? 28 : 20,
+          desktop ? 18 : 16,
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: CustomerAppColors.surfaceContainerLowest,
+                borderRadius: BorderRadius.circular(desktop ? 20 : 0),
+                border: desktop
+                    ? Border.all(color: CustomerAppColors.outlineSoft)
+                    : null,
+                boxShadow: const <BoxShadow>[
+                  BoxShadow(
+                    color: Color(0x12000000),
+                    blurRadius: 20,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: EdgeInsets.all(desktop ? 10 : 0),
+                child: actions,
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FilledButton(
-                onPressed: isSubmitting || !isPaymentDeclarationEnabled
-                    ? null
-                    : onConfirm,
-                child: isSubmitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(
-                        isExpired
-                            ? 'Paiement déjà effectué'
-                            : 'Paiement effectué',
-                        textAlign: TextAlign.center,
-                      ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

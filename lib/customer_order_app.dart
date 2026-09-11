@@ -8,9 +8,10 @@ class CustomerOrderApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'IzyTel — Forfaits, unités et suivi',
+      title: 'IzyTel Web — Recharge en ligne',
       debugShowCheckedModeBanner: false,
       theme: CustomerAppTheme.light,
+      themeAnimationDuration: const Duration(milliseconds: 220),
       home: const CustomerOrderFlowPage(),
     );
   }

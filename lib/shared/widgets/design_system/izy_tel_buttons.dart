@@ -19,6 +19,16 @@ class IzyTelPrimaryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return FilledButton(
       onPressed: isLoading ? null : onPressed,
+      style: FilledButton.styleFrom(
+        backgroundColor: CustomerAppColors.primary,
+        foregroundColor: CustomerAppColors.onPrimary,
+        disabledBackgroundColor: CustomerAppColors.primary.withValues(
+          alpha: 0.35,
+        ),
+        disabledForegroundColor: CustomerAppColors.onPrimary.withValues(
+          alpha: 0.82,
+        ),
+      ),
       child: isLoading
           ? const SizedBox(
               height: 24,
@@ -60,8 +70,18 @@ class IzyTelSecondaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton(
+    return FilledButton(
       onPressed: isLoading ? null : onPressed,
+      style: FilledButton.styleFrom(
+        backgroundColor: CustomerAppColors.primaryDeep,
+        foregroundColor: CustomerAppColors.onPrimary,
+        disabledBackgroundColor: CustomerAppColors.primaryDeep.withValues(
+          alpha: 0.35,
+        ),
+        disabledForegroundColor: CustomerAppColors.onPrimary.withValues(
+          alpha: 0.82,
+        ),
+      ),
       child: isLoading
           ? const SizedBox(
               height: 24,
@@ -69,7 +89,7 @@ class IzyTelSecondaryButton extends StatelessWidget {
               child: CircularProgressIndicator(
                 strokeWidth: 2,
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  CustomerAppColors.primary,
+                  CustomerAppColors.onPrimary,
                 ),
               ),
             )

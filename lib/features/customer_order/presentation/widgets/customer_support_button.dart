@@ -39,6 +39,14 @@ class CustomerSupportButton extends StatelessWidget {
     );
   }
 
+  Widget _whatsAppIcon() {
+    return Image.asset(
+      'assets/images/whatsapp_logo.png',
+      width: 21,
+      height: 21,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final Widget button = switch (style) {
@@ -46,21 +54,21 @@ class CustomerSupportButton extends StatelessWidget {
         onPressed: () {
           _open(context);
         },
-        icon: const Icon(Icons.support_agent_rounded),
+        icon: _whatsAppIcon(),
         label: Text(label),
       ),
       CustomerSupportButtonStyle.outlined => OutlinedButton.icon(
         onPressed: () {
           _open(context);
         },
-        icon: const Icon(Icons.support_agent_rounded),
+        icon: _whatsAppIcon(),
         label: Text(label),
       ),
       CustomerSupportButtonStyle.filled => FilledButton.icon(
         onPressed: () {
           _open(context);
         },
-        icon: const Icon(Icons.support_agent_rounded),
+        icon: _whatsAppIcon(),
         label: Text(label),
       ),
     };

@@ -12,9 +12,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class CustomerBeneficiaryPage extends StatefulWidget {
-  const CustomerBeneficiaryPage({super.key, required this.viewModel});
+  const CustomerBeneficiaryPage({
+    super.key,
+    required this.viewModel,
+    this.onBack,
+  });
 
   final CustomerOrderViewModel viewModel;
+  final VoidCallback? onBack;
 
   @override
   State<CustomerBeneficiaryPage> createState() {
@@ -266,8 +271,8 @@ class _CustomerBeneficiaryPageState extends State<CustomerBeneficiaryPage> {
       totalSteps: CustomerOrderViewModel.totalSteps,
       title: 'Pour qui achetez-vous ?',
       subtitle: 'Choisissez le numéro qui doit recevoir cette commande.',
-      onTopBack: widget.viewModel.goBack,
-      onBottomBack: widget.viewModel.goBack,
+      onTopBack: widget.onBack ?? widget.viewModel.goBack,
+      onBottomBack: widget.onBack ?? widget.viewModel.goBack,
       onContinue: _continue,
       isContinueEnabled:
           _canContinue &&
