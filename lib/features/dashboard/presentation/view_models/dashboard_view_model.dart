@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/features/dashboard/domain/models/dashboard_data.dart';
 import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_repository.dart';
 import 'package:flutter/foundation.dart';
@@ -33,7 +34,12 @@ class DashboardViewModel extends ChangeNotifier {
         _errorMessage = null;
         notifyListeners();
       },
-      onError: (_) {
+      onError: (Object error, StackTrace stackTrace) {
+        IzyTelLog.backendError(
+          'Dashboard.watch',
+          error,
+          stackTrace: stackTrace,
+        );
         _isLoading = false;
         _errorMessage = 'Impossible de charger le tableau de bord.';
         notifyListeners();
@@ -47,7 +53,12 @@ class DashboardViewModel extends ChangeNotifier {
     notifyListeners();
     try {
       _dashboardData = await _dashboardRepository.fetchDashboardData();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'Dashboard.load',
+        error,
+        stackTrace: stackTrace,
+      );
       _errorMessage = 'Impossible de charger le tableau de bord.';
     } finally {
       _isLoading = false;

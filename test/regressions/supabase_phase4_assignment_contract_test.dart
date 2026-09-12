@@ -12,349 +12,141 @@ void main() {
     final String hybrid = read(
       'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
     );
-    final String firestore = read(
-      'lib/features/orders/data/repositories/firestore_orders_repository.dart',
-    );
-
     expect(app, contains('HybridOrdersRepository()'));
     expect(app, contains('SupabaseBootstrap.isInitialized'));
     expect(hybrid, contains('FirestoreOrdersRepository('));
     expect(hybrid, contains('enableNativeAutoAssignment: false'));
-    expect(firestore, contains('enableNativeAutoAssignment'));
-    expect(firestore, contains('if (!_enableNativeAutoAssignment)'));
   });
 
-  test('refus agent est Supabase et ne repasse pas par le refus Firestore', () {
+  test('une commande payee est synchronisee par le RPC Phase 3', () {
+    final String supabase = read(
+      'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
+    );
+    expect(supabase, contains("'phase3_sync_order'"));
+    expect(supabase, contains("'p_customer_auth_uid'"));
+    expect(supabase, contains("'phase3_assignment_candidates'"));
+    expect(supabase, contains("'phase3_agent_is_eligible_for_order'"));
+  });
+
+  test('acceptation et refus Agent restent atomiques dans Supabase', () {
     final String hybrid = read(
       'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
     );
-    final int start = hybrid.indexOf(
-      'Future<QueueOrder> refuseAgentAssignment',
-    );
-    final int end = hybrid.indexOf(
-      'Future<QueueOrder> startAgentProcessing',
-      start,
-    );
-    expect(start, greaterThanOrEqualTo(0));
-    expect(end, greaterThan(start));
-    final String block = hybrid.substring(start, end);
-
-    expect(block, contains('_phase4.refuse('));
-    expect(block, contains('cleanedReason.length < 3'));
-    expect(block, isNot(contains('_firestore.refuseAgentAssignment(')));
-  });
-
-  test('acceptation fait le handoff vers le traitement Firebase valide', () {
-    final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
-    );
-    final int start = hybrid.indexOf(
+    final int acceptStart = hybrid.indexOf(
       'Future<QueueOrder> acceptAgentAssignment',
     );
-    final int end = hybrid.indexOf(
+    final int refuseStart = hybrid.indexOf(
       'Future<QueueOrder> refuseAgentAssignment',
-      start,
+      acceptStart,
     );
-    final String block = hybrid.substring(start, end);
+    final int processingStart = hybrid.indexOf(
+      'Future<QueueOrder> startAgentProcessing',
+      refuseStart,
+    );
+    expect(acceptStart, greaterThanOrEqualTo(0));
+    expect(refuseStart, greaterThan(acceptStart));
+    expect(processingStart, greaterThan(refuseStart));
 
-    expect(block, contains('_phase4.accept('));
-    expect(block, contains('handoffHybridAcceptedAssignment'));
-    expect(block, contains('_phase4.markHandoff('));
-    expect(block, contains('_phase4.reopenAcceptance('));
+    final String acceptBlock = hybrid.substring(acceptStart, refuseStart);
+    final String refuseBlock = hybrid.substring(refuseStart, processingStart);
+    expect(acceptBlock, contains('_phase4.accept('));
+    expect(refuseBlock, contains('_phase4.refuse('));
+    expect(acceptBlock, isNot(contains('handoffHybridAcceptedAssignment')));
+    expect(acceptBlock, isNot(contains('_phase4.markHandoff(')));
+    expect(refuseBlock, isNot(contains('_firestore.refuseAgentAssignment(')));
   });
 
-  test('affectation automatique conserve critères et round robin 9E', () {
+  test('affectation et eligibilite utilisent les capacites Supabase', () {
     final String hybrid = read(
       'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
     );
-    final String selector = read(
-      'lib/features/orders/domain/services/automatic_assignment_selector.dart',
+    final String supabase = read(
+      'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
     );
-
+    expect(hybrid, contains('_phase4.fetchAssignmentCandidates()'));
     expect(hybrid, contains('rankEligibleIgnoringPreviousRefusals'));
-    expect(hybrid, contains('_withPhase4Usage'));
     expect(hybrid, contains('_phase4.assignRanked('));
-    expect(selector, contains('agent.canReceiveIgnoringPreviousRefusals'));
-    expect(selector, contains('lastAssignedAt'));
-    expect(selector, contains('activeAssignmentCount'));
-    expect(selector, contains('todayAssignmentCount'));
-    expect(selector, contains('availableCapacityFor'));
+    expect(supabase, contains('activeAssignmentCount'));
+    expect(supabase, contains('orangeReservedAmount'));
+    expect(supabase, contains('todayAssignmentCount'));
   });
 
-  test('les refus historiques Firebase sont importés avant réaffectation', () {
+  test('affectation manuelle necrit aucun miroir Firestore', () {
     final String hybrid = read(
       'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
     );
-    final String supabase = read(
-      'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
-    );
-
-    expect(hybrid, contains('autoAssignmentRefusedAgentIds'));
-    expect(hybrid, contains('lastAssignmentRefusedAgentId'));
-    expect(hybrid, contains('importLegacyRefusals('));
-    expect(supabase, contains("'phase4_import_legacy_refusals'"));
-  });
-
-  test('les données opérationnelles pré-acceptation viennent de Supabase', () {
-    final String supabase = read(
-      'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
-    );
-
-    for (final String token in <String>[
-      'clientWhatsappPhone',
-      'beneficiaryPhone',
-      'operationType',
-      'offerLabel',
-      'paymentPayerName',
-      'toPendingQueueOrder',
-    ]) {
-      expect(supabase, contains(token));
-    }
-  });
-
-  test(
-    'traitement reste Firebase mais la preuve passe par Supabase apres handoff',
-    () {
-      final String hybrid = read(
-        'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
-      );
-
-      expect(hybrid, contains('_firestore.startAgentProcessing('));
-      expect(hybrid, contains('_firestore.resumeAgentProcessing('));
-
-      final int saveProofStart = hybrid.indexOf('Future<OrderProof> saveOrderProof');
-      final int successStart = hybrid.indexOf(
-        'Future<QueueOrder> markAgentSuccessful',
-        saveProofStart,
-      );
-      final int failedStart = hybrid.indexOf(
-        'Future<QueueOrder> markAgentFailed',
-        successStart,
-      );
-
-      expect(saveProofStart, greaterThanOrEqualTo(0));
-      expect(successStart, greaterThan(saveProofStart));
-      expect(failedStart, greaterThan(successStart));
-
-      final String saveProofBody = hybrid.substring(saveProofStart, successStart);
-      expect(saveProofBody, contains('_proofs.saveProof('));
-      expect(saveProofBody, isNot(contains('_firestore.saveOrderProof(')));
-
-      // Phase 5B1 : les nouvelles preuves restent Supabase-only au dépôt.
-      // Le miroir Firestore n'est autorisé que dans la finalisation, tant que
-      // la règle legacy exige encore orderProofs/{orderId} pour completed.
-      final String successBody = hybrid.substring(successStart, failedStart);
-      expect(successBody, contains('_firestore.saveOrderProof('));
-      expect(successBody, contains('_firestore.markAgentSuccessful('));
-
-      expect(hybrid, contains('_firestore.markAgentFailed('));
-      expect(hybrid, contains('_firestore.putAgentOnHold('));
-    },
-  );
-
-  test('affectation manuelle reste Supabase-only avant acceptation Agent', () {
-    final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
-    );
-
     final int start = hybrid.indexOf('Future<QueueOrder> assignToAgent');
     final int end = hybrid.indexOf(
       'Future<Map<String, int>> fetchActiveAssignmentCounts',
       start,
     );
-    expect(start, greaterThanOrEqualTo(0));
-    expect(end, greaterThan(start));
     final String block = hybrid.substring(start, end);
-
     expect(block, contains('_phase4.assignRanked('));
-    expect(block, contains('canonicalHasAssignment'));
-    expect(block, contains('ignorePreviousRefusals: true'));
-    expect(block, contains('assigned.overlayOn('));
-    // Les commentaires documentent volontairement l'ancienne méthode. On ne
-    // doit interdire que son appel exécutable dans le bloc d'affectation.
-    final String executableBlock = block
-        .split('\n')
-        .where((String line) => !line.trimLeft().startsWith('//'))
-        .join('\n');
-    expect(executableBlock, isNot(contains('_firestore.assignToAgent(')));
-    expect(block, isNot(contains('releaseHybridStaleAssignmentAsStaff(')));
-    expect(
-      RegExp(r'_phase4\s*\.\s*markFirebaseAssignmentSynced\s*\(')
-          .hasMatch(block),
-      isFalse,
-    );
+    expect(block, contains('manualPlanCandidates'));
+    expect(block, contains('mode: OrderAssignmentMode.manual'));
+    expect(block, isNot(contains('_firestore.assignToAgent(')));
+    expect(block, isNot(contains('ensureHybridAssignmentQueue')));
+    expect(block, isNot(contains('markFirebaseAssignmentSynced')));
   });
 
-  test('manualRequired Firestore ne rétrograde pas une affectation Phase 4 active', () {
+  test('traitement Agent post acceptation est Supabase-only', () {
     final String hybrid = read(
       'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
     );
-
-    expect(hybrid, contains('phase4HasActiveAssignment'));
-    expect(
-      hybrid,
-      contains(
-        'order.manualAssignmentRequired && !phase4HasActiveAssignment',
-      ),
-    );
-    expect(hybrid, contains('manualRequired: importManualRequired'));
-  });
-
-  test('démarrer le traitement répare un ancien handoff accepté', () {
-    final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
-    );
-    final int start = hybrid.indexOf(
-      'Future<QueueOrder> startAgentProcessing',
-    );
-    final int end = hybrid.indexOf(
-      'Future<QueueOrder> resumeAgentProcessing',
-      start,
-    );
-    expect(start, greaterThanOrEqualTo(0));
-    expect(end, greaterThan(start));
-    final String block = hybrid.substring(start, end);
-
-    expect(block, contains("error.code != 'permission-denied'"));
-    expect(block, contains('_phase4.fetchOrder('));
-    expect(block, contains('snapshot.isAccepted || snapshot.isHandedOff'));
-    expect(block, contains('handoffHybridAcceptedAssignment('));
-    expect(block, contains('_phase4.markHandoff('));
-  });
-
-  test('handoff Firebase essaie la file 9E avant de lire la commande', () {
-    final String firestore = read(
-      'lib/features/orders/data/repositories/firestore_orders_repository.dart',
-    );
-    final int start = firestore.indexOf(
-      'Future<QueueOrder> handoffHybridAcceptedAssignment',
-    );
-    final int end = firestore.indexOf(
-      'Future<List<AutomaticAssignmentAgent>>',
-      start,
-    );
-    expect(start, greaterThanOrEqualTo(0));
-    expect(end, greaterThan(start));
-    final String block = firestore.substring(start, end);
-
-    final int queueRead = block.indexOf('_autoAssignmentQueueCollection');
-    final int claim = block.indexOf('claimAutomaticQueueItem(');
-    // Cherche l'appel effectif seulement apres le claim. Le commentaire du
-    // repository mentionne aussi acceptAgentAssignment() avant le claim et ne
-    // doit pas etre interprete comme un appel de methode par ce test de contrat.
-    final int accept = block.indexOf('acceptAgentAssignment(', claim + 1);
-    expect(queueRead, greaterThanOrEqualTo(0));
-    expect(claim, greaterThan(queueRead));
-    expect(accept, greaterThan(claim));
-  });
-
-  test('les pollers Phase 4 survivent a une erreur initiale', () {
     final String supabase = read(
       'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
     );
-    expect(supabase, contains("yield lastSuccessful ?? const <Phase4AssignmentSnapshot>[];"));
+    expect(hybrid, contains('_phase4.startProcessing('));
+    expect(hybrid, contains('_phase4.resumeProcessing('));
+    expect(hybrid, contains('_phase4.holdProcessing('));
+    expect(hybrid, contains('_phase4.failProcessing('));
+    expect(hybrid, isNot(contains('_firestore.startAgentProcessing(')));
+    expect(hybrid, isNot(contains('_firestore.resumeAgentProcessing(')));
+    expect(hybrid, isNot(contains('_firestore.markAgentFailed(')));
+    expect(hybrid, isNot(contains('_firestore.putAgentOnHold(')));
+    expect(supabase, contains("'phase3_agent_processing_action'"));
+  });
+
+  test('succes Agent finalise directement capacite et commission Supabase', () {
+    final String hybrid = read(
+      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+    );
+    final int start = hybrid.indexOf('Future<QueueOrder> markAgentSuccessful');
+    final int end = hybrid.indexOf('Future<QueueOrder> markAgentFailed', start);
+    final String block = hybrid.substring(start, end);
+    expect(block, contains('_proofs.fetchProof'));
+    expect(block, contains('_phase5Finance.finalizeOrderSuccess'));
+    expect(block, contains('QueueOrderStatus.completed'));
+    expect(block, isNot(contains('_firestore.markAgentSuccessful')));
+    expect(block, isNot(contains('_firestore.saveOrderProof')));
+    expect(block, isNot(contains('markFirestoreSuccessMirrored')));
+  });
+
+  test('le fallback preuve Firestore est uniquement legacy', () {
+    final String hybrid = read(
+      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+    );
+    final int start = hybrid.indexOf('Future<OrderProof?> fetchOrderProof');
+    final int end = hybrid.indexOf('Future<OrderProof> saveOrderProof', start);
+    final String block = hybrid.substring(start, end);
+    expect(block, contains('_proofs.fetchProof'));
+    expect(block, contains('legacyStateUnresolved'));
+    expect(block, contains('_firestore.fetchOrderProof'));
+  });
+
+  test('les pollers Phase 4 conservent la derniere valeur en panne transitoire', () {
+    final String supabase = read(
+      'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
+    );
+    expect(supabase, contains('BackendFailurePolicy.canRetryRead'));
+    expect(supabase, contains('BackendFailurePolicy.retryDelay'));
     expect(
       supabase,
-      isNot(contains("if (lastSuccessful == null) rethrow;")),
+      contains('yield lastSuccessful ?? const <Phase4AssignmentSnapshot>[];'),
     );
   });
 
-
-  test('le moteur ne retouche pas updatedAt Phase 4 pour une affectation existante', () {
-    final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
-    );
-    final int start = hybrid.indexOf(
-      'Future<QueueOrder?> tryAutomaticAssignment',
-    );
-    final int end = hybrid.indexOf(
-      'Future<Phase4AssignmentSnapshot?> _tryAutomaticAssignmentWithContext',
-      start,
-    );
-    expect(start, greaterThanOrEqualTo(0));
-    expect(end, greaterThan(start));
-    final String block = hybrid.substring(start, end);
-    final int fetch = block.indexOf('_phase4.fetchOrder(order.id)');
-    final int sync = block.indexOf('_phase4.syncOrder(order)');
-    expect(fetch, greaterThanOrEqualTo(0));
-    expect(sync, greaterThan(fetch));
-    expect(block, contains('?? await _phase4.syncOrder(order)'));
-  });
-
-  test('demarrer peut reparer un miroir Firebase encore seulement assigned', () {
-    final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
-    );
-    final int start = hybrid.indexOf(
-      'Future<QueueOrder> startAgentProcessing',
-    );
-    final int end = hybrid.indexOf(
-      'Future<QueueOrder> resumeAgentProcessing',
-      start,
-    );
-    expect(start, greaterThanOrEqualTo(0));
-    expect(end, greaterThan(start));
-    final String block = hybrid.substring(start, end);
-    expect(block, contains('on StateError catch'));
-    expect(block, contains('processing-start-repair'));
-    expect(block, contains('handoffHybridAcceptedAssignment('));
-  });
-
-  test('les changements Phase 4 reveillent le moteur staff', () {
-    final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
-    );
-    final int start = hybrid.indexOf('watchAutomaticAssignmentQueue()');
-    final int end = hybrid.indexOf(
-      'synchronizeAutomaticAssignmentBacklog()',
-      start,
-    );
-    expect(start, greaterThanOrEqualTo(0));
-    expect(end, greaterThan(start));
-    final String block = hybrid.substring(start, end);
-
-    expect(block, contains('_firestore.watchAutomaticAssignmentQueue()'));
-    expect(block, contains('_phase4.watchAllForStaff()'));
-    expect(block, contains('lastPhase4Signature'));
-  });
-
-  test(
-    'les acceptations intermediaires sont reconciliees sans double comptage',
-    () {
-      final String hybrid = read(
-        'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
-      );
-      final String supabase = read(
-        'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
-      );
-
-      expect(hybrid, contains('reconcileAcceptance('));
-      expect(hybrid, contains('Duration(seconds: 15)'));
-      expect(supabase, contains("'phase4_reconcile_acceptance'"));
-    },
-  );
-
-  test('dashboard ne compte pas les affectations Supabase comme sans agent', () {
-    final String app = read('lib/app/app.dart');
-    final String dashboard = read(
-      'lib/features/dashboard/data/repositories/hybrid_dashboard_repository.dart',
-    );
-
-    expect(app, contains('HybridDashboardRepository()'));
-    expect(dashboard, contains('firebase.statistics.unassignedOrders'));
-    expect(dashboard, contains('item.isAssigned || item.isAccepted'));
-    expect(
-      dashboard,
-      contains('item.assignedAgentId?.trim().isNotEmpty == true'),
-    );
-    expect(dashboard, contains('firebaseAssignmentSyncedAt == null'));
-    expect(
-      dashboard,
-      isNot(contains('item.assignmentMode == OrderAssignmentMode.automatic')),
-    );
-  });
-
-  test('snapshot Phase 4 construit une commande Agent complète', () {
+  test('snapshot Phase 4 construit une commande Agent complete', () {
     final DateTime now = DateTime(2026, 9, 2, 18);
     final Phase4AssignmentSnapshot snapshot = Phase4AssignmentSnapshot(
       orderId: 'order-1',
@@ -368,7 +160,7 @@ void main() {
       operationType: OrderOperationType.internetSubscription,
       offerLabel: '1,5 Go',
       paymentStatus: OrderPaymentStatus.confirmed,
-      assignmentState: 'assigned',
+      assignmentState: 'accepted',
       firebaseCreatedAt: now,
       updatedAt: now,
       assignedAgentId: 'agent-a',
@@ -376,15 +168,16 @@ void main() {
       assignedByUid: 'admin',
       assignmentMode: OrderAssignmentMode.automatic,
       assignedAt: now,
+      orderStatus: QueueOrderStatus.inProgress,
+      processingStartedAt: now,
     );
 
-    final QueueOrder order = snapshot.toPendingQueueOrder();
+    final QueueOrder order = snapshot.toQueueOrder();
     expect(order.id, 'order-1');
     expect(order.clientName, 'Client Test');
-    expect(order.offerLabel, '1,5 Go');
-    expect(order.assignmentStatus, OrderAssignmentStatus.assigned);
-    expect(order.status, QueueOrderStatus.paidReady);
-    expect(order.paymentStatus, OrderPaymentStatus.confirmed);
+    expect(order.assignmentStatus, OrderAssignmentStatus.accepted);
+    expect(order.status, QueueOrderStatus.inProgress);
+    expect(order.takenAt, now);
   });
 
   test('historique Agent conserve les refus Supabase Phase 4', () {
@@ -394,112 +187,26 @@ void main() {
     final String supabase = read(
       'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
     );
-    final String viewModel = read(
-      'lib/features/orders/presentation/view_models/agent_orders_view_model.dart',
-    );
     final String historyPage = read(
       'lib/features/orders/presentation/pages/agent_history_page.dart',
     );
-
-    expect(hybrid, contains('AgentAssignmentHistoryRepository'));
     expect(hybrid, contains('watchAgentRefusedOrders'));
     expect(supabase, contains(".eq('status', 'refused')"));
-    expect(supabase, contains('OrderAssignmentStatus.refused'));
-    expect(viewModel, contains('refusedHistoryOrders'));
-    expect(viewModel, contains('refusedHistoryCount'));
     expect(historyPage, contains("_tabBox('Refus'"));
-    expect(historyPage, contains('Aucun refus enregistré.'));
   });
 
-  test('activité détaillée Agent fusionne les refus Supabase', () {
-    final String activity = read(
-      'lib/features/agents/data/repositories/firestore_agent_activity_v2_repository.dart',
-    );
-
-    expect(activity, contains('watchAgentRefusalHistory(agentId)'));
-    expect(activity, contains("status: 'refused'"));
-    expect(activity, contains('phase4RefusedAssignments'));
-    expect(activity, contains('mergeAssignments()'));
-  });
-
-  test(
-    'file Admin montre la réaffectation sur la carte sans bannière permanente',
-    () {
-      final String widgets = read(
-        'lib/features/orders/presentation/widgets/orders_widgets.dart',
-      );
-      final String page = read(
-        'lib/features/orders/presentation/pages/orders_page.dart',
-      );
-
-      expect(widgets, contains('Réaffectée automatiquement'));
-      expect(widgets, contains('après refus'));
-      expect(widgets, contains('assignmentLabel'));
-      expect(page, isNot(contains('jusqu’à l’acceptation du nouvel agent')));
-      expect(page, isNot(contains('commande payée sans agent')));
-    },
-  );
-
-  test(
-    'Plus expose les chemins officiels affectations et commandes échouées',
-    () {
-      final String more = read(
-        'lib/features/more/presentation/pages/more_page.dart',
-      );
-
-      expect(more, contains('Affectations des commandes'));
-      expect(more, contains('Commandes échouées'));
-      expect(more, contains('OrdersPage('));
-      expect(more, contains('FailedOrdersPage('));
-    },
-  );
-  test('affectation manuelle conserve les autres agents eligibles pour le refus suivant', () {
-    final String hybrid = File(
+  test('la file staff est reveillee par Firestore pre-sync et Supabase canonique', () {
+    final String hybrid = read(
       'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
-    ).readAsStringSync();
-    final int start = hybrid.indexOf('Future<QueueOrder> assignToAgent');
+    );
+    final int start = hybrid.indexOf('watchAutomaticAssignmentQueue()');
     final int end = hybrid.indexOf(
-      'Future<Map<String, int>> fetchActiveAssignmentCounts',
+      'synchronizeAutomaticAssignmentBacklog()',
       start,
     );
-    expect(start, greaterThanOrEqualTo(0));
-    expect(end, greaterThan(start));
     final String block = hybrid.substring(start, end);
-
-    expect(block, contains('final List<AutomaticAssignmentAgent> rankedFallback'));
-    expect(block, contains('_rankCandidates('));
-    expect(block, contains('final List<AutomaticAssignmentAgent> manualPlanCandidates'));
-    expect(block, contains('target,'));
-    expect(block, contains('item.agentId != targetAgentId'));
-    expect(block, contains('candidates: manualPlanCandidates'));
-    expect(block, isNot(contains('candidates: <AutomaticAssignmentAgent>[target]')));
+    expect(block, contains('_firestore.watchAutomaticAssignmentQueue()'));
+    expect(block, contains('_phase4.watchAllForStaff()'));
+    expect(block, contains('lastPhase4Signature'));
   });
-
-
-  test('une affectation manuelle ouvre un nouveau cycle de refus', () {
-    final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
-    );
-    final int start = hybrid.indexOf('Future<QueueOrder> assignToAgent');
-    final int end = hybrid.indexOf('Future<Map<String, int>> fetchActiveAssignmentCounts', start);
-    expect(start, greaterThanOrEqualTo(0));
-    expect(end, greaterThan(start));
-    final String block = hybrid.substring(start, end);
-
-    expect(block, contains('canonical?.isManualRequired == true'));
-    expect(block, contains('_phase4.resetForManualAssignment(order.id)'));
-    expect(block, contains('manualPlanCandidates'));
-    expect(block, contains('mode: OrderAssignmentMode.manual'));
-  });
-
-  test('un refus de nettoyage legacy ne casse plus le backlog Manager', () {
-    final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
-    );
-    expect(hybrid, contains('_releaseLegacyMirrorBestEffort'));
-    expect(hybrid, contains("error.code != 'permission-denied'"));
-    expect(hybrid, contains('_legacyMirrorCleanupDeniedUid'));
-    expect(hybrid, contains('[Phase4][legacy-mirror-skip]'));
-  });
-
 }

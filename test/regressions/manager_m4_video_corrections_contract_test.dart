@@ -41,14 +41,16 @@ void main() {
     expect(dashboard, isNot(contains('à surveiller')));
   });
 
-  test('Dashboard hybride corrige aussi les affectations manuelles Phase 4', () {
+  test('Dashboard hybride utilise Supabase sans filtrer les affectations manuelles', () {
     final String hybrid = compact(
       read(
         'lib/features/dashboard/data/repositories/hybrid_dashboard_repository.dart',
       ),
     );
-    expect(hybrid, contains('(item.isAssigned || item.isAccepted)'));
-    expect(hybrid, contains('item.assignedAgentId?.trim().isNotEmpty == true'));
+    expect(hybrid, contains('!item.legacyStateUnresolved'));
+    expect(hybrid, contains('item.orderStatus == QueueOrderStatus.paidReady'));
+    expect(hybrid, contains('(item.isWaiting || item.isManualRequired)'));
+    expect(hybrid, contains('ordersToProcess: supabaseReady'));
     expect(
       hybrid,
       isNot(contains('item.assignmentMode == OrderAssignmentMode.automatic')),

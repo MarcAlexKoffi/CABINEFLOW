@@ -1,3 +1,4 @@
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/theme/customer_app_colors.dart';
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
@@ -61,13 +62,15 @@ class _CustomerSupportRequestButtonState
         context,
         'Votre demande concernant ${widget.orderReference} a été envoyée.',
       );
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
       if (!mounted) {
         return;
       }
 
-      debugPrint(
-        '[SupportRequest][customer] order=${widget.orderReference} ERROR $error',
+      IzyTelLog.backendError(
+        'SupportRequest.customer-create',
+        error,
+        stackTrace: stackTrace,
       );
       IzyTelFeedback.error(
         context,

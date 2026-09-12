@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:flutter/foundation.dart';
@@ -140,8 +141,12 @@ class PaymentsViewModel extends ChangeNotifier {
         _errorMessage = null;
         notifyListeners();
       },
-      onError: (Object error) {
-        debugPrint('[Payments][watch] $error');
+      onError: (Object error, StackTrace stackTrace) {
+        IzyTelLog.backendError(
+          'Payments.watch',
+          error,
+          stackTrace: stackTrace,
+        );
         _isLoading = false;
         _errorMessage = 'Impossible de charger les paiements.';
         notifyListeners();
@@ -161,7 +166,12 @@ class PaymentsViewModel extends ChangeNotifier {
 
     try {
       _orders = await _ordersRepository.fetchPaymentTrackingOrders();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'Payments.load',
+        error,
+        stackTrace: stackTrace,
+      );
       _errorMessage = 'Impossible de charger les paiements.';
     } finally {
       _isLoading = false;
@@ -207,8 +217,11 @@ class PaymentsViewModel extends ChangeNotifier {
 
       return true;
     } catch (error, stackTrace) {
-      debugPrint('[Payments][confirm] $error');
-      debugPrint('[Payments][confirm] $stackTrace');
+      IzyTelLog.backendError(
+        'Payments.confirm',
+        error,
+        stackTrace: stackTrace,
+      );
       _errorMessage = error is StateError
           ? error.message.toString()
           : 'Impossible de confirmer ce paiement.';

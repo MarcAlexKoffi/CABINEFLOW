@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
@@ -41,15 +42,21 @@ class SupabaseBootstrap {
               unawaited(_syncRealtimeAuth(user));
             },
             onError: (Object error, StackTrace stackTrace) {
-              debugPrint('[SupabaseBootstrap][FirebaseToken] $error');
-              debugPrintStack(stackTrace: stackTrace);
+              IzyTelLog.backendError(
+                'SupabaseBootstrap.FirebaseToken',
+                error,
+                stackTrace: stackTrace,
+              );
             },
           );
 
       return true;
     } catch (error, stackTrace) {
-      debugPrint('[SupabaseBootstrap] Initialisation impossible: $error');
-      debugPrintStack(stackTrace: stackTrace);
+      IzyTelLog.backendError(
+        'SupabaseBootstrap.Initialize',
+        error,
+        stackTrace: stackTrace,
+      );
       return false;
     }
   }
@@ -62,8 +69,11 @@ class SupabaseBootstrap {
     } catch (error, stackTrace) {
       // Une panne Realtime ne doit jamais empêcher Firebase Auth, la Data API
       // Supabase ou le reste d'IzyTel de fonctionner.
-      debugPrint('[SupabaseBootstrap][RealtimeAuth] $error');
-      debugPrintStack(stackTrace: stackTrace);
+      IzyTelLog.backendError(
+        'SupabaseBootstrap.RealtimeAuth',
+        error,
+        stackTrace: stackTrace,
+      );
     }
   }
 }

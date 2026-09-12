@@ -32,7 +32,7 @@ class FirestoreOrderMapper {
         data['originalWhatsappMessage'],
       ),
       internalNotes: _readNullableString(data['internalNotes']),
-      createdAt: _readDate(data['createdAt']) ?? DateTime.now(),
+      createdAt: _readHistoricalCreatedAt(data),
       paidAt: _readDate(data['paidAt']),
       paymentRequestSentAt: _readDate(data['paymentRequestSentAt']),
       paymentDeclaredAt: _readDate(data['paymentDeclaredAt']),
@@ -192,123 +192,137 @@ class FirestoreOrderMapper {
   }
 
   static bool _readBool(Object? value) {
-    return value is bool ? value : false;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    final String token = _normalizedToken(value);
+    if (token == 'true' || token == '1' || token == 'yes') return true;
+    return false;
   }
 
   static int _readInt(Object? value) {
-    if (value is int) {
-      return value;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) {
+      final String compact = value.trim().replaceAll(RegExp(r'\s+'), '');
+      return int.tryParse(compact) ?? double.tryParse(compact)?.toInt() ?? 0;
     }
-
-    if (value is num) {
-      return value.toInt();
-    }
-
     return 0;
   }
 
+  static DateTime _readHistoricalCreatedAt(Map<String, dynamic> data) {
+    final DateTime? direct = _readDate(data['createdAt']);
+    if (direct != null) return direct;
+
+    final List<DateTime> candidates = <DateTime?>[
+      _readDate(data['paymentRequestSentAt']),
+      _readDate(data['paymentDeclaredAt']),
+      _readDate(data['paidAt']),
+      _readDate(data['paymentConfirmedAt']),
+      _readDate(data['assignedAt']),
+      _readDate(data['takenAt']),
+      _readDate(data['completedAt']),
+      _readDate(data['expiredAt']),
+    ].whereType<DateTime>().toList(growable: false);
+
+    if (candidates.isNotEmpty) {
+      candidates.sort();
+      return candidates.first;
+    }
+
+    // Anciennes lignes vraiment incompletes : une date stable vaut mieux que
+    // DateTime.now(), qui faisait "rajeunir" la commande a chaque lecture.
+    return DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+  }
+
   static DateTime? _readDate(Object? value) {
-    if (value is Timestamp) {
-      return value.toDate();
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+
+    if (value is String) {
+      final String text = value.trim();
+      if (text.isEmpty) return null;
+      return DateTime.tryParse(text);
     }
 
-    if (value is DateTime) {
-      return value;
+    if (value is num) {
+      final int raw = value.toInt();
+      if (raw == 0) return null;
+      // Les anciens imports ont pu stocker un epoch en secondes ou en ms.
+      final int millis = raw.abs() < 100000000000 ? raw * 1000 : raw;
+      try {
+        return DateTime.fromMillisecondsSinceEpoch(millis, isUtc: true);
+      } on RangeError {
+        return null;
+      }
     }
 
+    return null;
+  }
+
+  static String _normalizedToken(Object? value) {
+    if (value is! String) return '';
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[\s_-]+'), '');
+  }
+
+  static T? _enumByNormalizedName<T extends Enum>(
+    Iterable<T> values,
+    Object? value,
+  ) {
+    final String token = _normalizedToken(value);
+    if (token.isEmpty) return null;
+    for (final T item in values) {
+      if (_normalizedToken(item.name) == token) return item;
+    }
     return null;
   }
 
   static MobileNetwork _readNetwork(Object? value) {
-    return MobileNetwork.values.firstWhere(
-      (MobileNetwork item) => item.name == value,
-      orElse: () => MobileNetwork.orange,
-    );
+    final String token = _normalizedToken(value);
+    if (token.startsWith('moov')) return MobileNetwork.moov;
+    return _enumByNormalizedName(MobileNetwork.values, value) ??
+        MobileNetwork.orange;
   }
 
   static OrderOperationType _readOperationType(Object? value) {
-    return OrderOperationType.values.firstWhere(
-      (OrderOperationType item) => item.name == value,
-      orElse: () => OrderOperationType.other,
-    );
+    return _enumByNormalizedName(OrderOperationType.values, value) ??
+        OrderOperationType.other;
   }
 
   static OrderSource _readSource(Object? value) {
-    return OrderSource.values.firstWhere(
-      (OrderSource item) => item.name == value,
-      orElse: () => OrderSource.operatorApp,
-    );
+    return _enumByNormalizedName(OrderSource.values, value) ??
+        OrderSource.operatorApp;
   }
 
   static QueueOrderStatus _readStatus(Object? value) {
-    return QueueOrderStatus.values.firstWhere(
-      (QueueOrderStatus item) => item.name == value,
-      orElse: () => QueueOrderStatus.awaitingPayment,
-    );
+    return _enumByNormalizedName(QueueOrderStatus.values, value) ??
+        QueueOrderStatus.awaitingPayment;
   }
 
   static OrderPaymentStatus _readPaymentStatus(Object? value) {
-    return OrderPaymentStatus.values.firstWhere(
-      (OrderPaymentStatus item) => item.name == value,
-      orElse: () => OrderPaymentStatus.pending,
-    );
+    return _enumByNormalizedName(OrderPaymentStatus.values, value) ??
+        OrderPaymentStatus.pending;
   }
 
   static OrderFailureReason? _readFailureReason(Object? value) {
-    if (value is! String || value.isEmpty) {
-      return null;
-    }
-
-    for (final OrderFailureReason reason in OrderFailureReason.values) {
-      if (reason.name == value) {
-        return reason;
-      }
-    }
-
-    return OrderFailureReason.other;
+    if (_normalizedToken(value).isEmpty) return null;
+    return _enumByNormalizedName(OrderFailureReason.values, value) ??
+        OrderFailureReason.other;
   }
 
   static OrderAssignmentMode? _readAssignmentMode(Object? value) {
-    if (value is! String || value.isEmpty) {
-      return null;
-    }
-
-    for (final OrderAssignmentMode mode in OrderAssignmentMode.values) {
-      if (mode.name == value) {
-        return mode;
-      }
-    }
-
-    return null;
+    return _enumByNormalizedName(OrderAssignmentMode.values, value);
   }
 
   static OrderAssignmentStatus _readAssignmentStatus(Object? value) {
-    if (value is! String || value.isEmpty) {
-      return OrderAssignmentStatus.unassigned;
-    }
-
-    for (final OrderAssignmentStatus status in OrderAssignmentStatus.values) {
-      if (status.name == value) {
-        return status;
-      }
-    }
-
-    return OrderAssignmentStatus.unassigned;
+    return _enumByNormalizedName(OrderAssignmentStatus.values, value) ??
+        OrderAssignmentStatus.unassigned;
   }
 
   static CustomerConfirmationStatus? _readConfirmationStatus(Object? value) {
-    if (value is! String || value.isEmpty) {
-      return null;
-    }
-
-    for (final CustomerConfirmationStatus status
-        in CustomerConfirmationStatus.values) {
-      if (status.name == value) {
-        return status;
-      }
-    }
-
-    return null;
+    return _enumByNormalizedName(CustomerConfirmationStatus.values, value);
   }
 
   static String? _cleanNullable(String? value) {

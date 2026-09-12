@@ -1,6 +1,7 @@
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseAgentIssueRepository {
@@ -32,6 +33,7 @@ class SupabaseAgentIssueRepository {
 
   Stream<List<AgentIssue>> _watchIssues({String? agentId}) async* {
     List<AgentIssue>? lastSuccessful;
+    int consecutiveFailures = 0;
 
     while (true) {
       try {
@@ -41,20 +43,33 @@ class SupabaseAgentIssueRepository {
 
         final List<AgentIssue> issues = _issuesFromRows(rows);
         lastSuccessful = issues;
+        consecutiveFailures = 0;
         yield issues;
       } catch (error, stackTrace) {
-        debugPrint('[SupabaseAgentIssues][watch] $error');
-        debugPrintStack(stackTrace: stackTrace);
+        IzyTelLog.backendError(
+          'SupabaseAgentIssues.watch',
+          error,
+          stackTrace: stackTrace,
+        );
 
-        // Si la toute premiere lecture echoue, l'UI doit encore pouvoir
-        // afficher son etat d'erreur. Apres au moins une lecture reussie, on
-        // conserve la derniere valeur a l'ecran et on retente silencieusement.
-        if (lastSuccessful == null) {
-          rethrow;
+        if (!BackendFailurePolicy.canRetryRead(error)) {
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+
+        // Une panne reseau transitoire ne ferme plus le stream. Si une valeur
+        // fiable existe deja, elle reste affichee jusqu'a la reconnexion.
+        consecutiveFailures += 1;
+        if (lastSuccessful != null) {
+          yield lastSuccessful;
         }
       }
 
-      await Future<void>.delayed(_pollInterval);
+      await Future<void>.delayed(
+        BackendFailurePolicy.retryDelay(
+          baseDelay: _pollInterval,
+          consecutiveFailures: consecutiveFailures,
+        ),
+      );
     }
   }
 

@@ -39,11 +39,10 @@ void main() {
   });
 
 
-  test('la finalisation cree un pont Firestore uniquement pour la regle legacy', () {
+  test('la finalisation Agent reste Supabase-only apres le cutover', () {
     final String hybrid = read(
       'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
     );
-
     final int successStart = hybrid.indexOf(
       'Future<QueueOrder> markAgentSuccessful',
     );
@@ -51,16 +50,11 @@ void main() {
       'Future<QueueOrder> markAgentFailed',
       successStart,
     );
-    expect(successStart, greaterThanOrEqualTo(0));
-    expect(failedStart, greaterThan(successStart));
     final String successBlock = hybrid.substring(successStart, failedStart);
-
-    expect(successBlock, contains('[Phase5B1][proof-bridge]'));
     expect(successBlock, contains('_proofs.fetchProof('));
-    expect(successBlock, contains('orderId: orderId'));
-    expect(successBlock, contains('_firestore.fetchOrderProof('));
-    expect(successBlock, contains('_firestore.saveOrderProof('));
-    expect(successBlock, contains('_firestore.markAgentSuccessful('));
+    expect(successBlock, contains('_phase5Finance.finalizeOrderSuccess'));
+    expect(successBlock, isNot(contains('_firestore.saveOrderProof(')));
+    expect(successBlock, isNot(contains('_firestore.markAgentSuccessful(')));
   });
 
   test('les anciennes preuves Firestore restent lisibles en transition', () {
@@ -68,7 +62,7 @@ void main() {
       'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
     );
 
-    expect(hybrid, contains('Compatibilite historique uniquement'));
+    expect(hybrid, contains('fallback Firestore est strictement historique'));
     expect(hybrid, contains('_firestore.fetchOrderProof(orderId: orderId)'));
   });
 

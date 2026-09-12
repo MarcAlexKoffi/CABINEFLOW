@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_proof.dart';
@@ -9,6 +10,7 @@ import 'package:cabine_flow/features/orders/domain/services/agent_order_priority
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 enum AgentOrdersTab { toAccept, inProgress, completed }
 
@@ -35,6 +37,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
   AgentOrdersTab _selectedTab = AgentOrdersTab.toAccept;
   String? _busyOrderId;
   String? _errorMessage;
+  bool _errorIsQueueLoad = false;
   bool _isLoading = true;
 
   AgentOrdersTab get selectedTab => _selectedTab;
@@ -43,6 +46,9 @@ class AgentOrdersViewModel extends ChangeNotifier {
   String? get avatarUrl => _avatarUrl;
   String? get busyOrderId => _busyOrderId;
   String? get errorMessage => _errorMessage;
+  String get errorTitle => _errorIsQueueLoad
+      ? 'Impossible de charger la file'
+      : 'Action impossible';
   bool get isLoading => _isLoading;
 
   List<QueueOrder> get toAcceptOrders =>
@@ -130,6 +136,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
   Future<void> start() async {
     _isLoading = true;
     _errorMessage = null;
+    _errorIsQueueLoad = false;
     notifyListeners();
 
     await _subscription?.cancel();
@@ -146,11 +153,22 @@ class AgentOrdersViewModel extends ChangeNotifier {
                 .toList(growable: false);
             _isLoading = false;
             _errorMessage = null;
+            _errorIsQueueLoad = false;
             notifyListeners();
           },
-          onError: (_) {
+          onError: (Object error, StackTrace stackTrace) {
             _isLoading = false;
-            _errorMessage = 'Impossible de charger tes commandes affectées.';
+            IzyTelLog.backendError(
+              'AgentOrders.watch-assigned',
+              error,
+              stackTrace: stackTrace,
+            );
+            // Une coupure transitoire ne doit pas transformer une file deja
+            // affichee en ecran d'erreur. On conserve la derniere valeur utile.
+            if (_orders.isEmpty) {
+              _errorIsQueueLoad = true;
+              _errorMessage = 'Impossible de charger tes commandes affectées.';
+            }
             notifyListeners();
           },
         );
@@ -165,8 +183,12 @@ class AgentOrdersViewModel extends ChangeNotifier {
               _refusedHistoryOrders = orders;
               notifyListeners();
             },
-            onError: (Object error) {
-              debugPrint('[Phase4][refused-history] $error');
+            onError: (Object error, StackTrace stackTrace) {
+              IzyTelLog.backendError(
+                'Phase4.refused-history',
+                error,
+                stackTrace: stackTrace,
+              );
             },
           );
     } else {
@@ -182,8 +204,12 @@ class AgentOrdersViewModel extends ChangeNotifier {
               _agentProfile = profile;
               notifyListeners();
             },
-            onError: (Object error) {
-              debugPrint('[AutoAssignment][watch-profile] $error');
+            onError: (Object error, StackTrace stackTrace) {
+              IzyTelLog.backendError(
+                'AutoAssignment.watch-profile',
+                error,
+                stackTrace: stackTrace,
+              );
             },
           );
       _personalProfileSubscription = repository
@@ -200,8 +226,12 @@ class AgentOrdersViewModel extends ChangeNotifier {
               unawaited(_resolveAvatar(repository, path));
               notifyListeners();
             },
-            onError: (Object error) {
-              debugPrint('[AgentProfile][watch-personal] $error');
+            onError: (Object error, StackTrace stackTrace) {
+              IzyTelLog.backendError(
+                'AgentProfile.watch-personal',
+                error,
+                stackTrace: stackTrace,
+              );
             },
           );
     }
@@ -234,6 +264,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
 
     _busyOrderId = order.id;
     _errorMessage = null;
+    _errorIsQueueLoad = false;
     notifyListeners();
 
     try {
@@ -263,6 +294,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
 
     final String cleanedReason = reason.trim();
     if (cleanedReason.length < 3) {
+      _errorIsQueueLoad = false;
       _errorMessage = 'Indique un motif de refus plus précis.';
       notifyListeners();
       return false;
@@ -270,6 +302,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
 
     _busyOrderId = order.id;
     _errorMessage = null;
+    _errorIsQueueLoad = false;
     notifyListeners();
 
     try {
@@ -302,6 +335,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
     if (!_canActOnAcceptedOrder(order)) return false;
     _busyOrderId = order.id;
     _errorMessage = null;
+    _errorIsQueueLoad = false;
     notifyListeners();
 
     try {
@@ -326,6 +360,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
     if (!_canActOnAcceptedOrder(order)) return false;
     _busyOrderId = order.id;
     _errorMessage = null;
+    _errorIsQueueLoad = false;
     notifyListeners();
 
     try {
@@ -350,6 +385,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
       return await ordersRepository.fetchOrderProof(orderId: orderId);
     } catch (error, stackTrace) {
       _logActionError('load-proof', error, stackTrace);
+      _errorIsQueueLoad = false;
       _errorMessage = _friendlyError(error);
       notifyListeners();
       return null;
@@ -365,6 +401,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
     if (!_canActOnAcceptedOrder(order)) return null;
     _busyOrderId = order.id;
     _errorMessage = null;
+    _errorIsQueueLoad = false;
     notifyListeners();
 
     try {
@@ -390,6 +427,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
     if (!_canActOnAcceptedOrder(order)) return false;
     _busyOrderId = order.id;
     _errorMessage = null;
+    _errorIsQueueLoad = false;
     notifyListeners();
 
     try {
@@ -418,6 +456,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
     if (!_canActOnAcceptedOrder(order)) return false;
     _busyOrderId = order.id;
     _errorMessage = null;
+    _errorIsQueueLoad = false;
     notifyListeners();
 
     try {
@@ -444,6 +483,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
     if (!_canActOnAcceptedOrder(order)) return false;
     _busyOrderId = order.id;
     _errorMessage = null;
+    _errorIsQueueLoad = false;
     notifyListeners();
 
     try {
@@ -498,42 +538,93 @@ class AgentOrdersViewModel extends ChangeNotifier {
 
   String _friendlyError(Object error) {
     if (error is FirebaseException) {
-      final String message = (error.message ?? '').trim();
       switch (error.code) {
         case 'permission-denied':
-          return 'Firestore refuse cette action (permission-denied).';
+          return 'Firebase refuse encore cette action. Actualise puis réessaie.';
         case 'failed-precondition':
-          return message.isEmpty
-              ? 'Précondition Firestore non satisfaite (failed-precondition).'
-              : 'Firestore failed-precondition : $message';
+          return 'Cette action n’est plus compatible avec l’état actuel de la commande.';
         case 'unavailable':
-          return 'Firestore est momentanément indisponible (unavailable).';
+          return 'Firebase est momentanément indisponible. Réessaie dans un instant.';
         case 'aborted':
-          return 'La transaction Firestore a été interrompue (aborted). Réessaie.';
+          return 'L’action a été interrompue par une mise à jour concurrente. Réessaie.';
         default:
-          return message.isEmpty
-              ? 'Erreur Firestore (${error.code}).'
-              : 'Erreur Firestore (${error.code}) : $message';
+          return 'Une erreur Firebase empêche cette action pour le moment.';
       }
     }
 
+    if (error is StorageException) {
+      final String raw = error.toString().toLowerCase();
+      if (raw.contains('row-level security') ||
+          raw.contains('unauthorized') ||
+          raw.contains('forbidden') ||
+          raw.contains('403')) {
+        return 'Supabase refuse l’enregistrement de la preuve pour cette commande. Actualise la commande puis réessaie.';
+      }
+      if (raw.contains('payload too large') || raw.contains('413')) {
+        return 'La photo est encore trop lourde. Choisis une image plus légère.';
+      }
+      if (raw.contains('network') ||
+          raw.contains('timeout') ||
+          raw.contains('connection')) {
+        return 'La preuve n’a pas pu être envoyée. Vérifie la connexion puis réessaie.';
+      }
+      return 'Impossible d’enregistrer la preuve dans Supabase. Réessaie.';
+    }
+
+    if (error is PostgrestException) {
+      final String raw = '${error.code ?? ''} ${error.message}'.toLowerCase();
+      if (raw.contains('pgrst303') || raw.contains('jwt issued at future')) {
+        return 'L’horloge du téléphone et la session Supabase ne sont pas synchronisées. Active la date et l’heure automatiques puis actualise.';
+      }
+      if (raw.contains('42501') || raw.contains('permission')) {
+        return 'Supabase refuse cette action pour l’état actuel de la commande.';
+      }
+      if (raw.contains('order_not_accepted') ||
+          raw.contains('order_not_handed_off')) {
+        return 'La commande doit être acceptée avant l’ajout de la preuve.';
+      }
+      if (raw.contains('order_not_in_progress')) {
+        return 'Démarre le traitement de la commande avant d’ajouter la preuve.';
+      }
+      if (raw.contains('order_reference_mismatch') ||
+          raw.contains('invalid_proof_path')) {
+        return 'La preuve ne correspond pas à cette commande. Actualise puis reprends la photo.';
+      }
+      if (raw.contains('proof_required')) {
+        return 'Ajoute une preuve avant de valider la réussite.';
+      }
+      if (raw.contains('insufficient_capacity')) {
+        return 'La capacité du réseau est devenue insuffisante avant la finalisation.';
+      }
+      return 'Supabase n’a pas pu confirmer cette action. Actualise puis réessaie.';
+    }
+
     final String raw = error.toString();
+    final String normalized = raw.toLowerCase();
+    if (normalized.contains('socketexception') ||
+        normalized.contains('timeoutexception') ||
+        normalized.contains('clientexception') ||
+        normalized.contains('connection reset') ||
+        normalized.contains('connection closed')) {
+      return 'Connexion interrompue pendant l’action. Vérifie le réseau puis réessaie.';
+    }
+    if (normalized.contains('jwt') &&
+        (normalized.contains('expired') || normalized.contains('invalid'))) {
+      return 'La session a expiré. Actualise la page puis réessaie.';
+    }
     if (raw.startsWith('Bad state: ')) {
       return raw.substring('Bad state: '.length);
     }
-    return 'Erreur inattendue : $raw';
+    if (raw.startsWith('StateError: ')) {
+      return raw.substring('StateError: '.length);
+    }
+    return 'Une erreur inattendue est survenue. Réessaie.';
   }
 
   void _logActionError(String action, Object error, StackTrace stackTrace) {
-    debugPrint('[AgentOrders][$action] ${error.runtimeType}: $error');
-    if (error is FirebaseException) {
-      debugPrint(
-        '[AgentOrders][$action] plugin=${error.plugin} '
-        'code=${error.code} message=${error.message}',
-      );
-    }
-    debugPrintStack(
-      label: '[AgentOrders][$action] stack',
+    IzyTelLog.backendError(
+      'AgentOrders.$action',
+      error,
       stackTrace: stackTrace,
     );
   }

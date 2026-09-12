@@ -71,6 +71,7 @@ void main() {
       contains('Future<void> _openSpecificOrder(QueueOrder order)'),
     );
     expect(shell, contains('fetchOrderById(orderId: order.id)'));
-    expect(shell, contains('initialOrder: latest'));
+    expect(shell, contains('StaffOrderNavigation.orderDetailRoute('));
+    expect(shell, contains('order: latest'));
   });
 }

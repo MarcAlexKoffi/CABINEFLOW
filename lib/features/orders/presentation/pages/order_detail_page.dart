@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
@@ -101,7 +102,12 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
           unawaited(_loadProof());
         }
       },
-      onError: (_) {
+      onError: (Object error, StackTrace stackTrace) {
+        IzyTelLog.backendError(
+          'OrderDetail.history-watch',
+          error,
+          stackTrace: stackTrace,
+        );
         // Le rafraîchissement manuel reste disponible si le flux temps réel
         // est momentanément indisponible.
       },
@@ -140,7 +146,12 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       );
       if (!mounted) return;
       setState(() => _proof = proof);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'OrderDetail.proof-load',
+        error,
+        stackTrace: stackTrace,
+      );
       // Une preuve absente ou momentanément indisponible ne doit pas bloquer
       // l'affichage du détail de commande.
     } finally {
@@ -174,7 +185,12 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
         _order = updatedOrder;
         _errorMessage = null;
       });
-    } catch (_) {
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'OrderDetail.refresh',
+        error,
+        stackTrace: stackTrace,
+      );
       if (!mounted) {
         return;
       }

@@ -1,3 +1,9 @@
+import 'dart:async';
+
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
+import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
+import 'package:cabine_flow/features/customer_order/data/repositories/supabase_customer_order_status_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/beneficiary_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_identity.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
@@ -12,7 +18,6 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/services/order_expiration_policy.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 
 class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
   FirestoreCustomerOrderRepository({
@@ -289,65 +294,193 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
     }
 
     _recoveredOrderIds.add(orderId);
-    return recoveredOrder;
+    return _overlayOperationalStatus(recoveredOrder);
   }
 
   @override
   Stream<CustomerOrderReceipt> watchOrder({
     required CustomerOrderReceipt order,
   }) {
-    return _ordersCollection.doc(order.id).snapshots().asyncMap((
-      DocumentSnapshot<Map<String, dynamic>> snapshot,
-    ) async {
-      final Map<String, dynamic>? data = snapshot.data();
+    if (!SupabaseBootstrap.isInitialized) {
+      return _ordersCollection.doc(order.id).snapshots().asyncMap((
+        DocumentSnapshot<Map<String, dynamic>> snapshot,
+      ) async {
+        final Map<String, dynamic>? data = snapshot.data();
+        if (!snapshot.exists || data == null) {
+          throw StateError('La commande suivie est introuvable.');
+        }
+        final CustomerOrderReceipt currentOrder = _receiptFromData(
+          fallbackOrder: order,
+          data: data,
+        );
+        if (_recoveredOrderIds.contains(order.id)) return currentOrder;
+        return _synchronizeExpirationIfNeeded(currentOrder);
+      });
+    }
 
-      if (!snapshot.exists || data == null) {
-        throw StateError('La commande suivie est introuvable.');
+    late final StreamController<CustomerOrderReceipt> controller;
+    StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? firestoreSub;
+    Timer? refreshTimer;
+    CustomerOrderReceipt latest = order;
+    bool refreshing = false;
+
+    Future<void> refresh() async {
+      if (refreshing || controller.isClosed) return;
+      refreshing = true;
+      try {
+        final CustomerOrderReceipt value = await _overlayOperationalStatus(latest);
+        latest = value;
+        if (!controller.isClosed) controller.add(value);
+      } catch (error, stackTrace) {
+        if (!controller.isClosed) controller.addError(error, stackTrace);
+      } finally {
+        refreshing = false;
       }
+    }
 
-      final CustomerOrderReceipt currentOrder = _receiptFromData(
-        fallbackOrder: order,
-        data: data,
-      );
-
-      if (_recoveredOrderIds.contains(order.id)) {
-        return currentOrder;
-      }
-      return _synchronizeExpirationIfNeeded(currentOrder);
-    });
+    controller = StreamController<CustomerOrderReceipt>(
+      onListen: () {
+        firestoreSub = _ordersCollection.doc(order.id).snapshots().listen(
+          (DocumentSnapshot<Map<String, dynamic>> snapshot) async {
+            final Map<String, dynamic>? data = snapshot.data();
+            if (!snapshot.exists || data == null) {
+              if (!controller.isClosed) {
+                controller.addError(StateError('La commande suivie est introuvable.'));
+              }
+              return;
+            }
+            CustomerOrderReceipt current = _receiptFromData(
+              fallbackOrder: latest,
+              data: data,
+            );
+            if (!_recoveredOrderIds.contains(order.id)) {
+              current = await _synchronizeExpirationIfNeeded(current);
+            }
+            latest = current;
+            await refresh();
+          },
+          onError: controller.addError,
+        );
+        refreshTimer = Timer.periodic(
+          SupabaseCustomerOrderStatusRepository.pollInterval,
+          (_) => unawaited(refresh()),
+        );
+      },
+      onCancel: () async {
+        refreshTimer?.cancel();
+        await firestoreSub?.cancel();
+      },
+    );
+    return controller.stream;
   }
 
   @override
   Stream<List<CustomerOrderReceipt>> watchCustomerOrders() async* {
     final User customer = await _ensureAnonymousCustomer();
+    final Stream<QuerySnapshot<Map<String, dynamic>>> firestoreStream =
+        _ordersCollection
+            .where('customerAuthUid', isEqualTo: customer.uid)
+            .snapshots();
 
-    yield* _ordersCollection
-        .where('customerAuthUid', isEqualTo: customer.uid)
-        .snapshots()
-        .asyncMap((QuerySnapshot<Map<String, dynamic>> snapshot) async {
-          final List<CustomerOrderReceipt> orders = snapshot.docs
-              .map((QueryDocumentSnapshot<Map<String, dynamic>> document) {
-                return _receiptFromDocument(
-                  id: document.id,
-                  data: document.data(),
-                );
-              })
-              .whereType<CustomerOrderReceipt>()
-              .toList();
+    if (!SupabaseBootstrap.isInitialized) {
+      yield* firestoreStream.asyncMap(_receiptsFromCustomerSnapshot);
+      return;
+    }
 
-          final List<CustomerOrderReceipt> synchronizedOrders =
-              await Future.wait(orders.map(_synchronizeExpirationIfNeeded));
-          await Future.wait(synchronizedOrders.map(_ensureRecoveryKeySafely));
+    late final StreamController<List<CustomerOrderReceipt>> controller;
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? firestoreSub;
+    Timer? refreshTimer;
+    List<CustomerOrderReceipt> latest = const <CustomerOrderReceipt>[];
+    bool refreshing = false;
 
-          synchronizedOrders.sort((
-            CustomerOrderReceipt first,
-            CustomerOrderReceipt second,
-          ) {
-            return second.createdAt.compareTo(first.createdAt);
-          });
+    Future<void> refresh() async {
+      if (refreshing || controller.isClosed || latest.isEmpty) return;
+      refreshing = true;
+      try {
+        final List<CustomerOrderReceipt> overlaid = await Future.wait(
+          latest.map(_overlayOperationalStatus),
+        );
+        overlaid.sort((CustomerOrderReceipt a, CustomerOrderReceipt b) =>
+            b.createdAt.compareTo(a.createdAt));
+        latest = List<CustomerOrderReceipt>.unmodifiable(overlaid);
+        if (!controller.isClosed) controller.add(latest);
+      } catch (error, stackTrace) {
+        if (!controller.isClosed) controller.addError(error, stackTrace);
+      } finally {
+        refreshing = false;
+      }
+    }
 
-          return synchronizedOrders;
-        });
+    controller = StreamController<List<CustomerOrderReceipt>>(
+      onListen: () {
+        firestoreSub = firestoreStream.listen(
+          (QuerySnapshot<Map<String, dynamic>> snapshot) async {
+            try {
+              latest = await _receiptsFromCustomerSnapshot(snapshot);
+              if (latest.isEmpty && !controller.isClosed) {
+                controller.add(latest);
+              } else {
+                await refresh();
+              }
+            } catch (error, stackTrace) {
+              if (!controller.isClosed) controller.addError(error, stackTrace);
+            }
+          },
+          onError: controller.addError,
+        );
+        refreshTimer = Timer.periodic(
+          SupabaseCustomerOrderStatusRepository.pollInterval,
+          (_) => unawaited(refresh()),
+        );
+      },
+      onCancel: () async {
+        refreshTimer?.cancel();
+        await firestoreSub?.cancel();
+      },
+    );
+    yield* controller.stream;
+  }
+
+  Future<List<CustomerOrderReceipt>> _receiptsFromCustomerSnapshot(
+    QuerySnapshot<Map<String, dynamic>> snapshot,
+  ) async {
+    final List<CustomerOrderReceipt> orders = snapshot.docs
+        .map((QueryDocumentSnapshot<Map<String, dynamic>> document) {
+          return _receiptFromDocument(id: document.id, data: document.data());
+        })
+        .whereType<CustomerOrderReceipt>()
+        .toList();
+    final List<CustomerOrderReceipt> synchronized = await Future.wait(
+      orders.map(_synchronizeExpirationIfNeeded),
+    );
+    await Future.wait(synchronized.map(_ensureRecoveryKeySafely));
+    synchronized.sort((CustomerOrderReceipt a, CustomerOrderReceipt b) =>
+        b.createdAt.compareTo(a.createdAt));
+    return synchronized;
+  }
+
+  Future<CustomerOrderReceipt> _overlayOperationalStatus(
+    CustomerOrderReceipt receipt,
+  ) async {
+    if (!SupabaseBootstrap.isInitialized ||
+        (!receipt.isPaymentConfirmed &&
+            receipt.paymentStatus != OrderPaymentStatus.credit &&
+            receipt.status.index < QueueOrderStatus.paidReady.index)) {
+      return receipt;
+    }
+    try {
+      return await SupabaseCustomerOrderStatusRepository().overlay(receipt);
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'CustomerOrder.operational-status',
+        error,
+        stackTrace: stackTrace,
+      );
+      if (!BackendFailurePolicy.canRetryRead(error)) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+      return receipt;
+    }
   }
 
   Future<void> _ensureRecoveryKeySafely(CustomerOrderReceipt order) async {
@@ -384,10 +517,11 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
       // L'index de récupération est un mécanisme de confort. Une panne de cet
       // artefact ne doit jamais empêcher la création ou le suivi normal de la
       // commande par son propriétaire d'origine.
-      debugPrint(
-        '[CustomerOrder][recovery-key] order=${order.reference} ERROR $error',
+      IzyTelLog.backendError(
+        'CustomerOrder.recovery-key',
+        error,
+        stackTrace: stackTrace,
       );
-      debugPrint('[CustomerOrder][recovery-key] STACK:\n$stackTrace');
     }
   }
 

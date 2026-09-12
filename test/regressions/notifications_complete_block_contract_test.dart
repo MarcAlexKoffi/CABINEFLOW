@@ -31,6 +31,7 @@ void main() {
     expect(shell, contains('IzyTelNotificationDeviceRegistry.deactivateCurrentDevice'));
     expect(agentOrders, contains('notificationOrderRequest'));
     expect(agentOrders, contains('_openNotificationOrderIfAvailable'));
+    expect(agentOrders, contains('attempt == 0 && !_viewModel.isLoading'));
   });
 
   test('backend notification reste isole des regles Firestore', () {
@@ -54,4 +55,18 @@ void main() {
     expect(edge, contains('dispatch_nonce'));
     expect(edge, isNot(contains('private_key":')));
   });
+
+  test('ouverture notification ne laisse jamais une route morte', () {
+    final String app = File('lib/app/app.dart').readAsStringSync();
+    final String messaging = File(
+      'lib/core/notifications/firebase_messaging_bootstrap.dart',
+    ).readAsStringSync();
+
+    expect(messaging, contains('getInitialMessage()'));
+    expect(messaging, contains('_pendingOpenedPayload = payload'));
+    expect(app, contains('_createRecoveryRoute'));
+    expect(app, contains('SplashPage(authRepository: authRepository)'));
+    expect(app, isNot(contains('Impossible d’ouvrir cette page.')));
+  });
+
 }

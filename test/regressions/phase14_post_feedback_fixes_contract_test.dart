@@ -71,7 +71,8 @@ void main() {
       'lib/features/orders/domain/repositories/orders_repository.dart',
     );
     expect(dashboard, contains('_openFailedOrdersCenter'));
-    expect(dashboard, contains("'Commandes échouées'"));
+    expect(dashboard, contains("title: 'Échecs'"));
+    expect(failed, contains("'Commandes échouées'"));
     expect(failed, contains("'Réaffecter'"));
     expect(failed, contains("'Rembourser'"));
     expect(repository, contains('prepareFailedOrderForReassignment'));

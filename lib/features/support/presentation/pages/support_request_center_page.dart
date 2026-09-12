@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
@@ -729,8 +730,11 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
       );
       await _openRefund(refund);
     } on Object catch (error, stackTrace) {
-      debugPrint('[Refund][create-from-support] ERROR $error');
-      debugPrint('[Refund][create-from-support] STACK\n$stackTrace');
+      IzyTelLog.backendError(
+        'Refund.create-from-support',
+        error,
+        stackTrace: stackTrace,
+      );
       if (!mounted) {
         return;
       }
@@ -894,11 +898,15 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
         return;
       }
       _showMessage(successMessage);
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
       if (!mounted) {
         return;
       }
-      debugPrint('[SupportRequest][admin] ERROR $error');
+      IzyTelLog.backendError(
+        'SupportRequest.admin-action',
+        error,
+        stackTrace: stackTrace,
+      );
       _showMessage('Impossible d’enregistrer cette action pour le moment.');
     } finally {
       if (mounted) {

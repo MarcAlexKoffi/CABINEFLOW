@@ -64,7 +64,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Bienvenue'), findsOneWidget);
-    expect(find.text('Se souvenir de moi'), findsOneWidget);
+    expect(find.text('Mémoriser mon e-mail'), findsOneWidget);
     expect(find.text('Se connecter'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

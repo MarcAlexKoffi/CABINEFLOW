@@ -210,7 +210,6 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
 
     final String paymentLink = _viewModel.paymentLinkData?.url ?? '';
 
-    debugPrint('MESSAGE WAVE : ${_viewModel.paymentMessage}');
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),

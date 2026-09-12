@@ -1,3 +1,4 @@
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:flutter/foundation.dart';
@@ -89,7 +90,12 @@ class AgentDetailViewModel extends ChangeNotifier {
         city: city,
         region: region,
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'AgentDetail.create-zone',
+        error,
+        stackTrace: stackTrace,
+      );
       errorMessage = 'Impossible de créer la zone.';
       notifyListeners();
       return null;
@@ -133,7 +139,12 @@ class AgentDetailViewModel extends ChangeNotifier {
         ),
       );
       return true;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'AgentDetail.save',
+        error,
+        stackTrace: stackTrace,
+      );
       errorMessage = 'Impossible d’enregistrer le profil agent.';
       return false;
     } finally {

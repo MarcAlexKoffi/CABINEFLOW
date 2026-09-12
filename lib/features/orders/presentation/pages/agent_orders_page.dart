@@ -111,7 +111,11 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
 
     QueueOrder? order = findOrder();
     for (int attempt = 0; order == null && attempt < 3; attempt += 1) {
-      if (attempt == 0) await _viewModel.start();
+      // initState lance deja start(). Lors d'un cold-start FCM, ne pas annuler
+      // puis recreer les subscriptions pendant cette premiere initialisation.
+      if (attempt == 0 && !_viewModel.isLoading) {
+        await _viewModel.start();
+      }
       await Future<void>.delayed(const Duration(milliseconds: 650));
       if (!mounted) return;
       order = findOrder();
@@ -255,40 +259,46 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (BuildContext sheetContext) {
-        return Container(
-          margin: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: Material(
             color: IzyTelColors.surface,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: IzyTelColors.outline),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 8),
-              ListTile(
-                leading: const Icon(Symbols.inbox_rounded),
-                title: const Text('À accepter'),
-                trailing: Text('${_viewModel.toAcceptCount}'),
-                onTap: () =>
-                    Navigator.of(sheetContext).pop(AgentOrdersTab.toAccept),
-              ),
-              ListTile(
-                leading: const Icon(Symbols.autorenew_rounded),
-                title: const Text('En cours'),
-                trailing: Text('${_viewModel.inProgressCount}'),
-                onTap: () =>
-                    Navigator.of(sheetContext).pop(AgentOrdersTab.inProgress),
-              ),
-              ListTile(
-                leading: const Icon(Symbols.check_circle_rounded),
-                title: const Text('Terminées'),
-                trailing: Text('${_viewModel.completedCount}'),
-                onTap: () =>
-                    Navigator.of(sheetContext).pop(AgentOrdersTab.completed),
-              ),
-              const SizedBox(height: 8),
-            ],
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+              side: const BorderSide(color: IzyTelColors.outline),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const SizedBox(height: 8),
+                ListTile(
+                  leading: const Icon(Symbols.inbox_rounded),
+                  title: const Text('À accepter'),
+                  trailing: Text('${_viewModel.toAcceptCount}'),
+                  onTap: () => Navigator.of(
+                    sheetContext,
+                  ).pop(AgentOrdersTab.toAccept),
+                ),
+                ListTile(
+                  leading: const Icon(Symbols.autorenew_rounded),
+                  title: const Text('En cours'),
+                  trailing: Text('${_viewModel.inProgressCount}'),
+                  onTap: () => Navigator.of(
+                    sheetContext,
+                  ).pop(AgentOrdersTab.inProgress),
+                ),
+                ListTile(
+                  leading: const Icon(Symbols.check_circle_rounded),
+                  title: const Text('Terminées'),
+                  trailing: Text('${_viewModel.completedCount}'),
+                  onTap: () => Navigator.of(
+                    sheetContext,
+                  ).pop(AgentOrdersTab.completed),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         );
       },
@@ -363,7 +373,7 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
                     if (_viewModel.errorMessage != null) ...[
                       _AgentMessageCard(
                         icon: Symbols.error_rounded,
-                        title: 'Impossible de charger la file',
+                        title: _viewModel.errorTitle,
                         message: _viewModel.errorMessage!,
                         color: IzyTelColors.error,
                       ),

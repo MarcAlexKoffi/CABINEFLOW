@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
@@ -151,8 +152,11 @@ class AgentAssignmentViewModel extends ChangeNotifier {
       try {
         order = await repository.fetchOrderById(orderId: order.id);
       } catch (error, stackTrace) {
-        debugPrint('[AgentAssignment][refresh-order] $error');
-        debugPrintStack(stackTrace: stackTrace);
+        IzyTelLog.backendError(
+          'AgentAssignment.refresh-order',
+          error,
+          stackTrace: stackTrace,
+        );
         // Pour un Manager, une affectation manuelle ne doit jamais partir d'un
         // snapshot Firestore potentiellement obsolète. Si Phase 4 n'est pas
         // lisible (par exemple STAFF_REQUIRED), on bloque l'action au lieu de
@@ -283,20 +287,19 @@ class AgentAssignmentViewModel extends ChangeNotifier {
       // Phase 4 est la source canonique avant l'acceptation Agent.
       return true;
     } on FirebaseException catch (error, stackTrace) {
-      debugPrint(
-        '[AgentAssignment][assign] FirebaseException: '
-        '[${error.plugin}/${error.code}] ${error.message}',
+      IzyTelLog.backendError(
+        'AgentAssignment.assign',
+        error,
+        stackTrace: stackTrace,
       );
-      debugPrint(
-        '[AgentAssignment][assign] orderId=${order.id} '
-        'agentId=${candidate.agent.userId} adminId=$adminUserId',
-      );
-      debugPrint('[AgentAssignment][assign] stack\n$stackTrace');
       _errorMessage = _friendlyError(error);
       return false;
     } catch (error, stackTrace) {
-      debugPrint('[AgentAssignment][assign] $error');
-      debugPrint('[AgentAssignment][assign] stack\n$stackTrace');
+      IzyTelLog.backendError(
+        'AgentAssignment.assign',
+        error,
+        stackTrace: stackTrace,
+      );
       _errorMessage = _friendlyError(error);
       return false;
     } finally {

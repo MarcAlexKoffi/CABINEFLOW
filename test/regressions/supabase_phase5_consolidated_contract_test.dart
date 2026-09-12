@@ -27,21 +27,19 @@ void main() {
     }
   });
 
-  test('succès Agent conserve le pont Firebase puis réconcilie Phase 5', () {
+  test('succès Agent finalise directement Phase 5 sans pont Firebase', () {
     final String hybrid = read(
       'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
     );
     final int start = hybrid.indexOf('Future<QueueOrder> markAgentSuccessful');
     final int end = hybrid.indexOf('Future<QueueOrder> markAgentFailed', start);
-    expect(start, greaterThanOrEqualTo(0));
-    expect(end, greaterThan(start));
     final String block = hybrid.substring(start, end);
-    expect(block, contains('fetchAgentCapacitiesForPhase5'));
-    expect(block, contains('_phase5Finance.ensureCapacitySeed'));
-    expect(block, contains('_firestore.markAgentSuccessful'));
     expect(block, contains('_phase5Finance.finalizeOrderSuccess'));
-    expect(block, contains('_phase5Finance.markFirestoreSuccessMirrored'));
     expect(block, contains('_proofs.fetchProof'));
+    expect(block, contains('QueueOrderStatus.completed'));
+    expect(block, isNot(contains('_firestore.markAgentSuccessful')));
+    expect(block, isNot(contains('_phase5Finance.ensureCapacitySeed')));
+    expect(block, isNot(contains('markFirestoreSuccessMirrored')));
   });
 
   test('finances fournisseur utilisent Supabase en lecture et miroir', () {

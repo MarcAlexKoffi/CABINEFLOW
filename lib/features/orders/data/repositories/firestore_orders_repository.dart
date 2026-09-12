@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/features/orders/data/mappers/firestore_order_mapper.dart';
 import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
 import 'package:cabine_flow/features/orders/domain/models/automatic_assignment.dart';
@@ -12,7 +15,6 @@ import 'package:cabine_flow/features/orders/domain/services/automatic_assignment
 import 'package:cabine_flow/features/orders/domain/services/order_expiration_policy.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 
 class FirestoreOrdersRepository
     implements OrdersRepository, OrderHistoryRepository {
@@ -288,9 +290,9 @@ class FirestoreOrdersRepository
     try {
       return await tryAutomaticAssignment(orderId: orderId) ?? confirmedOrder;
     } catch (error, stackTrace) {
-      debugPrint('[AutoAssignment][after-payment] $error');
-      debugPrintStack(
-        label: '[AutoAssignment][after-payment] stack',
+      IzyTelLog.backendError(
+        'AutoAssignment.after-payment',
+        error,
         stackTrace: stackTrace,
       );
       return confirmedOrder;
@@ -373,9 +375,7 @@ class FirestoreOrdersRepository
       try {
         await _ensureAutomaticQueueDocument(order);
       } on FirebaseException catch (error) {
-        debugPrint(
-          '[AutoAssignment][backlog] order=${order.id} skipped: $error',
-        );
+        IzyTelLog.backendError('AutoAssignment.backlog-queue', error);
       }
     }
 
@@ -385,9 +385,7 @@ class FirestoreOrdersRepository
       try {
         await tryAutomaticAssignment(orderId: order.id);
       } catch (error) {
-        debugPrint(
-          '[AutoAssignment][backlog] automatic attempt order=${order.id}: $error',
-        );
+        IzyTelLog.backendError('AutoAssignment.backlog-attempt', error);
       }
     }
   }
@@ -422,33 +420,13 @@ class FirestoreOrdersRepository
       agents: candidates,
     );
 
-    debugPrint(
-      '[AutoAssignment][staff] order=${order.reference} '
-      'network=${order.network.name} amount=${order.amount} '
-      'candidates=${candidates.length} eligible=${ranked.length}',
-    );
-    final Map<String, int> rankByAgent = <String, int>{
-      for (int index = 0; index < ranked.length; index += 1)
-        ranked[index].agentId: index + 1,
-    };
+    IzyTelLog.debug('AutoAssignment.staff-evaluation');
     for (final AutomaticAssignmentAgent candidate in candidates) {
       final String? reason = candidate.ineligibilityReason(order: order);
-      debugPrint(
-        '[AutoAssignment][candidate] agent=${candidate.agentId} '
-        'active=${candidate.isActive} available=${candidate.isAvailable} '
-        'authorized=${candidate.authorizedNetworks.map((e) => e.name).toList()} '
-        'activeNetworks=${candidate.activeNetworks.map((e) => e.name).toList()} '
-        'capacity=${candidate.capacityFor(order.network)} '
-        'reserved=${candidate.reservedFor(order.network)} '
-        'availableCapacity=${candidate.availableCapacityFor(order.network)} '
-        'activeCount=${candidate.activeAssignmentCount} '
-        'todayCount=${candidate.todayAssignmentCount} '
-        'maxCount=${candidate.maxTransactionsPerDay} '
-        'todayAmount=${candidate.todayAssignedAmount} '
-        'dailyLimit=${candidate.dailyTransactionLimit} '
-        'lastAssignedAt=${candidate.lastAssignedAt?.toIso8601String() ?? 'never'} '
-        'rank=${rankByAgent[candidate.agentId] ?? '-'} '
-        'result=${reason ?? 'ELIGIBLE'}',
+      IzyTelLog.debug(
+        reason == null
+            ? 'AutoAssignment.candidate-eligible'
+            : 'AutoAssignment.candidate-ineligible',
       );
     }
 
@@ -458,10 +436,7 @@ class FirestoreOrdersRepository
           agents: candidates,
         )) {
       await _markManualAssignmentRequired(order);
-      debugPrint(
-        '[AutoAssignment][staff] order=${order.reference} '
-        'manual assignment required: all eligible agents refused',
-      );
+      IzyTelLog.debug('AutoAssignment.manual-required');
       return null;
     }
 
@@ -472,27 +447,18 @@ class FirestoreOrdersRepository
           agent: candidate,
           actor: actor,
         );
-        debugPrint(
-          '[AutoAssignment][staff] order=${order.reference} assigned=${candidate.agentId}',
-        );
+        IzyTelLog.debug('AutoAssignment.staff-assigned');
         return assigned;
       } on StateError catch (error) {
-        debugPrint(
-          '[AutoAssignment][staff] candidate=${candidate.agentId} skipped: $error',
-        );
+        IzyTelLog.backendError('AutoAssignment.candidate-skipped', error);
       } on FirebaseException catch (error, stackTrace) {
         if (error.code == 'aborted' || error.code == 'failed-precondition') {
-          debugPrint(
-            '[AutoAssignment][staff] candidate=${candidate.agentId} race: $error',
-          );
+          IzyTelLog.backendError('AutoAssignment.candidate-race', error);
           continue;
         }
-        debugPrint(
-          '[AutoAssignment][staff] candidate=${candidate.agentId} '
-          'firebase=${error.code} message=${error.message}',
-        );
-        debugPrintStack(
-          label: '[AutoAssignment][staff] candidate stack',
+        IzyTelLog.backendError(
+          'AutoAssignment.candidate-failure',
+          error,
           stackTrace: stackTrace,
         );
         rethrow;
@@ -513,9 +479,7 @@ class FirestoreOrdersRepository
       }
     }
 
-    debugPrint(
-      '[AutoAssignment][staff] no eligible agent for order=${order.id}',
-    );
+    IzyTelLog.debug('AutoAssignment.no-eligible-agent');
     return null;
   }
 
@@ -640,22 +604,16 @@ class FirestoreOrdersRepository
         );
         transaction.delete(queueRef);
       });
-      debugPrint(
-        '[AutoAssignment][agent] agent=$cleanedAgentId claimed order=${item.orderId}',
-      );
+      IzyTelLog.debug('AutoAssignment.agent-claimed');
       return true;
     } on StateError catch (error) {
-      debugPrint(
-        '[AutoAssignment][agent] agent=$cleanedAgentId skipped order=${item.orderId}: $error',
-      );
+      IzyTelLog.backendError('AutoAssignment.agent-skipped', error);
       return false;
     } on FirebaseException catch (error) {
       if (error.code == 'aborted' ||
           error.code == 'failed-precondition' ||
           error.code == 'permission-denied') {
-        debugPrint(
-          '[AutoAssignment][agent] race/denied order=${item.orderId}: $error',
-        );
+        IzyTelLog.backendError('AutoAssignment.agent-race-or-denied', error);
         return false;
       }
       rethrow;
@@ -835,21 +793,7 @@ class FirestoreOrdersRepository
         );
       }
 
-      debugPrint(
-        '[AgentAssignment][preflight] '
-        'orderId=${order.id} status=${order.status.name} '
-        'payment=${order.paymentStatus.name} network=$network amount=${order.amount} '
-        'previousAgent=${order.assignedAgentId ?? 'null'} '
-        'assignment=${order.assignmentStatus.name}',
-      );
-      debugPrint(
-        '[AgentAssignment][preflight] '
-        'agentId=$agentId role=${userData['role']} active=${userData['isActive']} '
-        'availability=${profileData['availability']} '
-        'authorized=${profileData['authorizedNetworks']} '
-        'activeNetworks=${profileData['activeNetworks']} capacity=$capacity '
-        'reserved=$reserved availableCapacity=$availableCapacity',
-      );
+      IzyTelLog.debug('AgentAssignment.preflight-ok');
 
       final String agentName = _stringValue(
         userData['name'],
@@ -1645,11 +1589,7 @@ class FirestoreOrdersRepository
         transaction.update(commissionAccountRef, accountData);
       }
 
-      debugPrint(
-        '[AgentCapacity][deduct] agentId=$cleanedAgentId '
-        'network=${order.network.name} amount=${order.amount} '
-        'before=$previousCapacity after=$remainingCapacity',
-      );
+      IzyTelLog.debug('[AgentCapacity][deduct]');
 
       return order.copyWith(
         status: QueueOrderStatus.completed,

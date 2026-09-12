@@ -98,5 +98,65 @@ void main() {
       expect(order.amount, 0);
       expect(order.assignmentStatus, OrderAssignmentStatus.unassigned);
     });
+
+    test('normalise les anciens formats sans perdre le sens metier', () {
+      final QueueOrder order = FirestoreOrderMapper.fromMap(
+        id: 'legacy-order',
+        data: <String, dynamic>{
+          'reference': 'IZY-LEGACY-001',
+          'source': 'CUSTOMER-WEB',
+          'clientName': 'Client historique',
+          'network': 'Moov Africa',
+          'operationType': 'internet_subscription',
+          'offerLabel': 'Ancienne offre',
+          'amount': '1 500',
+          'createdAt': '2026-08-15T10:30:00Z',
+          'status': 'paid_ready',
+          'paymentStatus': 'CONFIRMED',
+          'assignmentMode': 'AUTO-MATIC',
+          'assignmentStatus': 'ASSIGNED',
+          'manualAssignmentRequired': 'true',
+        },
+      );
+
+      expect(order.network, MobileNetwork.moov);
+      expect(order.operationType, OrderOperationType.internetSubscription);
+      expect(order.source, OrderSource.customerWeb);
+      expect(order.status, QueueOrderStatus.paidReady);
+      expect(order.paymentStatus, OrderPaymentStatus.confirmed);
+      expect(order.assignmentMode, OrderAssignmentMode.automatic);
+      expect(order.assignmentStatus, OrderAssignmentStatus.assigned);
+      expect(order.amount, 1500);
+      expect(order.manualAssignmentRequired, isTrue);
+      expect(order.createdAt, DateTime.parse('2026-08-15T10:30:00Z'));
+    });
+
+    test('reconstruit une date stable depuis les jalons historiques', () {
+      final QueueOrder order = FirestoreOrderMapper.fromMap(
+        id: 'legacy-without-created-at',
+        data: <String, dynamic>{
+          'paidAt': '2026-08-20T11:00:00Z',
+          'assignedAt': '2026-08-20T11:05:00Z',
+          'completedAt': '2026-08-20T11:10:00Z',
+        },
+      );
+
+      expect(order.createdAt, DateTime.parse('2026-08-20T11:00:00Z'));
+    });
+
+    test('un document sans aucune date garde un fallback deterministe', () {
+      final QueueOrder first = FirestoreOrderMapper.fromMap(
+        id: 'legacy-undated',
+        data: const <String, dynamic>{},
+      );
+      final QueueOrder second = FirestoreOrderMapper.fromMap(
+        id: 'legacy-undated',
+        data: const <String, dynamic>{},
+      );
+
+      final DateTime epoch = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+      expect(first.createdAt, epoch);
+      expect(second.createdAt, epoch);
+    });
   });
 }

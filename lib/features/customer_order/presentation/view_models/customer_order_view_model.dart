@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/beneficiary_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_beneficiary_target.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_identity.dart';
@@ -150,8 +151,11 @@ class CustomerOrderViewModel extends ChangeNotifier {
           notifyListeners();
         },
         onError: (Object error, StackTrace stackTrace) {
-          debugPrint('[CustomerProfile][watch] ERROR $error');
-          _logStackTrace('[CustomerProfile][watch] STACK', stackTrace);
+          IzyTelLog.backendError(
+            'CustomerProfile.watch',
+            error,
+            stackTrace: stackTrace,
+          );
           _customerProfile = null;
           _isLoadingCustomerProfile = false;
           _customerProfileErrorMessage =
@@ -160,8 +164,11 @@ class CustomerOrderViewModel extends ChangeNotifier {
         },
       );
     } on Object catch (error, stackTrace) {
-      debugPrint('[CustomerProfile][watch] ERROR $error');
-      _logStackTrace('[CustomerProfile][watch] STACK', stackTrace);
+      IzyTelLog.backendError(
+        'CustomerProfile.watch-start',
+        error,
+        stackTrace: stackTrace,
+      );
       _customerProfile = null;
       _isLoadingCustomerProfile = false;
       _customerProfileErrorMessage =
@@ -325,8 +332,11 @@ class CustomerOrderViewModel extends ChangeNotifier {
       _replaceOrderInHistory(recoveredOrder);
       return true;
     } on Object catch (error, stackTrace) {
-      debugPrint('[CustomerOrder][recover] ERROR $error');
-      _logStackTrace('[CustomerOrder][recover] STACK', stackTrace);
+      IzyTelLog.backendError(
+        'CustomerOrder.recover',
+        error,
+        stackTrace: stackTrace,
+      );
       // Toujours rester volontairement neutre : ne jamais révéler si la
       // référence existe avec un autre numéro WhatsApp.
       _recoveryErrorMessage =
@@ -668,8 +678,11 @@ class CustomerOrderViewModel extends ChangeNotifier {
     } on Object catch (error, stackTrace) {
       // La mémorisation est un confort : une erreur ne doit jamais bloquer la
       // commande qui contient déjà le bon beneficiaryPhone dans le brouillon.
-      debugPrint('[CustomerProfile][save] ERROR $error');
-      _logStackTrace('[CustomerProfile][save] STACK', stackTrace);
+      IzyTelLog.backendError(
+        'CustomerProfile.save',
+        error,
+        stackTrace: stackTrace,
+      );
       _customerProfileErrorMessage =
           'Votre commande peut continuer, mais le numéro habituel n’a pas pu être mémorisé.';
     }
@@ -702,9 +715,11 @@ class CustomerOrderViewModel extends ChangeNotifier {
       _currentStep = 7;
       return true;
     } catch (error, stackTrace) {
-      debugPrint('[CustomerOrder][create] ERROR type=${error.runtimeType}');
-      debugPrint('[CustomerOrder][create] ERROR $error');
-      _logStackTrace('[CustomerOrder][create] STACK', stackTrace);
+      IzyTelLog.backendError(
+        'CustomerOrder.create',
+        error,
+        stackTrace: stackTrace,
+      );
 
       _submissionErrorMessage = error is StateError
           ? error.message.toString()
@@ -978,13 +993,6 @@ class CustomerOrderViewModel extends ChangeNotifier {
         _draft.beneficiaryNumber != null;
   }
 
-  void _logStackTrace(String label, StackTrace stackTrace) {
-    try {
-      debugPrintStack(label: label, stackTrace: stackTrace);
-    } catch (_) {
-      debugPrint('$label:\n$stackTrace');
-    }
-  }
 }
 
 class _NoopCustomerProfileRepository implements CustomerProfileRepository {

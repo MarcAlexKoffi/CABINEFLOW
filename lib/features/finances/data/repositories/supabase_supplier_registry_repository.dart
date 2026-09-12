@@ -1,6 +1,7 @@
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
 import 'package:cabine_flow/features/finances/domain/models/finance_operations_models.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseSupplierRegistryRepository {
@@ -14,18 +15,32 @@ class SupabaseSupplierRegistryRepository {
 
   Stream<List<FinanceSupplier>> watchSuppliers() async* {
     List<FinanceSupplier>? lastSuccessful;
+    int consecutiveFailures = 0;
 
     while (true) {
       try {
         final List<FinanceSupplier> suppliers = await fetchSuppliers();
         lastSuccessful = suppliers;
+        consecutiveFailures = 0;
         yield suppliers;
       } catch (error, stackTrace) {
-        debugPrint('[SupabaseSuppliers][watch] $error');
-        debugPrintStack(stackTrace: stackTrace);
-        if (lastSuccessful == null) rethrow;
+        IzyTelLog.backendError(
+          'SupabaseSuppliers.watch',
+          error,
+          stackTrace: stackTrace,
+        );
+        if (!BackendFailurePolicy.canRetryRead(error)) {
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+        consecutiveFailures += 1;
+        if (lastSuccessful != null) yield lastSuccessful;
       }
-      await Future<void>.delayed(_pollInterval);
+      await Future<void>.delayed(
+        BackendFailurePolicy.retryDelay(
+          baseDelay: _pollInterval,
+          consecutiveFailures: consecutiveFailures,
+        ),
+      );
     }
   }
 

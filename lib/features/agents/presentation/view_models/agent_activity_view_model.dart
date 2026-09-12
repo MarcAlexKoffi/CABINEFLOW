@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:flutter/foundation.dart';
@@ -48,7 +49,12 @@ class AgentActivityViewModel extends ChangeNotifier {
             isLoading = false;
             notifyListeners();
           },
-          onError: (_) {
+          onError: (Object error, StackTrace stackTrace) {
+            IzyTelLog.backendError(
+              'AgentActivity.profile-watch',
+              error,
+              stackTrace: stackTrace,
+            );
             isLoading = false;
             errorMessage = 'Impossible de charger ton profil agent.';
             notifyListeners();
@@ -68,7 +74,12 @@ class AgentActivityViewModel extends ChangeNotifier {
             unawaited(_loadAvatarUrl(path));
             notifyListeners();
           },
-          onError: (_) {
+          onError: (Object error, StackTrace stackTrace) {
+            IzyTelLog.backendError(
+              'AgentActivity.personal-profile-watch',
+              error,
+              stackTrace: stackTrace,
+            );
             // Le profil personnel ne doit jamais bloquer le profil opérationnel.
           },
         );
@@ -150,7 +161,12 @@ class AgentActivityViewModel extends ChangeNotifier {
     try {
       await _repository.updateOwnOperations(agentId: agentId, update: update);
       return true;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'AgentActivity.save',
+        error,
+        stackTrace: stackTrace,
+      );
       errorMessage = 'Impossible d’enregistrer la modification.';
       return false;
     } finally {
@@ -163,7 +179,12 @@ class AgentActivityViewModel extends ChangeNotifier {
     try {
       await _repository.createIssue(agentId: agentId, issue: issue);
       return true;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'AgentActivity.report-issue',
+        error,
+        stackTrace: stackTrace,
+      );
       errorMessage = 'Impossible d’envoyer le signalement.';
       notifyListeners();
       return false;

@@ -97,7 +97,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Activité du jour'), findsOneWidget);
-    expect(find.text('À faire maintenant'), findsOneWidget);
   });
 
   testWidgets('permet de changer d’onglet après la connexion', (

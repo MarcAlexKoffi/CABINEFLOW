@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cabine_flow/app/app_routes.dart';
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/notifications/firebase_messaging_bootstrap.dart';
 import 'package:cabine_flow/core/notifications/izytel_notification_device_registry.dart';
 import 'package:cabine_flow/core/notifications/izytel_notification_payload.dart';
@@ -124,8 +125,12 @@ class _MainShellPageState extends State<MainShellPage> {
         if (!mounted) return;
         IzyTelFeedback.show(context, payload.displayMessage);
       },
-      onError: (Object error) {
-        debugPrint('[FCM][staff-foreground-stream] $error');
+      onError: (Object error, StackTrace stackTrace) {
+        IzyTelLog.backendError(
+          'FCM.staff-foreground-stream',
+          error,
+          stackTrace: stackTrace,
+        );
       },
     );
     _notificationOpenedSubscription =
@@ -133,8 +138,12 @@ class _MainShellPageState extends State<MainShellPage> {
       (IzyTelNotificationPayload payload) {
         unawaited(_handleStaffNotificationOpen(payload));
       },
-      onError: (Object error) {
-        debugPrint('[FCM][staff-opened-stream] $error');
+      onError: (Object error, StackTrace stackTrace) {
+        IzyTelLog.backendError(
+          'FCM.staff-opened-stream',
+          error,
+          stackTrace: stackTrace,
+        );
       },
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -169,7 +178,12 @@ class _MainShellPageState extends State<MainShellPage> {
             await history.fetchOrderById(orderId: orderId);
         if (!mounted) return;
         await _openSpecificOrder(order);
-      } catch (_) {
+      } catch (error, stackTrace) {
+        IzyTelLog.backendError(
+          'Navigation.notification-order',
+          error,
+          stackTrace: stackTrace,
+        );
         if (mounted) _openOrdersTab();
       }
       return;
@@ -202,24 +216,35 @@ class _MainShellPageState extends State<MainShellPage> {
       await Future<void>.delayed(const Duration(milliseconds: 800));
       await Phase5ConsolidatedSynchronizer().synchronize();
     } catch (error, stackTrace) {
-      debugPrint('[Phase5][ConsolidatedSync] $error');
-      debugPrintStack(stackTrace: stackTrace);
+      IzyTelLog.backendError(
+        'Phase5.ConsolidatedSync',
+        error,
+        stackTrace: stackTrace,
+      );
     }
   }
 
   void _startAutomaticAssignmentWatchers() {
     _staffAgentsSubscription = widget.agentRepository.watchAgents().listen(
       (_) => _scheduleAutomaticAssignmentSync(),
-      onError: (Object error) {
-        debugPrint('[AutoAssignment][staff-watch-agents] $error');
+      onError: (Object error, StackTrace stackTrace) {
+        IzyTelLog.backendError(
+          'AutoAssignment.staff-watch-agents',
+          error,
+          stackTrace: stackTrace,
+        );
       },
     );
     _staffQueueSubscription = widget.ordersRepository
         .watchAutomaticAssignmentQueue()
         .listen(
           (_) => _scheduleAutomaticAssignmentSync(),
-          onError: (Object error) {
-            debugPrint('[AutoAssignment][staff-watch-queue] $error');
+          onError: (Object error, StackTrace stackTrace) {
+            IzyTelLog.backendError(
+              'AutoAssignment.staff-watch-queue',
+              error,
+              stackTrace: stackTrace,
+            );
           },
         );
   }
@@ -256,9 +281,7 @@ class _MainShellPageState extends State<MainShellPage> {
       final String raw = error.toString();
       if (widget.user.isManager && raw.contains('STAFF_REQUIRED')) {
         _managerSupabaseStaffDenied = true;
-        debugPrint(
-          '[Manager][Supabase] accès staff absent : synchronisation Phase 4 suspendue jusqu’à la prochaine connexion.',
-        );
+        IzyTelLog.debug('Manager.SupabaseStaffMissing');
         if (mounted && !_managerSupabaseWarningShown) {
           _managerSupabaseWarningShown = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -271,8 +294,11 @@ class _MainShellPageState extends State<MainShellPage> {
           });
         }
       } else {
-        debugPrint('[AutoAssignment][backlog] $error');
-        debugPrint('[AutoAssignment][backlog] stack:\n$stackTrace');
+        IzyTelLog.backendError(
+          'AutoAssignment.backlog',
+          error,
+          stackTrace: stackTrace,
+        );
       }
     } finally {
       _automaticAssignmentSyncRunning = false;
@@ -313,7 +339,12 @@ class _MainShellPageState extends State<MainShellPage> {
     QueueOrder latest = order;
     try {
       latest = await repository.fetchOrderById(orderId: order.id);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'Navigation.order-refresh',
+        error,
+        stackTrace: stackTrace,
+      );
       // Le détail peut tout de même s'ouvrir avec le snapshot déjà affiché.
     }
     if (!mounted) return;
@@ -337,6 +368,10 @@ class _MainShellPageState extends State<MainShellPage> {
 
   void _openPaymentsTab() {
     _selectDestination(2);
+  }
+
+  void _openNetworkTab() {
+    _selectDestination(3);
   }
 
   void _openMoreTab() {
@@ -384,7 +419,12 @@ class _MainShellPageState extends State<MainShellPage> {
         AppRoutes.login,
         (Route<dynamic> route) => false,
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'Auth.logout',
+        error,
+        stackTrace: stackTrace,
+      );
       if (!mounted) return;
       setState(() {
         _isLoggingOut = false;
@@ -489,6 +529,7 @@ class _MainShellPageState extends State<MainShellPage> {
         agentRepository: widget.agentRepository,
         onOpenOrders: _openOrdersTab,
         onOpenPayments: _openPaymentsTab,
+        onOpenNetwork: _openNetworkTab,
         onOpenMore: _openMoreTab,
         onLogout: _logoutAdmin,
       ),
@@ -600,8 +641,12 @@ class _AgentShellState extends State<_AgentShell> {
         if (!mounted) return;
         IzyTelFeedback.show(context, payload.displayMessage);
       },
-      onError: (Object error) {
-        debugPrint('[FCM][agent-foreground-stream] $error');
+      onError: (Object error, StackTrace stackTrace) {
+        IzyTelLog.backendError(
+          'FCM.agent-foreground-stream',
+          error,
+          stackTrace: stackTrace,
+        );
       },
     );
     _notificationOpenedSubscription =
@@ -609,8 +654,12 @@ class _AgentShellState extends State<_AgentShell> {
       (IzyTelNotificationPayload payload) {
         _handleAgentNotificationOpen(payload);
       },
-      onError: (Object error) {
-        debugPrint('[FCM][agent-opened-stream] $error');
+      onError: (Object error, StackTrace stackTrace) {
+        IzyTelLog.backendError(
+          'FCM.agent-opened-stream',
+          error,
+          stackTrace: stackTrace,
+        );
       },
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -703,7 +752,12 @@ class _AgentShellState extends State<_AgentShell> {
         AppRoutes.login,
         (Route<dynamic> route) => false,
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'Auth.logout',
+        error,
+        stackTrace: stackTrace,
+      );
       if (!mounted) return;
       setState(() {
         _isLoggingOut = false;

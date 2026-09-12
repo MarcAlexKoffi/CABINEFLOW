@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
 import 'package:cabine_flow/features/agents/data/repositories/supabase_agent_issue_repository.dart';
+import 'package:cabine_flow/features/agents/data/repositories/supabase_agent_operations_repository.dart';
 import 'package:cabine_flow/features/agents/data/repositories/supabase_agent_personal_profile_repository.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
@@ -32,6 +33,10 @@ class FirestoreAgentRepository implements AgentRepository {
 
   @override
   Stream<List<AgentDirectoryEntry>> watchAgents() {
+    if (SupabaseBootstrap.isInitialized) {
+      return _watchAgentsWithSupabaseOperations();
+    }
+
     late final StreamController<List<AgentDirectoryEntry>> controller;
     StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? usersSub;
     StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? profilesSub;
@@ -100,8 +105,78 @@ class FirestoreAgentRepository implements AgentRepository {
     return controller.stream;
   }
 
+  Stream<List<AgentDirectoryEntry>> _watchAgentsWithSupabaseOperations() {
+    late final StreamController<List<AgentDirectoryEntry>> controller;
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? usersSub;
+    StreamSubscription<List<SupabaseAgentOperationalRecord>>? operationsSub;
+    QuerySnapshot<Map<String, dynamic>>? latestUsers;
+    List<SupabaseAgentOperationalRecord>? latestOperations;
+
+    void emit() {
+      final QuerySnapshot<Map<String, dynamic>>? users = latestUsers;
+      final List<SupabaseAgentOperationalRecord>? operations = latestOperations;
+      if (users == null || operations == null || controller.isClosed) return;
+
+      final Map<String, SupabaseAgentOperationalRecord> operationsByAgent =
+          <String, SupabaseAgentOperationalRecord>{
+            for (final SupabaseAgentOperationalRecord record in operations)
+              record.agentId: record,
+          };
+      final List<AgentDirectoryEntry> entries = users.docs
+          .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+            final Map<String, dynamic> data = doc.data();
+            final SupabaseAgentOperationalRecord? operational =
+                operationsByAgent[doc.id];
+            return AgentDirectoryEntry(
+              userId: doc.id,
+              name: _string(data['name'], fallback: 'Agent'),
+              email: _string(data['email']),
+              phoneNumber: _string(data['phoneNumber']),
+              isActive: operational?.isActive ?? data['isActive'] == true,
+              profile: operational?.profile,
+            );
+          })
+          .toList(growable: false)
+        ..sort((AgentDirectoryEntry a, AgentDirectoryEntry b) {
+          final int active = b.isActive.toString().compareTo(a.isActive.toString());
+          if (active != 0) return active;
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        });
+      controller.add(List<AgentDirectoryEntry>.unmodifiable(entries));
+    }
+
+    controller = StreamController<List<AgentDirectoryEntry>>(
+      onListen: () {
+        usersSub = _users.where('role', isEqualTo: 'agent').snapshots().listen(
+          (QuerySnapshot<Map<String, dynamic>> snapshot) {
+            latestUsers = snapshot;
+            emit();
+          },
+          onError: controller.addError,
+        );
+        operationsSub = SupabaseAgentOperationsRepository()
+            .watchAllForStaff()
+            .listen(
+              (List<SupabaseAgentOperationalRecord> records) {
+                latestOperations = records;
+                emit();
+              },
+              onError: controller.addError,
+            );
+      },
+      onCancel: () async {
+        await usersSub?.cancel();
+        await operationsSub?.cancel();
+      },
+    );
+    return controller.stream;
+  }
+
   @override
   Stream<AgentProfile?> watchAgentProfile(String agentId) {
+    if (SupabaseBootstrap.isInitialized) {
+      return SupabaseAgentOperationsRepository().watchProfile(agentId);
+    }
     return _profiles.doc(agentId).snapshots().map((snapshot) {
       if (!snapshot.exists || snapshot.data() == null) return null;
       return _profileFromSnapshot(snapshot);
@@ -393,6 +468,16 @@ class FirestoreAgentRepository implements AgentRepository {
   Future<void> activatePendingAccountAsAgent({
     required StaffAccountSummary account,
   }) async {
+    if (SupabaseBootstrap.isInitialized) {
+      await SupabaseAgentOperationsRepository().provisionAgent(account: account);
+      await _users.doc(account.userId).update(<String, dynamic>{
+        'role': 'agent',
+        'isActive': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return;
+    }
+
     final DocumentReference<Map<String, dynamic>> userRef = _users.doc(
       account.userId,
     );
@@ -435,6 +520,20 @@ class FirestoreAgentRepository implements AgentRepository {
     required AgentDirectoryEntry agent,
     required AgentAdminUpdate update,
   }) async {
+    if (SupabaseBootstrap.isInitialized) {
+      await SupabaseAgentOperationsRepository().updateAgentAdmin(
+        agent: agent,
+        update: update,
+      );
+      await _users.doc(agent.userId).update(<String, dynamic>{
+        'name': update.name.trim(),
+        'phoneNumber': update.phoneNumber.trim(),
+        'isActive': update.isActive,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return;
+    }
+
     final DocumentReference<Map<String, dynamic>> userRef = _users.doc(
       agent.userId,
     );
@@ -550,6 +649,14 @@ class FirestoreAgentRepository implements AgentRepository {
     required String agentId,
     required AgentOperationalUpdate update,
   }) async {
+    if (SupabaseBootstrap.isInitialized) {
+      await SupabaseAgentOperationsRepository().updateOwnOperations(
+        agentId: agentId,
+        update: update,
+      );
+      return;
+    }
+
     final DocumentReference<Map<String, dynamic>> ref = _profiles.doc(agentId);
     final Map<AgentNetwork, DocumentReference<Map<String, dynamic>>>
     adjustmentRefs = <AgentNetwork, DocumentReference<Map<String, dynamic>>>{

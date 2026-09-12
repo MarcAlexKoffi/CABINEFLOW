@@ -95,6 +95,16 @@ class SupabaseOrderProofRepository {
       throw StateError('La preuve depasse la taille maximale autorisee.');
     }
 
+    // Rafraichit explicitement le JWT Firebase avant une ecriture Storage.
+    // Les lectures SQL et les uploads utilisent le meme jeton externe ; ce
+    // refresh evite qu'une session longue arrive avec un token expire au
+    // moment precis ou l'Agent prend sa preuve.
+    await _firebaseAuth.currentUser?.getIdToken(true);
+    await _assertWritableOrder(
+      orderId: cleanedOrderId,
+      agentId: cleanedAgentId,
+    );
+
     final String storagePath = '$cleanedAgentId/$cleanedOrderId/proof.jpg';
     final Map<String, dynamic>? previous = await _client
         .from(tableName)
@@ -102,17 +112,30 @@ class SupabaseOrderProofRepository {
         .eq('order_id', cleanedOrderId)
         .maybeSingle();
 
-    await _client.storage
-        .from(bucketName)
-        .uploadBinary(
-          storagePath,
-          proofBytes,
-          fileOptions: const FileOptions(
-            upsert: true,
-            contentType: 'image/jpeg',
-            cacheControl: '3600',
-          ),
-        );
+    // Pour un premier depot, on n'utilise pas UPSERT : Supabase Storage
+    // n'a besoin que de la politique INSERT. Pour un remplacement, UPSERT est
+    // volontaire. Si un ancien essai a laisse un objet orphelin sans metadata
+    // SQL, on retente une seule fois en mode UPSERT.
+    try {
+      await _uploadProofObject(
+        path: storagePath,
+        bytes: proofBytes,
+        upsert: previous != null,
+      );
+    } on StorageException catch (error) {
+      final String raw = error.toString().toLowerCase();
+      final bool orphanConflict =
+          previous == null &&
+          (raw.contains('duplicate') ||
+              raw.contains('already exists') ||
+              raw.contains('409'));
+      if (!orphanConflict) rethrow;
+      await _uploadProofObject(
+        path: storagePath,
+        bytes: proofBytes,
+        upsert: true,
+      );
+    }
 
     try {
       await _client.from(tableName).upsert(<String, dynamic>{
@@ -123,6 +146,7 @@ class SupabaseOrderProofRepository {
         'file_name': cleanedFileName,
         'mime_type': cleanedMimeType,
         'size_bytes': proofBytes.lengthInBytes,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
       }, onConflict: 'order_id');
     } catch (_) {
       if (previous == null) {
@@ -144,6 +168,61 @@ class SupabaseOrderProofRepository {
       throw StateError('La preuve vient d etre enregistree mais reste illisible.');
     }
     return _fromRow(saved, proofBytes);
+  }
+
+  Future<void> _assertWritableOrder({
+    required String orderId,
+    required String agentId,
+  }) async {
+    final List<Map<String, dynamic>> rows = await _client
+        .from('phase4_assignment_orders')
+        .select(
+          'order_id, assigned_agent_id, assignment_state, order_status, legacy_state_unresolved',
+        )
+        .eq('order_id', orderId)
+        .limit(1);
+    if (rows.isEmpty) {
+      throw StateError(
+        'Cette commande n est plus visible dans la file Supabase de cet Agent.',
+      );
+    }
+
+    final Map<String, dynamic> row = rows.first;
+    final String owner = _string(row['assigned_agent_id']);
+    final String assignmentState = _string(row['assignment_state']);
+    final String orderStatus = _string(row['order_status']);
+    if (owner != agentId) {
+      throw StateError('Cette commande n est plus affectee a cet Agent.');
+    }
+    if (row['legacy_state_unresolved'] == true) {
+      throw StateError(
+        'Cette ancienne commande doit etre reconciliee avant d ajouter une preuve.',
+      );
+    }
+    if (!const <String>{'accepted', 'handed_off'}.contains(assignmentState)) {
+      throw StateError('Accepte la commande avant d ajouter une preuve.');
+    }
+    if (!const <String>{'inProgress', 'onHold'}.contains(orderStatus)) {
+      throw StateError(
+        'Demarre le traitement de la commande avant d ajouter une preuve.',
+      );
+    }
+  }
+
+  Future<void> _uploadProofObject({
+    required String path,
+    required Uint8List bytes,
+    required bool upsert,
+  }) async {
+    await _client.storage.from(bucketName).uploadBinary(
+      path,
+      bytes,
+      fileOptions: FileOptions(
+        upsert: upsert,
+        contentType: 'image/jpeg',
+        cacheControl: '3600',
+      ),
+    );
   }
 
   Future<Set<String>> fetchProofOrderIdsForStaff() async {

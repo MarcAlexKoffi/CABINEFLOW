@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/notifications/izytel_notification_payload.dart';
 import 'package:cabine_flow/firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -17,10 +18,7 @@ Future<void> izytelFirebaseMessagingBackgroundHandler(
   }
 
   final IzyTelNotificationPayload payload = _payloadFromRemoteMessage(message);
-  debugPrint(
-    '[FCM][background] id=${message.messageId ?? '-'} '
-    'type=${payload.type} order=${payload.orderReference ?? payload.orderId ?? '-'}',
-  );
+  IzyTelLog.debug('[FCM][background] type=${payload.type}');
 }
 
 IzyTelNotificationPayload _payloadFromRemoteMessage(RemoteMessage message) {
@@ -96,7 +94,7 @@ class FirebaseMessagingBootstrap {
 
   static Future<FirebaseMessagingBootstrapResult> initialize() async {
     if (!_isSupportedPlatform) {
-      debugPrint('[FCM] plateforme ignoree pour le mobile IzyTel.');
+      IzyTelLog.debug('[FCM] plateforme ignoree pour le mobile IzyTel.');
       return const FirebaseMessagingBootstrapResult(
         supported: false,
         permissionStatus: 'unsupported',
@@ -130,11 +128,13 @@ class FirebaseMessagingBootstrap {
       );
 
       _currentToken = await messaging.getToken();
-      debugPrint('[FCM][permission] ${settings.authorizationStatus.name}');
-      debugPrint(
+      IzyTelLog.debug(
+        '[FCM][permission] ${settings.authorizationStatus.name}',
+      );
+      IzyTelLog.debug(
         _currentToken == null
             ? '[FCM][token] indisponible'
-            : '[FCM][token] $_currentToken',
+            : '[FCM][token] disponible',
       );
       final String? initialToken = _currentToken;
       if (initialToken != null && initialToken.trim().isNotEmpty) {
@@ -145,16 +145,15 @@ class FirebaseMessagingBootstrap {
         (RemoteMessage message) {
           final IzyTelNotificationPayload payload =
               _payloadFromRemoteMessage(message);
-          debugPrint(
-            '[FCM][foreground] id=${message.messageId ?? '-'} '
-            'type=${payload.type} '
-            'order=${payload.orderReference ?? payload.orderId ?? '-'}',
-          );
+          IzyTelLog.debug('[FCM][foreground] type=${payload.type}');
           _foregroundPayloadController.add(payload);
         },
         onError: (Object error, StackTrace stackTrace) {
-          debugPrint('[FCM][foreground-error] $error');
-          debugPrintStack(stackTrace: stackTrace);
+          IzyTelLog.backendError(
+            'FCM.foreground',
+            error,
+            stackTrace: stackTrace,
+          );
         },
       );
 
@@ -162,11 +161,7 @@ class FirebaseMessagingBootstrap {
         (RemoteMessage message) {
           final IzyTelNotificationPayload payload =
               _payloadFromRemoteMessage(message);
-          debugPrint(
-            '[FCM][opened] id=${message.messageId ?? '-'} '
-            'type=${payload.type} '
-            'order=${payload.orderReference ?? payload.orderId ?? '-'}',
-          );
+          IzyTelLog.debug('[FCM][opened] type=${payload.type}');
           if (_openedPayloadController.hasListener) {
             _openedPayloadController.add(payload);
           } else {
@@ -174,20 +169,26 @@ class FirebaseMessagingBootstrap {
           }
         },
         onError: (Object error, StackTrace stackTrace) {
-          debugPrint('[FCM][opened-error] $error');
-          debugPrintStack(stackTrace: stackTrace);
+          IzyTelLog.backendError(
+            'FCM.opened',
+            error,
+            stackTrace: stackTrace,
+          );
         },
       );
 
       _tokenRefreshSubscription = messaging.onTokenRefresh.listen(
         (String token) {
           _currentToken = token;
-          debugPrint('[FCM][token-refresh] token mis a jour');
+          IzyTelLog.debug('[FCM][token-refresh] token mis a jour');
           _tokenController.add(token);
         },
         onError: (Object error, StackTrace stackTrace) {
-          debugPrint('[FCM][token-refresh-error] $error');
-          debugPrintStack(stackTrace: stackTrace);
+          IzyTelLog.backendError(
+            'FCM.token-refresh',
+            error,
+            stackTrace: stackTrace,
+          );
         },
       );
 
@@ -195,11 +196,7 @@ class FirebaseMessagingBootstrap {
       if (initialMessage != null) {
         final IzyTelNotificationPayload payload =
             _payloadFromRemoteMessage(initialMessage);
-        debugPrint(
-          '[FCM][initial] id=${initialMessage.messageId ?? '-'} '
-          'type=${payload.type} '
-          'order=${payload.orderReference ?? payload.orderId ?? '-'}',
-        );
+        IzyTelLog.debug('[FCM][initial] type=${payload.type}');
         // Le payload est conserve jusqu'a l'ouverture de l'espace Agent/Manager,
         // y compris si une reconnexion est necessaire apres le tap.
         _pendingOpenedPayload = payload;
@@ -213,8 +210,11 @@ class FirebaseMessagingBootstrap {
     } catch (error, stackTrace) {
       // FCM ne doit jamais empecher IzyTel de demarrer.
       _initialized = false;
-      debugPrint('[FCM][bootstrap-error] $error');
-      debugPrintStack(stackTrace: stackTrace);
+      IzyTelLog.backendError(
+        'FCM.bootstrap',
+        error,
+        stackTrace: stackTrace,
+      );
       return const FirebaseMessagingBootstrapResult(
         supported: true,
         permissionStatus: 'error',

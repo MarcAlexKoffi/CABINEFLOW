@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
@@ -39,6 +40,7 @@ class DashboardPage extends StatefulWidget {
     this.agentRepository,
     this.onOpenOrders,
     this.onOpenPayments,
+    this.onOpenNetwork,
     this.onOpenMore,
     this.onLogout,
   });
@@ -50,6 +52,7 @@ class DashboardPage extends StatefulWidget {
   final AgentRepository? agentRepository;
   final VoidCallback? onOpenOrders;
   final VoidCallback? onOpenPayments;
+  final VoidCallback? onOpenNetwork;
   final VoidCallback? onOpenMore;
   final VoidCallback? onLogout;
 
@@ -87,7 +90,13 @@ class _DashboardPageState extends State<DashboardPage> {
     ) {
       if (!mounted) return;
       setState(() => _customerRequestsCount = requests.length);
-    }, onError: (_) {});
+    }, onError: (Object error, StackTrace stackTrace) {
+      IzyTelLog.backendError(
+        'Dashboard.support-watch',
+        error,
+        stackTrace: stackTrace,
+      );
+    });
 
     _refundRepository = Firebase.apps.isNotEmpty
         ? FirestoreRefundRepository()
@@ -108,7 +117,13 @@ class _DashboardPageState extends State<DashboardPage> {
             .map((RefundCase refund) => refund.orderId)
             .toSet();
         _refreshVisibleFailedOrders(notifyNewFailures: false);
-      }, onError: (_) {});
+      }, onError: (Object error, StackTrace stackTrace) {
+        IzyTelLog.backendError(
+          'Dashboard.refund-watch',
+          error,
+          stackTrace: stackTrace,
+        );
+      });
     }
 
     final OrderHistoryRepository? history = widget.orderHistoryRepository;
@@ -133,7 +148,13 @@ class _DashboardPageState extends State<DashboardPage> {
                 return secondDate.compareTo(firstDate);
               });
         _refreshVisibleFailedOrders(notifyNewFailures: true);
-      }, onError: (_) {});
+      }, onError: (Object error, StackTrace stackTrace) {
+        IzyTelLog.backendError(
+          'Dashboard.failed-orders-watch',
+          error,
+          stackTrace: stackTrace,
+        );
+      });
     }
   }
 
@@ -316,14 +337,14 @@ class _DashboardPageState extends State<DashboardPage> {
               color: IzyTelColors.primary,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-                children: [
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 28),
+                children: <Widget>[
                   _Header(
                     user: widget.user,
                     dateLabel: _formatCurrentDate(),
                     onAvatarTap: _openAccountSheet,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 18),
                   if (_viewModel.isLoading && data == null)
                     const _LoadingState()
                   else if (_viewModel.errorMessage != null && data == null)
@@ -331,171 +352,104 @@ class _DashboardPageState extends State<DashboardPage> {
                       message: _viewModel.errorMessage!,
                       onRetry: _viewModel.loadDashboard,
                     )
-                  else if (data != null) ...[
-                    _RevenueHero(
-                      amount: data.todayRevenue,
-                      percentage: data.revenueChangePercentage,
+                  else if (data != null) ...<Widget>[
+                    if (_viewModel.errorMessage != null) ...<Widget>[
+                      _PartialDataBanner(message: _viewModel.errorMessage!),
+                      const SizedBox(height: 12),
+                    ],
+                    _OverviewCard(data: data),
+                    const SizedBox(height: 22),
+                    const _SectionTitle(
+                      title: 'Priorités',
+                      subtitle: 'Les actions qui demandent ton attention maintenant.',
                     ),
-                    const SizedBox(height: 20),
-                    IzyTelSectionHeader(
-                      title: 'À faire maintenant',
-                      actionLabel: 'Voir tout',
-                      onAction: widget.onOpenOrders,
-                    ),
-                    const SizedBox(height: 8),
-                    IzyTelSurface(
-                      padding: EdgeInsets.zero,
-                      radius: 16,
-                      child: Column(
-                        children: [
-                          _ActionRow(
-                            icon: Symbols.receipt_long_rounded,
-                            iconColor: IzyTelColors.warning,
-                            title:
-                                '${data.statistics.paymentsToVerify} paiements à vérifier',
-                            onTap: widget.onOpenPayments ?? widget.onOpenOrders,
-                          ),
-                          const Divider(),
-                          _ActionRow(
-                            icon: Symbols.warning_rounded,
-                            iconColor: data.statistics.unassignedOrders > 0
-                                ? IzyTelColors.warning
-                                : IzyTelColors.textMuted,
-                            title: data.statistics.unassignedOrders > 0
-                                ? '${data.statistics.unassignedOrders} commande${data.statistics.unassignedOrders > 1 ? 's' : ''} sans agent à vérifier'
-                                : 'Aucune commande sans agent',
-                            onTap: widget.onOpenOrders,
-                          ),
-                          if (widget.user.permissions.canManageFailedOrders) ...<Widget>[
-                            const Divider(),
-                            _ActionRow(
-                              icon: Symbols.error_rounded,
-                              iconColor: _failedOrders.isEmpty
-                                  ? IzyTelColors.textMuted
-                                  : IzyTelColors.error,
-                              title: _failedOrders.isEmpty
-                                  ? 'Commandes échouées'
-                                  : '${_failedOrders.length} commande${_failedOrders.length > 1 ? 's' : ''} échouée${_failedOrders.length > 1 ? 's' : ''} à traiter',
-                              onTap: _openFailedOrdersCenter,
-                            ),
-                          ],
-                          const Divider(),
-                          _ActionRow(
-                            icon: Symbols.person_rounded,
-                            iconColor: IzyTelColors.orange,
-                            title: '$_customerRequestsCount demandes client',
-                            onTap: widget.user.permissions.canViewSupportRequests
-                                ? widget.onOpenMore
-                                : null,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const IzyTelSectionHeader(title: 'Activité du jour'),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _MetricCard(
-                            label: 'Payées',
-                            value: data.statistics.newRequests.toString(),
-                            color: IzyTelColors.success,
-                            icon: Symbols.receipt_long_rounded,
-                          ),
+                    const SizedBox(height: 10),
+                    _QuickActionsGrid(
+                      children: <Widget>[
+                        _QuickActionTile(
+                          icon: Symbols.receipt_long_rounded,
+                          count: data.statistics.paymentsToVerify,
+                          title: 'Paiements',
+                          subtitle: 'à vérifier',
+                          tone: IzyTelColors.warning,
+                          onTap: widget.onOpenPayments ?? widget.onOpenOrders,
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _MetricCard(
-                            label: 'En cours',
-                            value: data.statistics.inProgress.toString(),
-                            color: IzyTelColors.warning,
-                            icon: Symbols.autorenew_rounded,
-                          ),
+                        _QuickActionTile(
+                          icon: Symbols.person_rounded,
+                          count: data.statistics.unassignedOrders,
+                          title: 'Sans agent',
+                          subtitle: 'sans agent à vérifier',
+                          tone: IzyTelColors.warning,
+                          onTap: widget.onOpenOrders,
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _MetricCard(
-                            label: 'Terminées',
-                            value: data.statistics.completed.toString(),
-                            color: IzyTelColors.primary,
-                            icon: Symbols.check_circle_rounded,
+                        if (widget.user.permissions.canManageFailedOrders)
+                          _QuickActionTile(
+                            icon: Symbols.error_rounded,
+                            count: _failedOrders.length,
+                            title: 'Échecs',
+                            subtitle: 'à traiter',
+                            tone: IzyTelColors.error,
+                            onTap: _openFailedOrdersCenter,
                           ),
+                        _QuickActionTile(
+                          icon: Symbols.support_agent_rounded,
+                          count: _customerRequestsCount,
+                          title: 'Demandes client',
+                          subtitle: 'à consulter',
+                          tone: IzyTelColors.primary,
+                          onTap: widget.user.permissions.canViewSupportRequests
+                              ? widget.onOpenMore
+                              : null,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 20),
-                    IzyTelSectionHeader(
-                      title: 'Disponibilité réseau',
-                      actionLabel: widget.user.permissions.canManageFinanceSettings
-                          ? 'Voir tout'
-                          : null,
-                      onAction: widget.user.permissions.canManageFinanceSettings
-                          ? widget.onOpenMore
-                          : null,
+                    const SizedBox(height: 22),
+                    const _SectionTitle(
+                      title: 'Activité du jour',
+                      subtitle: 'Synchronisée avec les statuts opérationnels Supabase.',
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _NetworkCard(
-                            name: 'Orange',
-                            asset: 'assets/brands/operators/orange_ci.png',
-                            color: IzyTelColors.orange,
-                            balance: _balance(data, ServiceChannel.orange),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _NetworkCard(
-                            name: 'MTN',
-                            asset: 'assets/brands/operators/mtn_ci.png',
-                            color: IzyTelColors.mtn,
-                            balance: _balance(data, ServiceChannel.mtn),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _NetworkCard(
-                            name: 'Moov',
-                            asset: 'assets/brands/operators/moov_africa_ci.png',
-                            color: IzyTelColors.moov,
-                            balance: _balance(data, ServiceChannel.moov),
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: 10),
+                    _DailyActivityCard(
+                      paid: data.statistics.newRequests,
+                      inProgress: data.statistics.inProgress,
+                      completed: data.statistics.completed,
+                      onTap: widget.onOpenOrders,
                     ),
-                    const SizedBox(height: 20),
-                    const IzyTelSectionHeader(title: 'Activité récente'),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 22),
+                    _SectionTitle(
+                      title: 'Capacités disponibles',
+                      subtitle:
+                          'Solde réellement disponible chez les agents actifs, réservations déduites.',
+                      actionLabel: widget.onOpenNetwork == null ? null : 'Gérer',
+                      onAction: widget.onOpenNetwork,
+                    ),
+                    const SizedBox(height: 10),
+                    _NetworkCapacityPanel(
+                      orange: _balance(data, ServiceChannel.orange),
+                      mtn: _balance(data, ServiceChannel.mtn),
+                      moov: _balance(data, ServiceChannel.moov),
+                      onTap: widget.onOpenNetwork,
+                    ),
+                    const SizedBox(height: 22),
+                    _SectionTitle(
+                      title: 'À traiter en priorité',
+                      subtitle: data.priorityOrders.isEmpty
+                          ? 'Aucune commande active prioritaire.'
+                          : 'Les commandes les plus urgentes selon leur état actuel.',
+                      actionLabel: data.priorityOrders.isEmpty ? null : 'Toutes',
+                      onAction: data.priorityOrders.isEmpty
+                          ? null
+                          : widget.onOpenOrders,
+                    ),
+                    const SizedBox(height: 10),
                     if (data.priorityOrders.isEmpty)
                       const _EmptyRecentState()
                     else
-                      IzyTelSurface(
-                        padding: EdgeInsets.zero,
-                        radius: 16,
-                        child: Column(
-                          children: List<Widget>.generate(
-                            data.priorityOrders.take(2).length,
-                            (int index) {
-                              final PriorityOrder order =
-                                  data.priorityOrders[index];
-                              return Column(
-                                children: [
-                                  _RecentActivityRow(
-                                    order: order,
-                                    onTap: widget.orderHistoryRepository == null
-                                        ? null
-                                        : () => _openRecentOrder(order),
-                                  ),
-                                  if (index <
-                                      data.priorityOrders.take(2).length - 1)
-                                    const Divider(),
-                                ],
-                              );
-                            },
-                          ),
-                        ),
+                      _PriorityOrdersPanel(
+                        orders: data.priorityOrders.take(3).toList(growable: false),
+                        onOpen: widget.orderHistoryRepository == null
+                            ? null
+                            : _openRecentOrder,
                       ),
                   ],
                 ],
@@ -521,285 +475,612 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final List<String> nameParts = user.name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((String value) => value.isNotEmpty)
+        .toList(growable: false);
+    final String firstName = nameParts.isEmpty ? user.name : nameParts.first;
+
     return Row(
-      children: [
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: <Widget>[
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+            children: <Widget>[
               Text(
-                'Bonjour ${user.name.split(' ').first}👋',
+                'Bonjour $firstName',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontSize: 22,
+                  fontSize: IzyTelTypeScale.title2,
                   fontWeight: FontWeight.w800,
                   color: IzyTelColors.textPrimary,
-                  letterSpacing: -.3,
+                  letterSpacing: -.35,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
+              Row(
+                children: <Widget>[
+                  Flexible(
+                    child: Text(
+                      dateLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: IzyTelColors.textSecondary,
+                        fontSize: IzyTelTypeScale.label,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: IzyTelColors.primarySoft,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      user.roleLabel,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: IzyTelColors.primaryStrong,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        if (user.isManager)
+          ManagerProfileAvatar(
+            user: user,
+            size: 46,
+            onTap: onAvatarTap,
+          )
+        else
+          IzyTelAvatar(
+            name: user.name,
+            size: 46,
+            onTap: onAvatarTap,
+          ),
+      ],
+    );
+  }
+}
+
+class _OverviewCard extends StatelessWidget {
+  const _OverviewCard({required this.data});
+
+  final DashboardData data;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 17),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[Color(0xFF3B63F0), Color(0xFF3157E0)],
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: IzyTelColors.primary.withAlpha(42),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Encaissements aujourd’hui',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.white.withAlpha(205),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      formatCfaFull(data.todayRevenue),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        color: Colors.white,
+                        fontSize: 30,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -.6,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _RevenueTrend(percentage: data.revenueChangePercentage),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(28),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withAlpha(38)),
+                ),
+                child: const Icon(
+                  Symbols.account_balance_wallet_rounded,
+                  color: Colors.white,
+                  size: 27,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 17),
+          Container(height: 1, color: Colors.white.withAlpha(38)),
+          const SizedBox(height: 15),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: _OverviewMetric(
+                  icon: Symbols.inbox_rounded,
+                  value: data.ordersToProcess.toString(),
+                  label: 'À traiter',
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 42,
+                color: Colors.white.withAlpha(42),
+              ),
+              Expanded(
+                child: _OverviewMetric(
+                  icon: Symbols.schedule_rounded,
+                  value: _waitLabel(data.averageWaitingMinutes),
+                  label: 'Attente moyenne',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _waitLabel(int minutes) {
+    if (minutes < 60) return '$minutes min';
+    final int hours = minutes ~/ 60;
+    final int remaining = minutes % 60;
+    return remaining == 0 ? '${hours}h' : '${hours}h ${remaining}m';
+  }
+}
+
+class _RevenueTrend extends StatelessWidget {
+  const _RevenueTrend({required this.percentage});
+
+  final double? percentage;
+
+  @override
+  Widget build(BuildContext context) {
+    final double? value = percentage;
+    final bool positive = (value ?? 0) > 0;
+    final bool negative = (value ?? 0) < 0;
+    final IconData icon = value == null
+        ? Symbols.horizontal_rule_rounded
+        : positive
+        ? Symbols.trending_up_rounded
+        : negative
+        ? Symbols.trending_down_rounded
+        : Symbols.trending_flat_rounded;
+    final String label = value == null
+        ? 'Pas de base comparable hier'
+        : '${positive ? '+' : ''}${value.toStringAsFixed(1)}% vs hier';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(28),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withAlpha(34)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 15, color: Colors.white),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OverviewMetric extends StatelessWidget {
+  const _OverviewMetric({
+    required this.icon,
+    required this.value,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          Container(
+            width: 31,
+            height: 31,
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(24),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 18, color: Colors.white),
+          ),
+          const SizedBox(width: 9),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Colors.white.withAlpha(190),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({
+    required this.title,
+    required this.subtitle,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final String title;
+  final String subtitle;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: <Widget>[
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
               Text(
-                dateLabel,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                title,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontSize: IzyTelTypeScale.title3,
+                  fontWeight: FontWeight.w800,
+                  color: IzyTelColors.textPrimary,
+                  letterSpacing: -.2,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: IzyTelColors.textSecondary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
+                  fontSize: IzyTelTypeScale.micro,
+                  height: 1.35,
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(width: 10),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (user.isManager)
-              ManagerProfileAvatar(
-                user: user,
-                size: 44,
-                onTap: onAvatarTap,
-              )
-            else
-              IzyTelAvatar(
-                name: user.name,
-                initialsOverride: user.name.trim().isEmpty
-                    ? '?'
-                    : user.name.trim().substring(0, 1),
-                onTap: onAvatarTap,
-                size: 44,
-              ),
-            const SizedBox(width: 2),
-            const Icon(
-              Symbols.keyboard_arrow_down_rounded,
-              size: IzyTelIconSize.info,
-              color: IzyTelColors.textSecondary,
+        if (actionLabel != null) ...<Widget>[
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: onAction,
+            style: TextButton.styleFrom(
+              minimumSize: Size.zero,
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-          ],
+            child: Text(actionLabel!),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _QuickActionsGrid extends StatelessWidget {
+  const _QuickActionsGrid({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double width = (constraints.maxWidth - 10) / 2;
+        return Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: children
+              .map((Widget child) => SizedBox(width: width, child: child))
+              .toList(growable: false),
+        );
+      },
+    );
+  }
+}
+
+class _QuickActionTile extends StatelessWidget {
+  const _QuickActionTile({
+    required this.icon,
+    required this.count,
+    required this.title,
+    required this.subtitle,
+    required this.tone,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final int count;
+  final String title;
+  final String subtitle;
+  final Color tone;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color effectiveTone = count == 0 ? IzyTelColors.textMuted : tone;
+    return IzyTelSurface(
+      onTap: onTap,
+      radius: 18,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: effectiveTone.withAlpha(20),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(icon, size: 20, color: effectiveTone),
+              ),
+              const Spacer(),
+              Text(
+                count.toString(),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontSize: 23,
+                  fontWeight: FontWeight.w800,
+                  color: IzyTelColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: IzyTelColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: IzyTelColors.textSecondary,
+              fontSize: IzyTelTypeScale.micro,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DailyActivityCard extends StatelessWidget {
+  const _DailyActivityCard({
+    required this.paid,
+    required this.inProgress,
+    required this.completed,
+    this.onTap,
+  });
+
+  final int paid;
+  final int inProgress;
+  final int completed;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IzyTelSurface(
+      onTap: onTap,
+      radius: 18,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: _DailyMetric(
+              label: 'Payées',
+              value: paid,
+              icon: Symbols.receipt_long_rounded,
+              color: IzyTelColors.success,
+            ),
+          ),
+          _VerticalDivider(),
+          Expanded(
+            child: _DailyMetric(
+              label: 'En cours',
+              value: inProgress,
+              icon: Symbols.autorenew_rounded,
+              color: IzyTelColors.warning,
+            ),
+          ),
+          _VerticalDivider(),
+          Expanded(
+            child: _DailyMetric(
+              label: 'Terminées',
+              value: completed,
+              icon: Symbols.check_circle_rounded,
+              color: IzyTelColors.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DailyMetric extends StatelessWidget {
+  const _DailyMetric({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final int value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        Icon(icon, size: 20, color: color),
+        const SizedBox(height: 7),
+        Text(
+          value.toString(),
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: IzyTelColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: IzyTelColors.textSecondary,
+          ),
         ),
       ],
     );
   }
 }
 
-class _RevenueHero extends StatelessWidget {
-  const _RevenueHero({required this.amount, required this.percentage});
-  final int amount;
-  final double? percentage;
-
+class _VerticalDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final double? change = percentage;
-    final bool positive = (change ?? 0) >= 0;
     return Container(
-      padding: const EdgeInsets.fromLTRB(22, 18, 18, 18),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF3B63F0), Color(0xFF3157E0)],
-        ),
-        borderRadius: BorderRadius.circular(17),
-        boxShadow: [
-          BoxShadow(
-            color: IzyTelColors.primary.withAlpha(36),
-            blurRadius: 22,
-            offset: const Offset(0, 9),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Encaissements aujourd’hui',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: IzyTelColors.surface,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  formatCfaFull(amount),
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: IzyTelColors.surface,
-                    fontSize: 25,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -.4,
-                  ),
-                ),
-                if (change != null) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: positive
-                          ? IzyTelColors.success
-                          : IzyTelColors.error,
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                    child: Text(
-                      '${positive ? '+' : ''}${change.toStringAsFixed(1)}% vs hier',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: IzyTelColors.surface,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: IzyTelColors.surface.withAlpha(28),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Icon(
-              Symbols.wallet_rounded,
-              color: IzyTelColors.surface,
-              size: 28,
-            ),
-          ),
-        ],
-      ),
+      width: 1,
+      height: 54,
+      color: IzyTelColors.outline,
     );
   }
 }
 
-class _ActionRow extends StatelessWidget {
-  const _ActionRow({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
+class _NetworkCapacityPanel extends StatelessWidget {
+  const _NetworkCapacityPanel({
+    required this.orange,
+    required this.mtn,
+    required this.moov,
     this.onTap,
   });
 
-  final IconData icon;
-  final Color iconColor;
-  final String title;
+  final int? orange;
+  final int? mtn;
+  final int? moov;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(15),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-        child: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: iconColor.withAlpha(16),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: iconColor, size: IzyTelIconSize.action),
-            ),
-            const SizedBox(width: 10),
-            Flexible(
-              child: Text(
-                title,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: IzyTelColors.textPrimary,
-                  fontSize: IzyTelTypeScale.text,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const Icon(
-              Symbols.chevron_right_rounded,
-              color: IzyTelColors.textMuted,
-              size: IzyTelIconSize.action,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.icon,
-  });
-
-  final String label;
-  final String value;
-  final Color color;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
     return IzyTelSurface(
-      radius: 17,
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+      onTap: onTap,
+      radius: 18,
+      padding: EdgeInsets.zero,
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              fontSize: IzyTelTypeScale.label,
-              fontWeight: FontWeight.w500,
-              color: IzyTelColors.textSecondary,
-            ),
+        children: <Widget>[
+          _NetworkCapacityRow(
+            name: 'Orange',
+            asset: 'assets/brands/operators/orange_ci.png',
+            amount: orange,
+            tone: IzyTelColors.orange,
           ),
-          const SizedBox(height: 5),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Flexible(
-                child: Text(
-                  value,
-                  maxLines: 1,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: IzyTelColors.textPrimary,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 5),
-              Container(
-                width: 24,
-                height: 24,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: color.withAlpha(18),
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: Icon(icon, color: color, size: 15),
-              ),
-            ],
+          const Divider(height: 1),
+          _NetworkCapacityRow(
+            name: 'MTN',
+            asset: 'assets/brands/operators/mtn_ci.png',
+            amount: mtn,
+            tone: IzyTelColors.mtnText,
           ),
-          const SizedBox(height: 7),
-          Container(
-            width: 32,
-            height: 3,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(99),
-            ),
+          const Divider(height: 1),
+          _NetworkCapacityRow(
+            name: 'Moov Africa',
+            asset: 'assets/brands/operators/moov_africa_ci.png',
+            amount: moov,
+            tone: IzyTelColors.moov,
           ),
         ],
       ),
@@ -807,69 +1088,64 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
-class _NetworkCard extends StatelessWidget {
-  const _NetworkCard({
+class _NetworkCapacityRow extends StatelessWidget {
+  const _NetworkCapacityRow({
     required this.name,
     required this.asset,
-    required this.color,
-    required this.balance,
+    required this.amount,
+    required this.tone,
   });
 
   final String name;
   final String asset;
-  final Color color;
-  final int? balance;
-
-  String get _status {
-    if (balance == null) return 'À configurer...';
-    if (balance! <= 5000) return 'Faible';
-    return 'Disponible';
-  }
-
-  Color get _statusColor {
-    if (balance == null) return IzyTelColors.textMuted;
-    if (balance! <= 5000) return IzyTelColors.warning;
-    return IzyTelColors.success;
-  }
+  final int? amount;
+  final Color tone;
 
   @override
   Widget build(BuildContext context) {
-    return IzyTelSurface(
-      radius: 17,
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    final bool available = amount != null;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+      child: Row(
+        children: <Widget>[
           Container(
-            width: 30,
-            height: 30,
-            padding: const EdgeInsets.all(3),
+            width: 40,
+            height: 40,
+            padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
-              color: IzyTelColors.surfaceMuted,
-              borderRadius: BorderRadius.circular(10),
+              color: tone.withAlpha(16),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Image.asset(asset, fit: BoxFit.contain),
           ),
-          const SizedBox(height: 8),
-          Text(
-            name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              fontSize: IzyTelTypeScale.label,
-              fontWeight: FontWeight.w600,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  name,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: IzyTelColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  available ? 'Disponible immédiatement' : 'Synchronisation…',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: IzyTelColors.textSecondary,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 3),
+          const SizedBox(width: 8),
           Text(
-            _status,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: _statusColor,
-              fontSize: IzyTelTypeScale.micro,
-              fontWeight: FontWeight.w500,
+            available ? formatCfa(amount!) : '—',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: available ? tone : IzyTelColors.textMuted,
             ),
           ),
         ],
@@ -878,80 +1154,188 @@ class _NetworkCard extends StatelessWidget {
   }
 }
 
-class _RecentActivityRow extends StatelessWidget {
-  const _RecentActivityRow({required this.order, this.onTap});
+class _PriorityOrdersPanel extends StatelessWidget {
+  const _PriorityOrdersPanel({required this.orders, this.onOpen});
+
+  final List<PriorityOrder> orders;
+  final ValueChanged<PriorityOrder>? onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return IzyTelSurface(
+      radius: 18,
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: List<Widget>.generate(orders.length, (int index) {
+          final PriorityOrder order = orders[index];
+          return Column(
+            children: <Widget>[
+              _PriorityOrderRow(
+                order: order,
+                onTap: onOpen == null ? null : () => onOpen!(order),
+              ),
+              if (index < orders.length - 1) const Divider(height: 1),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+}
+
+class _PriorityOrderRow extends StatelessWidget {
+  const _PriorityOrderRow({required this.order, this.onTap});
 
   final PriorityOrder order;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final bool readyToHandle = order.status == PriorityOrderStatus.ready;
-    final Color color = readyToHandle
-        ? IzyTelColors.primary
-        : IzyTelColors.textMuted;
+    final ({String asset, Color tone}) brand = _brand(order.channel);
+    final ({String label, Color color}) status = _status(order.status);
+
     return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+        padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
         child: Row(
-          children: [
+          children: <Widget>[
             Container(
-              width: 34,
-              height: 34,
+              width: 40,
+              height: 40,
+              padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
-                color: IzyTelColors.primarySoft,
-                borderRadius: BorderRadius.circular(10),
+                color: brand.tone.withAlpha(16),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(
-                readyToHandle
-                    ? Symbols.assignment_turned_in_rounded
-                    : Symbols.inventory_2_rounded,
-                size: 18,
-                color: IzyTelColors.primary,
-              ),
+              child: Image.asset(brand.asset, fit: BoxFit.contain),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 11),
             Expanded(
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                children: <Widget>[
                   Text(
                     order.operationLabel,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: IzyTelColors.textPrimary,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
-                      fontSize: 16,
+                      color: IzyTelColors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    order.reference,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: IzyTelColors.textMuted,
-                      fontSize: 12.5,
-                    ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: <Widget>[
+                      Flexible(
+                        child: Text(
+                          order.phoneNumber,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: IzyTelColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        formatCfa(order.amount),
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: IzyTelColors.primaryStrong,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 6),
+                  IzyTelStatusPill(label: status.label, color: status.color),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            Text(
-              readyToHandle
-                  ? 'Traiter'
-                  : (order.actionLabel.isEmpty ? 'Ouvrir' : order.actionLabel),
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: color,
-                fontWeight: FontWeight.w700,
+            if (onTap != null) ...<Widget>[
+              const SizedBox(width: 6),
+              const Icon(
+                Symbols.chevron_right_rounded,
+                color: IzyTelColors.textMuted,
               ),
-            ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  static ({String asset, Color tone}) _brand(ServiceChannel channel) {
+    switch (channel) {
+      case ServiceChannel.orange:
+        return (
+          asset: 'assets/brands/operators/orange_ci.png',
+          tone: IzyTelColors.orange,
+        );
+      case ServiceChannel.mtn:
+        return (
+          asset: 'assets/brands/operators/mtn_ci.png',
+          tone: IzyTelColors.mtnText,
+        );
+      case ServiceChannel.moov:
+        return (
+          asset: 'assets/brands/operators/moov_africa_ci.png',
+          tone: IzyTelColors.moov,
+        );
+      case ServiceChannel.wave:
+        return (
+          asset: 'assets/images/wave_logo.png',
+          tone: IzyTelColors.wave,
+        );
+    }
+  }
+
+  static ({String label, Color color}) _status(PriorityOrderStatus status) {
+    switch (status) {
+      case PriorityOrderStatus.urgent:
+        return (label: 'Urgente', color: IzyTelColors.error);
+      case PriorityOrderStatus.pendingVerification:
+        return (label: 'Paiement à vérifier', color: IzyTelColors.warning);
+      case PriorityOrderStatus.ready:
+        return (label: 'Prête à traiter', color: IzyTelColors.primary);
+      case PriorityOrderStatus.inProgress:
+        return (label: 'En traitement', color: IzyTelColors.success);
+    }
+  }
+}
+
+class _PartialDataBanner extends StatelessWidget {
+  const _PartialDataBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: IzyTelColors.warningSoft,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: IzyTelColors.warning.withAlpha(45)),
+      ),
+      child: Row(
+        children: <Widget>[
+          const Icon(
+            Symbols.info_rounded,
+            size: 18,
+            color: IzyTelColors.warning,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: IzyTelColors.textSecondary,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -963,15 +1347,29 @@ class _EmptyRecentState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IzyTelSurface(
-      radius: 15,
+      radius: 18,
       child: Row(
-        children: [
-          const Icon(Symbols.check_circle_rounded, color: IzyTelColors.success),
-          const SizedBox(width: 10),
+        children: <Widget>[
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: IzyTelColors.successSoft,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: const Icon(
+              Symbols.check_circle_rounded,
+              color: IzyTelColors.success,
+            ),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'Aucune activité récente pour le moment.',
-              style: Theme.of(context).textTheme.bodyMedium,
+              'Rien d’urgent pour le moment.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: IzyTelColors.textSecondary,
+              ),
             ),
           ),
         ],
@@ -986,7 +1384,7 @@ class _LoadingState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 90),
+      padding: EdgeInsets.symmetric(vertical: 70),
       child: Center(child: CircularProgressIndicator()),
     );
   }
@@ -994,26 +1392,33 @@ class _LoadingState extends StatelessWidget {
 
 class _ErrorState extends StatelessWidget {
   const _ErrorState({required this.message, required this.onRetry});
+
   final String message;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     return IzyTelSurface(
+      radius: 18,
       child: Column(
-        children: [
+        children: <Widget>[
           const Icon(
             Symbols.cloud_off_rounded,
+            size: 34,
             color: IzyTelColors.error,
-            size: 38,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: IzyTelColors.textSecondary,
+            ),
           ),
           const SizedBox(height: 12),
-          Text(message, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          FilledButton.icon(
+          FilledButton.tonal(
             onPressed: onRetry,
-            icon: const Icon(Symbols.refresh_rounded),
-            label: const Text('Réessayer'),
+            child: const Text('Réessayer'),
           ),
         ],
       ),

@@ -1,3 +1,4 @@
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/finances/presentation/widgets/financial_ui.dart';
@@ -822,8 +823,11 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
       if (!mounted) return;
       _showMessage(successMessage);
     } on Object catch (error, stackTrace) {
-      debugPrint('[Refund][admin] ERROR $error');
-      debugPrint('[Refund][admin] STACK\n$stackTrace');
+      IzyTelLog.backendError(
+        'Refund.admin-action',
+        error,
+        stackTrace: stackTrace,
+      );
       if (!mounted) return;
       _showMessage('Impossible d’enregistrer cette action pour le moment.');
     } finally {

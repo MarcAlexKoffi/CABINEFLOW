@@ -1,4 +1,5 @@
 import 'package:cabine_flow/app/app_routes.dart';
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/features/agents/data/repositories/fake_agent_repository.dart';
 import 'package:cabine_flow/features/agents/data/repositories/firestore_agent_repository.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
@@ -59,12 +60,16 @@ class CabineFlowApp extends StatelessWidget {
   final AgentRepository? agentRepository;
   final CommissionRepository? commissionRepository;
 
-  Route<dynamic> _createErrorRoute() {
+  Route<dynamic> _createRecoveryRoute(AuthRepository authRepository) {
+    // Une ouverture depuis une notification peut restaurer un nom de route
+    // Android sans les arguments Flutter attendus. Ne jamais laisser
+    // l'utilisateur sur une page morte : on repasse par le Splash qui restaure
+    // la session, puis le payload FCM en attente est consomme par MainShell.
+    IzyTelLog.debug('[Navigation][route-recovery]');
     return MaterialPageRoute<void>(
+      settings: const RouteSettings(name: AppRoutes.splash),
       builder: (BuildContext context) {
-        return const Scaffold(
-          body: Center(child: Text('Impossible d’ouvrir cette page.')),
-        );
+        return SplashPage(authRepository: authRepository);
       },
     );
   }
@@ -155,7 +160,7 @@ class CabineFlowApp extends StatelessWidget {
 
             if (arguments is! AuthLoginResult ||
                 !arguments.requiresAccessScreen) {
-              return _createErrorRoute();
+              return _createRecoveryRoute(effectiveAuthRepository);
             }
 
             return MaterialPageRoute<void>(
@@ -172,7 +177,7 @@ class CabineFlowApp extends StatelessWidget {
             final Object? arguments = settings.arguments;
 
             if (arguments is! AppUser) {
-              return _createErrorRoute();
+              return _createRecoveryRoute(effectiveAuthRepository);
             }
 
             return MaterialPageRoute<void>(
@@ -193,7 +198,7 @@ class CabineFlowApp extends StatelessWidget {
             );
 
           default:
-            return _createErrorRoute();
+            return _createRecoveryRoute(effectiveAuthRepository);
         }
       },
     );

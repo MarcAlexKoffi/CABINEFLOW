@@ -1,7 +1,8 @@
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
 import 'package:cabine_flow/features/finances/data/repositories/supabase_phase5_finance_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/supabase_phase5_history_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 
 /// Reprise historique consolidée de la Phase 5.
 ///
@@ -20,6 +21,7 @@ class Phase5ConsolidatedSynchronizer {
        _sync = syncRepository ?? SupabasePhase5HistoryRepository();
 
   static const int defaultBatchSize = 100;
+  static const String _legacyEpochIso = '1970-01-01T00:00:00.000Z';
 
   final FirebaseFirestore _firestore;
   final SupabasePhase5FinanceRepository _phase5;
@@ -31,63 +33,75 @@ class Phase5ConsolidatedSynchronizer {
     _running = true;
     try {
       final int size = batchSize.clamp(25, 200).toInt();
-      await _syncCollection(
-        syncKey: 'phase5_capacities_v1',
-        collection: 'agentProfiles',
-        kind: 'capacity',
-        batchSize: size,
-        mapper: _capacityRow,
+      // Les RPC d'import sont idempotentes et chaque backfill possede un
+      // curseur persistant. Il est donc sur de rejouer l'ensemble du passage
+      // apres une coupure transitoire, sans doubler les ecritures financieres.
+      await BackendFailurePolicy.retryIdempotent<void>(
+        () => _synchronizeOnce(size),
+        maxAttempts: 3,
+        baseDelay: const Duration(milliseconds: 500),
+        maxDelay: const Duration(seconds: 3),
       );
-      await _syncRechargeHistory(batchSize: size);
-      await _syncCollection(
-        syncKey: 'phase5_network_movements_v1',
-        collection: 'networkTransactions',
-        kind: 'network_movement',
-        batchSize: size,
-        mapper: _networkMovementRow,
-      );
-      await _syncSuccessFinalizations(batchSize: size);
-      await _syncCollection(
-        syncKey: 'phase5_commissions_v1',
-        collection: 'commissions',
-        kind: 'commission',
-        batchSize: size,
-        mapper: _commissionRow,
-      );
-      await _syncCollection(
-        syncKey: 'phase5_commission_accounts_v1',
-        collection: 'commissionAccounts',
-        kind: 'commission_account',
-        batchSize: size,
-        mapper: _commissionAccountRow,
-      );
-      await _syncCollection(
-        syncKey: 'phase5_commission_payouts_v1',
-        collection: 'commissionPayouts',
-        kind: 'commission_payout',
-        batchSize: size,
-        mapper: _commissionPayoutRow,
-      );
-      await _syncCollection(
-        syncKey: 'phase5_supplier_accounts_v1',
-        collection: 'supplierAccounts',
-        kind: 'supplier_account',
-        batchSize: size,
-        mapper: _supplierAccountRow,
-      );
-      await _syncCollection(
-        syncKey: 'phase5_supplier_payments_v1',
-        collection: 'supplierPayments',
-        kind: 'supplier_payment',
-        batchSize: size,
-        mapper: _supplierPaymentRow,
-      );
-      await _syncOrderPayments(status: 'confirmed', batchSize: size);
-      await _syncOrderPayments(status: 'credit', batchSize: size);
-      await _reconcileRecentState();
     } finally {
       _running = false;
     }
+  }
+
+  Future<void> _synchronizeOnce(int size) async {
+    await _syncCollection(
+      syncKey: 'phase5_capacities_v1',
+      collection: 'agentProfiles',
+      kind: 'capacity',
+      batchSize: size,
+      mapper: _capacityRow,
+    );
+    await _syncRechargeHistory(batchSize: size);
+    await _syncCollection(
+      syncKey: 'phase5_network_movements_v1',
+      collection: 'networkTransactions',
+      kind: 'network_movement',
+      batchSize: size,
+      mapper: _networkMovementRow,
+    );
+    await _syncSuccessFinalizations(batchSize: size);
+    await _syncCollection(
+      syncKey: 'phase5_commissions_v1',
+      collection: 'commissions',
+      kind: 'commission',
+      batchSize: size,
+      mapper: _commissionRow,
+    );
+    await _syncCollection(
+      syncKey: 'phase5_commission_accounts_v1',
+      collection: 'commissionAccounts',
+      kind: 'commission_account',
+      batchSize: size,
+      mapper: _commissionAccountRow,
+    );
+    await _syncCollection(
+      syncKey: 'phase5_commission_payouts_v1',
+      collection: 'commissionPayouts',
+      kind: 'commission_payout',
+      batchSize: size,
+      mapper: _commissionPayoutRow,
+    );
+    await _syncCollection(
+      syncKey: 'phase5_supplier_accounts_v1',
+      collection: 'supplierAccounts',
+      kind: 'supplier_account',
+      batchSize: size,
+      mapper: _supplierAccountRow,
+    );
+    await _syncCollection(
+      syncKey: 'phase5_supplier_payments_v1',
+      collection: 'supplierPayments',
+      kind: 'supplier_payment',
+      batchSize: size,
+      mapper: _supplierPaymentRow,
+    );
+    await _syncOrderPayments(status: 'confirmed', batchSize: size);
+    await _syncOrderPayments(status: 'credit', batchSize: size);
+    await _reconcileRecentState();
   }
 
   Future<void> _syncRechargeHistory({required int batchSize}) async {
@@ -130,8 +144,8 @@ class Phase5ConsolidatedSynchronizer {
         backfillComplete: complete,
       );
       batches++;
-      debugPrint(
-        '[Phase5][Backfill][supplier_recharge] batch=$batches rows=${rows.length} cursor=$lastId',
+      IzyTelLog.debug(
+        'Phase5.Backfill.supplier_recharge batch=$batches rows=${rows.length}',
       );
       if (complete) return;
       await Future<void>.delayed(const Duration(milliseconds: 15));
@@ -368,8 +382,8 @@ class Phase5ConsolidatedSynchronizer {
         backfillComplete: complete,
       );
       batches++;
-      debugPrint(
-        '[Phase5][Backfill][$kind] batch=$batches rows=${rows.length} cursor=$lastId',
+      IzyTelLog.debug(
+        'Phase5.Backfill.$kind batch=$batches rows=${rows.length}',
       );
       if (complete) return;
       await Future<void>.delayed(const Duration(milliseconds: 15));
@@ -512,7 +526,7 @@ class Phase5ConsolidatedSynchronizer {
       'last_commission_order_id': _nullable(data['lastCommissionOrderId']),
       'created_at': _optionalDate(data['createdAt']) ??
           _optionalDate(data['updatedAt']) ??
-          DateTime.now().toUtc().toIso8601String(),
+          _legacyEpochIso,
     };
   }
 
@@ -548,7 +562,7 @@ class Phase5ConsolidatedSynchronizer {
       'last_recharge_id': _nullable(data['lastRechargeId']),
       'created_at': _optionalDate(data['createdAt']) ??
           _optionalDate(data['updatedAt']) ??
-          DateTime.now().toUtc().toIso8601String(),
+          _legacyEpochIso,
     };
   }
 
@@ -591,7 +605,7 @@ class Phase5ConsolidatedSynchronizer {
       'confirmed_at': _optionalDate(data['paymentConfirmedAt']),
       'source': _nullable(data['source']) ?? 'operatorApp',
       'created_at': _optionalDate(data['createdAt']) ??
-          DateTime.now().toUtc().toIso8601String(),
+          _legacyEpochIso,
     };
   }
 
@@ -610,9 +624,7 @@ class Phase5ConsolidatedSynchronizer {
         ? normalizedId.substring(0, 6)
         : normalizedId;
     final String fallback = suffix.isEmpty ? 'Agent' : 'Agent $suffix';
-    debugPrint(
-      '[Phase5][Backfill][capacity-name-fallback] id=$id fallback=$fallback',
-    );
+    IzyTelLog.debug('[Phase5][Backfill][capacity-name-fallback]');
     return fallback;
   }
 
@@ -628,23 +640,37 @@ class Phase5ConsolidatedSynchronizer {
   }
 
   int _nonNegative(Object? value, String id) {
-    final int amount = value is num ? value.toInt() : int.tryParse('$value') ?? 0;
+    final int amount = _historicalInteger(value) ?? 0;
     if (amount < 0) throw StateError('$id: montant négatif invalide.');
     return amount;
   }
 
   int _positive(Object? value, String field, String id) {
-    final int amount = value is num ? value.toInt() : int.tryParse('$value') ?? 0;
+    final int amount = _historicalInteger(value) ?? 0;
     if (amount <= 0) throw StateError('$id: champ $field invalide.');
     return amount;
   }
 
+  int? _historicalInteger(Object? value) {
+    if (value is num) return value.toInt();
+    if (value == null) return null;
+    final String text = value
+        .toString()
+        .trim()
+        .replaceAll(RegExp(r'[\s\u00A0\u202F]'), '');
+    if (text.isEmpty) return null;
+    final int? integer = int.tryParse(text);
+    if (integer != null) return integer;
+    final double? decimal = double.tryParse(text.replaceAll(',', '.'));
+    return decimal?.toInt();
+  }
+
   String _network(Object? value, String id) {
     final String network = value is String ? value.trim().toLowerCase() : '';
-    if (!const <String>{'orange', 'mtn', 'moov'}.contains(network)) {
-      throw StateError('$id: réseau invalide.');
-    }
-    return network;
+    if (network.startsWith('orange')) return 'orange';
+    if (network.startsWith('mtn')) return 'mtn';
+    if (network.startsWith('moov')) return 'moov';
+    throw StateError('$id: réseau invalide.');
   }
 
   String _requiredDate(Object? value, String field, String id) {
@@ -656,7 +682,22 @@ class Phase5ConsolidatedSynchronizer {
   String? _optionalDate(Object? value) {
     if (value is Timestamp) return value.toDate().toUtc().toIso8601String();
     if (value is DateTime) return value.toUtc().toIso8601String();
-    if (value is String) return DateTime.tryParse(value)?.toUtc().toIso8601String();
+    if (value is num) {
+      final int raw = value.toInt();
+      final int milliseconds = raw.abs() < 100000000000 ? raw * 1000 : raw;
+      return DateTime.fromMillisecondsSinceEpoch(
+        milliseconds,
+        isUtc: true,
+      ).toIso8601String();
+    }
+    if (value is String) {
+      final String text = value.trim();
+      if (text.isEmpty) return null;
+      final DateTime? parsed = DateTime.tryParse(text);
+      if (parsed != null) return parsed.toUtc().toIso8601String();
+      final int? epoch = int.tryParse(text);
+      if (epoch != null) return _optionalDate(epoch);
+    }
     return null;
   }
 }

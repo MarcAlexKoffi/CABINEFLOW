@@ -13,7 +13,7 @@ void main() {
     expect(source, contains('ImageSource.gallery'));
     expect(source, contains('preferredCameraDevice: CameraDevice.rear'));
     expect(source, contains('source: source'));
-    expect(source, contains('_compressProofForFirestore'));
+    expect(source, contains('_compressProofForUpload'));
     expect(source, contains('Appareil photo'));
     expect(source, contains('Galerie'));
   });

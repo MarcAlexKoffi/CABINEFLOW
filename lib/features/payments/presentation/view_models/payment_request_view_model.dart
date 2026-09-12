@@ -1,3 +1,4 @@
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
@@ -89,7 +90,12 @@ class PaymentRequestViewModel extends ChangeNotifier {
       _paymentLinkData = await _paymentLinkRepository.preparePaymentLink(
         order: order,
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'PaymentRequest.prepare',
+        error,
+        stackTrace: stackTrace,
+      );
       _errorMessage = 'Impossible de préparer le lien Wave.';
     } finally {
       _isLoading = false;
@@ -111,7 +117,12 @@ class PaymentRequestViewModel extends ChangeNotifier {
       await _ordersRepository.markPaymentRequestSent(orderId: order.id);
 
       return true;
-    } catch (error) {
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'PaymentRequest.mark-sent',
+        error,
+        stackTrace: stackTrace,
+      );
       _errorMessage = error is StateError
           ? error.message.toString()
           : 'Impossible d’enregistrer l’envoi du lien.';

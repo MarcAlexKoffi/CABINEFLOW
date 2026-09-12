@@ -1,6 +1,7 @@
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
 import 'package:cabine_flow/features/orders/domain/models/automatic_assignment.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class Phase4AssignmentSnapshot {
@@ -35,6 +36,18 @@ class Phase4AssignmentSnapshot {
     this.lastRefusedAgentId,
     this.firebaseAssignmentSyncedAt,
     this.firebaseHandoffAt,
+    this.customerAuthUid,
+    this.orderStatus = QueueOrderStatus.paidReady,
+    this.processingStartedAt,
+    this.completedAt,
+    this.failureReason,
+    this.observation,
+    this.lastHoldReason,
+    this.lastHeldAt,
+    this.lastResumedAt,
+    this.customerConfirmationStatus = CustomerConfirmationStatus.pending,
+    this.customerConfirmationCompletedAt,
+    this.legacyStateUnresolved = false,
   });
 
   final String orderId;
@@ -66,6 +79,18 @@ class Phase4AssignmentSnapshot {
   final String? lastRefusedAgentId;
   final DateTime? firebaseAssignmentSyncedAt;
   final DateTime? firebaseHandoffAt;
+  final String? customerAuthUid;
+  final QueueOrderStatus orderStatus;
+  final DateTime? processingStartedAt;
+  final DateTime? completedAt;
+  final OrderFailureReason? failureReason;
+  final String? observation;
+  final String? lastHoldReason;
+  final DateTime? lastHeldAt;
+  final DateTime? lastResumedAt;
+  final CustomerConfirmationStatus customerConfirmationStatus;
+  final DateTime? customerConfirmationCompletedAt;
+  final bool legacyStateUnresolved;
   final DateTime updatedAt;
 
   bool get isAssigned => assignmentState == 'assigned';
@@ -75,18 +100,33 @@ class Phase4AssignmentSnapshot {
   bool get isWaiting => assignmentState == 'waiting';
 
   bool get reservesCapacityInSupabase {
-    return firebaseAssignmentSyncedAt == null &&
+    return !legacyStateUnresolved &&
         (assignmentState == 'assigned' || assignmentState == 'accepted') &&
+        (orderStatus == QueueOrderStatus.paidReady ||
+            orderStatus == QueueOrderStatus.inProgress ||
+            orderStatus == QueueOrderStatus.onHold) &&
         assignedAgentId != null;
   }
 
-  QueueOrder toPendingQueueOrder({
+  QueueOrder toQueueOrder({
+    QueueOrder? legacy,
     List<String> refusedAgentIds = const <String>[],
   }) {
+    final bool hasAssignment =
+        assignedAgentId != null &&
+        assignedAgentId!.trim().isNotEmpty &&
+        !(isWaiting || isManualRequired);
+    final OrderAssignmentStatus assignmentStatus = !hasAssignment
+        ? OrderAssignmentStatus.unassigned
+        : isAssigned
+        ? OrderAssignmentStatus.assigned
+        : OrderAssignmentStatus.accepted;
+
     return QueueOrder(
       id: orderId,
       reference: orderReference,
       source: source,
+      customerAuthUid: customerAuthUid ?? legacy?.customerAuthUid,
       clientName: clientName,
       clientWhatsappPhone: clientWhatsappPhone,
       network: network,
@@ -94,64 +134,85 @@ class Phase4AssignmentSnapshot {
       operationType: operationType,
       offerLabel: offerLabel,
       amount: amount,
-      originalWhatsappMessage: originalWhatsappMessage,
-      internalNotes: internalNotes,
+      originalWhatsappMessage:
+          originalWhatsappMessage ?? legacy?.originalWhatsappMessage,
+      internalNotes: internalNotes ?? legacy?.internalNotes,
       createdAt: firebaseCreatedAt,
-      paidAt: paidAt,
-      paymentPayerName: paymentPayerName,
-      paymentConfirmedAt: paymentConfirmedAt,
-      paymentReference: paymentReference,
-      status: QueueOrderStatus.paidReady,
+      paidAt: paidAt ?? legacy?.paidAt,
+      paymentRequestSentAt: legacy?.paymentRequestSentAt,
+      paymentDeclaredAt: legacy?.paymentDeclaredAt,
+      paymentPayerName: paymentPayerName ?? legacy?.paymentPayerName,
+      paymentPayerPhone: legacy?.paymentPayerPhone,
+      paymentApproximateTime: legacy?.paymentApproximateTime,
+      paymentDeclaredReference: legacy?.paymentDeclaredReference,
+      paymentConfirmedAt: paymentConfirmedAt ?? legacy?.paymentConfirmedAt,
+      expiresAt: legacy?.expiresAt,
+      expiredAt: legacy?.expiredAt,
+      paymentReference: paymentReference ?? legacy?.paymentReference,
+      status: orderStatus,
       paymentStatus: paymentStatus,
-      assignedAgentId: assignedAgentId,
-      assignedAgentName: assignedAgentName,
-      assignedByUserId: assignedByUid,
-      assignedAt: assignedAt,
-      assignmentMode: assignmentMode,
-      assignmentStatus: isAccepted || isHandedOff
-          ? OrderAssignmentStatus.accepted
-          : isAssigned
-          ? OrderAssignmentStatus.assigned
-          : OrderAssignmentStatus.unassigned,
+      takenByUserId: processingStartedAt == null ? null : assignedAgentId,
+      takenAt: processingStartedAt,
+      completedAt: completedAt,
+      failureReason: failureReason,
+      observation: observation,
+      customerConfirmationStatus: customerConfirmationStatus,
+      customerConfirmationCompletedAt: customerConfirmationCompletedAt,
+      assignedAgentId: hasAssignment ? assignedAgentId : null,
+      assignedAgentName: hasAssignment ? assignedAgentName : null,
+      assignedByUserId: hasAssignment ? assignedByUid : null,
+      assignedAt: hasAssignment ? assignedAt : null,
+      assignmentMode: hasAssignment ? assignmentMode : null,
+      assignmentStatus: assignmentStatus,
       lastAssignmentRefusalReason: lastRefusalReason,
       lastAssignmentRefusedAt: lastRefusedAt,
       lastAssignmentRefusedAgentId: lastRefusedAgentId,
       autoAssignmentRefusedAgentIds: refusedAgentIds,
       manualAssignmentRequired: isManualRequired,
+      lastHoldReason: lastHoldReason,
+      lastHeldAt: lastHeldAt,
+      lastResumedAt: lastResumedAt,
     );
   }
+
+  QueueOrder toPendingQueueOrder({
+    List<String> refusedAgentIds = const <String>[],
+  }) => toQueueOrder(refusedAgentIds: refusedAgentIds);
 
   QueueOrder overlayOn(
     QueueOrder order, {
     List<String> refusedAgentIds = const <String>[],
   }) {
-    if (isWaiting || isManualRequired) {
-      return order.copyWith(
-        clearAgentAssignment: true,
-        lastAssignmentRefusalReason: lastRefusalReason,
-        lastAssignmentRefusedAt: lastRefusedAt,
-        lastAssignmentRefusedAgentId: lastRefusedAgentId,
-        autoAssignmentRefusedAgentIds: refusedAgentIds,
-        manualAssignmentRequired: isManualRequired,
-      );
-    }
-
-    return order.copyWith(
-      assignedAgentId: assignedAgentId,
-      assignedAgentName: assignedAgentName,
-      assignedByUserId: assignedByUid,
-      assignedAt: assignedAt,
-      assignmentMode: assignmentMode,
-      assignmentStatus: isAccepted || isHandedOff
-          ? OrderAssignmentStatus.accepted
-          : OrderAssignmentStatus.assigned,
-      lastAssignmentRefusalReason: lastRefusalReason,
-      lastAssignmentRefusedAt: lastRefusedAt,
-      lastAssignmentRefusedAgentId: lastRefusedAgentId,
-      autoAssignmentRefusedAgentIds: refusedAgentIds,
-      manualAssignmentRequired: false,
+    // Une ligne Supabase synchronisee est canonique pour le statut operationnel.
+    // Firestore ne sert plus ici que de source de champs historiques non migres.
+    return toQueueOrder(
+      legacy: order,
+      refusedAgentIds: refusedAgentIds,
     );
   }
+
+}
+
+
+class Phase4AgentActionOutcome {
+  const Phase4AgentActionOutcome({
+    required this.action,
+    required this.assignmentState,
+    required this.reassigned,
+    required this.manualRequired,
+  });
+
+  final String action;
+  final String assignmentState;
+  final bool reassigned;
+  final bool manualRequired;
+
+  bool get isAccepted =>
+      action == 'accept' && assignmentState == 'accepted';
+
+  bool get isRefusalApplied =>
+      action == 'refuse' &&
+      (reassigned || manualRequired || assignmentState == 'waiting');
 }
 
 class Phase4AssignmentPlan {
@@ -190,6 +251,32 @@ class Phase4RefusalHistorySnapshot {
   final String? refusalReason;
 }
 
+class Phase4AssignmentHistorySnapshot {
+  const Phase4AssignmentHistorySnapshot({
+    required this.id,
+    required this.orderId,
+    required this.orderReference,
+    required this.agentId,
+    required this.agentName,
+    required this.status,
+    required this.assignedAt,
+    this.acceptedAt,
+    this.refusedAt,
+    this.refusalReason,
+  });
+
+  final String id;
+  final String orderId;
+  final String orderReference;
+  final String agentId;
+  final String agentName;
+  final String status;
+  final DateTime? assignedAt;
+  final DateTime? acceptedAt;
+  final DateTime? refusedAt;
+  final String? refusalReason;
+}
+
 class Phase4AgentAssignmentState {
   const Phase4AgentAssignmentState({
     required this.currentAssignments,
@@ -220,7 +307,7 @@ class SupabasePhase4AssignmentRepository {
     }
 
     final Object? raw = await _client.rpc(
-      'phase4_sync_order',
+      'phase3_sync_order',
       params: <String, dynamic>{
         'p_order_id': order.id,
         'p_order_reference': order.reference,
@@ -242,6 +329,7 @@ class SupabasePhase4AssignmentRepository {
         'p_payment_confirmed_at': order.paymentConfirmedAt
             ?.toUtc()
             .toIso8601String(),
+        'p_customer_auth_uid': order.customerAuthUid,
       },
     );
     return _requireSnapshot(raw);
@@ -276,39 +364,42 @@ class SupabasePhase4AssignmentRepository {
     return _requireSnapshot(raw);
   }
 
-  Future<Phase4AssignmentSnapshot> accept(String orderId) async {
-    await _agentAction(orderId: orderId, action: 'accept');
-    final Phase4AssignmentSnapshot? snapshot = await fetchOrder(orderId);
-    if (snapshot == null || !snapshot.isAccepted) {
-      throw StateError('L’acceptation Supabase n’a pas pu être confirmée.');
+  Future<Phase4AgentActionOutcome> accept(String orderId) async {
+    final Phase4AgentActionOutcome outcome = await _agentAction(
+      orderId: orderId,
+      action: 'accept',
+    );
+    if (!outcome.isAccepted) {
+      throw StateError(
+        'L’acceptation n’a pas pu être confirmée. Actualise la file puis réessaie.',
+      );
     }
-    return snapshot;
+    return outcome;
   }
 
-  Future<Phase4AssignmentSnapshot> refuse({
+  Future<Phase4AgentActionOutcome> refuse({
     required String orderId,
     required String reason,
   }) async {
-    await _agentAction(
+    final Phase4AgentActionOutcome outcome = await _agentAction(
       orderId: orderId,
       action: 'refuse',
       reason: reason.trim(),
     );
 
-    // Le trigger Phase 4 choisit le prochain Agent dans la meme transaction.
-    // On relit donc immediatement l'etat canonique pour confirmer si la
-    // commande a ete reaffectee automatiquement ou si tous les candidats ont
-    // ete epuises et que manual_required est reellement justifie.
-    final Phase4AssignmentSnapshot? snapshot = await fetchOrder(orderId);
-    if (snapshot == null) {
+    // Apres un refus, la RLS retire immediatement a l'ancien Agent le droit de
+    // relire phase4_assignment_orders. L'issue de la transition doit donc etre
+    // retournee par le RPC atomique, et non confirmee par un SELECT devenu
+    // volontairement invisible pour l'Agent qui vient de refuser.
+    if (!outcome.isRefusalApplied) {
       throw StateError(
-        'Le refus a ete enregistre, mais l etat Phase 4 est introuvable.',
+        'Le refus n’a pas pu être confirmé. Actualise la file puis réessaie.',
       );
     }
-    return snapshot;
+    return outcome;
   }
 
-  Future<void> _agentAction({
+  Future<Phase4AgentActionOutcome> _agentAction({
     required String orderId,
     required String action,
     String? reason,
@@ -321,8 +412,27 @@ class SupabasePhase4AssignmentRepository {
         'p_reason': reason,
       },
     );
-    if (raw is Map && raw['ok'] == true) return;
-    throw StateError('La transition Supabase Phase 4 a échoué.');
+    final Map<String, dynamic>? result = raw is Map<String, dynamic>
+        ? raw
+        : raw is Map
+        ? Map<String, dynamic>.from(raw)
+        : null;
+    if (result == null || result['ok'] != true) {
+      throw StateError('Impossible de confirmer cette action pour le moment.');
+    }
+
+    final String returnedAction = _string(result['action']);
+    final String assignmentState = _string(result['assignment_state']);
+    if (returnedAction != action || assignmentState.isEmpty) {
+      throw StateError('Impossible de confirmer cette action pour le moment.');
+    }
+
+    return Phase4AgentActionOutcome(
+      action: returnedAction,
+      assignmentState: assignmentState,
+      reassigned: result['reassigned'] == true,
+      manualRequired: result['manual_required'] == true,
+    );
   }
 
   Future<Phase4AssignmentSnapshot> markFirebaseAssignmentSynced(
@@ -375,6 +485,95 @@ class SupabasePhase4AssignmentRepository {
     return _requireSnapshot(raw);
   }
 
+
+  Future<bool> isAgentEligibleForOrder({
+    required String agentId,
+    required String orderId,
+  }) async {
+    final Object? raw = await _client.rpc(
+      'phase3_agent_is_eligible_for_order',
+      params: <String, dynamic>{
+        'p_agent_id': agentId.trim(),
+        'p_order_id': orderId.trim(),
+      },
+    );
+    if (raw is bool) return raw;
+    throw StateError('Reponse d eligibilite Supabase invalide.');
+  }
+
+  Future<List<AutomaticAssignmentAgent>> fetchAssignmentCandidates() async {
+    final Object? raw = await _client.rpc('phase3_assignment_candidates');
+    final List<dynamic> rows = raw is List ? raw : const <dynamic>[];
+    return List<AutomaticAssignmentAgent>.unmodifiable(
+      rows
+          .whereType<Map>()
+          .map((Map row) => _assignmentCandidateFromRow(
+                Map<String, dynamic>.from(row),
+              ))
+          .whereType<AutomaticAssignmentAgent>(),
+    );
+  }
+
+  Future<Phase4AssignmentSnapshot> startProcessing(String orderId) {
+    return _processingAction(orderId: orderId, action: 'start');
+  }
+
+  Future<Phase4AssignmentSnapshot> holdProcessing({
+    required String orderId,
+    required String reason,
+  }) {
+    return _processingAction(
+      orderId: orderId,
+      action: 'hold',
+      reason: reason.trim(),
+    );
+  }
+
+  Future<Phase4AssignmentSnapshot> resumeProcessing(String orderId) {
+    return _processingAction(orderId: orderId, action: 'resume');
+  }
+
+  Future<Phase4AssignmentSnapshot> failProcessing({
+    required String orderId,
+    required OrderFailureReason reason,
+    String? observation,
+  }) {
+    return _processingAction(
+      orderId: orderId,
+      action: 'fail',
+      reason: reason.name,
+      observation: observation?.trim(),
+    );
+  }
+
+  Future<Phase4AssignmentSnapshot> _processingAction({
+    required String orderId,
+    required String action,
+    String? reason,
+    String? observation,
+  }) async {
+    final Object? raw = await _client.rpc(
+      'phase3_agent_processing_action',
+      params: <String, dynamic>{
+        'p_order_id': orderId.trim(),
+        'p_action': action,
+        'p_reason': reason,
+        'p_observation': observation,
+      },
+    );
+    return _requireSnapshot(raw);
+  }
+
+  Future<Phase4AssignmentSnapshot> prepareFailedForReassignment(
+    String orderId,
+  ) async {
+    final Object? raw = await _client.rpc(
+      'phase3_prepare_failed_order_for_reassignment',
+      params: <String, dynamic>{'p_order_id': orderId.trim()},
+    );
+    return _requireSnapshot(raw);
+  }
+
   Future<Phase4AssignmentSnapshot> importLegacyRefusals({
     required String orderId,
     required List<String> refusedAgentIds,
@@ -420,10 +619,12 @@ class SupabasePhase4AssignmentRepository {
 
   Stream<List<Phase4AssignmentSnapshot>> watchAllForStaff() async* {
     List<Phase4AssignmentSnapshot>? lastSuccessful;
+    int consecutiveFailures = 0;
     while (true) {
       try {
         final List<Phase4AssignmentSnapshot> value = await fetchAllForStaff();
         lastSuccessful = value;
+        consecutiveFailures = 0;
         yield value;
       } catch (error, stackTrace) {
         // Une coupure reseau ou un jeton Supabase momentanement indisponible ne
@@ -431,11 +632,23 @@ class SupabasePhase4AssignmentRepository {
         // ecrans Admin restaient ensuite en mode Firebase-only meme lorsque
         // Supabase redevenait joignable, d'ou les statuts d'affectation qui
         // semblaient revenir en arriere.
-        debugPrint('[Phase4Assignment][staff-watch] $error');
-        debugPrintStack(stackTrace: stackTrace);
+        IzyTelLog.backendError(
+          'Phase4Assignment.staff-watch',
+          error,
+          stackTrace: stackTrace,
+        );
+        if (!BackendFailurePolicy.canRetryRead(error)) {
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+        consecutiveFailures += 1;
         yield lastSuccessful ?? const <Phase4AssignmentSnapshot>[];
       }
-      await Future<void>.delayed(pollInterval);
+      await Future<void>.delayed(
+        BackendFailurePolicy.retryDelay(
+          baseDelay: pollInterval,
+          consecutiveFailures: consecutiveFailures,
+        ),
+      );
     }
   }
 
@@ -492,21 +705,35 @@ class SupabasePhase4AssignmentRepository {
     String agentId,
   ) async* {
     Phase4AgentAssignmentState? lastSuccessful;
+    int consecutiveFailures = 0;
     while (true) {
       try {
         final Phase4AgentAssignmentState value =
             await fetchAgentAssignmentState(agentId);
         lastSuccessful = value;
+        consecutiveFailures = 0;
         yield value;
       } catch (error, stackTrace) {
-        debugPrint('[Phase4Assignment][agent-watch] $error');
-        debugPrintStack(stackTrace: stackTrace);
+        IzyTelLog.backendError(
+          'Phase4Assignment.agent-watch',
+          error,
+          stackTrace: stackTrace,
+        );
+        if (!BackendFailurePolicy.canRetryRead(error)) {
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+        consecutiveFailures += 1;
         yield lastSuccessful ?? const Phase4AgentAssignmentState(
           currentAssignments: <Phase4AssignmentSnapshot>[],
           knownPhase4OrderIds: <String>{},
         );
       }
-      await Future<void>.delayed(pollInterval);
+      await Future<void>.delayed(
+        BackendFailurePolicy.retryDelay(
+          baseDelay: pollInterval,
+          consecutiveFailures: consecutiveFailures,
+        ),
+      );
     }
   }
 
@@ -514,6 +741,55 @@ class SupabasePhase4AssignmentRepository {
     return watchAgentAssignmentState(
       agentId,
     ).map((Phase4AgentAssignmentState value) => value.currentAssignments);
+  }
+
+  Future<List<Phase4AssignmentHistorySnapshot>> fetchAgentAssignmentHistory(
+    String agentId,
+  ) async {
+    final String id = agentId.trim();
+    if (id.isEmpty) return const <Phase4AssignmentHistorySnapshot>[];
+    final List<Map<String, dynamic>> rows = await _client
+        .from(historyTable)
+        .select()
+        .eq('agent_id', id)
+        .order('assigned_at', ascending: false);
+    return rows
+        .map(_assignmentHistoryFromRow)
+        .whereType<Phase4AssignmentHistorySnapshot>()
+        .toList(growable: false);
+  }
+
+  Stream<List<Phase4AssignmentHistorySnapshot>> watchAgentAssignmentHistory(
+    String agentId,
+  ) async* {
+    List<Phase4AssignmentHistorySnapshot>? lastSuccessful;
+    int consecutiveFailures = 0;
+    while (true) {
+      try {
+        final List<Phase4AssignmentHistorySnapshot> value =
+            await fetchAgentAssignmentHistory(agentId);
+        lastSuccessful = value;
+        consecutiveFailures = 0;
+        yield value;
+      } catch (error, stackTrace) {
+        IzyTelLog.backendError(
+          'Phase4Assignment.agent-history',
+          error,
+          stackTrace: stackTrace,
+        );
+        if (!BackendFailurePolicy.canRetryRead(error)) {
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+        consecutiveFailures += 1;
+        yield lastSuccessful ?? const <Phase4AssignmentHistorySnapshot>[];
+      }
+      await Future<void>.delayed(
+        BackendFailurePolicy.retryDelay(
+          baseDelay: pollInterval,
+          consecutiveFailures: consecutiveFailures,
+        ),
+      );
+    }
   }
 
   Future<List<Phase4RefusalHistorySnapshot>> fetchAgentRefusalHistory(
@@ -537,18 +813,32 @@ class SupabasePhase4AssignmentRepository {
     String agentId,
   ) async* {
     List<Phase4RefusalHistorySnapshot>? lastSuccessful;
+    int consecutiveFailures = 0;
     while (true) {
       try {
         final List<Phase4RefusalHistorySnapshot> value =
             await fetchAgentRefusalHistory(agentId);
         lastSuccessful = value;
+        consecutiveFailures = 0;
         yield value;
       } catch (error, stackTrace) {
-        debugPrint('[Phase4Assignment][refusal-history] $error');
-        debugPrintStack(stackTrace: stackTrace);
+        IzyTelLog.backendError(
+          'Phase4Assignment.refusal-history',
+          error,
+          stackTrace: stackTrace,
+        );
+        if (!BackendFailurePolicy.canRetryRead(error)) {
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+        consecutiveFailures += 1;
         yield lastSuccessful ?? const <Phase4RefusalHistorySnapshot>[];
       }
-      await Future<void>.delayed(pollInterval);
+      await Future<void>.delayed(
+        BackendFailurePolicy.retryDelay(
+          baseDelay: pollInterval,
+          consecutiveFailures: consecutiveFailures,
+        ),
+      );
     }
   }
 
@@ -569,17 +859,31 @@ class SupabasePhase4AssignmentRepository {
 
   Stream<List<QueueOrder>> watchAgentRefusedOrders(String agentId) async* {
     List<QueueOrder>? lastSuccessful;
+    int consecutiveFailures = 0;
     while (true) {
       try {
         final List<QueueOrder> value = await fetchAgentRefusedOrders(agentId);
         lastSuccessful = value;
+        consecutiveFailures = 0;
         yield value;
       } catch (error, stackTrace) {
-        debugPrint('[Phase4Assignment][refused-orders] $error');
-        debugPrintStack(stackTrace: stackTrace);
+        IzyTelLog.backendError(
+          'Phase4Assignment.refused-orders',
+          error,
+          stackTrace: stackTrace,
+        );
+        if (!BackendFailurePolicy.canRetryRead(error)) {
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+        consecutiveFailures += 1;
         yield lastSuccessful ?? const <QueueOrder>[];
       }
-      await Future<void>.delayed(pollInterval);
+      await Future<void>.delayed(
+        BackendFailurePolicy.retryDelay(
+          baseDelay: pollInterval,
+          consecutiveFailures: consecutiveFailures,
+        ),
+      );
     }
   }
 
@@ -701,7 +1005,92 @@ class SupabasePhase4AssignmentRepository {
       lastRefusedAgentId: _nullable(row['last_refused_agent_id']),
       firebaseAssignmentSyncedAt: _date(row['firebase_assignment_synced_at']),
       firebaseHandoffAt: _date(row['firebase_handoff_at']),
+      customerAuthUid: _nullable(row['customer_auth_uid']),
+      orderStatus:
+          _enumByName(QueueOrderStatus.values, row['order_status']) ??
+          QueueOrderStatus.paidReady,
+      processingStartedAt: _date(row['processing_started_at']),
+      completedAt: _date(row['completed_at']),
+      failureReason: _enumByName(
+        OrderFailureReason.values,
+        row['failure_reason'],
+      ),
+      observation: _nullable(row['observation']),
+      lastHoldReason: _nullable(row['last_hold_reason']),
+      lastHeldAt: _date(row['last_held_at']),
+      lastResumedAt: _date(row['last_resumed_at']),
+      customerConfirmationStatus:
+          _enumByName(
+            CustomerConfirmationStatus.values,
+            row['customer_confirmation_status'],
+          ) ??
+          CustomerConfirmationStatus.pending,
+      customerConfirmationCompletedAt: _date(
+        row['customer_confirmation_completed_at'],
+      ),
+      legacyStateUnresolved: row['legacy_state_unresolved'] == true,
       updatedAt: updatedAt,
+    );
+  }
+
+  AutomaticAssignmentAgent? _assignmentCandidateFromRow(
+    Map<String, dynamic> row,
+  ) {
+    final String agentId = _string(row['agent_id']);
+    if (agentId.isEmpty) return null;
+    return AutomaticAssignmentAgent(
+      agentId: agentId,
+      name: _string(row['agent_name'], fallback: 'Agent'),
+      isActive: row['is_active'] == true,
+      isAvailable: row['is_available'] == true,
+      authorizedNetworks: _networkSet(row['authorized_networks']),
+      activeNetworks: _networkSet(row['active_networks']),
+      orangeCapacity: _int(row['orange_capacity']),
+      mtnCapacity: _int(row['mtn_capacity']),
+      moovCapacity: _int(row['moov_capacity']),
+      dailyTransactionLimit: _int(row['daily_transaction_limit']),
+      maxTransactionsPerDay: _int(row['max_transactions_per_day']),
+      activeAssignmentCount: _int(row['active_assignment_count']),
+      orangeReservedAmount: _int(row['orange_reserved_amount']),
+      mtnReservedAmount: _int(row['mtn_reserved_amount']),
+      moovReservedAmount: _int(row['moov_reserved_amount']),
+      todayAssignmentCount: _int(row['today_assignment_count']),
+      todayAssignedAmount: _int(row['today_assigned_amount']),
+      lastAssignedAt: _date(row['last_assigned_at']),
+    );
+  }
+
+  Set<MobileNetwork> _networkSet(Object? raw) {
+    if (raw is! List) return const <MobileNetwork>{};
+    return raw
+        .map(_network)
+        .whereType<MobileNetwork>()
+        .toSet();
+  }
+
+  Phase4AssignmentHistorySnapshot? _assignmentHistoryFromRow(
+    Map<String, dynamic> row,
+  ) {
+    final String id = _string(row['id']);
+    final String orderId = _string(row['order_id']);
+    final String reference = _string(row['order_reference']);
+    final String agentId = _string(row['agent_id']);
+    final String status = _string(row['status']);
+    if (id.isEmpty || orderId.isEmpty || reference.isEmpty ||
+        agentId.isEmpty || status.isEmpty) {
+      return null;
+    }
+    return Phase4AssignmentHistorySnapshot(
+      id: id,
+      orderId: orderId,
+      orderReference: reference,
+      agentId: agentId,
+      agentName: _string(row['agent_name'], fallback: 'Agent'),
+      status: status,
+      assignedAt: _date(row['assigned_at']),
+      acceptedAt: _date(row['accepted_at']),
+      refusedAt: _date(row['refused_at']),
+      refusalReason: _nullable(row['refusal_reason']),
     );
   }
 

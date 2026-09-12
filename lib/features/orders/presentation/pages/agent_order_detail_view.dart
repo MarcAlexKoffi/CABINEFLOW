@@ -134,7 +134,11 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
   }
 
   Future<void> _chooseProofSource() async {
-    if (_isBusy || widget.order.status != QueueOrderStatus.inProgress) return;
+    if (_isBusy ||
+        (widget.order.status != QueueOrderStatus.inProgress &&
+            widget.order.status != QueueOrderStatus.onHold)) {
+      return;
+    }
 
     final ImageSource? source = await showModalBottomSheet<ImageSource>(
       context: context,
@@ -148,7 +152,11 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
   }
 
   Future<void> _pickProof(ImageSource source) async {
-    if (_isBusy || widget.order.status != QueueOrderStatus.inProgress) return;
+    if (_isBusy ||
+        (widget.order.status != QueueOrderStatus.inProgress &&
+            widget.order.status != QueueOrderStatus.onHold)) {
+      return;
+    }
 
     try {
       final XFile? picked = await _picker.pickImage(
@@ -163,7 +171,7 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
 
       final Uint8List sourceBytes = await picked.readAsBytes();
       final Uint8List compressed = await compute(
-        _compressProofForFirestore,
+        _compressProofForUpload,
         sourceBytes,
       );
       if (!mounted) return;
@@ -530,7 +538,8 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
                       proof: _proof,
                       isLoading: _isLoadingProof,
                     ),
-                    onTap: order.status == QueueOrderStatus.inProgress
+                    onTap: (order.status == QueueOrderStatus.inProgress ||
+                            order.status == QueueOrderStatus.onHold)
                         ? _chooseProofSource
                         : () {
                             if (_proof == null) {
@@ -1961,7 +1970,7 @@ InputDecoration _darkInputDecoration({
   );
 }
 
-Uint8List _compressProofForFirestore(Uint8List source) {
+Uint8List _compressProofForUpload(Uint8List source) {
   final img.Image? decoded = img.decodeImage(source);
   if (decoded == null) {
     throw FormatException('Cette image ne peut pas être lue.');

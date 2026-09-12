@@ -1,9 +1,9 @@
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/features/commissions/data/repositories/firestore_commission_repository.dart';
 import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/agent_commission_summary_repository.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/supabase_phase5_finance_repository.dart';
-import 'package:flutter/foundation.dart';
 
 /// Phase 5 : commissions et versements sont lus depuis Supabase.
 ///
@@ -84,8 +84,11 @@ class HybridCommissionRepository
       }
       if (created != null) await _phase5.mirrorCommissionPayout(created);
     } catch (error, stackTrace) {
-      debugPrint('[Phase5][CommissionPayoutMirror] $error');
-      debugPrintStack(stackTrace: stackTrace);
+      IzyTelLog.backendError(
+        'Phase5.CommissionPayoutMirror',
+        error,
+        stackTrace: stackTrace,
+      );
     }
   }
 }

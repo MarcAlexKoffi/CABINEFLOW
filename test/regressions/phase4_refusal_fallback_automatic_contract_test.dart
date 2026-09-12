@@ -5,19 +5,37 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   String read(String path) => File(path).readAsStringSync();
 
-  test('refus relit immediatement l etat canonique Phase 4', () {
+  test('refus retourne atomiquement l issue Phase 4 sans relecture RLS', () {
     final String phase4 = read(
       'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
     );
     final String hybrid = read(
       'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
     );
+    final String migration = read(
+      'supabase/migrations/20260911_phase3_refusal_atomic_outcome.sql',
+    );
 
-    expect(phase4, contains('Future<Phase4AssignmentSnapshot> refuse'));
-    expect(phase4, contains('final Phase4AssignmentSnapshot? snapshot = await fetchOrder(orderId)'));
-    expect(hybrid, contains('final Phase4AssignmentSnapshot afterRefusal = await _phase4.refuse'));
-    expect(hybrid, contains('[Phase4][refusal-auto-reassigned]'));
-    expect(hybrid, contains('[Phase4][refusal-manual-required]'));
+    final int refuseStart = phase4.indexOf(
+      'Future<Phase4AgentActionOutcome> refuse',
+    );
+    final int refuseEnd = phase4.indexOf(
+      'Future<Phase4AgentActionOutcome> _agentAction',
+      refuseStart,
+    );
+    expect(refuseStart, greaterThanOrEqualTo(0));
+    expect(refuseEnd, greaterThan(refuseStart));
+    final String refuseBlock = phase4.substring(refuseStart, refuseEnd);
+
+    expect(refuseBlock, contains("action: 'refuse'"));
+    expect(refuseBlock, contains('outcome.isRefusalApplied'));
+    expect(refuseBlock, isNot(contains('fetchOrder(orderId)')));
+    expect(hybrid, contains('final Phase4AgentActionOutcome refusalOutcome'));
+    expect(hybrid, contains('refusalOutcome.reassigned'));
+    expect(hybrid, contains('refusalOutcome.manualRequired'));
+    expect(migration, contains("'assignment_state', v_row.assignment_state"));
+    expect(migration, contains("'reassigned'"));
+    expect(migration, contains("'manual_required'"));
   });
 
   test('fallback apres refus est explicitement automatique cote Supabase', () {

@@ -1,3 +1,4 @@
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/finances/data/repositories/firestore_finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/supabase_supplier_registry_repository.dart';
@@ -6,7 +7,6 @@ import 'package:cabine_flow/features/finances/domain/models/finance_operations_m
 import 'package:cabine_flow/features/finances/domain/repositories/finance_operations_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 
 /// Phase hybride IzyTel : le registre fournisseur vit sur Supabase tandis que
 /// les mouvements financiers, capacités et clôtures restent sur Firebase.
@@ -41,8 +41,11 @@ class HybridFinanceOperationsRepository implements FinanceOperationsRepository {
       await (_legacyImportFuture ??= _importLegacySupplierRegistry());
     } catch (error, stackTrace) {
       _legacyImportFuture = null;
-      debugPrint('[HybridFinance][SupplierImport] $error');
-      debugPrintStack(stackTrace: stackTrace);
+      IzyTelLog.backendError(
+        'HybridFinance.SupplierImport',
+        error,
+        stackTrace: stackTrace,
+      );
     }
     yield* _supplierRegistry.watchSuppliers();
   }
@@ -183,8 +186,11 @@ class HybridFinanceOperationsRepository implements FinanceOperationsRepository {
     } catch (error, stackTrace) {
       // Le backfill Admin peut reconstruire le seed. Ne jamais bloquer une
       // transaction Firebase déjà validée à cause du miroir de migration.
-      debugPrint('[Phase5][RechargeSeed] $error');
-      debugPrintStack(stackTrace: stackTrace);
+      IzyTelLog.backendError(
+        'Phase5.RechargeSeed',
+        error,
+        stackTrace: stackTrace,
+      );
     }
 
     final String rechargeId = await _firestore.recordSupplierRecharge(
@@ -201,8 +207,11 @@ class HybridFinanceOperationsRepository implements FinanceOperationsRepository {
     } catch (error, stackTrace) {
       // La transaction financière Firebase est déjà validée. Le synchroniseur
       // consolidé Phase 5 réconciliera le registre au prochain passage Admin.
-      debugPrint('[Phase5][RechargeMirror] $error');
-      debugPrintStack(stackTrace: stackTrace);
+      IzyTelLog.backendError(
+        '[Phase5][RechargeMirror]',
+        error,
+        stackTrace: stackTrace,
+      );
     }
     return rechargeId;
   }
@@ -237,8 +246,11 @@ class HybridFinanceOperationsRepository implements FinanceOperationsRepository {
         await _phase5Finance.mirrorSupplierPayment(created);
       }
     } catch (error, stackTrace) {
-      debugPrint('[Phase5][SupplierPaymentMirror] $error');
-      debugPrintStack(stackTrace: stackTrace);
+      IzyTelLog.backendError(
+        'Phase5.SupplierPaymentMirror',
+        error,
+        stackTrace: stackTrace,
+      );
     }
     return paymentId;
   }
@@ -298,8 +310,11 @@ class HybridFinanceOperationsRepository implements FinanceOperationsRepository {
         );
       }
     } catch (error, stackTrace) {
-      debugPrint('[Phase5][CreditPaymentMirror] $error');
-      debugPrintStack(stackTrace: stackTrace);
+      IzyTelLog.backendError(
+        'Phase5.CreditPaymentMirror',
+        error,
+        stackTrace: stackTrace,
+      );
     }
     return creditId;
   }

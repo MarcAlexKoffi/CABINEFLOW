@@ -18,6 +18,7 @@ import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class FailedOrdersPage extends StatefulWidget {
   const FailedOrdersPage({
@@ -39,6 +40,8 @@ class FailedOrdersPage extends StatefulWidget {
 
 class _FailedOrdersPageState extends State<FailedOrdersPage> {
   late final RefundRepository _refundRepository;
+  late Stream<List<QueueOrder>> _orderHistoryStream;
+  late Stream<List<RefundCase>> _refundStream;
   String? _busyOrderId;
 
   @override
@@ -47,6 +50,14 @@ class _FailedOrdersPageState extends State<FailedOrdersPage> {
     _refundRepository = Firebase.apps.isNotEmpty
         ? FirestoreRefundRepository()
         : FakeRefundRepository();
+    _orderHistoryStream = widget.orderHistoryRepository.watchOrderHistory();
+    _refundStream = _refundRepository.watchAll();
+  }
+
+  void _retryOrderHistory() {
+    setState(() {
+      _orderHistoryStream = widget.orderHistoryRepository.watchOrderHistory();
+    });
   }
 
   Future<void> _openOrder(QueueOrder order) async {
@@ -208,10 +219,34 @@ class _FailedOrdersPageState extends State<FailedOrdersPage> {
   String _friendlyError(Object error, String fallback) {
     final String raw = error.toString();
     if (raw.startsWith('Bad state: ')) return raw.substring(11);
+    if (raw.startsWith('StateError: ')) return raw.substring(12);
+    if (error is PostgrestException) {
+      final String normalized = '${error.code ?? ''} ${error.message}'.toLowerCase();
+      if (normalized.contains('42501') || normalized.contains('permission')) {
+        return 'Supabase refuse cette action pour l’état actuel de la commande.';
+      }
+      if (normalized.contains('order_not_failed')) {
+        return 'Cette commande n’est plus en échec. Actualise la liste.';
+      }
+      if (normalized.contains('order_not_synced')) {
+        return 'Cette commande n’est pas encore disponible dans le registre Supabase.';
+      }
+    }
     if (raw.contains('permission-denied')) {
-      return 'Firestore refuse cette action. Vérifie que les nouvelles règles ont bien été publiées.';
+      return 'L’accès au dossier de remboursement est momentanément refusé.';
     }
     return fallback;
+  }
+
+  String _friendlyHistoryError(Object error) {
+    final String raw = error.toString().toLowerCase();
+    if (raw.contains('permission-denied')) {
+      return 'La source historique Firebase n’est pas accessible. Les commandes opérationnelles doivent continuer à venir de Supabase.';
+    }
+    return _friendlyError(
+      error,
+      'Impossible de charger les commandes échouées depuis Supabase.',
+    );
   }
 
   @override
@@ -228,16 +263,23 @@ class _FailedOrdersPageState extends State<FailedOrdersPage> {
         ),
       ),
       body: StreamBuilder<List<QueueOrder>>(
-        stream: widget.orderHistoryRepository.watchOrderHistory(),
+        stream: _orderHistoryStream,
         builder:
             (BuildContext context, AsyncSnapshot<List<QueueOrder>> ordersSnap) {
               return StreamBuilder<List<RefundCase>>(
-                stream: _refundRepository.watchAll(),
+                stream: _refundStream,
                 builder:
                     (
                       BuildContext context,
                       AsyncSnapshot<List<RefundCase>> refundSnap,
                     ) {
+                      if (ordersSnap.hasError && ordersSnap.data == null) {
+                        return _FailedOrdersLoadError(
+                          message: _friendlyHistoryError(ordersSnap.error!),
+                          onRetry: _retryOrderHistory,
+                        );
+                      }
+
                       final Map<String, RefundCase> refunds =
                           <String, RefundCase>{
                             for (final RefundCase refund
@@ -276,6 +318,10 @@ class _FailedOrdersPageState extends State<FailedOrdersPage> {
                       return ListView(
                         padding: const EdgeInsets.fromLTRB(16, 10, 16, 30),
                         children: <Widget>[
+                          if (refundSnap.hasError) ...<Widget>[
+                            const _RefundStatusWarning(),
+                            const SizedBox(height: 12),
+                          ],
                           Container(
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
@@ -323,6 +369,99 @@ class _FailedOrdersPageState extends State<FailedOrdersPage> {
                     },
               );
             },
+      ),
+    );
+  }
+}
+
+class _FailedOrdersLoadError extends StatelessWidget {
+  const _FailedOrdersLoadError({
+    required this.message,
+    required this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 420),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: IzyTelColors.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: IzyTelColors.outline),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const Icon(
+                Symbols.cloud_off_rounded,
+                size: 34,
+                color: IzyTelColors.error,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Chargement impossible',
+                style: TextStyle(
+                  color: IzyTelColors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: IzyTelColors.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Symbols.refresh_rounded),
+                label: const Text('Réessayer'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RefundStatusWarning extends StatelessWidget {
+  const _RefundStatusWarning();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: IzyTelColors.warningSoft,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const Row(
+        children: <Widget>[
+          Icon(Symbols.info_rounded, color: IzyTelColors.warning),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Les commandes échouées sont disponibles. Le statut des remboursements est en cours de resynchronisation.',
+              style: TextStyle(
+                color: IzyTelColors.textSecondary,
+                fontSize: 12,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

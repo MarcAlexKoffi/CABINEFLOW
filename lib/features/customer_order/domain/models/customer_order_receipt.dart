@@ -64,6 +64,7 @@ class CustomerOrderReceipt {
     DateTime? processingStartedAt,
     DateTime? completedAt,
     String? failureMessage,
+    bool clearFailureMessage = false,
   }) {
     return CustomerOrderReceipt(
       id: id,
@@ -79,7 +80,9 @@ class CustomerOrderReceipt {
       completedAt: completedAt ?? this.completedAt,
       status: status ?? this.status,
       paymentStatus: paymentStatus ?? this.paymentStatus,
-      failureMessage: failureMessage ?? this.failureMessage,
+      failureMessage: clearFailureMessage
+          ? null
+          : failureMessage ?? this.failureMessage,
     );
   }
 }

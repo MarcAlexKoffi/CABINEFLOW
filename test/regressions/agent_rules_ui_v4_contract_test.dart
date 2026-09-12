@@ -38,7 +38,8 @@ void main() {
     ).readAsStringSync();
 
     expect(hybrid, contains('Future<QueueOrder> refuseAgentAssignment'));
-    expect(hybrid, contains('_phase4.refuse(orderId: orderId'));
+    expect(hybrid, contains('_phase4.refuse('));
+    expect(hybrid, contains('orderId: orderId'));
     expect(phase4, contains("'phase4_agent_action'"));
     expect(phase4, contains("action: 'refuse'"));
   });

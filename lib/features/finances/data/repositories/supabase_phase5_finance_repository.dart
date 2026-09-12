@@ -1,11 +1,12 @@
 import 'dart:async';
 
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
 import 'package:cabine_flow/features/finances/domain/models/finance_operations_models.dart';
 import 'package:cabine_flow/features/finances/domain/models/network_finance_models.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Registre financier Phase 5 partagé entre Agent, Manager et Admin web.
@@ -200,17 +201,31 @@ class SupabasePhase5FinanceRepository {
 
   Stream<AgentCommissionSummary> watchAgentCommissionSummary() async* {
     AgentCommissionSummary? lastSuccessful;
+    int consecutiveFailures = 0;
     while (true) {
       try {
         final AgentCommissionSummary value = await fetchAgentCommissionSummary();
         lastSuccessful = value;
+        consecutiveFailures = 0;
         yield value;
       } catch (error, stackTrace) {
-        debugPrint('[Phase5][commission-summary] $error');
-        debugPrintStack(stackTrace: stackTrace);
-        if (lastSuccessful == null) rethrow;
+        IzyTelLog.backendError(
+          'Phase5.commission-summary',
+          error,
+          stackTrace: stackTrace,
+        );
+        if (!BackendFailurePolicy.canRetryRead(error)) {
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+        consecutiveFailures += 1;
+        if (lastSuccessful != null) yield lastSuccessful;
       }
-      await Future<void>.delayed(pollInterval);
+      await Future<void>.delayed(
+        BackendFailurePolicy.retryDelay(
+          baseDelay: pollInterval,
+          consecutiveFailures: consecutiveFailures,
+        ),
+      );
     }
   }
 
@@ -339,10 +354,12 @@ class SupabasePhase5FinanceRepository {
 
   Stream<List<T>> _poll<T>(Future<List<T>> Function() fetch, String label) async* {
     List<T>? lastSuccessful;
+    int consecutiveFailures = 0;
     while (true) {
       try {
         final List<T> value = await fetch();
         lastSuccessful = value;
+        consecutiveFailures = 0;
         yield value;
       } catch (error, stackTrace) {
         // Un jeton Supabase momentanement refuse (par exemple un leger
@@ -350,11 +367,23 @@ class SupabasePhase5FinanceRepository {
         // reseau ne doit jamais fermer definitivement le StreamBuilder.
         // On conserve la derniere vue connue et le polling reprendra au tour
         // suivant. Au premier echec, une liste vide garde l'ecran utilisable.
-        debugPrint('[Phase5][$label] $error');
-        debugPrintStack(stackTrace: stackTrace);
+        IzyTelLog.backendError(
+          'Phase5.$label',
+          error,
+          stackTrace: stackTrace,
+        );
+        if (!BackendFailurePolicy.canRetryRead(error)) {
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+        consecutiveFailures += 1;
         yield lastSuccessful ?? <T>[];
       }
-      await Future<void>.delayed(pollInterval);
+      await Future<void>.delayed(
+        BackendFailurePolicy.retryDelay(
+          baseDelay: pollInterval,
+          consecutiveFailures: consecutiveFailures,
+        ),
+      );
     }
   }
 

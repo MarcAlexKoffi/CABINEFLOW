@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:flutter/foundation.dart';
@@ -79,7 +80,12 @@ class AgentManagementViewModel extends ChangeNotifier {
         errorMessage = null;
         notifyListeners();
       },
-      onError: (_) {
+      onError: (Object error, StackTrace stackTrace) {
+        IzyTelLog.backendError(
+          'AgentManagement.agents-watch',
+          error,
+          stackTrace: stackTrace,
+        );
         isLoading = false;
         errorMessage = 'Impossible de charger les agents.';
         notifyListeners();

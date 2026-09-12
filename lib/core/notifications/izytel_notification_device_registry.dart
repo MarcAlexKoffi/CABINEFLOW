@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/notifications/firebase_messaging_bootstrap.dart';
 import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
@@ -24,7 +25,7 @@ class IzyTelNotificationDeviceRegistry {
     final String firebaseUid =
         (FirebaseAuth.instance.currentUser?.uid ?? '').trim();
     if (firebaseUid.isEmpty || firebaseUid != user.id.trim()) {
-      debugPrint(
+      IzyTelLog.debug(
         '[FCM][device-register-skip] session Firebase incoherente.',
       );
       return;
@@ -39,8 +40,11 @@ class IzyTelNotificationDeviceRegistry {
           unawaited(_registerToken(token));
         },
         onError: (Object error, StackTrace stackTrace) {
-          debugPrint('[FCM][device-token-stream-error] $error');
-          debugPrintStack(stackTrace: stackTrace);
+          IzyTelLog.backendError(
+            'FCM.device-token-stream',
+            error,
+            stackTrace: stackTrace,
+          );
         },
       );
 
@@ -67,11 +71,14 @@ class IzyTelNotificationDeviceRegistry {
         'izytel_deactivate_notification_device',
         params: <String, dynamic>{'p_token': token.trim()},
       );
-      debugPrint('[FCM][device-deactivated]');
+      IzyTelLog.debug('[FCM][device-deactivated]');
     } catch (error, stackTrace) {
       // La deconnexion ne doit jamais etre bloquee par FCM.
-      debugPrint('[FCM][device-deactivate-error] $error');
-      debugPrintStack(stackTrace: stackTrace);
+      IzyTelLog.backendError(
+        'FCM.device-deactivate',
+        error,
+        stackTrace: stackTrace,
+      );
     } finally {
       await stop();
     }
@@ -100,14 +107,17 @@ class IzyTelNotificationDeviceRegistry {
           'p_platform': _platformLabel,
         },
       );
-      debugPrint(
-        '[FCM][device-registered] uid=$currentUid platform=$_platformLabel',
+      IzyTelLog.debug(
+        '[FCM][device-registered] platform=$_platformLabel',
       );
     } catch (error, stackTrace) {
       // Une indisponibilite du registre de notifications ne doit pas casser
       // les commandes, la connexion ou le reste de l'application.
-      debugPrint('[FCM][device-register-error] $error');
-      debugPrintStack(stackTrace: stackTrace);
+      IzyTelLog.backendError(
+        'FCM.device-register',
+        error,
+        stackTrace: stackTrace,
+      );
     }
   }
 
