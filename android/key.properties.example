@@ -1,0 +1,6 @@
+# Copy this file to android/key.properties and replace only the placeholders.
+# Never commit or share android/key.properties or the keystore itself.
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=izytel
+storeFile=upload-keystore.jks

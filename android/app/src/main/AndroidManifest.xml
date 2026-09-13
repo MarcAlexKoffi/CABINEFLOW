@@ -1,9 +1,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Release builds need network access too; debug/profile manifests are not merged into release. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Android 13+ notification permission. FirebaseMessaging.requestPermission() handles the runtime request. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="IzyTel"
+        android:allowBackup="false"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round">
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_launcher_monochrome" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/izytel_notification_color" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

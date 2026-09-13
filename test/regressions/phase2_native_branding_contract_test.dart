@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('branding Android natif IzyTel sans migration prematuree du package', () {
+  test('branding Android natif IzyTel avec package release definitif', () {
     final String manifest = File(
       'android/app/src/main/AndroidManifest.xml',
     ).readAsStringSync();
@@ -25,9 +25,9 @@ void main() {
     expect(manifest, contains('android:icon="@mipmap/ic_launcher"'));
     expect(manifest, contains('android:roundIcon="@mipmap/ic_launcher_round"'));
 
-    // Le changement d'applicationId reste volontairement reserve a la Phase 4.
-    expect(gradle, contains('applicationId = "com.cabineflow.cabine_flow"'));
-    expect(gradle, contains('namespace = "com.cabineflow.cabine_flow"'));
+    // Phase 4B fige désormais l'identité Android publique d'IzyTel.
+    expect(gradle, contains('applicationId = "com.izytel.app"'));
+    expect(gradle, contains('namespace = "com.izytel.app"'));
 
     expect(splash, contains('@drawable/izytel_splash_logo'));
     expect(android12, contains('android:windowSplashScreenAnimatedIcon'));

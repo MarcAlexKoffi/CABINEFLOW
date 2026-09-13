@@ -72,7 +72,7 @@ void main() {
       'lib/core/services/session_preferences.dart',
     );
     final String android = source(
-      'android/app/src/main/kotlin/com/cabineflow/cabine_flow/MainActivity.kt',
+      'android/app/src/main/kotlin/com/izytel/app/MainActivity.kt',
     );
     expect(login, contains('_persistRememberedPreference'));
     expect(preferences, contains('rememberMe'));

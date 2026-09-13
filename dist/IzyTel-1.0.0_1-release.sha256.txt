@@ -1,0 +1,8 @@
+IzyTel release 1.0.0+1
+package=com.izytel.app
+finalized_at=2026-09-13T21:17:16+00:00
+android_build_tools=37.0.0
+release_cert_sha256=1731628C977D77351F6AF71FE5DB12FBF1CED28721C0D45DDB3CA8933AF6EA1E
+apk_badging=package: name='com.izytel.app' versionCode='1' versionName='1.0.0' platformBuildVersionName='16' platformBuildVersionCode='36' compileSdkVersion='36' compileSdkVersionCodename='16'
+APK_SHA256=54A24B137F38CDDAE94DF96741D30D0B88CF6CA2F3FC330C18643A23013FE839  IzyTel-1.0.0_1-release.apk
+AAB_SHA256=35CA9B8DE61C78055D8B93ADB53D1F9C93798E7E4BDD2EA36234ED47A446530E  IzyTel-1.0.0_1-release.aab

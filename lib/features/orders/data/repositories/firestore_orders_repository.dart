@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
 import 'package:cabine_flow/features/orders/data/mappers/firestore_order_mapper.dart';
 import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
 import 'package:cabine_flow/features/orders/domain/models/automatic_assignment.dart';
@@ -668,7 +669,7 @@ class FirestoreOrdersRepository
       data: data,
     );
 
-    return _synchronizeExpirationIfNeeded(order);
+    return _synchronizeExpirationBestEffort(order);
   }
 
   @override
@@ -2161,7 +2162,66 @@ class FirestoreOrdersRepository
   Future<List<QueueOrder>> _synchronizeExpiredOrders(
     List<QueueOrder> orders,
   ) async {
-    return Future.wait(orders.map(_synchronizeExpirationIfNeeded));
+    // L'expiration est une maintenance de fond declenchee pendant certaines
+    // lectures historiques. Une seule ancienne commande devenue non modifiable
+    // ne doit jamais faire echouer toute la page Paiements ou Historique.
+    return Future.wait(orders.map(_synchronizeExpirationBestEffort));
+  }
+
+  Future<QueueOrder> _synchronizeExpirationBestEffort(QueueOrder order) async {
+    try {
+      return await _synchronizeExpirationIfNeeded(order);
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'Orders.expiration-sync',
+        error,
+        stackTrace: stackTrace,
+      );
+      if (!_canDegradeExpirationSynchronization(error)) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+
+      // L'etat expire peut etre projete localement sans inventer de donnee :
+      // il est derive uniquement du statut, du paiement, de expiresAt et de
+      // l'horloge, soit exactement la meme politique que l'ecriture Firestore.
+      return _projectExpirationLocally(order, now: DateTime.now());
+    }
+  }
+
+  bool _canDegradeExpirationSynchronization(Object error) {
+    if (BackendFailurePolicy.canRetryRead(error)) return true;
+    if (error is FirebaseException) {
+      return const <String>{
+        'aborted',
+        'failed-precondition',
+        'permission-denied',
+      }.contains(error.code);
+    }
+    return false;
+  }
+
+  QueueOrder _projectExpirationLocally(
+    QueueOrder order, {
+    required DateTime now,
+  }) {
+    final DateTime? expiresAt = order.expiresAt;
+    if (expiresAt == null ||
+        !OrderExpirationPolicy.shouldExpire(
+          status: order.status,
+          paymentStatus: order.paymentStatus,
+          expiresAt: expiresAt,
+          now: now,
+        )) {
+      return order;
+    }
+
+    return order.copyWith(
+      status: QueueOrderStatus.expired,
+      paymentStatus: OrderExpirationPolicy.paymentStatusAfterExpiration(
+        order.paymentStatus,
+      ),
+      expiredAt: now,
+    );
   }
 
   Future<QueueOrder> _synchronizeExpirationIfNeeded(QueueOrder order) async {

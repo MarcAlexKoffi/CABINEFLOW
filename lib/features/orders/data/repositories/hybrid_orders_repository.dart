@@ -67,13 +67,38 @@ class HybridOrdersRepository
   }
 
   @override
-  Future<List<QueueOrder>> fetchPaymentTrackingOrders() {
-    return _firestore.fetchPaymentTrackingOrders();
+  Future<List<QueueOrder>> fetchPaymentTrackingOrders() async {
+    // Firestore reste la source primaire des declarations de paiement pre-sync.
+    // Cette lecture doit donc rester stricte : si elle devient reellement
+    // inaccessible, l'ecran doit le signaler plutot que d'afficher un faux vide.
+    final List<QueueOrder> legacyOrders = await _firestore
+        .fetchPaymentTrackingOrders();
+
+    try {
+      final List<Phase4AssignmentSnapshot> snapshots = await _phase4
+          .fetchAllForStaff();
+      return _paymentTrackingOrders(
+        _overlayStaffOrders(legacyOrders, snapshots),
+      );
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'Payments.phase4-tracking',
+        error,
+        stackTrace: stackTrace,
+      );
+
+      // Supabase enrichit les paiements deja canoniques, mais une panne de
+      // cette source ne doit pas bloquer la verification des declarations qui
+      // vivent encore legitiment dans Firestore avant confirmation.
+      return _paymentTrackingOrders(legacyOrders);
+    }
   }
 
   @override
   Stream<List<QueueOrder>> watchPaymentTrackingOrders() {
-    return _firestore.watchPaymentTrackingOrders();
+    return _combinePaymentTrackingStream(
+      _firestore.watchPaymentTrackingOrders(),
+    );
   }
 
   @override
@@ -115,21 +140,38 @@ class HybridOrdersRepository
 
   @override
   Future<List<QueueOrder>> fetchPaidQueue() async {
-    final List<QueueOrder> firebaseOrders = await _firestore.fetchPaidQueue();
+    List<QueueOrder> legacyOrders = const <QueueOrder>[];
+    Object? legacyError;
+    StackTrace? legacyStackTrace;
+    try {
+      legacyOrders = await _firestore.fetchPaidQueue();
+    } catch (error, stackTrace) {
+      legacyError = error;
+      legacyStackTrace = stackTrace;
+      IzyTelLog.backendError(
+        'Phase3.paid-queue-legacy',
+        error,
+        stackTrace: stackTrace,
+      );
+    }
+
     try {
       final List<Phase4AssignmentSnapshot> snapshots = await _phase4
           .fetchAllForStaff();
-      return _overlayStaffOrders(firebaseOrders, snapshots);
+      return _overlayStaffOrders(legacyOrders, snapshots);
     } catch (error, stackTrace) {
       IzyTelLog.backendError(
         'Phase4.paid-queue',
         error,
         stackTrace: stackTrace,
       );
-      if (!BackendFailurePolicy.canRetryRead(error)) {
-        Error.throwWithStackTrace(error, stackTrace);
+      if (legacyError == null) {
+        return legacyOrders;
       }
-      return firebaseOrders;
+      if (!_canIgnoreLegacyStaffReadFailure(legacyError)) {
+        Error.throwWithStackTrace(legacyError, legacyStackTrace!);
+      }
+      Error.throwWithStackTrace(error, stackTrace);
     }
   }
 
@@ -1034,6 +1076,113 @@ class HybridOrdersRepository
     // Orders that have not entered Phase 4 yet remain readable from the
     // legacy/customer store until their paidReady synchronization occurs.
     return _firestore.fetchOrderById(orderId: orderId);
+  }
+
+  Stream<List<QueueOrder>> _combinePaymentTrackingStream(
+    Stream<List<QueueOrder>> legacyStream,
+  ) {
+    final StreamController<List<QueueOrder>> controller =
+        StreamController<List<QueueOrder>>();
+    List<QueueOrder> legacyOrders = const <QueueOrder>[];
+    List<Phase4AssignmentSnapshot> snapshots =
+        const <Phase4AssignmentSnapshot>[];
+    bool legacyReady = false;
+
+    void emit() {
+      // Les declarations a verifier existent avant la synchronisation Phase 4.
+      // On n'affiche donc jamais une vue pretendument complete tant que la
+      // source Firestore primaire n'a pas repondu au moins une fois.
+      if (!legacyReady || controller.isClosed) return;
+      controller.add(
+        _paymentTrackingOrders(
+          _overlayStaffOrders(legacyOrders, snapshots),
+        ),
+      );
+    }
+
+    late final StreamSubscription<List<QueueOrder>> legacySubscription;
+    late final StreamSubscription<List<Phase4AssignmentSnapshot>>
+    phase4Subscription;
+
+    controller.onListen = () {
+      legacySubscription = legacyStream.listen(
+        (List<QueueOrder> value) {
+          legacyOrders = value;
+          legacyReady = true;
+          emit();
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          IzyTelLog.backendError(
+            'Payments.legacy-tracking-watch',
+            error,
+            stackTrace: stackTrace,
+          );
+          // Contrairement a l'historique staff, Firestore n'est pas ici un
+          // simple enrichissement : les paiements declares pre-sync n'existent
+          // pas encore dans Phase 4. Une vraie erreur de lecture doit rester
+          // visible afin de ne pas annoncer a tort "Aucun paiement a verifier".
+          if (!controller.isClosed) controller.addError(error, stackTrace);
+        },
+      );
+
+      phase4Subscription = _phase4.watchAllForStaff().listen(
+        (List<Phase4AssignmentSnapshot> value) {
+          snapshots = value;
+          emit();
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          IzyTelLog.backendError(
+            'Payments.phase4-tracking-watch',
+            error,
+            stackTrace: stackTrace,
+          );
+          // Supabase est une source d'enrichissement pour cet ecran. On garde
+          // la derniere vue Phase 4 connue (ou aucune) et surtout la file
+          // Firestore de verification si elle est disponible.
+          emit();
+        },
+      );
+    };
+
+    controller.onCancel = () async {
+      await legacySubscription.cancel();
+      await phase4Subscription.cancel();
+    };
+
+    return controller.stream;
+  }
+
+  List<QueueOrder> _paymentTrackingOrders(List<QueueOrder> orders) {
+    final List<QueueOrder> paymentOrders = orders.where((QueueOrder order) {
+      final bool isCustomerPaymentToVerify =
+          order.source == OrderSource.customerWeb &&
+          order.paymentStatus == OrderPaymentStatus.declared &&
+          (order.status == QueueOrderStatus.paymentToVerify ||
+              order.status == QueueOrderStatus.awaitingPayment ||
+              order.status == QueueOrderStatus.expired);
+      final bool wasConfirmed =
+          order.paymentStatus == OrderPaymentStatus.confirmed &&
+          order.paymentReference != null &&
+          order.paymentReference!.trim().isNotEmpty;
+
+      return isCustomerPaymentToVerify || wasConfirmed;
+    }).toList(growable: false);
+
+    paymentOrders.sort((QueueOrder first, QueueOrder second) {
+      final DateTime firstDate =
+          first.paidAt ??
+          first.paymentDeclaredAt ??
+          first.paymentRequestSentAt ??
+          first.createdAt;
+      final DateTime secondDate =
+          second.paidAt ??
+          second.paymentDeclaredAt ??
+          second.paymentRequestSentAt ??
+          second.createdAt;
+      return secondDate.compareTo(firstDate);
+    });
+
+    return List<QueueOrder>.unmodifiable(paymentOrders);
   }
 
   Stream<List<QueueOrder>> _combineStaffOrderStream(

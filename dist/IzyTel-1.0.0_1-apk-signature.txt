@@ -1,0 +1,50 @@
+Verifies
+Verified using v1 scheme (JAR signing): false
+Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): false
+Verified using v3.1 scheme (APK Signature Scheme v3.1): false
+Verified using v3.2 scheme (APK Signature Scheme v3.2): false
+Verified using v4 scheme (APK Signature Scheme v4): false
+Verified for SourceStamp: false
+Number of signers: 1
+V2 Signer: certificate DN: CN=IzyTel, OU=IzyTel, O=IzyTel, L=Abidjan, ST=C?te d'Ivoire, C=CI
+V2 Signer: certificate SHA-256 digest: 1731628c977d77351f6af71fe5db12fbf1ced28721c0d45ddb3ca8933af6ea1e
+V2 Signer: certificate SHA-1 digest: 7a749348245cf4d446d1ff5fb7fb202a88b2963c
+V2 Signer: certificate MD5 digest: da3801de86721efc11c9b9d569d0a562
+V2 Signer: key algorithm: RSA
+V2 Signer: key size (bits): 4096
+V2 Signer: public key SHA-256 digest: 5a3bb8ec0d18c0cfced1927ac4fc09dca7143d365a5df76392e785f9972b252a
+V2 Signer: public key SHA-1 digest: b3c6c83b9dd989952e9f2213c5fea351d5aaad6c
+V2 Signer: public key MD5 digest: b885fbabb5873d654076909f1ccc7a22
+-----BEGIN CERTIFICATE-----
+MIIFfTCCA2WgAwIBAgIIAb8bb0UJFckwDQYJKoZIhvcNAQEMBQAwbDELMAkGA1UE
+BhMCQ0kxGDAWBgNVBAgMD0Pvv710ZSBkJ0l2b2lyZTEQMA4GA1UEBxMHQWJpZGph
+bjEPMA0GA1UEChMGSXp5VGVsMQ8wDQYDVQQLEwZJenlUZWwxDzANBgNVBAMTBkl6
+eVRlbDAgFw0yNjA5MTIyMjM3MjRaGA8yMDU0MDEyODIyMzcyNFowbDELMAkGA1UE
+BhMCQ0kxGDAWBgNVBAgMD0Pvv710ZSBkJ0l2b2lyZTEQMA4GA1UEBxMHQWJpZGph
+bjEPMA0GA1UEChMGSXp5VGVsMQ8wDQYDVQQLEwZJenlUZWwxDzANBgNVBAMTBkl6
+eVRlbDCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAJVUDcqcoMcXxfdY
+8uWh7jQJq0Y8HpJUoURUXUT3dc/vPbm7spBjYV9jH78W7ymI/NRA2mnAZpTvAzN5
+Cxg5Vbwk3Y+ukpUzFne0W5tC6bsylpiZjXslRWCtj75lh4OCxnAoyaOTuZ+zjt2N
+/zvH86iy8HRA4DcYpVUgQpw9rMHEGyCzp1ZpwzZ6Q+sFlZDV1x1LEW+soaa0XBZK
+4NBZajlqNbQtTVxLTF0e9z7e9Fcnnp/OszUGV0q6XTIBWSbjtAsLGP5Q5B9fL7vH
+K2OhBYVHk7f1VXaQ78K6Iva6J+sG5QOASOpzon3pJNOi+d9QXxS2wKuxRhco6GXH
+jgXQcoLc5ZOeybnTQLoFJbxIlowWtiy1BPdYz/Dsl5/g8OkKIGUGPDG5PB4doO2G
+R2VHYbicoXA4HkkTjuFsj8cOJ9C/RIcl5EDfV3NOXaDKTHw1nKYRJEXyVfmH9sVI
+vl906jLTimHQqoXm5I03++WaAUMBOa7ASLkKwpNdz8wO9IakQillPHonvJ+K3xVT
+RuTjC93mQ+REIj+W7EB+SM+Au4y5ZI7/JNf3gHlHMDdMVvlOSnbryHaiIbVdMgKN
+E4SbGr9iMlejUNIAwIZo50cZ2mmDE3QKlCdvHR+SxqSyw/2QE6l7WZY6//EZEvNS
+Taer2IOJfcppNnNmppQiOP0K2prJAgMBAAGjITAfMB0GA1UdDgQWBBTFE/MoDAGL
+dj7U8mNYkKqvg7xOgzANBgkqhkiG9w0BAQwFAAOCAgEAjzNK0qWLQZKw/oHgDkmB
+W2fIbygkx565tNBO6j5Yj2QFsv5SNZGs58ah0bOKEbmbx7XErG2bBh82P/KBnnt+
+gPvx8AZZrxkScSzB/ItaLUAEPVzZOJXLNQdZ++Wgq4gn9WppIFWm3uAT5vhcPIAS
+40I2sFIdrBXB2USmF42Rt9Nhv0flauORpoxjGSjEVxIRgeN7JroZExEsyh9DBKWg
+nq6iW4OfWJHe8LbMjcUN+MsmrQO4lv9swsjno+zL1UwOVHN0Pbc1Bmhqe0K8o9Ye
+ZPEU63TG5Hlwa41E46oa+GXufT7yxXi/WLoqJst587CotRytNTKEjnarEXEh9AsB
+ub6Xfu6O2mT4AbesVN3PjjDFSoUMjsnXnRiBprOFacGS/dSWklcCGba9WDwjSSLc
+hFHgFLEf8Dps/sgg921BxrDqAovaslMBPzNdnF9p4KFN59W44+Myv20kd5Ch3zcv
+h1nXtIflvSCV31xqMViGgDP8JL9ysNWKntgV2EVWlHWLTG65bi2Kw93gneiK4Qq7
+m5i25s7Y5Ber/a7BtidqHceVPvbVyIpnkmZOlcemBEKmWBXa2jm0xJUQSjV9F5jG
+GHDvS1ozi70LH0bV9RHCAxRsYtrsRfIonJfAFooajY290ECmTn+9+ZJpULLHLf5l
+S8xRaEzj/tszbrrLAK9MFnU=
+-----END CERTIFICATE-----

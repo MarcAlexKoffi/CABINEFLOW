@@ -61,7 +61,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyAo-GlziqJS2vQrIkV58bbvtCUu8_8DI0U',
-    appId: '1:542869507309:android:127acb5d3519466f2f10e4',
+    appId: '1:542869507309:android:6719f71b043fae652f10e4',
     messagingSenderId: '542869507309',
     projectId: 'cabineflow-4bca7',
     storageBucket: 'cabineflow-4bca7.firebasestorage.app',
