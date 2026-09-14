@@ -1,0 +1,222 @@
+import 'package:cabine_flow/backoffice/data/repositories/fake_backoffice_user_repository.dart';
+import 'package:cabine_flow/backoffice/data/repositories/firestore_backoffice_user_repository.dart';
+import 'package:cabine_flow/backoffice/domain/repositories/backoffice_user_repository.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/backoffice_login_page.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/backoffice_shell_page.dart';
+import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
+import 'package:cabine_flow/features/auth/data/repositories/fake_auth_repository.dart';
+import 'package:cabine_flow/features/auth/data/repositories/firebase_auth_repository.dart';
+import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
+import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_brand.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
+
+class BackofficeApp extends StatelessWidget {
+  const BackofficeApp({
+    super.key,
+    this.authRepository,
+    this.userRepository,
+  });
+
+  final AuthRepository? authRepository;
+  final BackofficeUserRepository? userRepository;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool firebaseReady = Firebase.apps.isNotEmpty;
+    final AuthRepository effectiveAuth =
+        authRepository ??
+        (firebaseReady ? FirebaseAuthRepository() : FakeAuthRepository());
+    final BackofficeUserRepository effectiveUsers =
+        userRepository ??
+        (firebaseReady
+            ? FirestoreBackofficeUserRepository()
+            : const FakeBackofficeUserRepository());
+
+    return MaterialApp(
+      title: 'IzyTel Back-office',
+      debugShowCheckedModeBanner: false,
+      theme: BackofficeTheme.light,
+      darkTheme: BackofficeTheme.light,
+      themeMode: ThemeMode.light,
+      home: _BackofficeAccessGate(
+        authRepository: effectiveAuth,
+        userRepository: effectiveUsers,
+      ),
+    );
+  }
+}
+
+class _BackofficeAccessGate extends StatefulWidget {
+  const _BackofficeAccessGate({
+    required this.authRepository,
+    required this.userRepository,
+  });
+
+  final AuthRepository authRepository;
+  final BackofficeUserRepository userRepository;
+
+  @override
+  State<_BackofficeAccessGate> createState() => _BackofficeAccessGateState();
+}
+
+class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
+  bool _loading = true;
+  AppUser? _user;
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreSession();
+  }
+
+  Future<void> _restoreSession() async {
+    final AuthLoginResult result = await widget.authRepository
+        .refreshCurrentAccess();
+    if (!mounted) return;
+
+    final AppUser? resolved = result.user;
+    if (result.isAuthenticated &&
+        resolved != null &&
+        _canAccessBackoffice(resolved)) {
+      setState(() {
+        _user = resolved;
+        _loading = false;
+      });
+      return;
+    }
+
+    if (result.isAuthenticated && resolved != null) {
+      await widget.authRepository.logout();
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _user = null;
+      _loading = false;
+    });
+  }
+
+  bool _canAccessBackoffice(AppUser user) {
+    return user.role == UserRole.administrator ||
+        user.role == UserRole.manager ||
+        user.role == UserRole.supervisor;
+  }
+
+  void _handleAuthenticated(AppUser user) {
+    if (!_canAccessBackoffice(user)) return;
+    setState(() => _user = user);
+  }
+
+  Future<void> _logout() async {
+    await widget.authRepository.logout();
+    if (!mounted) return;
+    setState(() => _user = null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const _BackofficeLoadingPage();
+    }
+
+    final AppUser? user = _user;
+    if (user == null) {
+      return BackofficeLoginPage(
+        authRepository: widget.authRepository,
+        onAuthenticated: _handleAuthenticated,
+      );
+    }
+
+    return BackofficeShellPage(
+      user: user,
+      userRepository: widget.userRepository,
+      onLogout: _logout,
+    );
+  }
+}
+
+class _BackofficeLoadingPage extends StatelessWidget {
+  const _BackofficeLoadingPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: BackofficePalette.canvas,
+      body: Stack(
+        children: <Widget>[
+          Positioned(
+            top: -120,
+            right: -80,
+            child: Container(
+              width: 320,
+              height: 320,
+              decoration: BoxDecoration(
+                color: BackofficePalette.primary.withValues(alpha: .06),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -140,
+            left: -100,
+            child: Container(
+              width: 340,
+              height: 340,
+              decoration: BoxDecoration(
+                color: BackofficePalette.cyan.withValues(alpha: .08),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 34, vertical: 30),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: BackofficePalette.line),
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: BackofficeShadows.panel,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Container(
+                    width: 72,
+                    height: 72,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: BackofficePalette.primarySoft,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const IzyTelBrandMark(size: 52),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'IzyTel Back-office',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: BackofficePalette.ink,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Préparation de votre espace de travail',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 18),
+                  const SizedBox.square(
+                    dimension: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
