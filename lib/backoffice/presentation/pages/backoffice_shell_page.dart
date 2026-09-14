@@ -2,21 +2,32 @@ import 'dart:async';
 
 import 'package:cabine_flow/backoffice/domain/repositories/backoffice_user_repository.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/backoffice_dashboard_page.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/clients/backoffice_refunds_page.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/clients/backoffice_support_requests_page.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/team/backoffice_agent_issues_page.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/team/backoffice_agents_page.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/team/backoffice_zones_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/backoffice_users_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_assignments_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_failed_orders_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_orders_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_payments_page.dart';
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
+import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_order_widgets.dart';
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
+import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
+import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
+import 'package:cabine_flow/features/support/domain/models/support_request.dart';
+import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_brand.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -277,6 +288,52 @@ extension _BackofficeDestinationX on BackofficeDestination {
 }
 
 extension on _BackofficeSection {
+  IconData get icon {
+    switch (this) {
+      case _BackofficeSection.overview:
+        return Symbols.dashboard_rounded;
+      case _BackofficeSection.operations:
+        return Symbols.receipt_long_rounded;
+      case _BackofficeSection.clients:
+        return Symbols.support_agent_rounded;
+      case _BackofficeSection.team:
+        return Symbols.groups_rounded;
+      case _BackofficeSection.administration:
+        return Symbols.admin_panel_settings_rounded;
+      case _BackofficeSection.catalog:
+        return Symbols.local_offer_rounded;
+      case _BackofficeSection.finances:
+        return Symbols.account_balance_wallet_rounded;
+      case _BackofficeSection.control:
+        return Symbols.fact_check_rounded;
+      case _BackofficeSection.pilotage:
+        return Symbols.monitoring_rounded;
+    }
+  }
+
+  String get menuLabel {
+    switch (this) {
+      case _BackofficeSection.overview:
+        return 'Aperçu';
+      case _BackofficeSection.operations:
+        return 'Opérations';
+      case _BackofficeSection.clients:
+        return 'Clients';
+      case _BackofficeSection.team:
+        return 'Équipe';
+      case _BackofficeSection.administration:
+        return 'Administration';
+      case _BackofficeSection.catalog:
+        return 'Catalogue';
+      case _BackofficeSection.finances:
+        return 'Finances';
+      case _BackofficeSection.control:
+        return 'Contrôle';
+      case _BackofficeSection.pilotage:
+        return 'Pilotage';
+    }
+  }
+
   String get label {
     switch (this) {
       case _BackofficeSection.overview:
@@ -308,6 +365,8 @@ class BackofficeShellPage extends StatefulWidget {
     required this.userRepository,
     required this.ordersRepository,
     required this.agentRepository,
+    this.supportRepository,
+    this.refundRepository,
     required this.onLogout,
   });
 
@@ -315,6 +374,8 @@ class BackofficeShellPage extends StatefulWidget {
   final BackofficeUserRepository userRepository;
   final OrdersRepository ordersRepository;
   final AgentRepository agentRepository;
+  final SupportRequestRepository? supportRepository;
+  final RefundRepository? refundRepository;
   final Future<void> Function() onLogout;
 
   @override
@@ -327,9 +388,15 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
   StreamSubscription<List<QueueOrder>>? _paymentNotificationSubscription;
   StreamSubscription<List<QueueOrder>>? _assignmentNotificationSubscription;
   StreamSubscription<List<QueueOrder>>? _historyNotificationSubscription;
+  StreamSubscription<List<SupportRequest>>? _supportNotificationSubscription;
+  StreamSubscription<List<AgentIssue>>? _agentIssueNotificationSubscription;
+  StreamSubscription<List<RefundCase>>? _refundNotificationSubscription;
   List<QueueOrder> _paymentNotificationOrders = const <QueueOrder>[];
   List<QueueOrder> _assignmentNotificationOrders = const <QueueOrder>[];
   List<QueueOrder> _historyNotificationOrders = const <QueueOrder>[];
+  List<SupportRequest> _supportNotificationRequests = const <SupportRequest>[];
+  List<AgentIssue> _agentIssueNotificationItems = const <AgentIssue>[];
+  List<RefundCase> _refundNotificationItems = const <RefundCase>[];
 
   @override
   void initState() {
@@ -342,6 +409,9 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
     _paymentNotificationSubscription?.cancel();
     _assignmentNotificationSubscription?.cancel();
     _historyNotificationSubscription?.cancel();
+    _supportNotificationSubscription?.cancel();
+    _agentIssueNotificationSubscription?.cancel();
+    _refundNotificationSubscription?.cancel();
     super.dispose();
   }
 
@@ -395,6 +465,46 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
               );
             },
           );
+    }
+
+    final SupportRequestRepository? supportRepository = widget.supportRepository;
+    if (supportRepository != null &&
+        BackofficeDestination.customerRequests.visibleFor(widget.user)) {
+      _supportNotificationSubscription = supportRepository.watchAllRequests().listen(
+        (List<SupportRequest> requests) {
+          if (!mounted) return;
+          setState(() => _supportNotificationRequests = requests);
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          IzyTelLog.backendError('Backoffice.notifications.support', error, stackTrace: stackTrace);
+        },
+      );
+    }
+
+    if (BackofficeDestination.agentIssues.visibleFor(widget.user)) {
+      _agentIssueNotificationSubscription = widget.agentRepository.watchAllAgentIssues().listen(
+      (List<AgentIssue> issues) {
+        if (!mounted) return;
+        setState(() => _agentIssueNotificationItems = issues);
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        IzyTelLog.backendError('Backoffice.notifications.agent-issues', error, stackTrace: stackTrace);
+      },
+    );
+    }
+
+    final RefundRepository? refundRepository = widget.refundRepository;
+    if (refundRepository != null &&
+        BackofficeDestination.refunds.visibleFor(widget.user)) {
+      _refundNotificationSubscription = refundRepository.watchAll().listen(
+        (List<RefundCase> refunds) {
+          if (!mounted) return;
+          setState(() => _refundNotificationItems = refunds);
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          IzyTelLog.backendError('Backoffice.notifications.refunds', error, stackTrace: stackTrace);
+        },
+      );
     }
   }
 
@@ -491,6 +601,60 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
                 '$refundPending remboursement${refundPending > 1 ? 's' : ''} en attente',
             subtitle: 'Dossiers financiers à suivre',
             count: refundPending,
+            icon: Symbols.currency_exchange_rounded,
+            color: BackofficePalette.warning,
+          ),
+        );
+      }
+    }
+
+    if (BackofficeDestination.customerRequests.visibleFor(widget.user)) {
+      final int newRequests = _supportNotificationRequests
+          .where((SupportRequest request) => request.status == SupportRequestStatus.newRequest)
+          .length;
+      if (newRequests > 0) {
+        entries.add(
+          _BackofficeNotificationEntry(
+            destination: BackofficeDestination.customerRequests,
+            title: '$newRequests demande${newRequests > 1 ? 's' : ''} client${newRequests > 1 ? 's' : ''} à traiter',
+            subtitle: 'Nouveaux tickets d’assistance',
+            count: newRequests,
+            icon: Symbols.support_agent_rounded,
+            color: BackofficePalette.warning,
+          ),
+        );
+      }
+    }
+
+    if (BackofficeDestination.agentIssues.visibleFor(widget.user)) {
+      final int openIssues = _agentIssueNotificationItems
+          .where((AgentIssue issue) => issue.status == 'open' || issue.status == 'in_progress')
+          .length;
+      if (openIssues > 0) {
+        entries.add(
+          _BackofficeNotificationEntry(
+            destination: BackofficeDestination.agentIssues,
+            title: '$openIssues signalement${openIssues > 1 ? 's' : ''} Agent à suivre',
+            subtitle: 'Incidents ouverts ou en cours',
+            count: openIssues,
+            icon: Symbols.report_problem_rounded,
+            color: BackofficePalette.warning,
+          ),
+        );
+      }
+    }
+
+    if (BackofficeDestination.refunds.visibleFor(widget.user)) {
+      final int pendingRefunds = _refundNotificationItems
+          .where((RefundCase refund) => refund.status == RefundStatus.pendingApproval || refund.status == RefundStatus.approved)
+          .length;
+      if (pendingRefunds > 0) {
+        entries.add(
+          _BackofficeNotificationEntry(
+            destination: BackofficeDestination.refunds,
+            title: '$pendingRefunds remboursement${pendingRefunds > 1 ? 's' : ''} à suivre',
+            subtitle: 'Validation ou exécution attendue',
+            count: pendingRefunds,
             icon: Symbols.currency_exchange_rounded,
             color: BackofficePalette.warning,
           ),
@@ -601,6 +765,45 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
           ordersRepository: widget.ordersRepository,
           historyRepository: historyRepository,
           onOpenAssignments: _openAssignmentsFor,
+        );
+      case BackofficeDestination.customerRequests:
+        final SupportRequestRepository? supportRepository = widget.supportRepository;
+        if (supportRepository == null) {
+          return const _BackofficeModuleUnavailable(
+            title: 'Demandes clients indisponibles',
+            message: 'Le repository d’assistance n’est pas configuré dans ce contexte.',
+          );
+        }
+        return BackofficeSupportRequestsPage(
+          user: widget.user,
+          repository: supportRepository,
+        );
+      case BackofficeDestination.refunds:
+        final RefundRepository? refundRepository = widget.refundRepository;
+        if (refundRepository == null) {
+          return const _BackofficeModuleUnavailable(
+            title: 'Remboursements indisponibles',
+            message: 'Le repository de remboursement n’est pas configuré dans ce contexte.',
+          );
+        }
+        return BackofficeRefundsPage(
+          user: widget.user,
+          repository: refundRepository,
+        );
+      case BackofficeDestination.agents:
+        return BackofficeAgentsPage(
+          user: widget.user,
+          repository: widget.agentRepository,
+        );
+      case BackofficeDestination.zones:
+        return BackofficeZonesPage(
+          user: widget.user,
+          repository: widget.agentRepository,
+        );
+      case BackofficeDestination.agentIssues:
+        return BackofficeAgentIssuesPage(
+          user: widget.user,
+          repository: widget.agentRepository,
         );
       case BackofficeDestination.users:
         return BackofficeUsersPage(
@@ -729,7 +932,7 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
   }
 }
 
-class _BackofficeSidebar extends StatelessWidget {
+class _BackofficeSidebar extends StatefulWidget {
   const _BackofficeSidebar({
     required this.user,
     required this.destinations,
@@ -747,35 +950,65 @@ class _BackofficeSidebar extends StatelessWidget {
   final bool drawerMode;
 
   @override
+  State<_BackofficeSidebar> createState() => _BackofficeSidebarState();
+}
+
+class _BackofficeSidebarState extends State<_BackofficeSidebar> {
+  _BackofficeSection? _expandedSection;
+
+  @override
+  void initState() {
+    super.initState();
+    final _BackofficeSection section = widget.selected.section;
+    _expandedSection = section == _BackofficeSection.overview ? null : section;
+  }
+
+  @override
+  void didUpdateWidget(covariant _BackofficeSidebar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selected != widget.selected) {
+      final _BackofficeSection section = widget.selected.section;
+      if (section != _BackofficeSection.overview && section != _expandedSection) {
+        _expandedSection = section;
+      }
+    }
+  }
+
+  void _toggleSection(_BackofficeSection section) {
+    setState(() {
+      _expandedSection = _expandedSection == section ? null : section;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final List<_BackofficeSection> sections = _BackofficeSection.values
         .where(
-          (_BackofficeSection section) => destinations.any(
-            (BackofficeDestination item) => item.section == section,
-          ),
+          (_BackofficeSection section) =>
+              section != _BackofficeSection.overview &&
+              widget.destinations.any(
+                (BackofficeDestination item) => item.section == section,
+              ),
         )
         .toList(growable: false);
+    final BackofficeDestination? dashboard =
+        widget.destinations.contains(BackofficeDestination.dashboard)
+            ? BackofficeDestination.dashboard
+            : null;
 
     return Material(
       color: BackofficePalette.surface,
       child: DecoratedBox(
         decoration: const BoxDecoration(
           color: BackofficePalette.surface,
-          border: Border(
-            right: BorderSide(color: BackofficePalette.line),
-          ),
+          border: Border(right: BorderSide(color: BackofficePalette.line)),
         ),
         child: SafeArea(
           right: false,
           child: Column(
             children: <Widget>[
               Padding(
-                padding: EdgeInsets.fromLTRB(
-                  drawerMode ? 18 : 20,
-                  20,
-                  18,
-                  16,
-                ),
+                padding: EdgeInsets.fromLTRB(widget.drawerMode ? 18 : 20, 20, 18, 16),
                 child: Row(
                   children: <Widget>[
                     Container(
@@ -797,19 +1030,19 @@ class _BackofficeSidebar extends StatelessWidget {
                           Text(
                             'IzyTel',
                             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: BackofficePalette.ink,
-                              fontSize: 19,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -.35,
-                            ),
+                                  color: BackofficePalette.ink,
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -.35,
+                                ),
                           ),
                           const SizedBox(height: 1),
                           Text(
                             'Back-office',
                             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: BackofficePalette.primary,
-                              fontWeight: FontWeight.w700,
-                            ),
+                                  color: BackofficePalette.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
                           ),
                         ],
                       ),
@@ -851,28 +1084,28 @@ class _BackofficeSidebar extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: <Widget>[
                             Text(
-                              user.role == UserRole.administrator
+                              widget.user.role == UserRole.administrator
                                   ? 'Espace Administrateur'
                                   : 'Espace Manager',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                color: BackofficePalette.primaryStrong,
-                                fontWeight: FontWeight.w800,
-                              ),
+                                    color: BackofficePalette.primaryStrong,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                             ),
                             const SizedBox(height: 1),
                             Text(
-                              user.role == UserRole.administrator
+                              widget.user.role == UserRole.administrator
                                   ? 'Accès complet'
                                   : 'Supervision opérationnelle',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                color: BackofficePalette.muted,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                              ),
+                                    color: BackofficePalette.muted,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                             ),
                           ],
                         ),
@@ -881,58 +1114,178 @@ class _BackofficeSidebar extends StatelessWidget {
                   ),
                 ),
               ),
-            const SizedBox(height: 10),
-            Expanded(
-              child: Scrollbar(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 18),
-                  children: <Widget>[
-                  for (final _BackofficeSection section in sections) ...<Widget>[
-                    if (section.label.isNotEmpty) ...<Widget>[
-                      const SizedBox(height: 14),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          section.label,
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: BackofficePalette.faint,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: .9,
-                            fontSize: 10,
-                          ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: Scrollbar(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 18),
+                    children: <Widget>[
+                      if (dashboard != null) ...<Widget>[
+                        _BackofficeNavTile(
+                          destination: dashboard,
+                          selected: widget.selected == dashboard,
+                          onTap: () => widget.onSelected(dashboard),
                         ),
-                      ),
-                      const SizedBox(height: 7),
+                        const SizedBox(height: 8),
+                      ],
+                      for (final _BackofficeSection section in sections) ...<Widget>[
+                        _BackofficeSectionMenu(
+                          section: section,
+                          itemCount: widget.destinations
+                              .where((BackofficeDestination item) => item.section == section)
+                              .length,
+                          expanded: _expandedSection == section,
+                          active: widget.selected.section == section,
+                          onTap: () => _toggleSection(section),
+                        ),
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeOutCubic,
+                          child: _expandedSection == section
+                              ? Padding(
+                                  padding: const EdgeInsets.fromLTRB(7, 5, 0, 7),
+                                  child: Column(
+                                    children: widget.destinations
+                                        .where((BackofficeDestination item) => item.section == section)
+                                        .map(
+                                          (BackofficeDestination destination) => _BackofficeNavTile(
+                                            destination: destination,
+                                            selected: destination == widget.selected,
+                                            compact: true,
+                                            onTap: () => widget.onSelected(destination),
+                                          ),
+                                        )
+                                        .toList(growable: false),
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                        const SizedBox(height: 4),
+                      ],
                     ],
-                    for (final BackofficeDestination destination
-                        in destinations.where(
-                          (BackofficeDestination item) => item.section == section,
-                        ))
-                      _BackofficeNavTile(
-                        destination: destination,
-                        selected: destination == selected,
-                        onTap: () => onSelected(destination),
-                      ),
-                  ],
-                  ],
-                ),
-              ),
-            ),
-            if (drawerMode)
-              Container(
-                decoration: const BoxDecoration(
-                  border: Border(
-                    top: BorderSide(color: BackofficePalette.sidebarLine),
                   ),
                 ),
-                padding: const EdgeInsets.all(12),
-                child: _BackofficeUserMenu(
-                  user: user,
-                  onLogout: onLogout,
-                  fillWidth: true,
-                ),
               ),
+              if (widget.drawerMode)
+                Container(
+                  decoration: const BoxDecoration(
+                    border: Border(top: BorderSide(color: BackofficePalette.sidebarLine)),
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  child: _BackofficeUserMenu(
+                    user: widget.user,
+                    onLogout: widget.onLogout,
+                    fillWidth: true,
+                  ),
+                ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BackofficeSectionMenu extends StatelessWidget {
+  const _BackofficeSectionMenu({
+    required this.section,
+    required this.itemCount,
+    required this.expanded,
+    required this.active,
+    required this.onTap,
+  });
+
+  final _BackofficeSection section;
+  final int itemCount;
+  final bool expanded;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color foreground = active
+        ? BackofficePalette.primaryStrong
+        : BackofficePalette.ink;
+    return Material(
+      key: ValueKey<String>('bo-section-${section.name}'),
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(13),
+      clipBehavior: Clip.antiAlias,
+      child: Ink(
+        decoration: BoxDecoration(
+          color: active ? BackofficePalette.primarySoft : Colors.transparent,
+          border: Border.all(
+            color: active ? const Color(0xFFDCE7FF) : Colors.transparent,
+          ),
+          borderRadius: BorderRadius.circular(13),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          hoverColor: BackofficePalette.surfaceAlt,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            child: Row(
+              children: <Widget>[
+                Container(
+                  width: 32,
+                  height: 32,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: active ? Colors.white : BackofficePalette.primarySoft,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    section.icon,
+                    size: 19,
+                    color: active
+                        ? BackofficePalette.primaryStrong
+                        : BackofficePalette.primary,
+                    fill: active ? 1 : 0,
+                    weight: active ? 650 : 560,
+                  ),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(
+                        section.menuLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                              color: foreground,
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        '$itemCount module${itemCount > 1 ? 's' : ''}',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: BackofficePalette.faint,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                AnimatedRotation(
+                  turns: expanded ? .5 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  child: Icon(
+                    Symbols.keyboard_arrow_down_rounded,
+                    size: 21,
+                    color: active
+                        ? BackofficePalette.primaryStrong
+                        : BackofficePalette.muted,
+                    weight: 650,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -945,17 +1298,20 @@ class _BackofficeNavTile extends StatelessWidget {
     required this.destination,
     required this.selected,
     required this.onTap,
+    this.compact = false,
   });
 
   final BackofficeDestination destination;
   final bool selected;
   final VoidCallback onTap;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
       child: Material(
+        key: ValueKey<String>('bo-nav-${destination.name}'),
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(13),
         clipBehavior: Clip.antiAlias,
@@ -972,12 +1328,12 @@ class _BackofficeNavTile extends StatelessWidget {
             hoverColor: BackofficePalette.surfaceAlt,
             splashColor: BackofficePalette.primarySoft,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: EdgeInsets.symmetric(horizontal: compact ? 9 : 10, vertical: compact ? 6 : 8),
               child: Row(
                 children: <Widget>[
                   Container(
-                    width: 32,
-                    height: 32,
+                    width: compact ? 29 : 32,
+                    height: compact ? 29 : 32,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: selected
@@ -987,7 +1343,7 @@ class _BackofficeNavTile extends StatelessWidget {
                     ),
                     child: Icon(
                       destination.icon,
-                      size: 20,
+                      size: compact ? 18 : 20,
                       color: selected
                           ? Colors.white
                           : BackofficePalette.primaryStrong,
@@ -1581,6 +1937,25 @@ class _BackofficeOperationsUnavailable extends StatelessWidget {
       child: const Text(
         'Le dépôt de commandes actif ne fournit pas l’historique requis pour cette vue.',
       ),
+    );
+  }
+}
+
+class _BackofficeModuleUnavailable extends StatelessWidget {
+  const _BackofficeModuleUnavailable({
+    required this.title,
+    required this.message,
+  });
+
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return BackofficeEmptyState(
+      icon: Symbols.cloud_off_rounded,
+      title: title,
+      message: message,
     );
   }
 }

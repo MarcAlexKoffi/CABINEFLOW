@@ -17,6 +17,12 @@ import 'package:cabine_flow/features/orders/data/repositories/fake_orders_reposi
 import 'package:cabine_flow/features/orders/data/repositories/firestore_orders_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/hybrid_orders_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/features/refunds/data/repositories/fake_refund_repository.dart';
+import 'package:cabine_flow/features/refunds/data/repositories/firestore_refund_repository.dart';
+import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
+import 'package:cabine_flow/features/support/data/repositories/fake_support_request_repository.dart';
+import 'package:cabine_flow/features/support/data/repositories/firestore_support_request_repository.dart';
+import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_brand.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -28,12 +34,16 @@ class BackofficeApp extends StatelessWidget {
     this.userRepository,
     this.ordersRepository,
     this.agentRepository,
+    this.supportRepository,
+    this.refundRepository,
   });
 
   final AuthRepository? authRepository;
   final BackofficeUserRepository? userRepository;
   final OrdersRepository? ordersRepository;
   final AgentRepository? agentRepository;
+  final SupportRequestRepository? supportRepository;
+  final RefundRepository? refundRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +66,14 @@ class BackofficeApp extends StatelessWidget {
     final AgentRepository effectiveAgents =
         agentRepository ??
         (firebaseReady ? FirestoreAgentRepository() : FakeAgentRepository());
+    final SupportRequestRepository effectiveSupport =
+        supportRepository ??
+        (firebaseReady
+            ? FirestoreSupportRequestRepository()
+            : FakeSupportRequestRepository());
+    final RefundRepository effectiveRefunds =
+        refundRepository ??
+        (firebaseReady ? FirestoreRefundRepository() : FakeRefundRepository());
 
     return MaterialApp(
       title: 'IzyTel Back-office',
@@ -68,6 +86,8 @@ class BackofficeApp extends StatelessWidget {
         userRepository: effectiveUsers,
         ordersRepository: effectiveOrders,
         agentRepository: effectiveAgents,
+        supportRepository: effectiveSupport,
+        refundRepository: effectiveRefunds,
       ),
     );
   }
@@ -79,12 +99,16 @@ class _BackofficeAccessGate extends StatefulWidget {
     required this.userRepository,
     required this.ordersRepository,
     required this.agentRepository,
+    required this.supportRepository,
+    required this.refundRepository,
   });
 
   final AuthRepository authRepository;
   final BackofficeUserRepository userRepository;
   final OrdersRepository ordersRepository;
   final AgentRepository agentRepository;
+  final SupportRequestRepository supportRepository;
+  final RefundRepository refundRepository;
 
   @override
   State<_BackofficeAccessGate> createState() => _BackofficeAccessGateState();
@@ -163,6 +187,8 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
       userRepository: widget.userRepository,
       ordersRepository: widget.ordersRepository,
       agentRepository: widget.agentRepository,
+      supportRepository: widget.supportRepository,
+      refundRepository: widget.refundRepository,
       onLogout: _logout,
     );
   }

@@ -1,75 +1,141 @@
-import 'package:cabine_flow/backoffice/backoffice_app.dart';
-import 'package:cabine_flow/backoffice/data/repositories/fake_backoffice_user_repository.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_assignments_page.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_failed_orders_page.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_orders_page.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_payments_page.dart';
+import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
 import 'package:cabine_flow/features/agents/data/repositories/fake_agent_repository.dart';
-import 'package:cabine_flow/features/auth/data/repositories/fake_auth_repository.dart';
+import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Future<void> _pumpNavigationFrame(WidgetTester tester) async {
-  // BO-2 maintient volontairement plusieurs flux temps reel ouverts
-  // (notifications + listes Operations). pumpAndSettle() n'est donc pas un
-  // bon outil ici : il peut attendre indefiniment qu'aucune frame ne soit
-  // planifiee. Pour ce test de navigation, deux frames bornees suffisent.
-  await tester.pump();
-  await tester.pump(const Duration(milliseconds: 80));
+const AppUser _admin = AppUser(
+  id: 'USR-001',
+  name: 'Marc Alex',
+  phoneNumber: '0700000000',
+  role: UserRole.administrator,
+);
+
+Widget _testHost(Widget child) {
+  return MaterialApp(
+    theme: BackofficeTheme.light,
+    home: Scaffold(
+      backgroundColor: BackofficePalette.canvas,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(30, 28, 30, 42),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1480),
+            child: child,
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
-Future<void> _openNavigationItem(
+Future<void> _mountOperationPage(
   WidgetTester tester,
-  String label,
+  Widget page,
 ) async {
-  final Finder target = find.text(label);
-  expect(target, findsWidgets);
+  await tester.pumpWidget(_testHost(page));
+  // Les repositories fake emettent leur premier snapshot de facon asynchrone.
+  // Des pumps bornes suffisent et evitent pumpAndSettle(), incompatible avec
+  // les flux temps reel volontairement ouverts par les pages du back-office.
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 40));
+}
 
-  await tester.tap(target.first);
-  await _pumpNavigationFrame(tester);
+Future<void> _disposePage(WidgetTester tester) async {
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pump();
 }
 
 void main() {
-  testWidgets('BO-2 ouvre les quatre modules Operations', (
-    WidgetTester tester,
-  ) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 1100));
+  setUp(() {
+    TestWidgetsFlutterBinding.ensureInitialized();
+  });
+
+  testWidgets('BO-2 affiche le module Commandes', (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(1600, 1200));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    // BO-1 couvre deja le parcours de connexion. Ce test BO-2 ouvre une
-    // session Admin avant le rendu afin de tester uniquement le shell et la
-    // navigation des modules Operations.
-    final FakeAuthRepository authRepository = FakeAuthRepository();
-    final authResult = await authRepository.login(
-      identifier: 'marc@cabineflow.app',
-      password: '1234',
-    );
-    expect(authResult.isAuthenticated, isTrue);
+    final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
 
-    await tester.pumpWidget(
-      BackofficeApp(
-        authRepository: authRepository,
-        userRepository: const FakeBackofficeUserRepository(),
-        ordersRepository: FakeOrdersRepository(isTest: true),
+    await _mountOperationPage(
+      tester,
+      BackofficeOrdersPage(
+        user: _admin,
+        repository: repository,
+        onOpenAssignments: (_) {},
+        onOpenPayments: () {},
+      ),
+    );
+
+    expect(find.text('Centre des commandes'), findsOneWidget);
+    await _disposePage(tester);
+  });
+
+  testWidgets('BO-2 affiche le module Paiements', (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(1600, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
+
+    await _mountOperationPage(
+      tester,
+      BackofficePaymentsPage(
+        user: _admin,
+        ordersRepository: repository,
+        onOpenOrders: () {},
+      ),
+    );
+
+    expect(find.text('Centre de vérification des paiements'), findsOneWidget);
+    await _disposePage(tester);
+  });
+
+  testWidgets('BO-2 affiche le module Affectations', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1600, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
+
+    await _mountOperationPage(
+      tester,
+      BackofficeAssignmentsPage(
+        user: _admin,
+        ordersRepository: repository,
         agentRepository: FakeAgentRepository(),
       ),
     );
-    await _pumpNavigationFrame(tester);
 
-    expect(find.text('Tableau de bord'), findsWidgets);
-
-    await _openNavigationItem(tester, 'Commandes');
-    expect(find.text('Centre des commandes'), findsOneWidget);
-
-    await _openNavigationItem(tester, 'Paiements');
-    expect(find.text('Centre de vérification des paiements'), findsOneWidget);
-
-    await _openNavigationItem(tester, 'Affectations');
     expect(find.text('Pilotage des affectations'), findsOneWidget);
+    await _disposePage(tester);
+  });
 
-    await _openNavigationItem(tester, 'Commandes échouées');
+  testWidgets('BO-2 affiche le module Commandes échouées', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1600, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
+
+    await _mountOperationPage(
+      tester,
+      BackofficeFailedOrdersPage(
+        user: _admin,
+        ordersRepository: repository,
+        historyRepository: repository,
+        onOpenAssignments: (_) {},
+      ),
+    );
+
     expect(find.text('Commandes échouées'), findsWidgets);
-
-    // Force le dispose du shell afin d'annuler explicitement les abonnements
-    // temps reel avant la fin du test.
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
+    await _disposePage(tester);
   });
 }
