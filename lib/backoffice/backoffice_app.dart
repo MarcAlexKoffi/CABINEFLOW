@@ -4,11 +4,19 @@ import 'package:cabine_flow/backoffice/domain/repositories/backoffice_user_repos
 import 'package:cabine_flow/backoffice/presentation/pages/backoffice_login_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/backoffice_shell_page.dart';
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
+import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
+import 'package:cabine_flow/features/agents/data/repositories/fake_agent_repository.dart';
+import 'package:cabine_flow/features/agents/data/repositories/firestore_agent_repository.dart';
+import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/auth/data/repositories/fake_auth_repository.dart';
 import 'package:cabine_flow/features/auth/data/repositories/firebase_auth_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
+import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
+import 'package:cabine_flow/features/orders/data/repositories/firestore_orders_repository.dart';
+import 'package:cabine_flow/features/orders/data/repositories/hybrid_orders_repository.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_brand.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -18,10 +26,14 @@ class BackofficeApp extends StatelessWidget {
     super.key,
     this.authRepository,
     this.userRepository,
+    this.ordersRepository,
+    this.agentRepository,
   });
 
   final AuthRepository? authRepository;
   final BackofficeUserRepository? userRepository;
+  final OrdersRepository? ordersRepository;
+  final AgentRepository? agentRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -34,6 +46,16 @@ class BackofficeApp extends StatelessWidget {
         (firebaseReady
             ? FirestoreBackofficeUserRepository()
             : const FakeBackofficeUserRepository());
+    final OrdersRepository effectiveOrders =
+        ordersRepository ??
+        (firebaseReady
+            ? SupabaseBootstrap.isInitialized
+                  ? HybridOrdersRepository()
+                  : FirestoreOrdersRepository()
+            : FakeOrdersRepository(isTest: true));
+    final AgentRepository effectiveAgents =
+        agentRepository ??
+        (firebaseReady ? FirestoreAgentRepository() : FakeAgentRepository());
 
     return MaterialApp(
       title: 'IzyTel Back-office',
@@ -44,6 +66,8 @@ class BackofficeApp extends StatelessWidget {
       home: _BackofficeAccessGate(
         authRepository: effectiveAuth,
         userRepository: effectiveUsers,
+        ordersRepository: effectiveOrders,
+        agentRepository: effectiveAgents,
       ),
     );
   }
@@ -53,10 +77,14 @@ class _BackofficeAccessGate extends StatefulWidget {
   const _BackofficeAccessGate({
     required this.authRepository,
     required this.userRepository,
+    required this.ordersRepository,
+    required this.agentRepository,
   });
 
   final AuthRepository authRepository;
   final BackofficeUserRepository userRepository;
+  final OrdersRepository ordersRepository;
+  final AgentRepository agentRepository;
 
   @override
   State<_BackofficeAccessGate> createState() => _BackofficeAccessGateState();
@@ -133,6 +161,8 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
     return BackofficeShellPage(
       user: user,
       userRepository: widget.userRepository,
+      ordersRepository: widget.ordersRepository,
+      agentRepository: widget.agentRepository,
       onLogout: _logout,
     );
   }

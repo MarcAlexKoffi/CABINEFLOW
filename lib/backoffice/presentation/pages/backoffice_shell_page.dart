@@ -1,10 +1,22 @@
+import 'dart:async';
+
 import 'package:cabine_flow/backoffice/domain/repositories/backoffice_user_repository.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/backoffice_dashboard_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/backoffice_users_page.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_assignments_page.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_failed_orders_page.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_orders_page.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_payments_page.dart';
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
+import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
+import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_brand.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -294,11 +306,15 @@ class BackofficeShellPage extends StatefulWidget {
     super.key,
     required this.user,
     required this.userRepository,
+    required this.ordersRepository,
+    required this.agentRepository,
     required this.onLogout,
   });
 
   final AppUser user;
   final BackofficeUserRepository userRepository;
+  final OrdersRepository ordersRepository;
+  final AgentRepository agentRepository;
   final Future<void> Function() onLogout;
 
   @override
@@ -307,6 +323,191 @@ class BackofficeShellPage extends StatefulWidget {
 
 class _BackofficeShellPageState extends State<BackofficeShellPage> {
   BackofficeDestination _destination = BackofficeDestination.dashboard;
+  QueueOrder? _assignmentFocusOrder;
+  StreamSubscription<List<QueueOrder>>? _paymentNotificationSubscription;
+  StreamSubscription<List<QueueOrder>>? _assignmentNotificationSubscription;
+  StreamSubscription<List<QueueOrder>>? _historyNotificationSubscription;
+  List<QueueOrder> _paymentNotificationOrders = const <QueueOrder>[];
+  List<QueueOrder> _assignmentNotificationOrders = const <QueueOrder>[];
+  List<QueueOrder> _historyNotificationOrders = const <QueueOrder>[];
+
+  @override
+  void initState() {
+    super.initState();
+    _startOperationalNotificationWatchers();
+  }
+
+  @override
+  void dispose() {
+    _paymentNotificationSubscription?.cancel();
+    _assignmentNotificationSubscription?.cancel();
+    _historyNotificationSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _startOperationalNotificationWatchers() {
+    _paymentNotificationSubscription = widget.ordersRepository
+        .watchPaymentTrackingOrders()
+        .listen(
+          (List<QueueOrder> orders) {
+            if (!mounted) return;
+            setState(() => _paymentNotificationOrders = orders);
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            IzyTelLog.backendError(
+              'Backoffice.notifications.payments',
+              error,
+              stackTrace: stackTrace,
+            );
+          },
+        );
+
+    _assignmentNotificationSubscription = widget.ordersRepository
+        .watchPaidQueue()
+        .listen(
+          (List<QueueOrder> orders) {
+            if (!mounted) return;
+            setState(() => _assignmentNotificationOrders = orders);
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            IzyTelLog.backendError(
+              'Backoffice.notifications.assignments',
+              error,
+              stackTrace: stackTrace,
+            );
+          },
+        );
+
+    final OrderHistoryRepository? historyRepository = _historyRepository;
+    if (historyRepository != null) {
+      _historyNotificationSubscription = historyRepository
+          .watchOrderHistory()
+          .listen(
+            (List<QueueOrder> orders) {
+              if (!mounted) return;
+              setState(() => _historyNotificationOrders = orders);
+            },
+            onError: (Object error, StackTrace stackTrace) {
+              IzyTelLog.backendError(
+                'Backoffice.notifications.history',
+                error,
+                stackTrace: stackTrace,
+              );
+            },
+          );
+    }
+  }
+
+  bool _paymentRequiresVerification(QueueOrder order) {
+    return order.hasPaymentToReviewAfterExpiration ||
+        (order.source == OrderSource.customerWeb &&
+            order.paymentStatus == OrderPaymentStatus.declared &&
+            (order.status == QueueOrderStatus.paymentToVerify ||
+                order.status == QueueOrderStatus.awaitingPayment));
+  }
+
+  List<_BackofficeNotificationEntry> get _operationalNotifications {
+    final List<_BackofficeNotificationEntry> entries =
+        <_BackofficeNotificationEntry>[];
+
+    if (BackofficeDestination.payments.visibleFor(widget.user)) {
+      final List<QueueOrder> pendingPayments = _paymentNotificationOrders
+          .where(_paymentRequiresVerification)
+          .toList(growable: false);
+      if (pendingPayments.isNotEmpty) {
+        final int amount = pendingPayments.fold<int>(
+          0,
+          (int total, QueueOrder order) => total + order.amount,
+        );
+        entries.add(
+          _BackofficeNotificationEntry(
+            destination: BackofficeDestination.payments,
+            title:
+                '${pendingPayments.length} paiement${pendingPayments.length > 1 ? 's' : ''} à vérifier',
+            subtitle: '${formatCfa(amount)} en attente de validation',
+            count: pendingPayments.length,
+            icon: Symbols.fact_check_rounded,
+            color: BackofficePalette.warning,
+          ),
+        );
+      }
+    }
+
+    if (BackofficeDestination.assignments.visibleFor(widget.user)) {
+      final List<QueueOrder> toAssign = _assignmentNotificationOrders
+          .where(
+            (QueueOrder order) =>
+                order.status == QueueOrderStatus.paidReady &&
+                !order.isAssignedToAgent,
+          )
+          .toList(growable: false);
+      if (toAssign.isNotEmpty) {
+        final int manual = toAssign
+            .where((QueueOrder order) => order.manualAssignmentRequired)
+            .length;
+        entries.add(
+          _BackofficeNotificationEntry(
+            destination: BackofficeDestination.assignments,
+            title:
+                '${toAssign.length} commande${toAssign.length > 1 ? 's' : ''} à affecter',
+            subtitle: manual > 0
+                ? '$manual intervention${manual > 1 ? 's' : ''} manuelle${manual > 1 ? 's' : ''}'
+                : 'Affectation agent en attente',
+            count: toAssign.length,
+            icon: Symbols.assignment_ind_rounded,
+            color: BackofficePalette.primary,
+          ),
+        );
+      }
+    }
+
+    if (BackofficeDestination.failedOrders.visibleFor(widget.user)) {
+      final int failed = _historyNotificationOrders
+          .where((QueueOrder order) => order.status == QueueOrderStatus.failed)
+          .length;
+      if (failed > 0) {
+        entries.add(
+          _BackofficeNotificationEntry(
+            destination: BackofficeDestination.failedOrders,
+            title: '$failed échec${failed > 1 ? 's' : ''} à traiter',
+            subtitle: 'Commandes nécessitant une intervention',
+            count: failed,
+            icon: Symbols.error_rounded,
+            color: BackofficePalette.danger,
+          ),
+        );
+      }
+
+      final int refundPending = _historyNotificationOrders
+          .where(
+            (QueueOrder order) => order.status == QueueOrderStatus.refundPending,
+          )
+          .length;
+      if (refundPending > 0) {
+        entries.add(
+          _BackofficeNotificationEntry(
+            destination: BackofficeDestination.failedOrders,
+            title:
+                '$refundPending remboursement${refundPending > 1 ? 's' : ''} en attente',
+            subtitle: 'Dossiers financiers à suivre',
+            count: refundPending,
+            icon: Symbols.currency_exchange_rounded,
+            color: BackofficePalette.warning,
+          ),
+        );
+      }
+    }
+
+    return entries;
+  }
+
+  OrderHistoryRepository? get _historyRepository {
+    final OrdersRepository repository = widget.ordersRepository;
+    if (repository is! OrderHistoryRepository) {
+      return null;
+    }
+    return repository as OrderHistoryRepository;
+  }
 
   List<BackofficeDestination> get _visibleDestinations {
     return BackofficeDestination.values
@@ -316,7 +517,20 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
 
   void _selectDestination(BackofficeDestination destination) {
     if (!destination.visibleFor(widget.user)) return;
-    setState(() => _destination = destination);
+    setState(() {
+      _destination = destination;
+      if (destination != BackofficeDestination.assignments) {
+        _assignmentFocusOrder = null;
+      }
+    });
+  }
+
+  void _openAssignmentsFor(QueueOrder order) {
+    if (!BackofficeDestination.assignments.visibleFor(widget.user)) return;
+    setState(() {
+      _assignmentFocusOrder = order;
+      _destination = BackofficeDestination.assignments;
+    });
   }
 
   Future<void> _confirmLogout() async {
@@ -346,6 +560,7 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
   }
 
   Widget _contentFor(BackofficeDestination destination) {
+    final OrderHistoryRepository? historyRepository = _historyRepository;
     switch (destination) {
       case BackofficeDestination.dashboard:
         return BackofficeDashboardPage(
@@ -353,6 +568,39 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
           onOpenUsers: widget.user.role == UserRole.administrator
               ? () => _selectDestination(BackofficeDestination.users)
               : null,
+        );
+      case BackofficeDestination.orders:
+        if (historyRepository == null) {
+          return const _BackofficeOperationsUnavailable();
+        }
+        return BackofficeOrdersPage(
+          user: widget.user,
+          repository: historyRepository,
+          onOpenAssignments: _openAssignmentsFor,
+          onOpenPayments: () => _selectDestination(BackofficeDestination.payments),
+        );
+      case BackofficeDestination.payments:
+        return BackofficePaymentsPage(
+          user: widget.user,
+          ordersRepository: widget.ordersRepository,
+          onOpenOrders: () => _selectDestination(BackofficeDestination.orders),
+        );
+      case BackofficeDestination.assignments:
+        return BackofficeAssignmentsPage(
+          user: widget.user,
+          ordersRepository: widget.ordersRepository,
+          agentRepository: widget.agentRepository,
+          focusOrderId: _assignmentFocusOrder?.id,
+        );
+      case BackofficeDestination.failedOrders:
+        if (historyRepository == null) {
+          return const _BackofficeOperationsUnavailable();
+        }
+        return BackofficeFailedOrdersPage(
+          user: widget.user,
+          ordersRepository: widget.ordersRepository,
+          historyRepository: historyRepository,
+          onOpenAssignments: _openAssignmentsFor,
         );
       case BackofficeDestination.users:
         return BackofficeUsersPage(
@@ -377,6 +625,8 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
     final Widget content = _BackofficeContentFrame(
       destination: _destination,
       user: widget.user,
+      notifications: _operationalNotifications,
+      onNotificationSelected: _selectDestination,
       onLogout: _confirmLogout,
       child: _contentFor(_destination),
     );
@@ -410,7 +660,9 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
         foregroundColor: BackofficePalette.ink,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        shape: const Border(bottom: BorderSide(color: BackofficePalette.line)),
+        shape: const Border(
+          bottom: BorderSide(color: BackofficePalette.line),
+        ),
         titleSpacing: 0,
         title: Row(
           children: <Widget>[
@@ -439,6 +691,11 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
           ],
         ),
         actions: <Widget>[
+          _BackofficeNotificationButton(
+            notifications: _operationalNotifications,
+            onSelected: _selectDestination,
+            compact: true,
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 10),
             child: _BackofficeUserMenu(
@@ -504,14 +761,21 @@ class _BackofficeSidebar extends StatelessWidget {
       child: DecoratedBox(
         decoration: const BoxDecoration(
           color: BackofficePalette.surface,
-          border: Border(right: BorderSide(color: BackofficePalette.line)),
+          border: Border(
+            right: BorderSide(color: BackofficePalette.line),
+          ),
         ),
         child: SafeArea(
           right: false,
           child: Column(
             children: <Widget>[
               Padding(
-                padding: EdgeInsets.fromLTRB(drawerMode ? 18 : 20, 20, 18, 16),
+                padding: EdgeInsets.fromLTRB(
+                  drawerMode ? 18 : 20,
+                  20,
+                  18,
+                  16,
+                ),
                 child: Row(
                   children: <Widget>[
                     Container(
@@ -532,22 +796,20 @@ class _BackofficeSidebar extends StatelessWidget {
                         children: <Widget>[
                           Text(
                             'IzyTel',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(
-                                  color: BackofficePalette.ink,
-                                  fontSize: 19,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -.35,
-                                ),
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: BackofficePalette.ink,
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -.35,
+                            ),
                           ),
                           const SizedBox(height: 1),
                           Text(
                             'Back-office',
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(
-                                  color: BackofficePalette.primary,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: BackofficePalette.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ],
                       ),
@@ -558,10 +820,7 @@ class _BackofficeSidebar extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
                     color: BackofficePalette.primarySoft,
                     border: Border.all(color: const Color(0xFFDCE7FF)),
@@ -597,11 +856,10 @@ class _BackofficeSidebar extends StatelessWidget {
                                   : 'Espace Manager',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.labelMedium
-                                  ?.copyWith(
-                                    color: BackofficePalette.primaryStrong,
-                                    fontWeight: FontWeight.w800,
-                                  ),
+                              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                color: BackofficePalette.primaryStrong,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                             const SizedBox(height: 1),
                             Text(
@@ -610,12 +868,11 @@ class _BackofficeSidebar extends StatelessWidget {
                                   : 'Supervision opérationnelle',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(
-                                    color: BackofficePalette.muted,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: BackofficePalette.muted,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ),
@@ -624,60 +881,57 @@ class _BackofficeSidebar extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: Scrollbar(
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 18),
-                    children: <Widget>[
-                      for (final _BackofficeSection section
-                          in sections) ...<Widget>[
-                        if (section.label.isNotEmpty) ...<Widget>[
-                          const SizedBox(height: 14),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: Text(
-                              section.label,
-                              style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(
-                                    color: BackofficePalette.faint,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: .9,
-                                    fontSize: 10,
-                                  ),
-                            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: Scrollbar(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 18),
+                  children: <Widget>[
+                  for (final _BackofficeSection section in sections) ...<Widget>[
+                    if (section.label.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 14),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          section.label,
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: BackofficePalette.faint,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: .9,
+                            fontSize: 10,
                           ),
-                          const SizedBox(height: 7),
-                        ],
-                        for (final BackofficeDestination destination
-                            in destinations.where(
-                              (BackofficeDestination item) =>
-                                  item.section == section,
-                            ))
-                          _BackofficeNavTile(
-                            destination: destination,
-                            selected: destination == selected,
-                            onTap: () => onSelected(destination),
-                          ),
-                      ],
+                        ),
+                      ),
+                      const SizedBox(height: 7),
                     ],
-                  ),
+                    for (final BackofficeDestination destination
+                        in destinations.where(
+                          (BackofficeDestination item) => item.section == section,
+                        ))
+                      _BackofficeNavTile(
+                        destination: destination,
+                        selected: destination == selected,
+                        onTap: () => onSelected(destination),
+                      ),
+                  ],
+                  ],
                 ),
               ),
-              if (drawerMode)
-                Container(
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      top: BorderSide(color: BackofficePalette.sidebarLine),
-                    ),
-                  ),
-                  padding: const EdgeInsets.all(12),
-                  child: _BackofficeUserMenu(
-                    user: user,
-                    onLogout: onLogout,
-                    fillWidth: true,
+            ),
+            if (drawerMode)
+              Container(
+                decoration: const BoxDecoration(
+                  border: Border(
+                    top: BorderSide(color: BackofficePalette.sidebarLine),
                   ),
                 ),
+                padding: const EdgeInsets.all(12),
+                child: _BackofficeUserMenu(
+                  user: user,
+                  onLogout: onLogout,
+                  fillWidth: true,
+                ),
+              ),
             ],
           ),
         ),
@@ -752,9 +1006,7 @@ class _BackofficeNavTile extends StatelessWidget {
                         color: selected
                             ? BackofficePalette.primaryStrong
                             : BackofficePalette.ink,
-                        fontWeight: selected
-                            ? FontWeight.w800
-                            : FontWeight.w600,
+                        fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                       ),
                     ),
                   ),
@@ -781,12 +1033,16 @@ class _BackofficeContentFrame extends StatelessWidget {
   const _BackofficeContentFrame({
     required this.destination,
     required this.user,
+    required this.notifications,
+    required this.onNotificationSelected,
     required this.onLogout,
     required this.child,
   });
 
   final BackofficeDestination destination;
   final AppUser user;
+  final List<_BackofficeNotificationEntry> notifications;
+  final ValueChanged<BackofficeDestination> onNotificationSelected;
   final VoidCallback onLogout;
   final Widget child;
 
@@ -838,19 +1094,22 @@ class _BackofficeContentFrame extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             'IzyTel / ${_sectionLabel(destination.section)}',
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(color: BackofficePalette.faint),
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: BackofficePalette.faint,
+                            ),
                           ),
                         ],
                       ),
                     ],
                   ),
                 ),
+                _BackofficeNotificationButton(
+                  notifications: notifications,
+                  onSelected: onNotificationSelected,
+                ),
+                const SizedBox(width: 10),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 11,
-                    vertical: 8,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF0FBF6),
                     borderRadius: BorderRadius.circular(999),
@@ -927,6 +1186,243 @@ class _BackofficeContentFrame extends StatelessWidget {
   }
 }
 
+
+class _BackofficeNotificationEntry {
+  const _BackofficeNotificationEntry({
+    required this.destination,
+    required this.title,
+    required this.subtitle,
+    required this.count,
+    required this.icon,
+    required this.color,
+  });
+
+  final BackofficeDestination destination;
+  final String title;
+  final String subtitle;
+  final int count;
+  final IconData icon;
+  final Color color;
+}
+
+class _BackofficeNotificationButton extends StatelessWidget {
+  const _BackofficeNotificationButton({
+    required this.notifications,
+    required this.onSelected,
+    this.compact = false,
+  });
+
+  final List<_BackofficeNotificationEntry> notifications;
+  final ValueChanged<BackofficeDestination> onSelected;
+  final bool compact;
+
+  int get _totalCount => notifications.fold<int>(
+        0,
+        (int total, _BackofficeNotificationEntry item) => total + item.count,
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final int count = _totalCount;
+    return PopupMenuButton<BackofficeDestination>(
+      tooltip: 'Notifications',
+      constraints: const BoxConstraints(minWidth: 330, maxWidth: 380),
+      offset: const Offset(0, 10),
+      onSelected: onSelected,
+      itemBuilder: (BuildContext context) {
+        return <PopupMenuEntry<BackofficeDestination>>[
+          PopupMenuItem<BackofficeDestination>(
+            enabled: false,
+            child: Row(
+              children: <Widget>[
+                Container(
+                  width: 34,
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: BackofficePalette.primarySoft,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Symbols.notifications_rounded,
+                    color: BackofficePalette.primary,
+                    fill: 1,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'Notifications opérationnelles',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                              color: BackofficePalette.ink,
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        count == 0
+                            ? 'Aucune action urgente'
+                            : '$count action${count > 1 ? 's' : ''} à traiter',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: BackofficePalette.muted,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const PopupMenuDivider(),
+          if (notifications.isEmpty)
+            const PopupMenuItem<BackofficeDestination>(
+              enabled: false,
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: <Widget>[
+                    Icon(
+                      Symbols.task_alt_rounded,
+                      color: BackofficePalette.success,
+                      fill: 1,
+                    ),
+                    SizedBox(width: 10),
+                    Expanded(child: Text('Tout est à jour pour le moment.')),
+                  ],
+                ),
+              ),
+            )
+          else
+            for (final _BackofficeNotificationEntry item in notifications)
+              PopupMenuItem<BackofficeDestination>(
+                value: item.destination,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  child: Row(
+                    children: <Widget>[
+                      Container(
+                        width: 36,
+                        height: 36,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: item.color.withValues(alpha: .10),
+                          borderRadius: BorderRadius.circular(11),
+                        ),
+                        child: Icon(
+                          item.icon,
+                          color: item.color,
+                          fill: 1,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              item.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              item.subtitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        constraints: const BoxConstraints(minWidth: 28),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: item.color.withValues(alpha: .11),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '${item.count}',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: item.color,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+        ];
+      },
+      child: Container(
+        width: compact ? 38 : 42,
+        height: compact ? 38 : 42,
+        decoration: BoxDecoration(
+          color: count > 0
+              ? BackofficePalette.primarySoft
+              : BackofficePalette.surfaceAlt,
+          border: Border.all(
+            color: count > 0
+                ? const Color(0xFFD6E3FF)
+                : BackofficePalette.line,
+          ),
+          borderRadius: BorderRadius.circular(13),
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            const Center(
+              child: Icon(
+                Symbols.notifications_rounded,
+                color: BackofficePalette.primaryStrong,
+                fill: 1,
+                size: 21,
+              ),
+            ),
+            if (count > 0)
+              Positioned(
+                top: -5,
+                right: -5,
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 19, minHeight: 19),
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: BackofficePalette.danger,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: Text(
+                    count > 99 ? '99+' : '$count',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      height: 1,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _BackofficeUserMenu extends StatelessWidget {
   const _BackofficeUserMenu({
     required this.user,
@@ -977,7 +1473,9 @@ class _BackofficeUserMenu extends StatelessWidget {
           if (!compact) ...<Widget>[
             const SizedBox(width: 10),
             if (fillWidth)
-              Expanded(child: _UserIdentityCopy(user: user))
+              Expanded(
+                child: _UserIdentityCopy(user: user),
+              )
             else
               _UserIdentityCopy(user: user),
             const SizedBox(width: 7),
@@ -1002,10 +1500,7 @@ class _BackofficeUserMenu extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(
-                user.name,
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
+              Text(user.name, style: const TextStyle(fontWeight: FontWeight.w800)),
               const SizedBox(height: 2),
               Text(user.roleLabel),
             ],
@@ -1039,6 +1534,7 @@ class _BackofficeUserMenu extends StatelessWidget {
   }
 }
 
+
 class _UserIdentityCopy extends StatelessWidget {
   const _UserIdentityCopy({required this.user});
 
@@ -1064,11 +1560,26 @@ class _UserIdentityCopy extends StatelessWidget {
           const SizedBox(height: 1),
           Text(
             user.roleLabel,
-            style: Theme.of(
-              context,
-            ).textTheme.labelSmall?.copyWith(color: BackofficePalette.muted),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: BackofficePalette.muted,
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _BackofficeOperationsUnavailable extends StatelessWidget {
+  const _BackofficeOperationsUnavailable();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: backofficePanelDecoration(),
+      child: const Text(
+        'Le dépôt de commandes actif ne fournit pas l’historique requis pour cette vue.',
       ),
     );
   }
@@ -1095,10 +1606,7 @@ class _BackofficeModulePlaceholder extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        Text(
-          destination.label,
-          style: Theme.of(context).textTheme.headlineLarge,
-        ),
+        Text(destination.label, style: Theme.of(context).textTheme.headlineLarge),
         const SizedBox(height: 7),
         Text(
           'La navigation est prête. Le branchement métier de ce module est prévu dans ${destination.milestone}.',
@@ -1142,11 +1650,7 @@ class _BackofficeModulePlaceholder extends StatelessWidget {
                         borderRadius: BorderRadius.circular(18),
                         boxShadow: BackofficeShadows.glow,
                       ),
-                      child: Icon(
-                        destination.icon,
-                        size: 28,
-                        color: Colors.white,
-                      ),
+                      child: Icon(destination.icon, size: 28, color: Colors.white),
                     ),
                     const SizedBox(height: 24),
                     Text(
@@ -1158,9 +1662,9 @@ class _BackofficeModulePlaceholder extends StatelessWidget {
                       constraints: const BoxConstraints(maxWidth: 650),
                       child: Text(
                         'L’écran Web sera connecté à la même logique métier et aux mêmes backends que le mobile. Aucun flux validé n’est dupliqué ou remplacé.',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.bodyMedium?.copyWith(height: 1.55),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          height: 1.55,
+                        ),
                       ),
                     ),
                   ],
