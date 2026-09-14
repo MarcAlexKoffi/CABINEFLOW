@@ -40,7 +40,8 @@ void main() {
     expect(page, contains("title: 'Finances opérationnelles'"));
     expect(page, contains("badge: 'Lecture seule'"));
     expect(page, contains('Caisse Wave, crédits clients, dépenses, clôture'));
-    expect(page, contains('FirestoreRefundRepository()'));
+    expect(page, contains('createOperationalRefundRepository()'));
+    expect(page, isNot(contains('FirestoreRefundRepository()')));
   });
 
   test('écrans Fournisseurs et Commissions neutralisent les écritures Manager', () {

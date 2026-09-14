@@ -706,6 +706,7 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
         request: RefundCreationRequest(
           orderId: order.id,
           orderReference: order.reference,
+          origin: RefundOrigin.supportRequest,
           supportRequestId: request.id,
           supportRequestType: request.type.storageValue,
           supportRequestDescription: request.description,

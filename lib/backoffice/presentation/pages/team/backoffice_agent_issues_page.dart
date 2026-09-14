@@ -3,6 +3,7 @@ import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_order_wid
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -259,10 +260,10 @@ class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
     try {
       await widget.repository.updateIssueStatus(issueId: issue.id, status: status, resolvedBy: status == 'resolved' ? widget.user.id : null);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Signalement mis à jour.')));
+      IzyTelFeedback.success(context, 'Signalement mis à jour.');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+      IzyTelFeedback.error(context, error.toString());
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

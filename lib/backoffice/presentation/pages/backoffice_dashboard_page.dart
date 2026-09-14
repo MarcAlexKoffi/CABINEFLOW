@@ -1,58 +1,138 @@
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
+import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+
+class BackofficeDashboardSnapshot {
+  const BackofficeDashboardSnapshot({
+    this.totalOrders = 0,
+    this.activeOrders = 0,
+    this.completedOrders = 0,
+    this.completedAmount = 0,
+    this.pendingPayments = 0,
+    this.pendingAssignments = 0,
+    this.failedOrders = 0,
+    this.openSupportRequests = 0,
+    this.pendingRefunds = 0,
+    this.openAgentIssues = 0,
+    this.lastUpdatedAt,
+  });
+
+  final int totalOrders;
+  final int activeOrders;
+  final int completedOrders;
+  final int completedAmount;
+  final int pendingPayments;
+  final int pendingAssignments;
+  final int failedOrders;
+  final int openSupportRequests;
+  final int pendingRefunds;
+  final int openAgentIssues;
+  final DateTime? lastUpdatedAt;
+
+  int get priorityTotal =>
+      pendingPayments +
+      pendingAssignments +
+      failedOrders +
+      openSupportRequests +
+      pendingRefunds +
+      openAgentIssues;
+}
 
 class BackofficeDashboardPage extends StatelessWidget {
   const BackofficeDashboardPage({
     super.key,
     required this.user,
+    this.snapshot = const BackofficeDashboardSnapshot(),
     this.onOpenUsers,
+    this.onOpenPayments,
+    this.onOpenAssignments,
+    this.onOpenFailedOrders,
+    this.onOpenSupportRequests,
+    this.onOpenRefunds,
+    this.onOpenAgentIssues,
   });
 
   final AppUser user;
+  final BackofficeDashboardSnapshot snapshot;
   final VoidCallback? onOpenUsers;
+  final VoidCallback? onOpenPayments;
+  final VoidCallback? onOpenAssignments;
+  final VoidCallback? onOpenFailedOrders;
+  final VoidCallback? onOpenSupportRequests;
+  final VoidCallback? onOpenRefunds;
+  final VoidCallback? onOpenAgentIssues;
 
   @override
   Widget build(BuildContext context) {
+    final List<_DashboardMetricData> metrics = <_DashboardMetricData>[
+      _DashboardMetricData(
+        icon: Symbols.receipt_long_rounded,
+        eyebrow: 'COMMANDES',
+        value: '${snapshot.totalOrders}',
+        title: 'Commandes suivies',
+        description:
+            '${snapshot.activeOrders} actives • ${snapshot.completedOrders} terminées',
+        color: BackofficePalette.primary,
+        softColor: const Color(0xFFEAF1FF),
+      ),
+      _DashboardMetricData(
+        icon: Symbols.payments_rounded,
+        eyebrow: 'PAIEMENTS',
+        value: '${snapshot.pendingPayments}',
+        title: 'À vérifier',
+        description: snapshot.pendingPayments == 0
+            ? 'Aucune validation urgente'
+            : 'Validation de paiement requise',
+        color: BackofficePalette.warning,
+        softColor: const Color(0xFFFFF4DD),
+        onTap: onOpenPayments,
+      ),
+      _DashboardMetricData(
+        icon: Symbols.assignment_ind_rounded,
+        eyebrow: 'AFFECTATIONS',
+        value: '${snapshot.pendingAssignments}',
+        title: 'À affecter',
+        description: snapshot.pendingAssignments == 0
+            ? 'File d’affectation à jour'
+            : 'Commandes payées en attente',
+        color: BackofficePalette.primary,
+        softColor: const Color(0xFFEAF1FF),
+        onTap: onOpenAssignments,
+      ),
+      _DashboardMetricData(
+        icon: Symbols.error_rounded,
+        eyebrow: 'ÉCHECS',
+        value: '${snapshot.failedOrders}',
+        title: 'À traiter',
+        description: snapshot.failedOrders == 0
+            ? 'Aucun échec ouvert'
+            : 'Intervention requise',
+        color: BackofficePalette.danger,
+        softColor: const Color(0xFFFFECEC),
+        onTap: onOpenFailedOrders,
+      ),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        _DashboardHero(user: user, onOpenUsers: onOpenUsers),
+        _DashboardHero(
+          user: user,
+          snapshot: snapshot,
+          onOpenUsers: onOpenUsers,
+        ),
         const SizedBox(height: 24),
         Row(
           children: <Widget>[
             Expanded(
               child: Text(
-                'Vue d’ensemble',
+                'Vue opérationnelle',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(color: BackofficePalette.line),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  const Icon(
-                    Symbols.insights_rounded,
-                    size: 16,
-                    color: BackofficePalette.primary,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Workspace IzyTel',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _RealtimeBadge(lastUpdatedAt: snapshot.lastUpdatedAt),
           ],
         ),
         const SizedBox(height: 14),
@@ -66,42 +146,6 @@ class BackofficeDashboardPage extends StatelessWidget {
             const double spacing = 14;
             final double cardWidth =
                 (constraints.maxWidth - spacing * (columns - 1)) / columns;
-
-            final List<_DashboardMetricData> metrics = <_DashboardMetricData>[
-              _DashboardMetricData(
-                icon: Symbols.verified_user_rounded,
-                eyebrow: 'ACCÈS',
-                title: user.roleLabel,
-                description: 'Session staff sécurisée et permissions appliquées.',
-                color: BackofficePalette.primary,
-                softColor: const Color(0xFFEAF1FF),
-              ),
-              const _DashboardMetricData(
-                icon: Symbols.devices_rounded,
-                eyebrow: 'CONTINUITÉ',
-                title: 'Mobile conservé',
-                description: 'Le back-office complète l’Admin mobile sans le remplacer.',
-                color: Color(0xFF38BDF8),
-                softColor: Color(0xFFEAF8FF),
-              ),
-              const _DashboardMetricData(
-                icon: Symbols.hub_rounded,
-                eyebrow: 'DONNÉES',
-                title: 'Backends partagés',
-                description: 'Firebase et Supabase restent les sources communes.',
-                color: Color(0xFF1D4ED8),
-                softColor: Color(0xFFE8F0FF),
-              ),
-              const _DashboardMetricData(
-                icon: Symbols.apps_rounded,
-                eyebrow: 'WEB',
-                title: 'Modules unifiés',
-                description: 'La fondation visuelle est prête pour les modules métier.',
-                color: Color(0xFF60A5FA),
-                softColor: Color(0xFFEFF6FF),
-              ),
-            ];
-
             return Wrap(
               spacing: spacing,
               runSpacing: spacing,
@@ -119,24 +163,31 @@ class BackofficeDashboardPage extends StatelessWidget {
         const SizedBox(height: 24),
         LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
-            final bool stacked = constraints.maxWidth < 900;
-            final Widget left = const _FoundationPanel();
-            final Widget right = const _ExperiencePanel();
-            if (stacked) {
-              return const Column(
+            final Widget priorities = _PriorityPanel(
+              snapshot: snapshot,
+              onOpenPayments: onOpenPayments,
+              onOpenAssignments: onOpenAssignments,
+              onOpenFailedOrders: onOpenFailedOrders,
+              onOpenSupportRequests: onOpenSupportRequests,
+              onOpenRefunds: onOpenRefunds,
+              onOpenAgentIssues: onOpenAgentIssues,
+            );
+            final Widget activity = _ActivityPanel(snapshot: snapshot);
+            if (constraints.maxWidth < 900) {
+              return Column(
                 children: <Widget>[
-                  _FoundationPanel(),
-                  SizedBox(height: 14),
-                  _ExperiencePanel(),
+                  priorities,
+                  const SizedBox(height: 14),
+                  activity,
                 ],
               );
             }
             return Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Expanded(flex: 6, child: left),
+                Expanded(flex: 6, child: priorities),
                 const SizedBox(width: 14),
-                Expanded(flex: 4, child: right),
+                Expanded(flex: 4, child: activity),
               ],
             );
           },
@@ -147,16 +198,21 @@ class BackofficeDashboardPage extends StatelessWidget {
 }
 
 class _DashboardHero extends StatelessWidget {
-  const _DashboardHero({required this.user, this.onOpenUsers});
+  const _DashboardHero({
+    required this.user,
+    required this.snapshot,
+    this.onOpenUsers,
+  });
 
   final AppUser user;
+  final BackofficeDashboardSnapshot snapshot;
   final VoidCallback? onOpenUsers;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      constraints: const BoxConstraints(minHeight: 300),
+      constraints: const BoxConstraints(minHeight: 280),
       decoration: BoxDecoration(
         gradient: BackofficeGradients.hero,
         borderRadius: BorderRadius.circular(28),
@@ -177,18 +233,6 @@ class _DashboardHero extends StatelessWidget {
               ),
             ),
           ),
-          Positioned(
-            bottom: -140,
-            right: 160,
-            child: Container(
-              width: 290,
-              height: 290,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: .10),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
           Padding(
             padding: const EdgeInsets.all(30),
             child: LayoutBuilder(
@@ -199,41 +243,21 @@ class _DashboardHero extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: .94),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: .98),
-                        ),
                         borderRadius: BorderRadius.circular(999),
-                        boxShadow: <BoxShadow>[
-                          BoxShadow(
-                            color: const Color(0xFF0D47C7).withValues(alpha: .12),
-                            blurRadius: 18,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          const Icon(
-                            Symbols.space_dashboard_rounded,
-                            size: 16,
-                            color: BackofficePalette.primaryStrong,
-                            fill: 1,
-                            weight: 650,
-                          ),
-                          const SizedBox(width: 7),
-                          Text(
-                            'CENTRE DE PILOTAGE IZYTEL',
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: BackofficePalette.primaryStrong,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: .85,
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        'CENTRE DE PILOTAGE IZYTEL',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: BackofficePalette.primaryStrong,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: .85,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -242,46 +266,45 @@ class _DashboardHero extends StatelessWidget {
                       style: Theme.of(context).textTheme.displaySmall?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: -1.0,
+                        letterSpacing: -1,
                       ),
                     ),
                     const SizedBox(height: 10),
                     ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 690),
+                      constraints: const BoxConstraints(maxWidth: 720),
                       child: Text(
-                        'Ton espace IzyTel rassemble progressivement les opérations, les comptes, l’équipe et les finances dans une interface pensée pour le grand écran.',
+                        'Le tableau de bord suit maintenant l’activité opérationnelle réelle : commandes, paiements, affectations, demandes clients, remboursements et incidents.',
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Colors.white.withValues(alpha: .86),
-                          height: 1.55,
+                          color: Colors.white.withValues(alpha: .88),
+                          height: 1.5,
                         ),
                       ),
                     ),
                     if (onOpenUsers != null) ...<Widget>[
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 22),
                       Wrap(
                         spacing: 10,
                         runSpacing: 10,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: <Widget>[
-                          _HeroAction(onPressed: onOpenUsers!),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: .15),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: .20),
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: BackofficePalette.primaryStrong,
+                              minimumSize: const Size(0, 48),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(13),
                               ),
-                              borderRadius: BorderRadius.circular(12),
                             ),
-                            child: Text(
-                              'Gestion des utilisateurs',
-                              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                color: Colors.white.withValues(alpha: .96),
-                                fontWeight: FontWeight.w800,
-                              ),
+                            onPressed: onOpenUsers,
+                            icon: const Icon(Symbols.manage_accounts_rounded),
+                            label: const Text('Ouvrir'),
+                          ),
+                          Text(
+                            'Gestion des utilisateurs',
+                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
                         ],
@@ -291,53 +314,34 @@ class _DashboardHero extends StatelessWidget {
                 );
 
                 final Widget signal = Container(
-                  width: compact ? double.infinity : 265,
+                  width: compact ? double.infinity : 280,
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: .14),
-                    border: Border.all(color: Colors.white.withValues(alpha: .20)),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: .20),
+                    ),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          Container(
-                            width: 9,
-                            height: 9,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF4ADE80),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Workspace actif',
-                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
                       const _SignalRow(
-                        icon: Symbols.verified_user_rounded,
-                        label: 'Accès',
-                        value: 'Sécurisé',
+                        icon: Symbols.sync_rounded,
+                        label: 'Synchronisation',
+                        value: 'Temps réel',
                       ),
                       const SizedBox(height: 12),
-                      const _SignalRow(
-                        icon: Symbols.devices_rounded,
-                        label: 'Expérience',
-                        value: 'Web + mobile',
+                      _SignalRow(
+                        icon: Symbols.priority_high_rounded,
+                        label: 'À traiter',
+                        value: '${snapshot.priorityTotal}',
                       ),
                       const SizedBox(height: 12),
-                      const _SignalRow(
-                        icon: Symbols.hub_rounded,
-                        label: 'Données',
-                        value: 'Partagées',
+                      _SignalRow(
+                        icon: Symbols.payments_rounded,
+                        label: 'Volume terminé',
+                        value: formatCfa(snapshot.completedAmount),
                       ),
                     ],
                   ),
@@ -353,7 +357,6 @@ class _DashboardHero extends StatelessWidget {
                     ],
                   );
                 }
-
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: <Widget>[
@@ -371,23 +374,41 @@ class _DashboardHero extends StatelessWidget {
   }
 }
 
-class _HeroAction extends StatelessWidget {
-  const _HeroAction({required this.onPressed});
+class _RealtimeBadge extends StatelessWidget {
+  const _RealtimeBadge({this.lastUpdatedAt});
 
-  final VoidCallback onPressed;
+  final DateTime? lastUpdatedAt;
 
   @override
   Widget build(BuildContext context) {
-    return FilledButton.icon(
-      style: FilledButton.styleFrom(
-        backgroundColor: Colors.white,
-        foregroundColor: BackofficePalette.primaryStrong,
-        minimumSize: const Size(0, 48),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+    final DateTime? value = lastUpdatedAt;
+    final String suffix = value == null
+        ? 'Synchronisation…'
+        : 'Actualisé à ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: BackofficePalette.line),
+        borderRadius: BorderRadius.circular(999),
       ),
-      onPressed: onPressed,
-      icon: const Icon(Symbols.manage_accounts_rounded, size: 20),
-      label: const Text('Ouvrir'),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          const Icon(
+            Symbols.sync_rounded,
+            size: 16,
+            color: BackofficePalette.success,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            suffix,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -415,13 +436,7 @@ class _SignalRow extends StatelessWidget {
             color: Colors.white.withValues(alpha: .08),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(
-            icon,
-            size: 17,
-            color: Colors.white,
-            fill: 1,
-            weight: 600,
-          ),
+          child: Icon(icon, size: 17, color: Colors.white, fill: 1),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -448,18 +463,22 @@ class _DashboardMetricData {
   const _DashboardMetricData({
     required this.icon,
     required this.eyebrow,
+    required this.value,
     required this.title,
     required this.description,
     required this.color,
     required this.softColor,
+    this.onTap,
   });
 
   final IconData icon;
   final String eyebrow;
+  final String value;
   final String title;
   final String description;
   final Color color;
   final Color softColor;
+  final VoidCallback? onTap;
 }
 
 class _DashboardMetric extends StatelessWidget {
@@ -469,7 +488,7 @@ class _DashboardMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final Widget content = Container(
       constraints: const BoxConstraints(minHeight: 190),
       padding: const EdgeInsets.all(19),
       decoration: backofficePanelDecoration(elevated: true),
@@ -489,14 +508,16 @@ class _DashboardMetric extends StatelessWidget {
                 child: Icon(data.icon, color: data.color, size: 22),
               ),
               const Spacer(),
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(color: data.color, shape: BoxShape.circle),
+              Text(
+                data.value,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: BackofficePalette.ink,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 18),
           Text(
             data.eyebrow,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -513,104 +534,198 @@ class _DashboardMetric extends StatelessWidget {
         ],
       ),
     );
+
+    if (data.onTap == null) return content;
+    return InkWell(
+      borderRadius: BorderRadius.circular(22),
+      onTap: data.onTap,
+      child: content,
+    );
   }
 }
 
-class _FoundationPanel extends StatelessWidget {
-  const _FoundationPanel();
+class _PriorityPanel extends StatelessWidget {
+  const _PriorityPanel({
+    required this.snapshot,
+    this.onOpenPayments,
+    this.onOpenAssignments,
+    this.onOpenFailedOrders,
+    this.onOpenSupportRequests,
+    this.onOpenRefunds,
+    this.onOpenAgentIssues,
+  });
+
+  final BackofficeDashboardSnapshot snapshot;
+  final VoidCallback? onOpenPayments;
+  final VoidCallback? onOpenAssignments;
+  final VoidCallback? onOpenFailedOrders;
+  final VoidCallback? onOpenSupportRequests;
+  final VoidCallback? onOpenRefunds;
+  final VoidCallback? onOpenAgentIssues;
 
   @override
   Widget build(BuildContext context) {
+    final List<_PriorityData> items = <_PriorityData>[
+      _PriorityData(
+        icon: Symbols.fact_check_rounded,
+        label: 'Paiements à vérifier',
+        count: snapshot.pendingPayments,
+        onTap: onOpenPayments,
+      ),
+      _PriorityData(
+        icon: Symbols.assignment_ind_rounded,
+        label: 'Commandes à affecter',
+        count: snapshot.pendingAssignments,
+        onTap: onOpenAssignments,
+      ),
+      _PriorityData(
+        icon: Symbols.error_rounded,
+        label: 'Commandes échouées',
+        count: snapshot.failedOrders,
+        onTap: onOpenFailedOrders,
+      ),
+      _PriorityData(
+        icon: Symbols.support_agent_rounded,
+        label: 'Demandes clients ouvertes',
+        count: snapshot.openSupportRequests,
+        onTap: onOpenSupportRequests,
+      ),
+      _PriorityData(
+        icon: Symbols.currency_exchange_rounded,
+        label: 'Remboursements à suivre',
+        count: snapshot.pendingRefunds,
+        onTap: onOpenRefunds,
+      ),
+      _PriorityData(
+        icon: Symbols.report_problem_rounded,
+        label: 'Signalements agents ouverts',
+        count: snapshot.openAgentIssues,
+        onTap: onOpenAgentIssues,
+      ),
+    ];
+
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(22),
       decoration: backofficePanelDecoration(elevated: true),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text('Fondation du back-office', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 6),
+          Text('Actions prioritaires', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 5),
           Text(
-            'Les écrans à venir réutiliseront cette même identité visuelle et les contrats métier existants.',
+            snapshot.priorityTotal == 0
+                ? 'Aucune action urgente détectée.'
+                : '${snapshot.priorityTotal} élément${snapshot.priorityTotal > 1 ? 's' : ''} nécessite${snapshot.priorityTotal > 1 ? 'nt' : ''} votre attention.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
-          const SizedBox(height: 22),
-          const _FoundationLine(
-            icon: Symbols.apps_rounded,
-            title: 'Design system premium',
-            subtitle: 'Navigation claire, palette IzyTel, Manrope et composants cohérents.',
-          ),
-          const SizedBox(height: 14),
-          const _FoundationLine(
-            icon: Symbols.lock_rounded,
-            title: 'Permissions existantes',
-            subtitle: 'Admin et Manager voient uniquement les modules autorisés.',
-          ),
-          const SizedBox(height: 14),
-          const _FoundationLine(
-            icon: Symbols.autorenew_rounded,
-            title: 'Même logique métier',
-            subtitle: 'Le Web complète le mobile au lieu de créer une seconde logique.',
-          ),
+          const SizedBox(height: 16),
+          ...items.map((item) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _PriorityTile(data: item),
+              )),
         ],
       ),
     );
   }
 }
 
-class _FoundationLine extends StatelessWidget {
-  const _FoundationLine({
+class _PriorityData {
+  const _PriorityData({
     required this.icon,
-    required this.title,
-    required this.subtitle,
+    required this.label,
+    required this.count,
+    this.onTap,
   });
 
   final IconData icon;
-  final String title;
-  final String subtitle;
+  final String label;
+  final int count;
+  final VoidCallback? onTap;
+}
+
+class _PriorityTile extends StatelessWidget {
+  const _PriorityTile({required this.data});
+
+  final _PriorityData data;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Container(
-          width: 40,
-          height: 40,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: const Color(0xFFEAF1FF),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: BackofficePalette.primary, size: 20),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final bool active = data.count > 0;
+    return Material(
+      color: active
+          ? BackofficePalette.primary.withValues(alpha: .045)
+          : BackofficePalette.canvas,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: data.onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
             children: <Widget>[
-              Text(
-                title,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
+              Icon(
+                data.icon,
+                size: 20,
+                color: active
+                    ? BackofficePalette.primary
+                    : BackofficePalette.muted,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  data.label,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-              const SizedBox(height: 3),
-              Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+              Container(
+                constraints: const BoxConstraints(minWidth: 34),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: active ? BackofficePalette.primary : Colors.white,
+                  borderRadius: BorderRadius.circular(999),
+                  border: active
+                      ? null
+                      : Border.all(color: BackofficePalette.line),
+                ),
+                child: Text(
+                  '${data.count}',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: active ? Colors.white : BackofficePalette.muted,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              if (data.onTap != null) ...<Widget>[
+                const SizedBox(width: 8),
+                const Icon(
+                  Symbols.chevron_right_rounded,
+                  size: 18,
+                  color: BackofficePalette.muted,
+                ),
+              ],
             ],
           ),
         ),
-      ],
+      ),
     );
   }
 }
 
-class _ExperiencePanel extends StatelessWidget {
-  const _ExperiencePanel();
+class _ActivityPanel extends StatelessWidget {
+  const _ActivityPanel({required this.snapshot});
+
+  final BackofficeDashboardSnapshot snapshot;
 
   @override
   Widget build(BuildContext context) {
+    final double completionRate = snapshot.totalOrders == 0
+        ? 0
+        : snapshot.completedOrders / snapshot.totalOrders;
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         gradient: BackofficeGradients.soft,
         border: Border.all(color: BackofficePalette.line),
@@ -627,27 +742,37 @@ class _ExperiencePanel extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: BackofficeGradients.brand,
               borderRadius: BorderRadius.circular(15),
-              boxShadow: BackofficeShadows.glow,
             ),
-            child: const Icon(Symbols.insights_rounded, color: Colors.white),
+            child: const Icon(Symbols.monitoring_rounded, color: Colors.white),
           ),
-          const SizedBox(height: 22),
-          Text('Une seule signature visuelle', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 18),
+          Text('Activité commandes', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 16),
+          _ActivityLine(label: 'Total suivi', value: '${snapshot.totalOrders}'),
+          const SizedBox(height: 10),
+          _ActivityLine(label: 'En cours', value: '${snapshot.activeOrders}'),
+          const SizedBox(height: 10),
+          _ActivityLine(label: 'Terminées', value: '${snapshot.completedOrders}'),
+          const SizedBox(height: 10),
+          _ActivityLine(
+            label: 'Volume terminé',
+            value: formatCfa(snapshot.completedAmount),
+          ),
+          const SizedBox(height: 18),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              minHeight: 9,
+              value: completionRate,
+              backgroundColor: Colors.white,
+            ),
+          ),
           const SizedBox(height: 8),
           Text(
-            'Les prochains écrans Commandes, Paiements, Agents et Finance partiront de cette base : dense sur desktop, claire sur tablette et confortable sur mobile.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.55),
-          ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: const <Widget>[
-              _TinyChip('Desktop'),
-              _TinyChip('Tablette'),
-              _TinyChip('Mobile'),
-              _TinyChip('Responsive'),
-            ],
+            snapshot.totalOrders == 0
+                ? 'Aucune commande à synthétiser pour le moment.'
+                : '${(completionRate * 100).round()} % des commandes suivies sont terminées.',
+            style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
       ),
@@ -655,26 +780,24 @@ class _ExperiencePanel extends StatelessWidget {
   }
 }
 
-class _TinyChip extends StatelessWidget {
-  const _TinyChip(this.label);
+class _ActivityLine extends StatelessWidget {
+  const _ActivityLine({required this.label, required this.value});
 
   final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: BackofficePalette.line),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          fontWeight: FontWeight.w700,
+    return Row(
+      children: <Widget>[
+        Expanded(child: Text(label, style: Theme.of(context).textTheme.bodyMedium)),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w900,
+          ),
         ),
-      ),
+      ],
     );
   }
 }

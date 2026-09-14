@@ -1,3 +1,42 @@
+
+enum RefundOrigin { supportRequest, failedOrder, manual }
+
+extension RefundOriginX on RefundOrigin {
+  String get storageValue {
+    switch (this) {
+      case RefundOrigin.supportRequest:
+        return 'supportRequest';
+      case RefundOrigin.failedOrder:
+        return 'failedOrder';
+      case RefundOrigin.manual:
+        return 'manual';
+    }
+  }
+
+  String get label {
+    switch (this) {
+      case RefundOrigin.supportRequest:
+        return 'Demande client';
+      case RefundOrigin.failedOrder:
+        return 'Commande échouée';
+      case RefundOrigin.manual:
+        return 'Création manuelle';
+    }
+  }
+
+  static RefundOrigin fromStorage(String value) {
+    switch (value) {
+      case 'failedOrder':
+        return RefundOrigin.failedOrder;
+      case 'manual':
+        return RefundOrigin.manual;
+      case 'supportRequest':
+      default:
+        return RefundOrigin.supportRequest;
+    }
+  }
+}
+
 enum RefundReason {
   serviceNotReceived,
   transactionFailed,
@@ -131,9 +170,10 @@ class RefundCreationRequest {
   const RefundCreationRequest({
     required this.orderId,
     required this.orderReference,
-    required this.supportRequestId,
-    required this.supportRequestType,
-    required this.supportRequestDescription,
+    this.origin = RefundOrigin.supportRequest,
+    this.supportRequestId = '',
+    this.supportRequestType = '',
+    this.supportRequestDescription = '',
     required this.customerAuthUid,
     required this.clientName,
     required this.clientWhatsappPhone,
@@ -147,6 +187,7 @@ class RefundCreationRequest {
 
   final String orderId;
   final String orderReference;
+  final RefundOrigin origin;
   final String supportRequestId;
   final String supportRequestType;
   final String supportRequestDescription;
@@ -166,6 +207,7 @@ class RefundCase {
     required this.id,
     required this.orderId,
     required this.orderReference,
+    this.origin = RefundOrigin.supportRequest,
     required this.supportRequestId,
     required this.supportRequestType,
     required this.supportRequestDescription,
@@ -206,6 +248,7 @@ class RefundCase {
   final String id;
   final String orderId;
   final String orderReference;
+  final RefundOrigin origin;
   final String supportRequestId;
   final String supportRequestType;
   final String supportRequestDescription;
@@ -248,12 +291,14 @@ class RefundCase {
   final String? reconciledByName;
 
   bool get isActive => status.isActive;
+  bool get hasLinkedSupportRequest => supportRequestId.trim().isNotEmpty;
   bool get isHistory => status.isHistory;
   bool get customerWasNotified => customerNotifiedAt != null;
   bool get isRefundCompleted =>
       status == RefundStatus.refunded || status == RefundStatus.reconciled;
 
   RefundCase copyWith({
+    RefundOrigin? origin,
     RefundStatus? status,
     DateTime? updatedAt,
     DateTime? approvedAt,
@@ -279,6 +324,7 @@ class RefundCase {
       id: id,
       orderId: orderId,
       orderReference: orderReference,
+      origin: origin ?? this.origin,
       supportRequestId: supportRequestId,
       supportRequestType: supportRequestType,
       supportRequestDescription: supportRequestDescription,

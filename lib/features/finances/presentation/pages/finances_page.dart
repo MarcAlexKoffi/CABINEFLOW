@@ -37,7 +37,7 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/refunds/data/repositories/fake_refund_repository.dart';
-import 'package:cabine_flow/features/refunds/data/repositories/firestore_refund_repository.dart';
+import 'package:cabine_flow/features/refunds/data/repositories/operational_refund_repository.dart';
 import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
 import 'package:cabine_flow/features/refunds/presentation/pages/refund_management_page.dart';
@@ -92,9 +92,8 @@ class _FinancesPageState extends State<FinancesPage> {
     super.initState();
 
     if (widget.user.isManager && Firebase.apps.isNotEmpty) {
-      // M4 : le Manager ne doit ouvrir aucune collection financière
-      // Firestore Admin-only. Les lectures autorisées passent uniquement par
-      // le registre Supabase Phase 5.
+      // M4 : le Manager n'ouvre pas les modules financiers reserves a
+      // l'Administrateur. Ses lectures autorisees restent sur Supabase Phase 5.
       _refundRepository = FakeRefundRepository();
       _networkFinanceRepository = SupabaseBootstrap.isInitialized
           ? HybridNetworkFinanceRepository()
@@ -108,9 +107,7 @@ class _FinancesPageState extends State<FinancesPage> {
       return;
     }
 
-    _refundRepository = Firebase.apps.isNotEmpty
-        ? FirestoreRefundRepository()
-        : FakeRefundRepository();
+    _refundRepository = createOperationalRefundRepository();
     _networkFinanceRepository = Firebase.apps.isNotEmpty
         ? (SupabaseBootstrap.isInitialized
               ? HybridNetworkFinanceRepository()

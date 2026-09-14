@@ -7,7 +7,10 @@ import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
+import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -19,13 +22,17 @@ class BackofficeFailedOrdersPage extends StatefulWidget {
     required this.user,
     required this.ordersRepository,
     required this.historyRepository,
+    required this.refundRepository,
     required this.onOpenAssignments,
+    required this.onOpenRefunds,
   });
 
   final AppUser user;
   final OrdersRepository ordersRepository;
   final OrderHistoryRepository historyRepository;
+  final RefundRepository refundRepository;
   final ValueChanged<QueueOrder> onOpenAssignments;
+  final ValueChanged<String> onOpenRefunds;
 
   @override
   State<BackofficeFailedOrdersPage> createState() => _BackofficeFailedOrdersPageState();
@@ -33,8 +40,10 @@ class BackofficeFailedOrdersPage extends StatefulWidget {
 
 class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage> {
   StreamSubscription<List<QueueOrder>>? _subscription;
+  StreamSubscription<List<RefundCase>>? _refundSubscription;
   final TextEditingController _searchController = TextEditingController();
   List<QueueOrder> _orders = const <QueueOrder>[];
+  Map<String, RefundCase> _refundsByOrder = const <String, RefundCase>{};
   final Set<String> _processing = <String>{};
   bool _loading = true;
   String? _error;
@@ -45,6 +54,7 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
   void initState() {
     super.initState();
     _listen();
+    _listenRefunds();
   }
 
   void _listen() {
@@ -67,6 +77,27 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
       },
     );
   }
+
+  void _listenRefunds() {
+    _refundSubscription?.cancel();
+    _refundSubscription = widget.refundRepository.watchAll().listen(
+      (List<RefundCase> refunds) {
+        if (!mounted) return;
+        setState(() {
+          _refundsByOrder = <String, RefundCase>{
+            for (final RefundCase refund in refunds) refund.orderId: refund,
+          };
+        });
+      },
+      onError: (_) {
+        // Le centre des échecs reste lisible si le module remboursements
+        // rencontre une panne transitoire. Les actions financières restent
+        // alors simplement indisponibles jusqu'au prochain polling réussi.
+      },
+    );
+  }
+
+  RefundCase? _refundFor(QueueOrder order) => _refundsByOrder[order.id];
 
   bool _isFailureRelated(QueueOrder order) {
     return <QueueOrderStatus>{
@@ -94,6 +125,7 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
   @override
   void dispose() {
     _subscription?.cancel();
+    _refundSubscription?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -164,19 +196,247 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
     try {
       final QueueOrder reopened = await widget.ordersRepository.prepareFailedOrderForReassignment(orderId: order.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${order.reference} est prête pour une nouvelle affectation.')),
+      IzyTelFeedback.success(
+        context,
+        '${order.reference} est prête pour une nouvelle affectation.',
       );
       widget.onOpenAssignments(reopened);
     } catch (error) {
       if (!mounted) return;
       final String raw = error.toString().replaceFirst('Bad state: ', '');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(raw.isEmpty ? 'Impossible de préparer la réaffectation.' : raw)),
+      IzyTelFeedback.error(
+        context,
+        raw.isEmpty ? 'Impossible de préparer la réaffectation.' : raw,
       );
     } finally {
       if (mounted) setState(() => _processing.remove(order.id));
     }
+  }
+
+  Future<void> _chooseTreatment(QueueOrder order) async {
+    final RefundCase? existing = _refundFor(order);
+    if (existing != null && existing.status != RefundStatus.rejected) {
+      widget.onOpenRefunds(order.reference);
+      return;
+    }
+
+    final bool canReassign = order.status == QueueOrderStatus.failed &&
+        order.isFundedForProcessing &&
+        (existing == null || existing.status == RefundStatus.rejected);
+    final bool canRefund = order.status == QueueOrderStatus.failed &&
+        order.paymentStatus == OrderPaymentStatus.confirmed &&
+        existing == null;
+
+    if (canReassign && !canRefund) {
+      await _prepareReassignment(order);
+      return;
+    }
+    if (!canReassign && canRefund) {
+      await _createRefund(order);
+      return;
+    }
+    if (!canReassign && !canRefund) return;
+
+    final String? choice = await showDialog<String>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: Text('Traiter ${order.reference}'),
+        content: const Text(
+          'Choisissez la suite adaptée après vos vérifications. Une réaffectation remet la commande en circulation ; un remboursement ouvre un dossier financier distinct.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Annuler'),
+          ),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, 'reassign'),
+            icon: const Icon(Symbols.restart_alt_rounded),
+            label: const Text('Réaffecter'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, 'refund'),
+            icon: const Icon(Symbols.currency_exchange_rounded),
+            label: const Text('Rembourser'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (choice == 'reassign') {
+      await _prepareReassignment(order);
+    } else if (choice == 'refund') {
+      await _createRefund(order);
+    }
+  }
+
+  Future<void> _createRefund(QueueOrder order) async {
+    if (order.paymentStatus != OrderPaymentStatus.confirmed) {
+      IzyTelFeedback.error(
+        context,
+        'Cette commande n’a pas de paiement Wave confirmé à rembourser.',
+      );
+      return;
+    }
+    if (_refundFor(order) != null) {
+      widget.onOpenRefunds(order.reference);
+      return;
+    }
+
+    final RefundCreationDraft? draft = await _refundDraft(order);
+    if (draft == null || _processing.contains(order.id)) return;
+    setState(() => _processing.add(order.id));
+    try {
+      await widget.refundRepository.create(
+        request: RefundCreationRequest(
+          orderId: order.id,
+          orderReference: order.reference,
+          origin: RefundOrigin.failedOrder,
+          customerAuthUid: order.customerAuthUid,
+          clientName: order.clientName,
+          clientWhatsappPhone: order.clientWhatsappPhone,
+          originalAmount: order.amount,
+          amount: draft.amount,
+          reason: draft.reason,
+          reasonNote: draft.reasonNote,
+          paymentChannel: 'wave',
+          originalPaymentReference: _initialPaymentReference(order),
+        ),
+        staffId: widget.user.id,
+        staffName: widget.user.name,
+      );
+      if (!mounted) return;
+      IzyTelFeedback.success(
+        context,
+        'Dossier de remboursement créé pour ${order.reference}.',
+      );
+      widget.onOpenRefunds(order.reference);
+    } catch (error) {
+      if (!mounted) return;
+      IzyTelFeedback.error(context, error.toString());
+    } finally {
+      if (mounted) setState(() => _processing.remove(order.id));
+    }
+  }
+
+  Future<RefundCreationDraft?> _refundDraft(QueueOrder order) async {
+    final TextEditingController amountController = TextEditingController(
+      text: order.amount.toString(),
+    );
+    final TextEditingController noteController = TextEditingController(
+      text: <String>[
+        failureReasonLabel(order.failureReason),
+        if (order.observation?.trim().isNotEmpty == true) order.observation!.trim(),
+      ].join(' • '),
+    );
+    RefundReason reason = RefundReason.transactionFailed;
+    String? validation;
+    final RefundCreationDraft? result = await showDialog<RefundCreationDraft>(
+      context: context,
+      builder: (BuildContext dialogContext) => StatefulBuilder(
+        builder: (BuildContext context, StateSetter setDialogState) => AlertDialog(
+          title: Text('Rembourser ${order.reference}'),
+          content: SizedBox(
+            width: 520,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Text(
+                  '${order.clientName} • paiement confirmé • ${formatCfa(order.amount)}',
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: amountController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Montant à rembourser',
+                    suffixText: 'F CFA',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<RefundReason>(
+                  initialValue: reason,
+                  decoration: const InputDecoration(labelText: 'Motif'),
+                  items: RefundReason.values
+                      .map(
+                        (RefundReason value) => DropdownMenuItem<RefundReason>(
+                          value: value,
+                          child: Text(value.label),
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: (RefundReason? value) {
+                    if (value != null) setDialogState(() => reason = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: noteController,
+                  maxLines: 3,
+                  maxLength: 500,
+                  decoration: const InputDecoration(
+                    labelText: 'Note / vérification',
+                  ),
+                ),
+                if (validation != null)
+                  Text(
+                    validation!,
+                    style: const TextStyle(color: BackofficePalette.danger),
+                  ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Annuler'),
+            ),
+            FilledButton.icon(
+              onPressed: () {
+                final int? amount = int.tryParse(
+                  amountController.text.replaceAll(RegExp(r'[^0-9]'), ''),
+                );
+                final String note = noteController.text.trim();
+                if (amount == null || amount <= 0 || amount > order.amount) {
+                  setDialogState(
+                    () => validation =
+                        'Le montant doit être compris entre 1 F et ${formatCfa(order.amount)}.',
+                  );
+                  return;
+                }
+                if (reason == RefundReason.other && note.length < 3) {
+                  setDialogState(
+                    () => validation = 'Précisez le motif du remboursement.',
+                  );
+                  return;
+                }
+                Navigator.pop(
+                  dialogContext,
+                  RefundCreationDraft(
+                    amount: amount,
+                    reason: reason,
+                    reasonNote: note,
+                  ),
+                );
+              },
+              icon: const Icon(Symbols.currency_exchange_rounded),
+              label: const Text('Créer le remboursement'),
+            ),
+          ],
+        ),
+      ),
+    );
+    amountController.dispose();
+    noteController.dispose();
+    return result;
+  }
+
+  String? _initialPaymentReference(QueueOrder order) {
+    final String direct = order.paymentReference?.trim() ?? '';
+    if (direct.isNotEmpty) return direct;
+    final String declared = order.paymentDeclaredReference?.trim() ?? '';
+    return declared.isEmpty ? null : declared;
   }
 
   @override
@@ -188,7 +448,7 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
           eyebrow: 'Opérations / Alertes',
           title: 'Commandes échouées',
           description:
-              'Centralise les échecs opérationnels, identifie les motifs et remets en circulation les commandes qui doivent être réaffectées sans perdre leur historique.',
+              'Centralise les échecs opérationnels et laisse l’administrateur décider, après vérification, entre une nouvelle affectation et un remboursement lorsqu’un paiement Wave a réellement été confirmé.',
           icon: Symbols.error_rounded,
           trailing: OutlinedButton.icon(
             onPressed: _refresh,
@@ -222,8 +482,10 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
           _FailedOrdersList(
             orders: _visibleOrders,
             processing: _processing,
+            refundsByOrder: _refundsByOrder,
             onOpen: (QueueOrder order) => showBackofficeOrderDetails(context, order),
-            onReassign: _prepareReassignment,
+            onTreat: _chooseTreatment,
+            onOpenRefund: (QueueOrder order) => widget.onOpenRefunds(order.reference),
           ),
       ],
     );
@@ -328,15 +590,33 @@ class _FailureMetrics extends StatelessWidget {
 }
 
 class _FailedOrdersList extends StatelessWidget {
-  const _FailedOrdersList({required this.orders, required this.processing, required this.onOpen, required this.onReassign});
+  const _FailedOrdersList({required this.orders, required this.processing, required this.refundsByOrder, required this.onOpen, required this.onTreat, required this.onOpenRefund});
 
   final List<QueueOrder> orders;
   final Set<String> processing;
+  final Map<String, RefundCase> refundsByOrder;
   final ValueChanged<QueueOrder> onOpen;
-  final ValueChanged<QueueOrder> onReassign;
+  final ValueChanged<QueueOrder> onTreat;
+  final ValueChanged<QueueOrder> onOpenRefund;
+
+  RefundCase? _refundFor(QueueOrder order) => refundsByOrder[order.id];
 
   bool _canReassign(QueueOrder order) {
-    return order.status == QueueOrderStatus.failed && order.isFundedForProcessing;
+    final RefundCase? refund = _refundFor(order);
+    return order.status == QueueOrderStatus.failed &&
+        order.isFundedForProcessing &&
+        (refund == null || refund.status == RefundStatus.rejected);
+  }
+
+  bool _canRefund(QueueOrder order) {
+    return order.status == QueueOrderStatus.failed &&
+        order.paymentStatus == OrderPaymentStatus.confirmed &&
+        _refundFor(order) == null;
+  }
+
+  bool _hasOpenOrCompletedRefund(QueueOrder order) {
+    final RefundCase? refund = _refundFor(order);
+    return refund != null && refund.status != RefundStatus.rejected;
   }
 
   @override
@@ -373,13 +653,33 @@ class _FailedOrdersList extends StatelessWidget {
                         children: <Widget>[
                           OutlinedButton.icon(onPressed: () => onOpen(order), icon: const Icon(Symbols.visibility_rounded, size: 18), label: const Text('Détails')),
                           const SizedBox(width: 8),
-                          if (_canReassign(order))
+                          if (_hasOpenOrCompletedRefund(order))
+                            FilledButton.tonalIcon(
+                              onPressed: () => onOpenRefund(order),
+                              icon: const Icon(Symbols.currency_exchange_rounded, size: 18),
+                              label: const Text('Voir remboursement'),
+                            )
+                          else if (_canReassign(order) || _canRefund(order))
                             FilledButton.icon(
-                              onPressed: processing.contains(order.id) ? null : () => onReassign(order),
+                              onPressed: processing.contains(order.id)
+                                  ? null
+                                  : () => onTreat(order),
                               icon: processing.contains(order.id)
-                                  ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                  : const Icon(Symbols.restart_alt_rounded, size: 18),
-                              label: const Text('Réaffecter'),
+                                  ? const SizedBox.square(
+                                      dimension: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(Symbols.rule_rounded, size: 18),
+                              label: Text(
+                                _canReassign(order) && _canRefund(order)
+                                    ? 'Traiter'
+                                    : _canRefund(order)
+                                    ? 'Rembourser'
+                                    : 'Réaffecter',
+                              ),
                             ),
                         ],
                       ),
@@ -409,6 +709,8 @@ class _FailedOrdersList extends StatelessWidget {
           ],
           rows: orders.map((QueueOrder order) {
             final bool reassignable = _canReassign(order);
+            final bool refundable = _canRefund(order);
+            final bool hasRefund = _hasOpenOrCompletedRefund(order);
             final bool refundPending = order.status == QueueOrderStatus.refundPending;
             final bool refunded = order.status == QueueOrderStatus.refunded;
             final Color stateColor = reassignable
@@ -519,18 +821,37 @@ class _FailedOrdersList extends StatelessWidget {
                 BackofficeTableCellSpec(
                   flex: 2,
                   alignment: Alignment.centerRight,
-                  child: reassignable
+                  child: hasRefund
+                      ? FilledButton.tonalIcon(
+                          onPressed: () => onOpenRefund(order),
+                          icon: const Icon(Symbols.currency_exchange_rounded, size: 18),
+                          label: const Text('Voir remboursement'),
+                        )
+                      : reassignable || refundable
                       ? FilledButton.tonalIcon(
                           onPressed: processing.contains(order.id)
                               ? null
-                              : () => onReassign(order),
+                              : () => onTreat(order),
                           icon: processing.contains(order.id)
                               ? const SizedBox.square(
                                   dimension: 16,
                                   child: CircularProgressIndicator(strokeWidth: 2),
                                 )
-                              : const Icon(Symbols.restart_alt_rounded, size: 18),
-                          label: const Text('Réaffecter'),
+                              : Icon(
+                                  reassignable && refundable
+                                      ? Symbols.rule_rounded
+                                      : refundable
+                                      ? Symbols.currency_exchange_rounded
+                                      : Symbols.restart_alt_rounded,
+                                  size: 18,
+                                ),
+                          label: Text(
+                            reassignable && refundable
+                                ? 'Traiter'
+                                : refundable
+                                ? 'Rembourser'
+                                : 'Réaffecter',
+                          ),
                         )
                       : OutlinedButton.icon(
                           onPressed: () => onOpen(order),

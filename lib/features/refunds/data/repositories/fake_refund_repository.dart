@@ -44,6 +44,7 @@ class FakeRefundRepository implements RefundRepository {
       id: orderId,
       orderId: orderId,
       orderReference: request.orderReference.trim().toUpperCase(),
+      origin: request.origin,
       supportRequestId: request.supportRequestId.trim(),
       supportRequestType: request.supportRequestType.trim(),
       supportRequestDescription: request.supportRequestDescription.trim(),

@@ -5,6 +5,8 @@ import 'package:cabine_flow/features/finances/domain/services/financial_reconcil
 import 'package:cabine_flow/features/orders/data/mappers/firestore_order_mapper.dart';
 import 'package:cabine_flow/features/orders/data/repositories/supabase_order_proof_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/features/refunds/data/repositories/supabase_refund_repository.dart';
+import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FirestoreFinancialReconciliationRepository
@@ -14,13 +16,16 @@ class FirestoreFinancialReconciliationRepository
     FinancialReconciliationEngine engine =
         const FinancialReconciliationEngine(),
     SupabaseOrderProofRepository? supabaseProofRepository,
+    SupabaseRefundRepository? supabaseRefundRepository,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
        _engine = engine,
-       _supabaseProofRepository = supabaseProofRepository;
+       _supabaseProofRepository = supabaseProofRepository,
+       _supabaseRefundRepository = supabaseRefundRepository;
 
   final FirebaseFirestore _firestore;
   final FinancialReconciliationEngine _engine;
   final SupabaseOrderProofRepository? _supabaseProofRepository;
+  final SupabaseRefundRepository? _supabaseRefundRepository;
 
   @override
   Future<List<FinancialReconciliationResult>> load() async {
@@ -177,6 +182,26 @@ class FirestoreFinancialReconciliationRepository
             _date(data['refundedAt']) ??
             _date(data['requestedAt']),
       );
+    }
+
+    // Les nouveaux remboursements sont Supabase-only. On conserve la lecture
+    // Firestore ci-dessus uniquement comme couverture historique et Supabase
+    // prend la priorité lorsqu'un dossier existe dans les deux sources.
+    if (SupabaseBootstrap.isInitialized) {
+      final SupabaseRefundRepository refundRepository =
+          _supabaseRefundRepository ?? SupabaseRefundRepository();
+      final List<RefundCase> supabaseRefunds = await refundRepository
+          .watchAll()
+          .first;
+      for (final RefundCase refund in supabaseRefunds) {
+        refundsByOrder[refund.orderId] = ReconciliationRefundEvidence(
+          id: refund.id,
+          orderId: refund.orderId,
+          amount: refund.amount,
+          status: refund.status.storageValue,
+          updatedAt: refund.updatedAt,
+        );
+      }
     }
 
     final Map<String, ReconciliationCreditEvidence> creditsByOrder =

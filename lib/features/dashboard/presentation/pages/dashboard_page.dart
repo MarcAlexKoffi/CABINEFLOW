@@ -16,17 +16,14 @@ import 'package:cabine_flow/features/orders/domain/repositories/order_history_re
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/failed_orders_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/order_detail_page.dart';
-import 'package:cabine_flow/features/refunds/data/repositories/fake_refund_repository.dart';
-import 'package:cabine_flow/features/refunds/data/repositories/firestore_refund_repository.dart';
+import 'package:cabine_flow/features/refunds/data/repositories/operational_refund_repository.dart';
 import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
-import 'package:cabine_flow/features/support/data/repositories/fake_support_request_repository.dart';
-import 'package:cabine_flow/features/support/data/repositories/firestore_support_request_repository.dart';
+import 'package:cabine_flow/features/support/data/repositories/operational_support_request_repository.dart';
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -82,9 +79,7 @@ class _DashboardPageState extends State<DashboardPage> {
     );
     _viewModel.startRealtime();
 
-    _supportRepository = Firebase.apps.isNotEmpty
-        ? FirestoreSupportRequestRepository()
-        : FakeSupportRequestRepository();
+    _supportRepository = createOperationalSupportRequestRepository();
     _supportSubscription = _supportRepository.watchNewRequests().listen((
       List<SupportRequest> requests,
     ) {
@@ -98,11 +93,9 @@ class _DashboardPageState extends State<DashboardPage> {
       );
     });
 
-    _refundRepository = Firebase.apps.isNotEmpty
-        ? FirestoreRefundRepository()
-        : FakeRefundRepository();
-    // /refunds reste strictement Admin dans les rules Firestore gelees.
-    // Un Manager ne doit donc meme pas ouvrir ce listener en arriere-plan.
+    _refundRepository = createOperationalRefundRepository();
+    // Les remboursements operationnels vivent maintenant dans Supabase.
+    // Seuls les profils autorises a les gerer ouvrent ce listener financier.
     if (widget.user.permissions.canManageRefunds) {
       _refundSubscription = _refundRepository.watchAll().listen((
         List<RefundCase> refunds,

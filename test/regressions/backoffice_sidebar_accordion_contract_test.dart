@@ -15,6 +15,11 @@ void main() {
       expect(shell, contains('_expandedSection'));
       expect(shell, contains('section.menuLabel'));
       expect(shell, contains('keyboard_arrow_down_rounded'));
+      expect(shell, contains('compact: true'));
+      expect(shell, contains('border: Border('));
+      expect(shell, contains('left: BorderSide('));
+      expect(shell, contains('fontSize: compact ? 12.5 : null'));
+      expect(shell, contains('width: compact ? 3 : 6'));
     });
 
     test('le tableau de bord reste direct et les autres modules sont regroupés', () {

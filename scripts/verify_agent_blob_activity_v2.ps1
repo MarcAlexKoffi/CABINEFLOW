@@ -18,7 +18,6 @@ function Read-ProjectFile([string]$RelativePath) {
 }
 
 $rules = Read-ProjectFile "firestore.rules"
-$profile = Read-ProjectFile "lib\features\agents\presentation\pages\agent_personal_profile_page.dart"
 $media = Read-ProjectFile "lib\features\agents\data\repositories\firestore_agent_personal_media_repository.dart"
 $activity = Read-ProjectFile "lib\features\agents\data\repositories\firestore_agent_activity_v2_repository.dart"
 $activityModels = Read-ProjectFile "lib\features\agents\domain\models\agent_activity_v2_models.dart"

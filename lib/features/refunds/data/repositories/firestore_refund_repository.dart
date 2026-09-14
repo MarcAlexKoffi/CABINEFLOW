@@ -136,6 +136,7 @@ class FirestoreRefundRepository implements RefundRepository {
       id: orderId,
       orderId: orderId,
       orderReference: orderReference,
+      origin: request.origin,
       supportRequestId: supportRequestId,
       supportRequestType: request.supportRequestType.trim(),
       supportRequestDescription: supportDescription,
@@ -296,6 +297,12 @@ class FirestoreRefundRepository implements RefundRepository {
       id: id,
       orderId: orderId,
       orderReference: orderReference,
+      origin: RefundOriginX.fromStorage(
+        (data['origin'] as String?) ??
+            (supportRequestId.startsWith('failed_')
+                ? RefundOrigin.failedOrder.storageValue
+                : RefundOrigin.supportRequest.storageValue),
+      ),
       supportRequestId: supportRequestId,
       supportRequestType: supportRequestType,
       supportRequestDescription:

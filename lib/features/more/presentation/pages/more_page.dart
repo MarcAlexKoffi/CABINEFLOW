@@ -19,16 +19,14 @@ import 'package:cabine_flow/features/orders/domain/repositories/orders_repositor
 import 'package:cabine_flow/features/orders/presentation/pages/failed_orders_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/orders_page.dart';
 import 'package:cabine_flow/features/refunds/data/repositories/fake_refund_repository.dart';
-import 'package:cabine_flow/features/refunds/data/repositories/firestore_refund_repository.dart';
+import 'package:cabine_flow/features/refunds/data/repositories/operational_refund_repository.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
-import 'package:cabine_flow/features/support/data/repositories/fake_support_request_repository.dart';
-import 'package:cabine_flow/features/support/data/repositories/firestore_support_request_repository.dart';
+import 'package:cabine_flow/features/support/data/repositories/operational_support_request_repository.dart';
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:cabine_flow/features/support/presentation/pages/support_request_center_page.dart';
 import 'package:cabine_flow/shared/widgets/feature_placeholder_page.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -112,12 +110,9 @@ class MorePage extends StatelessWidget {
       );
     }
 
-    final SupportRequestRepository supportRepository = Firebase.apps.isNotEmpty
-        ? FirestoreSupportRequestRepository()
-        : FakeSupportRequestRepository();
-    final RefundRepository refundRepository = Firebase.apps.isNotEmpty
-        ? FirestoreRefundRepository()
-        : FakeRefundRepository();
+    final SupportRequestRepository supportRepository =
+        createOperationalSupportRequestRepository();
+    final RefundRepository refundRepository = createOperationalRefundRepository();
     final OrderHistoryRepository? historyRepository =
         ordersRepository is OrderHistoryRepository
         ? ordersRepository as OrderHistoryRepository
@@ -452,9 +447,8 @@ class MorePage extends StatelessWidget {
 
   Widget _buildManager(BuildContext context) {
     final UserPermissions permissions = user.permissions;
-    final SupportRequestRepository supportRepository = Firebase.apps.isNotEmpty
-        ? FirestoreSupportRequestRepository()
-        : FakeSupportRequestRepository();
+    final SupportRequestRepository supportRepository =
+        createOperationalSupportRequestRepository();
     final OrderHistoryRepository? historyRepository =
         ordersRepository is OrderHistoryRepository
         ? ordersRepository as OrderHistoryRepository
@@ -471,9 +465,8 @@ class MorePage extends StatelessWidget {
           builder: (BuildContext context) => SupportRequestCenterPage(
             user: user,
             repository: supportRepository,
-            // /refunds reste Admin-only dans les rules gelees. Le Manager
-            // supervise donc les demandes sans ouvrir de listener Firestore
-            // sur les remboursements.
+            // Le Manager supervise les demandes sans droit de gestion
+            // des remboursements operationnels Supabase.
             refundRepository: FakeRefundRepository(),
             orderHistoryRepository: history,
           ),

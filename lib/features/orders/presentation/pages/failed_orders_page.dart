@@ -7,15 +7,13 @@ import 'package:cabine_flow/features/orders/domain/repositories/orders_repositor
 import 'package:cabine_flow/features/orders/presentation/pages/agent_assignment_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/order_detail_page.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
-import 'package:cabine_flow/features/refunds/data/repositories/fake_refund_repository.dart';
-import 'package:cabine_flow/features/refunds/data/repositories/firestore_refund_repository.dart';
+import 'package:cabine_flow/features/refunds/data/repositories/operational_refund_repository.dart';
 import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
 import 'package:cabine_flow/features/refunds/presentation/pages/refund_management_page.dart';
 import 'package:cabine_flow/features/refunds/presentation/widgets/refund_creation_sheet.dart';
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -47,9 +45,7 @@ class _FailedOrdersPageState extends State<FailedOrdersPage> {
   @override
   void initState() {
     super.initState();
-    _refundRepository = Firebase.apps.isNotEmpty
-        ? FirestoreRefundRepository()
-        : FakeRefundRepository();
+    _refundRepository = createOperationalRefundRepository();
     _orderHistoryStream = widget.orderHistoryRepository.watchOrderHistory();
     _refundStream = _refundRepository.watchAll();
   }
@@ -170,6 +166,7 @@ class _FailedOrdersPageState extends State<FailedOrdersPage> {
         request: RefundCreationRequest(
           orderId: order.id,
           orderReference: order.reference,
+          origin: RefundOrigin.failedOrder,
           supportRequestId: syntheticRequest.id,
           supportRequestType: syntheticRequest.type.storageValue,
           supportRequestDescription: syntheticRequest.description,

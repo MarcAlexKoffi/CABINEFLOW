@@ -5,6 +5,7 @@ import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -401,10 +402,12 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
                     );
                     if (!dialogContext.mounted) return;
                     Navigator.pop(dialogContext);
-                    if (mounted) ScaffoldMessenger.of(this.context).showSnackBar(const SnackBar(content: Text('Profil Agent mis à jour.')));
+                    if (mounted) {
+                      IzyTelFeedback.success(this.context, 'Profil Agent mis à jour.');
+                    }
                   } catch (error) {
                     if (!dialogContext.mounted) return;
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: Text(error.toString())));
+                    IzyTelFeedback.error(dialogContext, error.toString());
                     setDialogState(() => saving = false);
                   }
                 },

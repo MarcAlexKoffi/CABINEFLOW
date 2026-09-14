@@ -61,7 +61,7 @@ void main() {
       expect(source, contains('_viewModel.assign(candidate)'));
     });
 
-    test('Echecs prepare la reaffectation sans contourner le contrat metier', () {
+    test('Echecs choisit entre reaffectation et remboursement selon le paiement', () {
       final String source = File(
         'lib/backoffice/presentation/pages/operations/backoffice_failed_orders_page.dart',
       ).readAsStringSync();
@@ -69,6 +69,11 @@ void main() {
       expect(source, contains('prepareFailedOrderForReassignment'));
       expect(source, contains('order.isFundedForProcessing'));
       expect(source, contains('onOpenAssignments(reopened)'));
+      expect(source, contains('order.paymentStatus == OrderPaymentStatus.confirmed'));
+      expect(source, contains('origin: RefundOrigin.failedOrder'));
+      expect(source, contains("label: const Text('Rembourser')"));
+      expect(source, contains("? 'Traiter'"));
+      expect(source, contains('Voir remboursement'));
     });
 
     test('BO-2 reste dans le design system light premium IzyTel', () {

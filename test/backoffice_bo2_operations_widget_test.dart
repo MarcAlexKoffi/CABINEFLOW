@@ -6,6 +6,7 @@ import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart'
 import 'package:cabine_flow/features/agents/data/repositories/fake_agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
+import 'package:cabine_flow/features/refunds/data/repositories/fake_refund_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -131,7 +132,9 @@ void main() {
         user: _admin,
         ordersRepository: repository,
         historyRepository: repository,
+        refundRepository: FakeRefundRepository(),
         onOpenAssignments: (_) {},
+        onOpenRefunds: (_) {},
       ),
     );
 

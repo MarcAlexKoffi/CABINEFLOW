@@ -14,8 +14,7 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
-import 'package:cabine_flow/features/support/data/repositories/fake_support_request_repository.dart';
-import 'package:cabine_flow/features/support/data/repositories/firestore_support_request_repository.dart';
+import 'package:cabine_flow/features/support/data/repositories/operational_support_request_repository.dart';
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -66,9 +65,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     _order = widget.initialOrder;
     _supportRequestRepository =
         widget.supportRequestRepository ??
-        (Firebase.apps.isNotEmpty
-            ? FirestoreSupportRequestRepository()
-            : FakeSupportRequestRepository());
+        createOperationalSupportRequestRepository();
     _auditRepository =
         widget.auditRepository ??
         (Firebase.apps.isNotEmpty

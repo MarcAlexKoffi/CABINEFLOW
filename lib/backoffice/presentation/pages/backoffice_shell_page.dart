@@ -385,6 +385,8 @@ class BackofficeShellPage extends StatefulWidget {
 class _BackofficeShellPageState extends State<BackofficeShellPage> {
   BackofficeDestination _destination = BackofficeDestination.dashboard;
   QueueOrder? _assignmentFocusOrder;
+  String? _supportFocusOrderReference;
+  String? _refundFocusOrderReference;
   StreamSubscription<List<QueueOrder>>? _paymentNotificationSubscription;
   StreamSubscription<List<QueueOrder>>? _assignmentNotificationSubscription;
   StreamSubscription<List<QueueOrder>>? _historyNotificationSubscription;
@@ -397,6 +399,7 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
   List<SupportRequest> _supportNotificationRequests = const <SupportRequest>[];
   List<AgentIssue> _agentIssueNotificationItems = const <AgentIssue>[];
   List<RefundCase> _refundNotificationItems = const <RefundCase>[];
+  DateTime? _lastOperationalUpdateAt;
 
   @override
   void initState() {
@@ -421,7 +424,10 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
         .listen(
           (List<QueueOrder> orders) {
             if (!mounted) return;
-            setState(() => _paymentNotificationOrders = orders);
+            setState(() {
+              _paymentNotificationOrders = orders;
+              _lastOperationalUpdateAt = DateTime.now();
+            });
           },
           onError: (Object error, StackTrace stackTrace) {
             IzyTelLog.backendError(
@@ -437,7 +443,10 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
         .listen(
           (List<QueueOrder> orders) {
             if (!mounted) return;
-            setState(() => _assignmentNotificationOrders = orders);
+            setState(() {
+              _assignmentNotificationOrders = orders;
+              _lastOperationalUpdateAt = DateTime.now();
+            });
           },
           onError: (Object error, StackTrace stackTrace) {
             IzyTelLog.backendError(
@@ -455,7 +464,10 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
           .listen(
             (List<QueueOrder> orders) {
               if (!mounted) return;
-              setState(() => _historyNotificationOrders = orders);
+              setState(() {
+                _historyNotificationOrders = orders;
+                _lastOperationalUpdateAt = DateTime.now();
+              });
             },
             onError: (Object error, StackTrace stackTrace) {
               IzyTelLog.backendError(
@@ -473,7 +485,10 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
       _supportNotificationSubscription = supportRepository.watchAllRequests().listen(
         (List<SupportRequest> requests) {
           if (!mounted) return;
-          setState(() => _supportNotificationRequests = requests);
+          setState(() {
+            _supportNotificationRequests = requests;
+            _lastOperationalUpdateAt = DateTime.now();
+          });
         },
         onError: (Object error, StackTrace stackTrace) {
           IzyTelLog.backendError('Backoffice.notifications.support', error, stackTrace: stackTrace);
@@ -485,7 +500,10 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
       _agentIssueNotificationSubscription = widget.agentRepository.watchAllAgentIssues().listen(
       (List<AgentIssue> issues) {
         if (!mounted) return;
-        setState(() => _agentIssueNotificationItems = issues);
+        setState(() {
+          _agentIssueNotificationItems = issues;
+          _lastOperationalUpdateAt = DateTime.now();
+        });
       },
       onError: (Object error, StackTrace stackTrace) {
         IzyTelLog.backendError('Backoffice.notifications.agent-issues', error, stackTrace: stackTrace);
@@ -499,7 +517,10 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
       _refundNotificationSubscription = refundRepository.watchAll().listen(
         (List<RefundCase> refunds) {
           if (!mounted) return;
-          setState(() => _refundNotificationItems = refunds);
+          setState(() {
+          _refundNotificationItems = refunds;
+          _lastOperationalUpdateAt = DateTime.now();
+        });
         },
         onError: (Object error, StackTrace stackTrace) {
           IzyTelLog.backendError('Backoffice.notifications.refunds', error, stackTrace: stackTrace);
@@ -665,6 +686,70 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
     return entries;
   }
 
+  BackofficeDashboardSnapshot get _dashboardSnapshot {
+    final List<QueueOrder> history = _historyNotificationOrders;
+    final int completedOrders = history
+        .where((QueueOrder order) => order.status == QueueOrderStatus.completed)
+        .length;
+    final int completedAmount = history
+        .where((QueueOrder order) => order.status == QueueOrderStatus.completed)
+        .fold<int>(0, (int total, QueueOrder order) => total + order.amount);
+    final int activeOrders = history.where((QueueOrder order) {
+      return order.status == QueueOrderStatus.paidReady ||
+          order.status == QueueOrderStatus.inProgress ||
+          order.status == QueueOrderStatus.onHold ||
+          order.status == QueueOrderStatus.awaitingCustomerConfirmation ||
+          order.status == QueueOrderStatus.refundPending;
+    }).length;
+    final int failedOrders = history
+        .where((QueueOrder order) => order.status == QueueOrderStatus.failed)
+        .length;
+    final int pendingPayments = _paymentNotificationOrders
+        .where(_paymentRequiresVerification)
+        .length;
+    final int pendingAssignments = _assignmentNotificationOrders
+        .where(
+          (QueueOrder order) =>
+              order.status == QueueOrderStatus.paidReady &&
+              !order.isAssignedToAgent,
+        )
+        .length;
+    final int openSupportRequests = _supportNotificationRequests
+        .where(
+          (SupportRequest request) =>
+              request.status == SupportRequestStatus.newRequest ||
+              request.status == SupportRequestStatus.inProgress,
+        )
+        .length;
+    final int pendingRefunds = _refundNotificationItems
+        .where(
+          (RefundCase refund) =>
+              refund.status == RefundStatus.pendingApproval ||
+              refund.status == RefundStatus.approved,
+        )
+        .length;
+    final int openAgentIssues = _agentIssueNotificationItems
+        .where(
+          (AgentIssue issue) =>
+              issue.status == 'open' || issue.status == 'in_progress',
+        )
+        .length;
+
+    return BackofficeDashboardSnapshot(
+      totalOrders: history.length,
+      activeOrders: activeOrders,
+      completedOrders: completedOrders,
+      completedAmount: completedAmount,
+      pendingPayments: pendingPayments,
+      pendingAssignments: pendingAssignments,
+      failedOrders: failedOrders,
+      openSupportRequests: openSupportRequests,
+      pendingRefunds: pendingRefunds,
+      openAgentIssues: openAgentIssues,
+      lastUpdatedAt: _lastOperationalUpdateAt,
+    );
+  }
+
   OrderHistoryRepository? get _historyRepository {
     final OrdersRepository repository = widget.ordersRepository;
     if (repository is! OrderHistoryRepository) {
@@ -686,6 +771,8 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
       if (destination != BackofficeDestination.assignments) {
         _assignmentFocusOrder = null;
       }
+      _supportFocusOrderReference = null;
+      _refundFocusOrderReference = null;
     });
   }
 
@@ -694,6 +781,24 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
     setState(() {
       _assignmentFocusOrder = order;
       _destination = BackofficeDestination.assignments;
+    });
+  }
+
+  void _openRefundsForReference(String orderReference) {
+    if (!BackofficeDestination.refunds.visibleFor(widget.user)) return;
+    setState(() {
+      _refundFocusOrderReference = orderReference.trim();
+      _supportFocusOrderReference = null;
+      _destination = BackofficeDestination.refunds;
+    });
+  }
+
+  void _openSupportForReference(String orderReference) {
+    if (!BackofficeDestination.customerRequests.visibleFor(widget.user)) return;
+    setState(() {
+      _supportFocusOrderReference = orderReference.trim();
+      _refundFocusOrderReference = null;
+      _destination = BackofficeDestination.customerRequests;
     });
   }
 
@@ -729,8 +834,31 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
       case BackofficeDestination.dashboard:
         return BackofficeDashboardPage(
           user: widget.user,
+          snapshot: _dashboardSnapshot,
           onOpenUsers: widget.user.role == UserRole.administrator
               ? () => _selectDestination(BackofficeDestination.users)
+              : null,
+          onOpenPayments: BackofficeDestination.payments.visibleFor(widget.user)
+              ? () => _selectDestination(BackofficeDestination.payments)
+              : null,
+          onOpenAssignments:
+              BackofficeDestination.assignments.visibleFor(widget.user)
+              ? () => _selectDestination(BackofficeDestination.assignments)
+              : null,
+          onOpenFailedOrders:
+              BackofficeDestination.failedOrders.visibleFor(widget.user)
+              ? () => _selectDestination(BackofficeDestination.failedOrders)
+              : null,
+          onOpenSupportRequests:
+              BackofficeDestination.customerRequests.visibleFor(widget.user)
+              ? () => _selectDestination(BackofficeDestination.customerRequests)
+              : null,
+          onOpenRefunds: BackofficeDestination.refunds.visibleFor(widget.user)
+              ? () => _selectDestination(BackofficeDestination.refunds)
+              : null,
+          onOpenAgentIssues:
+              BackofficeDestination.agentIssues.visibleFor(widget.user)
+              ? () => _selectDestination(BackofficeDestination.agentIssues)
               : null,
         );
       case BackofficeDestination.orders:
@@ -760,23 +888,40 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
         if (historyRepository == null) {
           return const _BackofficeOperationsUnavailable();
         }
+        final RefundRepository? refundRepository = widget.refundRepository;
+        if (refundRepository == null) {
+          return const _BackofficeModuleUnavailable(
+            title: 'Commandes échouées indisponibles',
+            message: 'Le traitement des échecs nécessite le repository Remboursements Supabase.',
+          );
+        }
         return BackofficeFailedOrdersPage(
           user: widget.user,
           ordersRepository: widget.ordersRepository,
           historyRepository: historyRepository,
+          refundRepository: refundRepository,
           onOpenAssignments: _openAssignmentsFor,
+          onOpenRefunds: _openRefundsForReference,
         );
       case BackofficeDestination.customerRequests:
         final SupportRequestRepository? supportRepository = widget.supportRepository;
-        if (supportRepository == null) {
+        final RefundRepository? refundRepository = widget.refundRepository;
+        if (supportRepository == null ||
+            refundRepository == null ||
+            historyRepository == null) {
           return const _BackofficeModuleUnavailable(
             title: 'Demandes clients indisponibles',
-            message: 'Le repository d’assistance n’est pas configuré dans ce contexte.',
+            message:
+                'Le workflow Demandes → Remboursements nécessite les repositories Support, Remboursements et Historique commandes.',
           );
         }
         return BackofficeSupportRequestsPage(
           user: widget.user,
           repository: supportRepository,
+          refundRepository: refundRepository,
+          orderHistoryRepository: historyRepository,
+          initialOrderReference: _supportFocusOrderReference,
+          onOpenRefunds: _openRefundsForReference,
         );
       case BackofficeDestination.refunds:
         final RefundRepository? refundRepository = widget.refundRepository;
@@ -789,6 +934,10 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
         return BackofficeRefundsPage(
           user: widget.user,
           repository: refundRepository,
+          orderHistoryRepository: historyRepository,
+          supportRepository: widget.supportRepository,
+          initialOrderReference: _refundFocusOrderReference,
+          onOpenSupportRequests: _openSupportForReference,
         );
       case BackofficeDestination.agents:
         return BackofficeAgentsPage(
@@ -955,6 +1104,7 @@ class _BackofficeSidebar extends StatefulWidget {
 
 class _BackofficeSidebarState extends State<_BackofficeSidebar> {
   _BackofficeSection? _expandedSection;
+  final ScrollController _navigationScrollController = ScrollController();
 
   @override
   void initState() {
@@ -972,6 +1122,12 @@ class _BackofficeSidebarState extends State<_BackofficeSidebar> {
         _expandedSection = section;
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _navigationScrollController.dispose();
+    super.dispose();
   }
 
   void _toggleSection(_BackofficeSection section) {
@@ -1117,7 +1273,10 @@ class _BackofficeSidebarState extends State<_BackofficeSidebar> {
               const SizedBox(height: 10),
               Expanded(
                 child: Scrollbar(
+                  controller: _navigationScrollController,
                   child: ListView(
+                    controller: _navigationScrollController,
+                    primary: false,
                     padding: const EdgeInsets.fromLTRB(12, 4, 12, 18),
                     children: <Widget>[
                       if (dashboard != null) ...<Widget>[
@@ -1143,19 +1302,34 @@ class _BackofficeSidebarState extends State<_BackofficeSidebar> {
                           curve: Curves.easeOutCubic,
                           child: _expandedSection == section
                               ? Padding(
-                                  padding: const EdgeInsets.fromLTRB(7, 5, 0, 7),
-                                  child: Column(
-                                    children: widget.destinations
-                                        .where((BackofficeDestination item) => item.section == section)
-                                        .map(
-                                          (BackofficeDestination destination) => _BackofficeNavTile(
-                                            destination: destination,
-                                            selected: destination == widget.selected,
-                                            compact: true,
-                                            onTap: () => widget.onSelected(destination),
-                                          ),
-                                        )
-                                        .toList(growable: false),
+                                  padding: const EdgeInsets.fromLTRB(18, 5, 2, 8),
+                                  child: Container(
+                                    padding: const EdgeInsets.fromLTRB(9, 7, 6, 5),
+                                    decoration: BoxDecoration(
+                                      color: BackofficePalette.surfaceAlt.withValues(alpha: .72),
+                                      border: Border(
+                                        left: BorderSide(
+                                          color: BackofficePalette.primary.withValues(alpha: .22),
+                                          width: 2,
+                                        ),
+                                      ),
+                                      borderRadius: const BorderRadius.horizontal(
+                                        right: Radius.circular(12),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      children: widget.destinations
+                                          .where((BackofficeDestination item) => item.section == section)
+                                          .map(
+                                            (BackofficeDestination destination) => _BackofficeNavTile(
+                                              destination: destination,
+                                              selected: destination == widget.selected,
+                                              compact: true,
+                                              onTap: () => widget.onSelected(destination),
+                                            ),
+                                          )
+                                          .toList(growable: false),
+                                    ),
                                   ),
                                 )
                               : const SizedBox.shrink(),
@@ -1313,38 +1487,58 @@ class _BackofficeNavTile extends StatelessWidget {
       child: Material(
         key: ValueKey<String>('bo-nav-${destination.name}'),
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(compact ? 10 : 13),
         clipBehavior: Clip.antiAlias,
         child: Ink(
           decoration: BoxDecoration(
-            gradient: selected ? BackofficeGradients.selectedNav : null,
+            color: compact && selected ? Colors.white : null,
+            gradient: !compact && selected
+                ? BackofficeGradients.selectedNav
+                : null,
             border: Border.all(
-              color: selected ? const Color(0xFFDCE7FF) : Colors.transparent,
+              color: selected
+                  ? BackofficePalette.primary.withValues(
+                      alpha: compact ? .16 : .20,
+                    )
+                  : Colors.transparent,
             ),
-            borderRadius: BorderRadius.circular(13),
+            borderRadius: BorderRadius.circular(compact ? 10 : 13),
           ),
           child: InkWell(
             onTap: onTap,
-            hoverColor: BackofficePalette.surfaceAlt,
+            hoverColor: compact
+                ? Colors.white.withValues(alpha: .72)
+                : BackofficePalette.surfaceAlt,
             splashColor: BackofficePalette.primarySoft,
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: compact ? 9 : 10, vertical: compact ? 6 : 8),
+              padding: EdgeInsets.symmetric(
+                horizontal: compact ? 7 : 10,
+                vertical: compact ? 6 : 8,
+              ),
               child: Row(
                 children: <Widget>[
                   Container(
-                    width: compact ? 29 : 32,
-                    height: compact ? 29 : 32,
+                    width: compact ? 25 : 32,
+                    height: compact ? 25 : 32,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: selected
+                      color: compact
+                          ? selected
+                                ? BackofficePalette.primary.withValues(alpha: .12)
+                                : Colors.transparent
+                          : selected
                           ? BackofficePalette.primary
                           : BackofficePalette.primarySoft,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(compact ? 8 : 10),
                     ),
                     child: Icon(
                       destination.icon,
-                      size: compact ? 18 : 20,
-                      color: selected
+                      size: compact ? 16 : 20,
+                      color: compact
+                          ? selected
+                                ? BackofficePalette.primaryStrong
+                                : BackofficePalette.muted
+                          : selected
                           ? Colors.white
                           : BackofficePalette.primaryStrong,
                       fill: selected ? 1 : 0,
@@ -1352,7 +1546,7 @@ class _BackofficeNavTile extends StatelessWidget {
                       opticalSize: 22,
                     ),
                   ),
-                  const SizedBox(width: 11),
+                  SizedBox(width: compact ? 8 : 11),
                   Expanded(
                     child: Text(
                       destination.label,
@@ -1361,18 +1555,26 @@ class _BackofficeNavTile extends StatelessWidget {
                       style: Theme.of(context).textTheme.labelLarge?.copyWith(
                         color: selected
                             ? BackofficePalette.primaryStrong
+                            : compact
+                            ? BackofficePalette.muted
                             : BackofficePalette.ink,
-                        fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                        fontSize: compact ? 12.5 : null,
+                        fontWeight: selected
+                            ? FontWeight.w800
+                            : compact
+                            ? FontWeight.w600
+                            : FontWeight.w600,
                       ),
                     ),
                   ),
                   if (selected)
                     Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
+                      width: compact ? 3 : 6,
+                      height: compact ? 18 : 6,
+                      decoration: BoxDecoration(
                         color: BackofficePalette.primary,
-                        shape: BoxShape.circle,
+                        borderRadius: compact ? BorderRadius.circular(99) : null,
+                        shape: compact ? BoxShape.rectangle : BoxShape.circle,
                       ),
                     ),
                 ],

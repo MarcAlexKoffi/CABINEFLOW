@@ -17,11 +17,9 @@ import 'package:cabine_flow/features/orders/data/repositories/fake_orders_reposi
 import 'package:cabine_flow/features/orders/data/repositories/firestore_orders_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/hybrid_orders_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
-import 'package:cabine_flow/features/refunds/data/repositories/fake_refund_repository.dart';
-import 'package:cabine_flow/features/refunds/data/repositories/firestore_refund_repository.dart';
+import 'package:cabine_flow/features/refunds/data/repositories/operational_refund_repository.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
-import 'package:cabine_flow/features/support/data/repositories/fake_support_request_repository.dart';
-import 'package:cabine_flow/features/support/data/repositories/firestore_support_request_repository.dart';
+import 'package:cabine_flow/features/support/data/repositories/operational_support_request_repository.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_brand.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -67,13 +65,9 @@ class BackofficeApp extends StatelessWidget {
         agentRepository ??
         (firebaseReady ? FirestoreAgentRepository() : FakeAgentRepository());
     final SupportRequestRepository effectiveSupport =
-        supportRepository ??
-        (firebaseReady
-            ? FirestoreSupportRequestRepository()
-            : FakeSupportRequestRepository());
+        supportRepository ?? createOperationalSupportRequestRepository();
     final RefundRepository effectiveRefunds =
-        refundRepository ??
-        (firebaseReady ? FirestoreRefundRepository() : FakeRefundRepository());
+        refundRepository ?? createOperationalRefundRepository();
 
     return MaterialApp(
       title: 'IzyTel Back-office',
@@ -123,6 +117,7 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
     super.initState();
     _restoreSession();
   }
+
 
   Future<void> _restoreSession() async {
     final AuthLoginResult result = await widget.authRepository

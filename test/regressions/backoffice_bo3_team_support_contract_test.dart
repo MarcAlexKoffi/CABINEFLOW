@@ -4,14 +4,23 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('BO-3 - équipe et support Back-office', () {
-    test('le back-office injecte les repositories Support et Remboursements existants', () {
+    test('Support et Remboursements utilisent Supabase comme source operationnelle', () {
       final String app = File('lib/backoffice/backoffice_app.dart').readAsStringSync();
-      expect(app, contains('FirestoreSupportRequestRepository()'));
-      expect(app, contains('FakeSupportRequestRepository()'));
-      expect(app, contains('FirestoreRefundRepository()'));
-      expect(app, contains('FakeRefundRepository()'));
+      final String supportFactory = File(
+        'lib/features/support/data/repositories/operational_support_request_repository.dart',
+      ).readAsStringSync();
+      final String refundFactory = File(
+        'lib/features/refunds/data/repositories/operational_refund_repository.dart',
+      ).readAsStringSync();
+
+      expect(app, contains('createOperationalSupportRequestRepository()'));
+      expect(app, contains('createOperationalRefundRepository()'));
       expect(app, contains('supportRepository: widget.supportRepository'));
       expect(app, contains('refundRepository: widget.refundRepository'));
+      expect(supportFactory, contains('SupabaseSupportRequestRepository()'));
+      expect(refundFactory, contains('SupabaseRefundRepository()'));
+      expect(app, isNot(contains('FirestoreSupportRequestRepository()')));
+      expect(app, isNot(contains('FirestoreRefundRepository()')));
     });
 
     test('les cinq destinations BO-3 ne sont plus des placeholders', () {

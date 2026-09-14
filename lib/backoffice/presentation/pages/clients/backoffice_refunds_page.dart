@@ -1,3 +1,4 @@
+import 'package:cabine_flow/backoffice/presentation/services/backoffice_whatsapp_service.dart';
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
 import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_order_widgets.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
@@ -5,6 +6,10 @@ import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
+import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
+import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -15,10 +20,18 @@ class BackofficeRefundsPage extends StatefulWidget {
     super.key,
     required this.user,
     required this.repository,
+    this.orderHistoryRepository,
+    this.supportRepository,
+    this.onOpenSupportRequests,
+    this.initialOrderReference,
   });
 
   final AppUser user;
   final RefundRepository repository;
+  final OrderHistoryRepository? orderHistoryRepository;
+  final SupportRequestRepository? supportRepository;
+  final ValueChanged<String>? onOpenSupportRequests;
+  final String? initialOrderReference;
 
   @override
   State<BackofficeRefundsPage> createState() => _BackofficeRefundsPageState();
@@ -35,6 +48,12 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
   void initState() {
     super.initState();
     _stream = widget.repository.watchAll();
+    final String initialReference = widget.initialOrderReference?.trim() ?? '';
+    if (initialReference.isNotEmpty) {
+      _scope = _RefundScope.all;
+      _query = initialReference;
+      _searchController.text = initialReference;
+    }
   }
 
   @override
@@ -69,16 +88,26 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            const BackofficePageIntro(
+            BackofficePageIntro(
               eyebrow: 'Clients / Remboursements',
               title: 'Centre des remboursements',
-              description: 'Valide, exécute et rapproche les remboursements en gardant le statut et le montant exposé visibles immédiatement.',
+              description: 'Crée, valide, exécute et rapproche les remboursements IzyTel, qu’ils proviennent d’une demande client, d’une commande échouée ou d’un traitement manuel. La sortie Wave est comptabilisée uniquement lorsque le remboursement réel est marqué effectué.',
               icon: Symbols.currency_exchange_rounded,
+              trailing: widget.user.permissions.canManageRefunds &&
+                      widget.orderHistoryRepository != null
+                  ? FilledButton.icon(
+                      onPressed: _submitting ? null : () => _createManualRefund(all),
+                      icon: const Icon(Symbols.add_rounded),
+                      label: const Text('Nouveau remboursement'),
+                    )
+                  : null,
             ),
             const SizedBox(height: 18),
             _metrics(pending: pending, approved: approved, completed: completed, exposure: exposure),
             const SizedBox(height: 14),
-            _filters(all: all),
+            _financeNotice(),
+            const SizedBox(height: 14),
+            _filters(all: all, visibleCount: visible.length),
             const SizedBox(height: 14),
             if (visible.isEmpty)
               const BackofficeEmptyState(
@@ -104,6 +133,35 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
     );
   }
 
+  Widget _financeNotice() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: BackofficePalette.primary.withValues(alpha: .06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: BackofficePalette.primary.withValues(alpha: .18),
+        ),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(
+            Symbols.account_balance_wallet_rounded,
+            color: BackofficePalette.primary,
+            fill: 1,
+          ),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Un dossier créé ou approuvé ne réduit pas encore la Caisse Wave. La déduction devient effective uniquement après « Marquer remboursé » avec une référence Wave, afin que le solde théorique corresponde à une vraie sortie d’argent.',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _metrics({required int pending, required int approved, required int completed, required int exposure}) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
@@ -125,7 +183,7 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
     );
   }
 
-  Widget _filters({required List<RefundCase> all}) {
+  Widget _filters({required List<RefundCase> all, required int visibleCount}) {
     int count(RefundStatus status) => all.where((RefundCase item) => item.status == status).length;
     return Container(
       padding: const EdgeInsets.all(14),
@@ -135,9 +193,16 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
           final Widget search = TextField(
             controller: _searchController,
             onChanged: (String value) => setState(() => _query = value),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: 'Référence, client, téléphone ou motif',
-              prefixIcon: Icon(Symbols.search_rounded),
+              prefixIcon: const Icon(Symbols.search_rounded),
+              suffixIcon: _query.trim().isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Effacer la recherche',
+                      onPressed: _clearSearch,
+                      icon: const Icon(Symbols.close_rounded),
+                    ),
             ),
           );
           final Widget scope = DropdownButtonFormField<_RefundScope>(
@@ -156,13 +221,65 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
               if (value != null) setState(() => _scope = value);
             },
           );
+          final int scopeTotal = _scopeCount(all);
+          final Widget indicator = Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 9),
+              child: Text(
+                _query.trim().isEmpty
+                    ? '$scopeTotal dossier${scopeTotal > 1 ? 's' : ''} dans cette vue'
+                    : '$visibleCount affiché${visibleCount > 1 ? 's' : ''} sur $scopeTotal dans cette vue',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: BackofficePalette.muted,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          );
           if (constraints.maxWidth < 760) {
-            return Column(children: <Widget>[search, const SizedBox(height: 10), scope]);
+            return Column(
+              children: <Widget>[
+                search,
+                const SizedBox(height: 10),
+                scope,
+                indicator,
+              ],
+            );
           }
-          return Row(children: <Widget>[Expanded(flex: 3, child: search), const SizedBox(width: 10), SizedBox(width: 260, child: scope)]);
+          return Column(
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(flex: 3, child: search),
+                  const SizedBox(width: 10),
+                  SizedBox(width: 260, child: scope),
+                ],
+              ),
+              indicator,
+            ],
+          );
         },
       ),
     );
+  }
+
+  int _scopeCount(List<RefundCase> all) {
+    return all.where((RefundCase item) {
+      return switch (_scope) {
+        _RefundScope.all => true,
+        _RefundScope.pending => item.status == RefundStatus.pendingApproval,
+        _RefundScope.approved => item.status == RefundStatus.approved,
+        _RefundScope.refunded => item.status == RefundStatus.refunded,
+        _RefundScope.reconciled => item.status == RefundStatus.reconciled,
+        _RefundScope.rejected => item.status == RefundStatus.rejected,
+      };
+    }).length;
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() => _query = '');
   }
 
   List<RefundCase> _filtered(List<RefundCase> all) {
@@ -265,9 +382,296 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
         }
         return OutlinedButton(onPressed: _submitting ? null : () => _reconcile(refund), child: const Text('Rapprocher'));
       case RefundStatus.reconciled:
+        if (!refund.customerWasNotified) {
+          return FilledButton(
+            onPressed: _submitting ? null : () => _notifyCustomer(refund),
+            child: const Text('Notifier'),
+          );
+        }
+        return OutlinedButton(
+          onPressed: () => _openDetails(refund),
+          child: const Text('Voir'),
+        );
       case RefundStatus.rejected:
-        return OutlinedButton(onPressed: () => _openDetails(refund), child: const Text('Voir'));
+        return OutlinedButton(
+          onPressed: () => _openDetails(refund),
+          child: const Text('Voir'),
+        );
     }
+  }
+
+  Future<void> _createManualRefund(List<RefundCase> existing) async {
+    final OrderHistoryRepository? history = widget.orderHistoryRepository;
+    if (history == null || _submitting) return;
+
+    setState(() => _submitting = true);
+    List<QueueOrder> orders;
+    try {
+      orders = await history.fetchOrderHistory();
+    } catch (error) {
+      if (mounted) _showMessage('Impossible de charger les commandes : $error');
+      if (mounted) setState(() => _submitting = false);
+      return;
+    }
+    if (mounted) setState(() => _submitting = false);
+    if (!mounted) return;
+
+    final Set<String> existingOrderIds = existing
+        .map((RefundCase value) => value.orderId)
+        .toSet();
+    final List<QueueOrder> eligible = orders
+        .where(
+          (QueueOrder order) =>
+              order.paymentStatus == OrderPaymentStatus.confirmed &&
+              order.status != QueueOrderStatus.refundPending &&
+              order.status != QueueOrderStatus.refunded &&
+              !existingOrderIds.contains(order.id),
+        )
+        .toList(growable: false)
+      ..sort((QueueOrder a, QueueOrder b) => b.createdAt.compareTo(a.createdAt));
+
+    if (eligible.isEmpty) {
+      _showMessage(
+        'Aucune commande payée sans dossier de remboursement n’est disponible.',
+      );
+      return;
+    }
+
+    final QueueOrder? order = await _selectOrderForManualRefund(eligible);
+    if (order == null || !mounted) return;
+    final RefundCreationDraft? draft = await _manualRefundDraft(order);
+    if (draft == null || !mounted) return;
+
+    setState(() => _submitting = true);
+    try {
+      await widget.repository.create(
+        request: RefundCreationRequest(
+          orderId: order.id,
+          orderReference: order.reference,
+          origin: RefundOrigin.manual,
+          customerAuthUid: order.customerAuthUid,
+          clientName: order.clientName,
+          clientWhatsappPhone: order.clientWhatsappPhone,
+          originalAmount: order.amount,
+          amount: draft.amount,
+          reason: draft.reason,
+          reasonNote: draft.reasonNote,
+          paymentChannel: 'wave',
+          originalPaymentReference: _initialPaymentReference(order),
+        ),
+        staffId: widget.user.id,
+        staffName: widget.user.name,
+      );
+      if (!mounted) return;
+      _clearSearch();
+      setState(() => _scope = _RefundScope.pending);
+      _showMessage(
+        'Dossier créé. Il est maintenant disponible dans « À valider ».',
+      );
+    } catch (error) {
+      if (mounted) _showMessage(error.toString());
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<QueueOrder?> _selectOrderForManualRefund(
+    List<QueueOrder> orders,
+  ) async {
+    String query = '';
+    return showDialog<QueueOrder>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setDialogState) {
+            final String cleanQuery = query.trim().toLowerCase();
+            final List<QueueOrder> visible = orders.where((QueueOrder order) {
+              if (cleanQuery.isEmpty) return true;
+              return <String>[
+                order.reference,
+                order.clientName,
+                order.clientWhatsappPhone,
+                order.beneficiaryPhone,
+              ].join(' ').toLowerCase().contains(cleanQuery);
+            }).take(12).toList(growable: false);
+            return AlertDialog(
+              title: const Text('Choisir la commande à rembourser'),
+              content: SizedBox(
+                width: 680,
+                height: 470,
+                child: Column(
+                  children: <Widget>[
+                    TextField(
+                      autofocus: true,
+                      onChanged: (String value) =>
+                          setDialogState(() => query = value),
+                      decoration: const InputDecoration(
+                        hintText: 'Référence, client ou numéro',
+                        prefixIcon: Icon(Symbols.search_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: visible.isEmpty
+                          ? const Center(
+                              child: Text('Aucune commande payée correspondante.'),
+                            )
+                          : ListView.separated(
+                              itemCount: visible.length,
+                              separatorBuilder: (_, _) => const Divider(height: 1),
+                              itemBuilder: (BuildContext context, int index) {
+                                final QueueOrder order = visible[index];
+                                return ListTile(
+                                  onTap: () => Navigator.pop(dialogContext, order),
+                                  title: Text(
+                                    order.reference,
+                                    style: const TextStyle(fontWeight: FontWeight.w800),
+                                  ),
+                                  subtitle: Text(
+                                    '${order.clientName} • ${order.clientWhatsappPhone}',
+                                  ),
+                                  trailing: Text(
+                                    formatCfa(order.amount),
+                                    style: const TextStyle(fontWeight: FontWeight.w800),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Annuler'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<RefundCreationDraft?> _manualRefundDraft(QueueOrder order) async {
+    final TextEditingController amountController = TextEditingController(
+      text: order.amount.toString(),
+    );
+    final TextEditingController noteController = TextEditingController();
+    RefundReason reason = RefundReason.serviceNotReceived;
+    String? validationMessage;
+
+    final RefundCreationDraft? result = await showDialog<RefundCreationDraft>(
+      context: context,
+      builder: (BuildContext dialogContext) => StatefulBuilder(
+        builder: (BuildContext context, StateSetter setDialogState) {
+          return AlertDialog(
+            title: Text('Nouveau remboursement • ${order.reference}'),
+            content: SizedBox(
+              width: 520,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Text(
+                    '${order.clientName} • paiement confirmé • ${formatCfa(order.amount)}',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Montant à rembourser',
+                      suffixText: 'F CFA',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<RefundReason>(
+                    initialValue: reason,
+                    decoration: const InputDecoration(labelText: 'Motif'),
+                    items: RefundReason.values
+                        .map(
+                          (RefundReason value) => DropdownMenuItem<RefundReason>(
+                            value: value,
+                            child: Text(value.label),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (RefundReason? value) {
+                      if (value != null) setDialogState(() => reason = value);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: noteController,
+                    maxLength: 500,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Note / justification',
+                      hintText: 'Contexte de ce remboursement manuel',
+                    ),
+                  ),
+                  if (validationMessage != null)
+                    Text(
+                      validationMessage!,
+                      style: const TextStyle(color: BackofficePalette.danger),
+                    ),
+                ],
+              ),
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Annuler'),
+              ),
+              FilledButton.icon(
+                onPressed: () {
+                  final int? amount = int.tryParse(
+                    amountController.text.replaceAll(RegExp(r'[^0-9]'), ''),
+                  );
+                  final String note = noteController.text.trim();
+                  if (amount == null || amount <= 0 || amount > order.amount) {
+                    setDialogState(
+                      () => validationMessage =
+                          'Le montant doit être compris entre 1 F et ${formatCfa(order.amount)}.',
+                    );
+                    return;
+                  }
+                  if (reason == RefundReason.other && note.length < 3) {
+                    setDialogState(
+                      () => validationMessage = 'Précisez le motif dans la note.',
+                    );
+                    return;
+                  }
+                  Navigator.pop(
+                    dialogContext,
+                    RefundCreationDraft(
+                      amount: amount,
+                      reason: reason,
+                      reasonNote: note,
+                    ),
+                  );
+                },
+                icon: const Icon(Symbols.add_rounded),
+                label: const Text('Créer le dossier'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    amountController.dispose();
+    noteController.dispose();
+    return result;
+  }
+
+  String? _initialPaymentReference(QueueOrder order) {
+    final String direct = order.paymentReference?.trim() ?? '';
+    if (direct.isNotEmpty) return direct;
+    final String declared = order.paymentDeclaredReference?.trim() ?? '';
+    return declared.isEmpty ? null : declared;
   }
 
   Future<void> _approve(RefundCase refund) async {
@@ -283,42 +687,177 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
       ),
     );
     if (confirmed != true) return;
-    await _runAction(() => widget.repository.approve(orderId: refund.orderId, staffId: widget.user.id, staffName: widget.user.name));
+    await _runAction(
+      () => widget.repository.approve(
+        orderId: refund.orderId,
+        staffId: widget.user.id,
+        staffName: widget.user.name,
+      ),
+      successMessage: 'Remboursement validé. Il passe dans « À effectuer ».',
+    );
   }
 
   Future<void> _markRefunded(RefundCase refund) async {
-    final String? reference = await _textDialog(title: 'Confirmer le remboursement', hint: 'Référence de remboursement Wave', actionLabel: 'Marquer remboursé');
-    if (reference == null) return;
-    await _runAction(() => widget.repository.markRefunded(orderId: refund.orderId, staffId: widget.user.id, staffName: widget.user.name, refundReference: reference));
+    final String? reference = await _textDialog(
+      title: 'Confirmer le remboursement',
+      hint: 'Référence de remboursement Wave',
+      actionLabel: 'Marquer remboursé',
+    );
+    if (reference == null || _submitting) return;
+
+    setState(() => _submitting = true);
+    try {
+      await widget.repository.markRefunded(
+        orderId: refund.orderId,
+        staffId: widget.user.id,
+        staffName: widget.user.name,
+        refundReference: reference,
+      );
+
+      final bool hasSupport = refund.hasLinkedSupportRequest;
+      bool supportSynced = !hasSupport;
+      final SupportRequestRepository? support = widget.supportRepository;
+      if (support != null && hasSupport) {
+        try {
+          await support.resolve(
+            requestId: refund.supportRequestId,
+            staffId: widget.user.id,
+            staffName: widget.user.name,
+            resolutionNote:
+                'Remboursement de ${formatCfa(refund.amount)} effectué. Référence Wave : $reference.',
+          );
+        } on Object {
+          supportSynced = false;
+        }
+      }
+
+      if (!mounted) return;
+      _showMessage(
+        !hasSupport
+            ? 'Remboursement effectué. La sortie est déduite de la Caisse Wave théorique.'
+            : supportSynced
+            ? 'Remboursement effectué. La demande client est résolue et la sortie est déduite de la Caisse Wave théorique.'
+            : 'Remboursement effectué et déduit de Wave, mais la demande client n’a pas pu être synchronisée automatiquement.',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage(error.toString());
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   Future<void> _notifyCustomer(RefundCase refund) async {
-    await _runAction(() => widget.repository.markCustomerNotified(orderId: refund.orderId, staffId: widget.user.id, staffName: widget.user.name));
+    final String reference = refund.refundReference?.trim() ?? '';
+    final String referenceSentence = reference.isEmpty
+        ? ''
+        : ' Référence du remboursement : $reference.';
+    final String message =
+        'Bonjour ${refund.clientName}, le remboursement de ${formatCfa(refund.amount)} concernant votre commande ${refund.orderReference} a été effectué par IzyTel.$referenceSentence';
+    final bool opened = await BackofficeWhatsAppService.openMessage(
+      phone: refund.clientWhatsappPhone,
+      message: message,
+    );
+    if (!mounted) return;
+    if (!opened) {
+      _showMessage('Impossible d’ouvrir WhatsApp pour ce client.');
+      return;
+    }
+
+    final bool confirmed = await _confirmNotificationSent();
+    if (!confirmed) return;
+
+    final bool hasSupport = refund.hasLinkedSupportRequest;
+    await _runAction(
+      () async {
+        await widget.repository.markCustomerNotified(
+          orderId: refund.orderId,
+          staffId: widget.user.id,
+          staffName: widget.user.name,
+        );
+        final SupportRequestRepository? support = widget.supportRepository;
+        if (support != null && hasSupport) {
+          await support.markCustomerNotified(
+            requestId: refund.supportRequestId,
+            staffId: widget.user.id,
+            staffName: widget.user.name,
+          );
+        }
+      },
+      successMessage: hasSupport
+          ? 'Notification WhatsApp confirmée et synchronisée avec la demande client.'
+          : 'Notification WhatsApp confirmée dans le dossier de remboursement.',
+    );
+  }
+
+  Future<bool> _confirmNotificationSent() async {
+    final bool? value = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: const Text('Message WhatsApp réellement envoyé ?'),
+        content: const Text(
+          'Confirmez uniquement après avoir envoyé le message dans WhatsApp. Sans confirmation, IzyTel ne marquera pas le client comme notifié.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Pas encore'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Oui, envoyé'),
+          ),
+        ],
+      ),
+    );
+    return value == true;
   }
 
   Future<void> _reconcile(RefundCase refund) async {
-    await _runAction(() => widget.repository.reconcile(orderId: refund.orderId, staffId: widget.user.id, staffName: widget.user.name));
+    await _runAction(
+      () => widget.repository.reconcile(
+        orderId: refund.orderId,
+        staffId: widget.user.id,
+        staffName: widget.user.name,
+      ),
+      successMessage: 'Remboursement rapproché et conservé dans l’historique.',
+    );
   }
 
   Future<void> _reject(RefundCase refund) async {
     final String? reason = await _textDialog(title: 'Rejeter le remboursement', hint: 'Motif du rejet', actionLabel: 'Rejeter');
     if (reason == null) return;
-    await _runAction(() => widget.repository.reject(orderId: refund.orderId, staffId: widget.user.id, staffName: widget.user.name, reason: reason));
+    await _runAction(
+      () => widget.repository.reject(
+        orderId: refund.orderId,
+        staffId: widget.user.id,
+        staffName: widget.user.name,
+        reason: reason,
+      ),
+      successMessage: 'Remboursement rejeté et conservé pour audit.',
+    );
   }
 
-  Future<void> _runAction(Future<void> Function() action) async {
+  Future<void> _runAction(
+    Future<void> Function() action, {
+    required String successMessage,
+  }) async {
     if (_submitting) return;
     setState(() => _submitting = true);
     try {
       await action();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Action enregistrée.')));
+      _showMessage(successMessage);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+      _showMessage(error.toString());
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  void _showMessage(String message) {
+    IzyTelFeedback.show(context, message);
   }
 
   Future<String?> _textDialog({required String title, required String hint, required String actionLabel}) async {
@@ -358,6 +897,9 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
                 _detail('Motif', refund.reason.label),
                 if (refund.reasonNote.trim().isNotEmpty) _detail('Note', refund.reasonNote),
                 _detail('Demandé le', _formatDate(refund.requestedAt)),
+                _detail('Origine', refund.origin.label),
+                if (refund.hasLinkedSupportRequest)
+                  _detail('Demande client liée', refund.supportRequestId),
                 if (refund.refundReference != null) _detail('Référence remboursement', refund.refundReference!),
                 _detail('Client notifié', refund.customerWasNotified ? 'Oui' : 'Non'),
               ],
@@ -365,6 +907,16 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
           ),
         ),
         actions: <Widget>[
+          if (refund.hasLinkedSupportRequest &&
+              widget.onOpenSupportRequests != null)
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                widget.onOpenSupportRequests!.call(refund.orderReference);
+              },
+              icon: const Icon(Symbols.support_agent_rounded),
+              label: const Text('Voir la demande client'),
+            ),
           if (widget.user.permissions.canManageRefunds && refund.status == RefundStatus.pendingApproval)
             TextButton(onPressed: () { Navigator.pop(context); _reject(refund); }, style: TextButton.styleFrom(foregroundColor: BackofficePalette.danger), child: const Text('Rejeter')),
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Fermer')),
