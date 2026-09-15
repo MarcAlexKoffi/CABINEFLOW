@@ -1,5 +1,7 @@
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseSupportRequestRepository implements SupportRequestRepository {
@@ -62,35 +64,67 @@ class SupabaseSupportRequestRepository implements SupportRequestRepository {
   @override
   Stream<List<SupportRequest>> watchAllRequests() => _watch();
 
-  Stream<List<SupportRequest>> _watch({String? orderId, String? status}) {
-    Stream<List<Map<String, dynamic>>> rowsStream;
-    if (orderId != null) {
-      rowsStream = _client
-          .from(tableName)
-          .stream(primaryKey: const <String>['id'])
-          .eq('order_id', orderId);
-    } else if (status != null) {
-      rowsStream = _client
-          .from(tableName)
-          .stream(primaryKey: const <String>['id'])
-          .eq('status', status);
-    } else {
-      rowsStream = _client
+  Stream<List<SupportRequest>> _watch({String? orderId, String? status}) async* {
+    // Premier affichage via Data API : le centre Support reste disponible même
+    // si l'abonnement Realtime n'a pas encore reçu le JWT Firebase restauré.
+    yield await _fetch(orderId: orderId, status: status);
+
+    try {
+      final String? token = await FirebaseAuth.instance.currentUser?.getIdToken();
+      if (token == null || token.trim().isEmpty) return;
+      await _client.realtime.setAuth(token);
+
+      dynamic realtimeQuery = _client
           .from(tableName)
           .stream(primaryKey: const <String>['id']);
-    }
+      if (orderId != null) {
+        realtimeQuery = realtimeQuery.eq('order_id', orderId);
+      } else if (status != null) {
+        realtimeQuery = realtimeQuery.eq('status', status);
+      }
+      final Stream<List<Map<String, dynamic>>> rowsStream = realtimeQuery;
 
-    return rowsStream.map((List<Map<String, dynamic>> rows) {
-      final List<SupportRequest> requests = rows
-          .map(_fromRow)
-          .whereType<SupportRequest>()
-          .toList(growable: false)
-        ..sort(
-          (SupportRequest a, SupportRequest b) =>
-              b.updatedAt.compareTo(a.updatedAt),
-        );
-      return List<SupportRequest>.unmodifiable(requests);
-    });
+      await for (final List<Map<String, dynamic>> rows in rowsStream) {
+        yield _mapRows(rows);
+      }
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'SupabaseSupportRequestRepository.Realtime',
+        error,
+        stackTrace: stackTrace,
+      );
+      // Realtime est best-effort. Une panne WebSocket ne doit plus transformer
+      // toute la page en « indisponible » si la Data API fonctionne.
+    }
+  }
+
+  Future<List<SupportRequest>> _fetch({String? orderId, String? status}) async {
+    dynamic query = _client.from(tableName).select();
+    if (orderId != null) {
+      query = query.eq('order_id', orderId);
+    } else if (status != null) {
+      query = query.eq('status', status);
+    }
+    final dynamic response = await query;
+    final List<Map<String, dynamic>> rows = response is List
+        ? response
+              .whereType<Map>()
+              .map((Map row) => Map<String, dynamic>.from(row))
+              .toList(growable: false)
+        : const <Map<String, dynamic>>[];
+    return _mapRows(rows);
+  }
+
+  List<SupportRequest> _mapRows(List<Map<String, dynamic>> rows) {
+    final List<SupportRequest> requests = rows
+        .map(_fromRow)
+        .whereType<SupportRequest>()
+        .toList(growable: false)
+      ..sort(
+        (SupportRequest a, SupportRequest b) =>
+            b.updatedAt.compareTo(a.updatedAt),
+      );
+    return List<SupportRequest>.unmodifiable(requests);
   }
 
   @override

@@ -3,11 +3,15 @@ import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_order_wid
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
+import 'package:cabine_flow/features/auth/data/repositories/supabase_staff_profile_repository.dart';
+import 'package:cabine_flow/features/auth/domain/models/staff_profile.dart';
+import 'package:cabine_flow/features/auth/presentation/widgets/staff_profile_avatar.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 enum _AgentScope { all, active, available, unavailable, incomplete }
 
@@ -57,7 +61,9 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
             message: 'Les profils Agents ne peuvent pas être chargés pour le moment.',
           );
         }
-        if (!agentsSnapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (!agentsSnapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
         return StreamBuilder<List<AgentZone>>(
           stream: _zonesStream,
@@ -71,7 +77,9 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
             final int incomplete = all.where((AgentDirectoryEntry item) => item.profile == null).length;
             final int totalCapacity = all.fold<int>(0, (int total, AgentDirectoryEntry item) {
               final AgentProfile? p = item.profile;
-              if (p == null) return total;
+              if (p == null) {
+                return total;
+              }
               return total + p.orangeCapacity + p.mtnCapacity + p.moovCapacity;
             });
 
@@ -100,7 +108,9 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
                 else
                   LayoutBuilder(
                     builder: (BuildContext context, BoxConstraints constraints) {
-                      if (constraints.maxWidth >= 980) return _desktopTable(visible, zoneById, zones);
+                      if (constraints.maxWidth >= 980) {
+                        return _desktopTable(visible, zoneById, zones);
+                      }
                       return Column(
                         children: visible.map((AgentDirectoryEntry agent) => Padding(
                           padding: const EdgeInsets.only(bottom: 10),
@@ -157,10 +167,14 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
               DropdownMenuItem(value: _AgentScope.incomplete, child: Text('Profil incomplet')),
             ],
             onChanged: (_AgentScope? value) {
-              if (value != null) setState(() => _scope = value);
+              if (value != null) {
+                setState(() => _scope = value);
+              }
             },
           );
-          if (constraints.maxWidth < 760) return Column(children: <Widget>[search, const SizedBox(height: 10), scope]);
+          if (constraints.maxWidth < 760) {
+            return Column(children: <Widget>[search, const SizedBox(height: 10), scope]);
+          }
           return Row(children: <Widget>[Expanded(flex: 3, child: search), const SizedBox(width: 10), SizedBox(width: 250, child: scope)]);
         },
       ),
@@ -177,13 +191,19 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
         _AgentScope.unavailable => agent.availability == AgentAvailability.unavailable,
         _AgentScope.incomplete => agent.profile == null,
       };
-      if (!inScope) return false;
-      if (query.isEmpty) return true;
+      if (!inScope) {
+        return false;
+      }
+      if (query.isEmpty) {
+        return true;
+      }
       final String zoneNames = (agent.profile?.zoneIds ?? const <String>[]).map((String id) => zones[id]?.displayLabel ?? id).join(' ');
       return <String>[agent.name, agent.email, agent.phoneNumber, agent.agentCode, zoneNames].join(' ').toLowerCase().contains(query);
     }).toList(growable: false);
     result.sort((AgentDirectoryEntry a, AgentDirectoryEntry b) {
-      if (a.isActive != b.isActive) return a.isActive ? -1 : 1;
+      if (a.isActive != b.isActive) {
+        return a.isActive ? -1 : 1;
+      }
       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
     return result;
@@ -205,7 +225,25 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
           accentColor: !agent.isActive ? BackofficePalette.danger : agent.availability == AgentAvailability.available ? BackofficePalette.success : null,
           onTap: () => _openDetails(agent, zoneById, zones),
           cells: <BackofficeTableCellSpec>[
-            BackofficeTableCellSpec(flex: 4, child: _twoLines(agent.name, '${agent.agentCode} • ${agent.phoneNumber.isEmpty ? agent.email : agent.phoneNumber}')),
+            BackofficeTableCellSpec(
+              flex: 4,
+              child: Row(
+                children: <Widget>[
+                  StaffProfileAvatar(
+                    firebaseUid: agent.userId,
+                    displayName: agent.name,
+                    size: 38,
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: _twoLines(
+                      agent.name,
+                      '${agent.agentCode} • ${agent.phoneNumber.isEmpty ? agent.email : agent.phoneNumber}',
+                    ),
+                  ),
+                ],
+              ),
+            ),
             BackofficeTableCellSpec(flex: 2, child: BackofficeStatusBadge(label: !agent.isActive ? 'Suspendu' : agent.availability.label, color: !agent.isActive ? BackofficePalette.danger : agent.availability == AgentAvailability.available ? BackofficePalette.success : BackofficePalette.warning)),
             BackofficeTableCellSpec(flex: 3, child: _networkChips(profile)),
             BackofficeTableCellSpec(flex: 4, child: _capacitySummary(profile)),
@@ -230,7 +268,11 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
           decoration: backofficePanelDecoration(),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
             Row(children: <Widget>[
-              CircleAvatar(backgroundColor: BackofficePalette.primarySoft, foregroundColor: BackofficePalette.primaryStrong, child: Text(_initials(agent.name), style: const TextStyle(fontWeight: FontWeight.w800))),
+              StaffProfileAvatar(
+                firebaseUid: agent.userId,
+                displayName: agent.name,
+                size: 40,
+              ),
               const SizedBox(width: 10),
               Expanded(child: _twoLines(agent.name, agent.agentCode)),
               BackofficeStatusBadge(label: !agent.isActive ? 'Suspendu' : agent.availability.label, color: !agent.isActive ? BackofficePalette.danger : agent.availability == AgentAvailability.available ? BackofficePalette.success : BackofficePalette.warning),
@@ -249,7 +291,9 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
 
   Widget _networkChips(AgentProfile? profile) {
     final List<AgentNetwork> networks = profile?.authorizedNetworks ?? const <AgentNetwork>[];
-    if (networks.isEmpty) return Text('Aucun réseau', style: Theme.of(context).textTheme.bodySmall);
+    if (networks.isEmpty) {
+      return Text('Aucun réseau', style: Theme.of(context).textTheme.bodySmall);
+    }
     return Wrap(
       spacing: 5,
       runSpacing: 5,
@@ -265,13 +309,17 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
   }
 
   Widget _capacitySummary(AgentProfile? profile) {
-    if (profile == null) return Text('Profil à compléter', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: BackofficePalette.warning, fontWeight: FontWeight.w700));
+    if (profile == null) {
+      return Text('Profil à compléter', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: BackofficePalette.warning, fontWeight: FontWeight.w700));
+    }
     return Text('Orange ${formatCfa(profile.orangeCapacity)}  •  MTN ${formatCfa(profile.mtnCapacity)}  •  Moov ${formatCfa(profile.moovCapacity)}', maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: BackofficePalette.ink, fontWeight: FontWeight.w600));
   }
 
   String _zonesLabel(AgentProfile? profile, Map<String, AgentZone> zoneById) {
     final List<String> ids = profile?.zoneIds ?? const <String>[];
-    if (ids.isEmpty) return 'Aucune zone';
+    if (ids.isEmpty) {
+      return 'Aucune zone';
+    }
     return ids.map((String id) => zoneById[id]?.displayLabel ?? id).join(', ');
   }
 
@@ -310,6 +358,20 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
 
   Future<void> _openManageDialog(AgentDirectoryEntry agent, List<AgentZone> zones) async {
     final AgentProfile profile = agent.profile!;
+    SupabaseStaffProfileRepository? staffRepository;
+    StaffProfile? personalProfile;
+    if (widget.user.role == UserRole.administrator) {
+      try {
+        staffRepository = SupabaseStaffProfileRepository();
+        personalProfile = await staffRepository.fetchProfile(agent.userId);
+      } catch (_) {
+        staffRepository = null;
+        personalProfile = null;
+      }
+    }
+    if (!mounted) {
+      return;
+    }
     final TextEditingController nameController = TextEditingController(text: agent.name);
     final TextEditingController phoneController = TextEditingController(text: agent.phoneNumber);
     final TextEditingController orangeController = TextEditingController(text: '${profile.orangeCapacity}');
@@ -321,6 +383,12 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
     final Set<String> selectedZones = profile.zoneIds.toSet();
     final Set<AgentNetwork> selectedNetworks = profile.authorizedNetworks.toSet();
     bool saving = false;
+    StaffProfileVerificationStatus reviewStatus =
+        personalProfile?.verificationStatus ??
+        StaffProfileVerificationStatus.incomplete;
+    final TextEditingController reviewNote = TextEditingController(
+      text: personalProfile?.verificationNote ?? '',
+    );
 
     await showDialog<void>(
       context: context,
@@ -329,7 +397,18 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
         builder: (BuildContext context, StateSetter setDialogState) {
           int amount(TextEditingController controller) => int.tryParse(controller.text.trim()) ?? 0;
           return AlertDialog(
-            title: Text('Gérer ${agent.name}'),
+            title: Row(
+              children: <Widget>[
+                StaffProfileAvatar(
+                  firebaseUid: agent.userId,
+                  displayName: agent.name,
+                  knownAvatarPath: personalProfile?.avatarPath,
+                  size: 44,
+                ),
+                const SizedBox(width: 11),
+                Expanded(child: Text('Gérer ${agent.name}')),
+              ],
+            ),
             content: SizedBox(
               width: 720,
               child: SingleChildScrollView(
@@ -339,6 +418,19 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
                     const SizedBox(width: 10),
                     Expanded(child: TextField(controller: phoneController, decoration: const InputDecoration(labelText: 'Téléphone'))),
                   ]),
+                  if (widget.user.role == UserRole.administrator) ...<Widget>[
+                    const SizedBox(height: 14),
+                    _personalProfilePanel(
+                      agent: agent,
+                      profile: personalProfile,
+                      repository: staffRepository,
+                      reviewStatus: reviewStatus,
+                      reviewNote: reviewNote,
+                      onReviewStatusChanged: (StaffProfileVerificationStatus value) {
+                        setDialogState(() => reviewStatus = value);
+                      },
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   SwitchListTile.adaptive(contentPadding: EdgeInsets.zero, title: const Text('Compte actif'), subtitle: Text(isActive ? 'L’Agent peut être utilisé dans les flux opérationnels.' : 'Le compte est suspendu.'), value: isActive, onChanged: (bool value) => setDialogState(() => isActive = value)),
                   const SizedBox(height: 6),
@@ -400,13 +492,27 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
                         maxTransactionsPerDay: amount(maxController),
                       ),
                     );
-                    if (!dialogContext.mounted) return;
+                    if (staffRepository != null && personalProfile != null &&
+                        (reviewStatus != personalProfile!.verificationStatus ||
+                            reviewNote.text.trim() !=
+                                (personalProfile!.verificationNote ?? ''))) {
+                      personalProfile = await staffRepository.reviewProfile(
+                        firebaseUid: agent.userId,
+                        status: reviewStatus,
+                        note: reviewNote.text.trim(),
+                      );
+                    }
+                    if (!dialogContext.mounted) {
+                      return;
+                    }
                     Navigator.pop(dialogContext);
                     if (mounted) {
                       IzyTelFeedback.success(this.context, 'Profil Agent mis à jour.');
                     }
                   } catch (error) {
-                    if (!dialogContext.mounted) return;
+                    if (!dialogContext.mounted) {
+                      return;
+                    }
                     IzyTelFeedback.error(dialogContext, error.toString());
                     setDialogState(() => saving = false);
                   }
@@ -426,6 +532,161 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
     moovController.dispose();
     dailyController.dispose();
     maxController.dispose();
+    reviewNote.dispose();
+  }
+
+  Widget _personalProfilePanel({
+    required AgentDirectoryEntry agent,
+    required StaffProfile? profile,
+    required SupabaseStaffProfileRepository? repository,
+    required StaffProfileVerificationStatus reviewStatus,
+    required TextEditingController reviewNote,
+    required ValueChanged<StaffProfileVerificationStatus> onReviewStatusChanged,
+  }) {
+    if (profile == null) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: BackofficePalette.surfaceAlt,
+          border: Border.all(color: BackofficePalette.line),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: const Text(
+          'Dossier personnel non renseigné. L’Agent peut le compléter depuis son profil mobile.',
+        ),
+      );
+    }
+
+    final String birthDate = profile.dateOfBirth == null
+        ? 'Non renseignée'
+        : _formatDateOnly(profile.dateOfBirth!);
+    final String emergency = profile.emergencyContactName.trim().isEmpty &&
+            profile.emergencyContactPhone.trim().isEmpty
+        ? 'Non renseigné'
+        : '${profile.emergencyContactName} • ${profile.emergencyContactPhone}';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: BackofficePalette.primarySoft.withValues(alpha: .45),
+        border: Border.all(color: BackofficePalette.line),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Icon(
+                Symbols.contact_page_rounded,
+                color: BackofficePalette.primaryStrong,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'DOSSIER PERSONNEL',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: BackofficePalette.primaryStrong,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .6,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text('Date de naissance : $birthDate'),
+          Text(
+            'Adresse : ${profile.address.trim().isEmpty ? 'Non renseignée' : profile.address}',
+          ),
+          Text(
+            'Ville : ${profile.city.trim().isEmpty ? 'Non renseignée' : profile.city}',
+          ),
+          Text(
+            'Téléphone secondaire : ${profile.secondaryPhone.trim().isEmpty ? 'Non renseigné' : profile.secondaryPhone}',
+          ),
+          Text('Contact d’urgence : $emergency'),
+          if (profile.hasIdentityDocument && repository != null) ...<Widget>[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: () => _openIdentityDocument(
+                  agent.userId,
+                  repository,
+                ),
+                icon: const Icon(Symbols.id_card_rounded),
+                label: const Text('Voir la pièce d’identité'),
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          DropdownButtonFormField<StaffProfileVerificationStatus>(
+            initialValue: reviewStatus,
+            decoration: const InputDecoration(labelText: 'Vérification'),
+            items: StaffProfileVerificationStatus.values
+                .map(
+                  (StaffProfileVerificationStatus value) =>
+                      DropdownMenuItem<StaffProfileVerificationStatus>(
+                    value: value,
+                    child: Text(value.label),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (StaffProfileVerificationStatus? value) {
+              if (value != null) {
+                onReviewStatusChanged(value);
+              }
+            },
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: reviewNote,
+            minLines: 2,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              labelText: 'Note de vérification',
+              hintText: 'Motif de validation ou correction demandée',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openIdentityDocument(
+    String agentId,
+    SupabaseStaffProfileRepository repository,
+  ) async {
+    try {
+      final String? url = await repository.fetchIdentityDocumentUrl(agentId);
+      if (!mounted) {
+        return;
+      }
+      if (url == null || url.isEmpty) {
+        IzyTelFeedback.error(context, 'Pièce d’identité indisponible.');
+        return;
+      }
+      final bool opened = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!mounted) {
+        return;
+      }
+      if (!opened) {
+        IzyTelFeedback.error(context, 'Impossible d’ouvrir la pièce d’identité.');
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      IzyTelFeedback.error(context, error.toString());
+    }
+  }
+
+  String _formatDateOnly(DateTime value) {
+    String two(int input) => input.toString().padLeft(2, '0');
+    return '${two(value.day)}/${two(value.month)}/${value.year}';
   }
 
   Widget _detail(String label, String value) {
@@ -439,10 +700,4 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
     );
   }
 
-  String _initials(String name) {
-    final List<String> parts = name.trim().split(RegExp(r'\s+')).where((String item) => item.isNotEmpty).toList();
-    if (parts.isEmpty) return 'AG';
-    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-  }
 }

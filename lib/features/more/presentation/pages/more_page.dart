@@ -7,6 +7,7 @@ import 'package:cabine_flow/features/agents/presentation/pages/agent_issue_cente
 import 'package:cabine_flow/features/agents/presentation/pages/agent_management_page.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
+import 'package:cabine_flow/features/auth/presentation/pages/staff_personal_profile_page.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:cabine_flow/features/auth/presentation/widgets/manager_profile_avatar.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
@@ -508,6 +509,14 @@ class MorePage extends StatelessWidget {
       );
     }
 
+    void openMyProfile() {
+      Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (BuildContext context) => StaffPersonalProfilePage(user: user),
+        ),
+      );
+    }
+
     void openOperationalFinances() {
       final CommissionRepository? commissions = commissionRepository;
       if (commissions == null) {
@@ -551,6 +560,11 @@ class MorePage extends StatelessWidget {
                       name: user.name,
                       role: user.roleLabel,
                       actions: <IzyTelAccountAction>[
+                        IzyTelAccountAction(
+                          icon: Symbols.person_rounded,
+                          label: 'Mon profil',
+                          onTap: openMyProfile,
+                        ),
                         if (permissions.canViewSupportRequests)
                           IzyTelAccountAction(
                             icon: Symbols.support_agent_rounded,
@@ -685,12 +699,25 @@ class MorePage extends StatelessWidget {
             const SizedBox(height: 6),
             IzyTelSurface(
               padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: IzyTelMenuRow(
-                icon: Symbols.logout_rounded,
-                title: 'Se déconnecter',
-                subtitle: 'Fermer la session Manager sur cet appareil.',
-                destructive: true,
-                onTap: () => _logout(context),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  IzyTelMenuRow(
+                    icon: Symbols.person_rounded,
+                    title: 'Mon profil',
+                    subtitle: 'Photo, identité, coordonnées et contact d’urgence.',
+                    iconColor: IzyTelColors.primary,
+                    onTap: openMyProfile,
+                  ),
+                  const Divider(height: 1),
+                  IzyTelMenuRow(
+                    icon: Symbols.logout_rounded,
+                    title: 'Se déconnecter',
+                    subtitle: 'Fermer la session Manager sur cet appareil.',
+                    destructive: true,
+                    onTap: () => _logout(context),
+                  ),
+                ],
               ),
             ),
           ],

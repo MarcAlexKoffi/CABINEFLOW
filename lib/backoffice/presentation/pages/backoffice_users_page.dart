@@ -146,6 +146,7 @@ class _BackofficeUsersPageState extends State<BackofficeUsersPage> {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
+          scrollable: true,
           titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
           contentPadding: const EdgeInsets.fromLTRB(24, 18, 24, 10),
           title: Row(

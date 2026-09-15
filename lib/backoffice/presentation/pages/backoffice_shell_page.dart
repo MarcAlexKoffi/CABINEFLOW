@@ -1,17 +1,21 @@
 import 'dart:async';
 
 import 'package:cabine_flow/backoffice/domain/repositories/backoffice_user_repository.dart';
+import 'package:cabine_flow/backoffice/data/repositories/fake_territory_repository.dart';
+import 'package:cabine_flow/backoffice/domain/repositories/territory_repository.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/backoffice_dashboard_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/clients/backoffice_refunds_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/clients/backoffice_support_requests_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/team/backoffice_agent_issues_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/team/backoffice_agents_page.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/team/backoffice_managers_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/team/backoffice_zones_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/backoffice_users_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_assignments_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_failed_orders_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_orders_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_payments_page.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/profile/backoffice_my_profile_page.dart';
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
 import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_order_widgets.dart';
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
@@ -19,6 +23,7 @@ import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
+import 'package:cabine_flow/features/auth/presentation/widgets/staff_profile_avatar.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
@@ -41,6 +46,7 @@ enum BackofficeDestination {
   customerRequests,
   refunds,
   agents,
+  managers,
   zones,
   agentIssues,
   users,
@@ -91,6 +97,8 @@ extension _BackofficeDestinationX on BackofficeDestination {
         return 'Remboursements';
       case BackofficeDestination.agents:
         return 'Agents';
+      case BackofficeDestination.managers:
+        return 'Managers';
       case BackofficeDestination.zones:
         return 'Zones & capacités';
       case BackofficeDestination.agentIssues:
@@ -146,6 +154,8 @@ extension _BackofficeDestinationX on BackofficeDestination {
         return Symbols.currency_exchange_rounded;
       case BackofficeDestination.agents:
         return Symbols.badge_rounded;
+      case BackofficeDestination.managers:
+        return Symbols.supervisor_account_rounded;
       case BackofficeDestination.zones:
         return Symbols.map_rounded;
       case BackofficeDestination.agentIssues:
@@ -196,6 +206,7 @@ extension _BackofficeDestinationX on BackofficeDestination {
       case BackofficeDestination.refunds:
         return _BackofficeSection.clients;
       case BackofficeDestination.agents:
+      case BackofficeDestination.managers:
       case BackofficeDestination.zones:
       case BackofficeDestination.agentIssues:
         return _BackofficeSection.team;
@@ -242,6 +253,8 @@ extension _BackofficeDestinationX on BackofficeDestination {
       case BackofficeDestination.agents:
       case BackofficeDestination.zones:
         return permissions.canViewAgentDirectory;
+      case BackofficeDestination.managers:
+        return user.role == UserRole.administrator;
       case BackofficeDestination.agentIssues:
         return permissions.canResolveAgentIssues;
       case BackofficeDestination.users:
@@ -365,6 +378,7 @@ class BackofficeShellPage extends StatefulWidget {
     required this.userRepository,
     required this.ordersRepository,
     required this.agentRepository,
+    this.territoryRepository,
     this.supportRepository,
     this.refundRepository,
     required this.onLogout,
@@ -374,6 +388,7 @@ class BackofficeShellPage extends StatefulWidget {
   final BackofficeUserRepository userRepository;
   final OrdersRepository ordersRepository;
   final AgentRepository agentRepository;
+  final TerritoryRepository? territoryRepository;
   final SupportRequestRepository? supportRepository;
   final RefundRepository? refundRepository;
   final Future<void> Function() onLogout;
@@ -383,6 +398,7 @@ class BackofficeShellPage extends StatefulWidget {
 }
 
 class _BackofficeShellPageState extends State<BackofficeShellPage> {
+  late final TerritoryRepository _territoryRepository;
   BackofficeDestination _destination = BackofficeDestination.dashboard;
   QueueOrder? _assignmentFocusOrder;
   String? _supportFocusOrderReference;
@@ -404,6 +420,7 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
   @override
   void initState() {
     super.initState();
+    _territoryRepository = widget.territoryRepository ?? FakeTerritoryRepository();
     _startOperationalNotificationWatchers();
   }
 
@@ -944,10 +961,17 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
           user: widget.user,
           repository: widget.agentRepository,
         );
+      case BackofficeDestination.managers:
+        return BackofficeManagersPage(
+          user: widget.user,
+          territoryRepository: _territoryRepository,
+          agentRepository: widget.agentRepository,
+        );
       case BackofficeDestination.zones:
         return BackofficeZonesPage(
           user: widget.user,
-          repository: widget.agentRepository,
+          agentRepository: widget.agentRepository,
+          territoryRepository: _territoryRepository,
         );
       case BackofficeDestination.agentIssues:
         return BackofficeAgentIssuesPage(
@@ -2010,23 +2034,10 @@ class _BackofficeUserMenu extends StatelessWidget {
       child: Row(
         mainAxisSize: fillWidth ? MainAxisSize.max : MainAxisSize.min,
         children: <Widget>[
-          Container(
-            width: compact ? 30 : 36,
-            height: compact ? 30 : 36,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              gradient: BackofficeGradients.brand,
-              shape: BoxShape.circle,
-              boxShadow: BackofficeShadows.glow,
-            ),
-            child: Text(
-              _initials(user.name),
-              style: TextStyle(
-                fontSize: compact ? 10 : 11,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-              ),
-            ),
+          StaffProfileAvatar(
+            firebaseUid: user.id,
+            displayName: user.name,
+            size: compact ? 30 : 36,
           ),
           if (!compact) ...<Widget>[
             const SizedBox(width: 10),
@@ -2050,6 +2061,14 @@ class _BackofficeUserMenu extends StatelessWidget {
     return PopupMenuButton<String>(
       tooltip: 'Compte',
       onSelected: (String value) {
+        if (value == 'profile') {
+          Navigator.of(context).push<void>(
+            MaterialPageRoute<void>(
+              builder: (BuildContext context) => BackofficeMyProfilePage(user: user),
+            ),
+          );
+          return;
+        }
         if (value == 'logout') onLogout();
       },
       itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
@@ -2066,6 +2085,16 @@ class _BackofficeUserMenu extends StatelessWidget {
         ),
         const PopupMenuDivider(),
         const PopupMenuItem<String>(
+          value: 'profile',
+          child: Row(
+            children: <Widget>[
+              Icon(Symbols.person_rounded, size: 20),
+              SizedBox(width: 10),
+              Text('Mon profil'),
+            ],
+          ),
+        ),
+        const PopupMenuItem<String>(
           value: 'logout',
           child: Row(
             children: <Widget>[
@@ -2080,16 +2109,6 @@ class _BackofficeUserMenu extends StatelessWidget {
     );
   }
 
-  static String _initials(String name) {
-    final List<String> parts = name
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((String part) => part.isNotEmpty)
-        .toList(growable: false);
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-  }
 }
 
 

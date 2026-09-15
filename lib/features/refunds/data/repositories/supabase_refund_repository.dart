@@ -1,5 +1,7 @@
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseRefundRepository implements RefundRepository {
@@ -23,30 +25,63 @@ class SupabaseRefundRepository implements RefundRepository {
     }
   }
 
-  Stream<List<RefundCase>> _watch({String? orderId}) {
-    Stream<List<Map<String, dynamic>>> rowsStream;
-    if (orderId == null) {
-      rowsStream = _client
+  Stream<List<RefundCase>> _watch({String? orderId}) async* {
+    // La Data API reste la source fiable de premier affichage. Realtime est un
+    // accélérateur : s'il refuse momentanément le JWT Firebase, on conserve les
+    // données REST au lieu de mettre tout le module en erreur.
+    yield await _fetch(orderId: orderId);
+
+    try {
+      final String? token = await FirebaseAuth.instance.currentUser?.getIdToken();
+      if (token == null || token.trim().isEmpty) return;
+      await _client.realtime.setAuth(token);
+
+      dynamic realtimeQuery = _client
           .from(tableName)
           .stream(primaryKey: const <String>['order_id']);
-    } else {
-      rowsStream = _client
-          .from(tableName)
-          .stream(primaryKey: const <String>['order_id'])
-          .eq('order_id', orderId);
-    }
+      if (orderId != null) {
+        realtimeQuery = realtimeQuery.eq('order_id', orderId);
+      }
+      final Stream<List<Map<String, dynamic>>> rowsStream = realtimeQuery;
 
-    return rowsStream.map((List<Map<String, dynamic>> rows) {
-      final List<RefundCase> refunds = rows
-          .map(_fromRow)
-          .whereType<RefundCase>()
-          .toList(growable: false)
-        ..sort(
-          (RefundCase a, RefundCase b) =>
-              b.updatedAt.compareTo(a.updatedAt),
-        );
-      return List<RefundCase>.unmodifiable(refunds);
-    });
+      await for (final List<Map<String, dynamic>> rows in rowsStream) {
+        yield _mapRows(rows);
+      }
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'SupabaseRefundRepository.Realtime',
+        error,
+        stackTrace: stackTrace,
+      );
+      // Important : ne pas propager l'erreur Realtime au StreamBuilder. Le
+      // dernier instantané REST reste utilisable et les actions RPC continuent.
+    }
+  }
+
+  Future<List<RefundCase>> _fetch({String? orderId}) async {
+    dynamic query = _client.from(tableName).select();
+    if (orderId != null) {
+      query = query.eq('order_id', orderId);
+    }
+    final dynamic response = await query;
+    final List<Map<String, dynamic>> rows = response is List
+        ? response
+              .whereType<Map>()
+              .map((Map row) => Map<String, dynamic>.from(row))
+              .toList(growable: false)
+        : const <Map<String, dynamic>>[];
+    return _mapRows(rows);
+  }
+
+  List<RefundCase> _mapRows(List<Map<String, dynamic>> rows) {
+    final List<RefundCase> refunds = rows
+        .map(_fromRow)
+        .whereType<RefundCase>()
+        .toList(growable: false)
+      ..sort(
+        (RefundCase a, RefundCase b) => b.updatedAt.compareTo(a.updatedAt),
+      );
+    return List<RefundCase>.unmodifiable(refunds);
   }
 
   @override

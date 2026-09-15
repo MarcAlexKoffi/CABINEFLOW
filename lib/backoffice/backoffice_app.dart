@@ -1,9 +1,15 @@
+import 'dart:async';
+
 import 'package:cabine_flow/backoffice/data/repositories/fake_backoffice_user_repository.dart';
 import 'package:cabine_flow/backoffice/data/repositories/firestore_backoffice_user_repository.dart';
+import 'package:cabine_flow/backoffice/data/repositories/fake_territory_repository.dart';
+import 'package:cabine_flow/backoffice/data/repositories/supabase_territory_repository.dart';
 import 'package:cabine_flow/backoffice/domain/repositories/backoffice_user_repository.dart';
+import 'package:cabine_flow/backoffice/domain/repositories/territory_repository.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/backoffice_login_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/backoffice_shell_page.dart';
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
+import 'package:cabine_flow/core/migrations/legacy_territory_backfill_service.dart';
 import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
 import 'package:cabine_flow/features/agents/data/repositories/fake_agent_repository.dart';
 import 'package:cabine_flow/features/agents/data/repositories/firestore_agent_repository.dart';
@@ -32,6 +38,7 @@ class BackofficeApp extends StatelessWidget {
     this.userRepository,
     this.ordersRepository,
     this.agentRepository,
+    this.territoryRepository,
     this.supportRepository,
     this.refundRepository,
   });
@@ -40,6 +47,7 @@ class BackofficeApp extends StatelessWidget {
   final BackofficeUserRepository? userRepository;
   final OrdersRepository? ordersRepository;
   final AgentRepository? agentRepository;
+  final TerritoryRepository? territoryRepository;
   final SupportRequestRepository? supportRepository;
   final RefundRepository? refundRepository;
 
@@ -64,6 +72,11 @@ class BackofficeApp extends StatelessWidget {
     final AgentRepository effectiveAgents =
         agentRepository ??
         (firebaseReady ? FirestoreAgentRepository() : FakeAgentRepository());
+    final TerritoryRepository effectiveTerritory =
+        territoryRepository ??
+        (SupabaseBootstrap.isInitialized
+            ? SupabaseTerritoryRepository()
+            : FakeTerritoryRepository());
     final SupportRequestRepository effectiveSupport =
         supportRepository ?? createOperationalSupportRequestRepository();
     final RefundRepository effectiveRefunds =
@@ -80,6 +93,7 @@ class BackofficeApp extends StatelessWidget {
         userRepository: effectiveUsers,
         ordersRepository: effectiveOrders,
         agentRepository: effectiveAgents,
+        territoryRepository: effectiveTerritory,
         supportRepository: effectiveSupport,
         refundRepository: effectiveRefunds,
       ),
@@ -93,6 +107,7 @@ class _BackofficeAccessGate extends StatefulWidget {
     required this.userRepository,
     required this.ordersRepository,
     required this.agentRepository,
+    required this.territoryRepository,
     required this.supportRepository,
     required this.refundRepository,
   });
@@ -101,6 +116,7 @@ class _BackofficeAccessGate extends StatefulWidget {
   final BackofficeUserRepository userRepository;
   final OrdersRepository ordersRepository;
   final AgentRepository agentRepository;
+  final TerritoryRepository territoryRepository;
   final SupportRequestRepository supportRepository;
   final RefundRepository refundRepository;
 
@@ -132,6 +148,10 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
         _user = resolved;
         _loading = false;
       });
+      if (resolved.role == UserRole.administrator &&
+          SupabaseBootstrap.isInitialized) {
+        unawaited(LegacyTerritoryBackfillService().runIfNeeded());
+      }
       return;
     }
 
@@ -155,6 +175,10 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
   void _handleAuthenticated(AppUser user) {
     if (!_canAccessBackoffice(user)) return;
     setState(() => _user = user);
+    if (user.role == UserRole.administrator &&
+        SupabaseBootstrap.isInitialized) {
+      unawaited(LegacyTerritoryBackfillService().runIfNeeded());
+    }
   }
 
   Future<void> _logout() async {
@@ -182,6 +206,7 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
       userRepository: widget.userRepository,
       ordersRepository: widget.ordersRepository,
       agentRepository: widget.agentRepository,
+      territoryRepository: widget.territoryRepository,
       supportRepository: widget.supportRepository,
       refundRepository: widget.refundRepository,
       onLogout: _logout,

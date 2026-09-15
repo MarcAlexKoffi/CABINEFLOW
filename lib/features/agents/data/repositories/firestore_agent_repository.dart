@@ -4,6 +4,7 @@ import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
 import 'package:cabine_flow/features/agents/data/repositories/supabase_agent_issue_repository.dart';
 import 'package:cabine_flow/features/agents/data/repositories/supabase_agent_operations_repository.dart';
 import 'package:cabine_flow/features/agents/data/repositories/supabase_agent_personal_profile_repository.dart';
+import 'package:cabine_flow/features/agents/data/repositories/supabase_agent_zone_repository.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -412,6 +413,9 @@ class FirestoreAgentRepository implements AgentRepository {
 
   @override
   Stream<List<AgentZone>> watchZones() {
+    if (SupabaseBootstrap.isInitialized) {
+      return SupabaseAgentZoneRepository().watchZones();
+    }
     return _zones.snapshots().map((snapshot) {
       final List<AgentZone> zones =
           snapshot.docs
@@ -734,6 +738,13 @@ class FirestoreAgentRepository implements AgentRepository {
     required String city,
     required String region,
   }) async {
+    if (SupabaseBootstrap.isInitialized) {
+      return SupabaseAgentZoneRepository().createZone(
+        name: name,
+        city: city,
+        region: region,
+      );
+    }
     final DocumentReference<Map<String, dynamic>> ref = _zones.doc();
     await ref.set(<String, dynamic>{
       'schemaVersion': 1,

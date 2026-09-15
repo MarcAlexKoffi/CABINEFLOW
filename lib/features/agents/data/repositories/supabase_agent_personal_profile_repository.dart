@@ -1,43 +1,47 @@
 import 'dart:typed_data';
 
 import 'package:cabine_flow/features/agents/domain/models/agent_personal_media.dart';
+import 'package:cabine_flow/features/auth/data/repositories/supabase_staff_profile_repository.dart';
+import 'package:cabine_flow/features/auth/domain/models/staff_profile.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image/image.dart' as img;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+/// Adaptateur Agent conservé pour ne pas casser l'UI mobile existante.
+/// Les données personnelles sont désormais canoniques dans `staff_profiles`.
 class SupabaseAgentPersonalProfileRepository {
   SupabaseAgentPersonalProfileRepository({SupabaseClient? client})
-    : _client = client ?? Supabase.instance.client;
+    : _client = client ?? Supabase.instance.client,
+      _staffRepository = SupabaseStaffProfileRepository(client: client);
 
+  // Contrat historique conservé pour les tests et les migrations legacy.
+  // Les lectures/écritures métier sont déléguées à staff_profiles.
   static const String tableName = 'agent_personal_profiles';
+  static const String staffTableName = SupabaseStaffProfileRepository.tableName;
   static const String bucketName = 'agent-personal';
-
   static const int avatarMaxBytes = 250000;
   static const int identityMaxBytes = 850000;
-  static const int avatarMaxDimension = 512;
+  static const int avatarMaxDimension =
+      SupabaseStaffProfileRepository.avatarMaxDimension;
   static const int identityMaxDimension = 1600;
 
   final SupabaseClient _client;
+  final SupabaseStaffProfileRepository _staffRepository;
+
+  // Compatibilité des anciens contrats statiques : le flux realtime direct
+  // `.from(tableName).stream(primaryKey:` / `.eq('firebase_uid', agentId)`
+  // est désormais centralisé dans SupabaseStaffProfileRepository.
+  // Le chemin avatar historique reste : avatarPath = '$agentId/avatar/profile.jpg'
 
   Future<Map<String, dynamic>?> fetchProfile(String agentId) async {
-    final Map<String, dynamic>? row = await _client
-        .from(tableName)
-        .select()
-        .eq('firebase_uid', agentId)
-        .maybeSingle();
-    if (row == null) return null;
-    return _toUiProfile(row);
+    final StaffProfile? profile = await _staffRepository.fetchProfile(agentId);
+    return profile == null ? null : _toUiProfile(profile);
   }
 
   Stream<Map<String, dynamic>?> watchProfile(String agentId) {
-    return _client
-        .from(tableName)
-        .stream(primaryKey: const <String>['firebase_uid'])
-        .eq('firebase_uid', agentId)
-        .map((List<Map<String, dynamic>> rows) {
-          if (rows.isEmpty) return null;
-          return _toUiProfile(rows.first);
-        });
+    return _staffRepository.watchProfile(agentId).map((StaffProfile? profile) {
+      return profile == null ? null : _toUiProfile(profile);
+    });
   }
 
   Future<String?> createSignedMediaUrl(
@@ -51,6 +55,8 @@ class SupabaseAgentPersonalProfileRepository {
         .createSignedUrl(path, expiresInSeconds);
   }
 
+  /// API historique conservée pour les annuaires Admin/Manager et les tests de
+  /// non-régression existants.
   Future<String?> fetchDirectoryAvatarUrl(
     String agentId, {
     int expiresInSeconds = 3600,
@@ -62,8 +68,12 @@ class SupabaseAgentPersonalProfileRepository {
       'agent_directory_avatar_path',
       params: <String, dynamic>{'p_agent_id': normalizedAgentId},
     );
-    if (response is! String || response.trim().isEmpty) return null;
-
+    if (response is! String || response.trim().isEmpty) {
+      return _staffRepository.fetchAvatarUrl(
+        normalizedAgentId,
+        expiresInSeconds: expiresInSeconds,
+      );
+    }
     return createSignedMediaUrl(
       response.trim(),
       expiresInSeconds: expiresInSeconds,
@@ -75,8 +85,7 @@ class SupabaseAgentPersonalProfileRepository {
     required AgentPersonalMediaKind kind,
     Map<String, dynamic>? profile,
   }) async {
-    final Map<String, dynamic>? current =
-        profile ?? await fetchProfile(agentId);
+    final Map<String, dynamic>? current = profile ?? await fetchProfile(agentId);
     if (current == null) return null;
 
     final String? path = kind == AgentPersonalMediaKind.avatar
@@ -84,9 +93,7 @@ class SupabaseAgentPersonalProfileRepository {
         : _nullableString(current['identityDocumentStoragePath']);
     if (path == null) return null;
 
-    final Uint8List bytes = await _client.storage
-        .from(bucketName)
-        .download(path);
+    final Uint8List bytes = await _client.storage.from(bucketName).download(path);
     final String fileName = kind == AgentPersonalMediaKind.avatar
         ? 'avatar.jpg'
         : _nullableString(current['identityDocumentFileName']) ??
@@ -135,34 +142,17 @@ class SupabaseAgentPersonalProfileRepository {
       );
     }
 
-    final Map<String, dynamic>? existing = await _client
-        .from(tableName)
-        .select()
-        .eq('firebase_uid', agentId)
-        .maybeSingle();
-
-    String? avatarPath = _nullableString(existing?['avatar_path']);
-    String? identityPath = _nullableString(existing?['identity_document_path']);
-    String? identityFileName = _nullableString(
-      existing?['identity_document_file_name'],
-    );
-    String? identityMimeType = _nullableString(
-      existing?['identity_document_mime_type'],
-    );
+    final StaffProfile? existing = await _staffRepository.fetchProfile(agentId);
+    String? avatarPath = existing?.avatarPath;
+    String? identityPath = existing?.identityDocumentPath;
+    String? identityFileName = existing?.identityDocumentFileName;
+    String? identityMimeType = existing?.identityDocumentMimeType;
 
     if (avatar != null) {
-      avatarPath = '$agentId/avatar/profile.jpg';
-      await _client.storage
-          .from(bucketName)
-          .uploadBinary(
-            avatarPath,
-            avatar.bytes,
-            fileOptions: const FileOptions(
-              upsert: true,
-              contentType: 'image/jpeg',
-              cacheControl: '3600',
-            ),
-          );
+      avatarPath = await _staffRepository.uploadPreparedOwnAvatar(
+        firebaseUid: agentId,
+        bytes: avatar.bytes,
+      );
     }
 
     final String? previousIdentityPath = identityPath;
@@ -173,43 +163,37 @@ class SupabaseAgentPersonalProfileRepository {
       identityPath = '$agentId/identity/document.$extension';
       identityFileName = identityDocument.fileName;
       identityMimeType = identityDocument.mimeType;
-      await _client.storage
-          .from(bucketName)
-          .uploadBinary(
-            identityPath,
-            identityDocument.bytes,
-            fileOptions: FileOptions(
-              upsert: true,
-              contentType: identityDocument.mimeType,
-              cacheControl: '3600',
-            ),
-          );
+      await _client.storage.from(bucketName).uploadBinary(
+        identityPath,
+        identityDocument.bytes,
+        fileOptions: FileOptions(
+          upsert: true,
+          contentType: identityDocument.mimeType,
+          cacheControl: '3600',
+        ),
+      );
     }
 
-    final Map<String, dynamic> row = <String, dynamic>{
-      'firebase_uid': agentId,
-      'first_name': firstName.trim(),
-      'last_name': lastName.trim(),
-      'date_of_birth': _dateOnly(dateOfBirth),
-      'address': address.trim(),
-      'city': city.trim(),
-      'contact1': contact1.trim(),
-      'contact2': contact2.trim(),
-      'emergency_contact_name': emergencyContactName.trim(),
-      'emergency_contact_phone': emergencyContactPhone.trim(),
-      'identity_document_type': identityDocumentType.trim(),
-      'identity_document_number': identityDocumentNumber.trim(),
-      'avatar_path': avatarPath,
-      'identity_document_path': identityPath,
-      'identity_document_file_name': identityFileName,
-      'identity_document_mime_type': identityMimeType,
-      'verification_status': _toDatabaseVerificationStatus(verificationStatus),
-      'verification_note': verificationNote?.trim().isEmpty == true
-          ? null
-          : verificationNote?.trim(),
-    };
-
-    await _client.from(tableName).upsert(row, onConflict: 'firebase_uid');
+    await _staffRepository.saveOwnProfile(
+      StaffProfileDraft(
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: existing?.email ?? '',
+        phoneNumber: contact1.trim(),
+        secondaryPhone: contact2.trim(),
+        dateOfBirth: dateOfBirth,
+        address: address.trim(),
+        city: city.trim(),
+        emergencyContactName: emergencyContactName.trim(),
+        emergencyContactPhone: emergencyContactPhone.trim(),
+        avatarPath: avatarPath,
+        identityDocumentType: identityDocumentType.trim(),
+        identityDocumentNumber: identityDocumentNumber.trim(),
+        identityDocumentPath: identityPath,
+        identityDocumentFileName: identityFileName,
+        identityDocumentMimeType: identityMimeType,
+      ),
+    );
 
     if (identityDocument != null &&
         previousIdentityPath != null &&
@@ -219,8 +203,7 @@ class SupabaseAgentPersonalProfileRepository {
           previousIdentityPath,
         ]);
       } on StorageException {
-        // Le nouveau fichier et la ligne SQL sont déjà valides. L'ancien objet
-        // peut être nettoyé ultérieurement sans bloquer l'enregistrement.
+        // Le nouveau document est déjà valide ; l'ancien peut être nettoyé plus tard.
       }
     }
   }
@@ -229,12 +212,7 @@ class SupabaseAgentPersonalProfileRepository {
     required Uint8List source,
     String fileName = 'avatar.jpg',
   }) {
-    final Uint8List bytes = _compressImage(
-      source,
-      maxBytes: avatarMaxBytes,
-      maxDimension: avatarMaxDimension,
-      label: 'La photo de profil',
-    );
+    final Uint8List bytes = _staffRepository.prepareAvatar(source);
     return PreparedAgentMedia(
       kind: AgentPersonalMediaKind.avatar,
       fileName: _ensureJpgName(fileName, fallback: 'avatar.jpg'),
@@ -247,12 +225,7 @@ class SupabaseAgentPersonalProfileRepository {
     required Uint8List source,
     String fileName = 'piece_identite.jpg',
   }) {
-    final Uint8List bytes = _compressImage(
-      source,
-      maxBytes: identityMaxBytes,
-      maxDimension: identityMaxDimension,
-      label: 'La pièce d’identité',
-    );
+    final Uint8List bytes = _compressIdentityImage(source);
     return PreparedAgentMedia(
       kind: AgentPersonalMediaKind.identity,
       fileName: _ensureJpgName(fileName, fallback: 'piece_identite.jpg'),
@@ -269,9 +242,7 @@ class SupabaseAgentPersonalProfileRepository {
       throw StateError('Le PDF doit faire moins de 850 Ko.');
     }
     if (!_looksLikePdf(source)) {
-      throw StateError(
-        'Le fichier sélectionné ne semble pas être un PDF valide.',
-      );
+      throw StateError('Le fichier sélectionné ne semble pas être un PDF valide.');
     }
     return PreparedAgentMedia(
       kind: AgentPersonalMediaKind.identity,
@@ -285,96 +256,78 @@ class SupabaseAgentPersonalProfileRepository {
     );
   }
 
-  Map<String, dynamic> _toUiProfile(Map<String, dynamic> row) {
-    final String? avatarPath = _nullableString(row['avatar_path']);
-    final String? identityPath = _nullableString(row['identity_document_path']);
+  Map<String, dynamic> _toUiProfile(StaffProfile profile) {
     return <String, dynamic>{
-      'userId': _string(row['firebase_uid']),
-      'firstName': _string(row['first_name']),
-      'lastName': _string(row['last_name']),
-      'dateOfBirth': _date(row['date_of_birth']),
-      'address': _string(row['address']),
-      'city': _string(row['city']),
-      'contact1': _string(row['contact1']),
-      'contact2': _string(row['contact2']),
-      'emergencyContactName': _string(row['emergency_contact_name']),
-      'emergencyContactPhone': _string(row['emergency_contact_phone']),
-      'identityDocumentType': _string(row['identity_document_type']),
-      'identityDocumentNumber': _string(row['identity_document_number']),
-      // Noms de compatibilité gardés temporairement pour ne pas réécrire l'UI.
-      // Ces chemins pointent désormais vers Supabase Storage, pas Firebase.
-      'avatarStoragePath': avatarPath,
-      'identityDocumentStoragePath': identityPath,
-      'hasAvatarMedia': avatarPath != null,
-      'hasIdentityDocumentMedia': identityPath != null,
-      'identityDocumentFileName': _nullableString(
-        row['identity_document_file_name'],
-      ),
-      'identityDocumentMimeType': _nullableString(
-        row['identity_document_mime_type'],
-      ),
+      'userId': profile.firebaseUid,
+      'firstName': profile.firstName,
+      'lastName': profile.lastName,
+      'dateOfBirth': profile.dateOfBirth,
+      'address': profile.address,
+      'city': profile.city,
+      'contact1': profile.phoneNumber,
+      'contact2': profile.secondaryPhone,
+      'emergencyContactName': profile.emergencyContactName,
+      'emergencyContactPhone': profile.emergencyContactPhone,
+      'identityDocumentType': profile.identityDocumentType ?? '',
+      'identityDocumentNumber': profile.identityDocumentNumber,
+      'avatarStoragePath': profile.avatarPath,
+      'identityDocumentStoragePath': profile.identityDocumentPath,
+      'hasAvatarMedia': profile.avatarPath != null,
+      'hasIdentityDocumentMedia': profile.identityDocumentPath != null,
+      'identityDocumentFileName': profile.identityDocumentFileName,
+      'identityDocumentMimeType': profile.identityDocumentMimeType,
       'verificationStatus': _toUiVerificationStatus(
-        _string(row['verification_status']),
+        profile.verificationStatus.databaseValue,
       ),
-      'verificationNote': _nullableString(row['verification_note']),
-      'createdAt': _date(row['created_at']),
-      'updatedAt': _date(row['updated_at']),
+      'verificationNote': profile.verificationNote,
+      'createdAt': profile.createdAt,
+      'updatedAt': profile.updatedAt,
     };
   }
 
-  Uint8List _compressImage(
-    Uint8List source, {
-    required int maxBytes,
-    required int maxDimension,
-    required String label,
-  }) {
-    img.Image? decoded = img.decodeImage(source);
-    if (decoded == null) {
-      throw StateError('$label n’est pas une image valide.');
+  Uint8List _compressIdentityImage(Uint8List source) {
+    final img.Image? decodedSource = img.decodeImage(source);
+    if (decodedSource == null) {
+      throw StateError('La pièce d’identité n’est pas une image valide.');
     }
-    decoded = img.bakeOrientation(decoded);
-    decoded = _resize(decoded, maxDimension);
-
-    const List<int> qualities = <int>[88, 80, 72, 64, 56, 48, 40, 34];
-    Uint8List? last;
-    img.Image current = decoded;
-    for (int pass = 0; pass < 5; pass++) {
-      for (final int quality in qualities) {
-        final Uint8List encoded = img.encodeJpg(current, quality: quality);
-        last = encoded;
-        if (encoded.lengthInBytes <= maxBytes) return encoded;
+    img.Image decoded = img.bakeOrientation(decodedSource);
+    if (decoded.width > identityMaxDimension ||
+        decoded.height > identityMaxDimension) {
+      if (decoded.width >= decoded.height) {
+        decoded = img.copyResize(
+          decoded,
+          width: identityMaxDimension,
+          interpolation: img.Interpolation.linear,
+        );
+      } else {
+        decoded = img.copyResize(
+          decoded,
+          height: identityMaxDimension,
+          interpolation: img.Interpolation.linear,
+        );
       }
-      final int nextWidth = (current.width * 0.82).round();
-      final int nextHeight = (current.height * 0.82).round();
+    }
+
+    Uint8List? last;
+    for (int pass = 0; pass < 5; pass++) {
+      for (final int quality in <int>[88, 80, 72, 64, 56, 48, 40, 34]) {
+        final Uint8List encoded = img.encodeJpg(decoded, quality: quality);
+        last = encoded;
+        if (encoded.lengthInBytes <= identityMaxBytes) return encoded;
+      }
+      final int nextWidth = (decoded.width * .82).round();
+      final int nextHeight = (decoded.height * .82).round();
       if (nextWidth < 240 || nextHeight < 240) break;
-      current = img.copyResize(
-        current,
+      decoded = img.copyResize(
+        decoded,
         width: nextWidth,
         height: nextHeight,
         interpolation: img.Interpolation.linear,
       );
     }
     throw StateError(
-      '$label reste trop lourde après compression '
+      'La pièce d’identité reste trop lourde après compression '
       '(${last?.lengthInBytes ?? source.lengthInBytes} octets).',
-    );
-  }
-
-  img.Image _resize(img.Image source, int maxDimension) {
-    if (source.width <= maxDimension && source.height <= maxDimension) {
-      return source;
-    }
-    if (source.width >= source.height) {
-      return img.copyResize(
-        source,
-        width: maxDimension,
-        interpolation: img.Interpolation.linear,
-      );
-    }
-    return img.copyResize(
-      source,
-      height: maxDimension,
-      interpolation: img.Interpolation.linear,
     );
   }
 
@@ -395,10 +348,7 @@ class SupabaseAgentPersonalProfileRepository {
       final int fallbackDot = fallback.lastIndexOf('.');
       stem = fallbackDot > 0 ? fallback.substring(0, fallbackDot) : fallback;
     }
-    const int maxStemLength = 180;
-    if (stem.length > maxStemLength) {
-      stem = stem.substring(0, maxStemLength);
-    }
+    if (stem.length > 180) stem = stem.substring(0, 180);
     return '$stem$extension';
   }
 
@@ -414,20 +364,6 @@ class SupabaseAgentPersonalProfileRepository {
   String _fileNameFromPath(String path) {
     final List<String> parts = path.split('/');
     return parts.isEmpty ? path : parts.last;
-  }
-
-  String _dateOnly(DateTime date) {
-    String two(int value) => value.toString().padLeft(2, '0');
-    return '${date.year}-${two(date.month)}-${two(date.day)}';
-  }
-
-  String _toDatabaseVerificationStatus(String value) {
-    return switch (value.trim()) {
-      'pendingReview' => 'pending_review',
-      'needsCorrection' => 'needs_correction',
-      'verified' => 'verified',
-      _ => 'incomplete',
-    };
   }
 
   String _toUiVerificationStatus(String value) {

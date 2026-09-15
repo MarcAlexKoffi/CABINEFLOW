@@ -43,8 +43,8 @@ class BackofficeSupportRequestsPage extends StatefulWidget {
 class _BackofficeSupportRequestsPageState
     extends State<BackofficeSupportRequestsPage> {
   final TextEditingController _searchController = TextEditingController();
-  late final Stream<List<SupportRequest>> _stream;
-  late final Stream<List<RefundCase>> _refundStream;
+  late Stream<List<SupportRequest>> _stream;
+  late Stream<List<RefundCase>> _refundStream;
   _SupportScope _scope = _SupportScope.all;
   String _query = '';
   bool _submitting = false;
@@ -60,6 +60,14 @@ class _BackofficeSupportRequestsPageState
       _query = initialReference;
       _searchController.text = initialReference;
     }
+  }
+
+  void _reloadStreams() {
+    if (!mounted) return;
+    setState(() {
+      _stream = widget.repository.watchAllRequests();
+      _refundStream = widget.refundRepository.watchAll();
+    });
   }
 
   @override
@@ -666,6 +674,7 @@ class _BackofficeSupportRequestsPageState
       );
 
       if (!mounted) return;
+      _reloadStreams();
       _showMessage(
         'Remboursement créé. La demande reste en cours jusqu’au remboursement réel du client.',
       );
@@ -744,6 +753,8 @@ class _BackofficeSupportRequestsPageState
       await action();
       if (!mounted) return;
       onSuccess?.call();
+      if (!mounted) return;
+      _reloadStreams();
       if (!mounted) return;
       _showMessage(successMessage);
     } catch (error) {

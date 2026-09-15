@@ -23,13 +23,14 @@ void main() {
       expect(app, isNot(contains('FirestoreRefundRepository()')));
     });
 
-    test('les cinq destinations BO-3 ne sont plus des placeholders', () {
+    test('les destinations BO-3 ne sont plus des placeholders', () {
       final String shell = File(
         'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
       ).readAsStringSync();
       expect(shell, contains('BackofficeSupportRequestsPage('));
       expect(shell, contains('BackofficeRefundsPage('));
       expect(shell, contains('BackofficeAgentsPage('));
+      expect(shell, contains('BackofficeManagersPage('));
       expect(shell, contains('BackofficeZonesPage('));
       expect(shell, contains('BackofficeAgentIssuesPage('));
     });
@@ -70,14 +71,17 @@ void main() {
       expect(source, contains('canManageAgents'));
     });
 
-    test('Zones réutilise le référentiel Agents et la création existante', () {
+    test('Zones utilise le référentiel territorial Supabase et les Agents existants', () {
       final String source = File(
         'lib/backoffice/presentation/pages/team/backoffice_zones_page.dart',
       ).readAsStringSync();
-      expect(source, contains('watchZones()'));
-      expect(source, contains('watchAgents()'));
-      expect(source, contains('createZone('));
-      expect(source, contains('canManageAgents'));
+      expect(source, contains('territoryRepository.fetchZones()'));
+      expect(source, contains('territoryRepository.fetchManagers()'));
+      expect(source, contains('agentRepository.watchAgents().first'));
+      expect(source, contains('territoryRepository.createZone('));
+      expect(source, contains('territoryRepository.updateZone('));
+      expect(source, contains('FlutterMap('));
+      expect(source, contains('tile.openstreetmap.org'));
     });
 
     test('Signalements Agents garde le workflow open in_progress resolved cancelled', () {

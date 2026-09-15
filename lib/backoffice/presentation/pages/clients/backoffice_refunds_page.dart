@@ -39,7 +39,7 @@ class BackofficeRefundsPage extends StatefulWidget {
 
 class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
   final TextEditingController _searchController = TextEditingController();
-  late final Stream<List<RefundCase>> _stream;
+  late Stream<List<RefundCase>> _stream;
   _RefundScope _scope = _RefundScope.pending;
   String _query = '';
   bool _submitting = false;
@@ -54,6 +54,11 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
       _query = initialReference;
       _searchController.text = initialReference;
     }
+  }
+
+  void _reloadStream() {
+    if (!mounted) return;
+    setState(() => _stream = widget.repository.watchAll());
   }
 
   @override
@@ -465,6 +470,8 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
       if (!mounted) return;
       _clearSearch();
       setState(() => _scope = _RefundScope.pending);
+      _reloadStream();
+      if (!mounted) return;
       _showMessage(
         'Dossier créé. Il est maintenant disponible dans « À valider ».',
       );
@@ -732,6 +739,8 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
       }
 
       if (!mounted) return;
+      _reloadStream();
+      if (!mounted) return;
       _showMessage(
         !hasSupport
             ? 'Remboursement effectué. La sortie est déduite de la Caisse Wave théorique.'
@@ -846,6 +855,8 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
     setState(() => _submitting = true);
     try {
       await action();
+      if (!mounted) return;
+      _reloadStream();
       if (!mounted) return;
       _showMessage(successMessage);
     } catch (error) {
