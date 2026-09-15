@@ -6,11 +6,14 @@ import 'package:cabine_flow/backoffice/data/repositories/fake_territory_reposito
 import 'package:cabine_flow/backoffice/data/repositories/supabase_territory_repository.dart';
 import 'package:cabine_flow/backoffice/domain/repositories/backoffice_user_repository.dart';
 import 'package:cabine_flow/backoffice/domain/repositories/territory_repository.dart';
+import 'package:cabine_flow/backoffice/domain/repositories/backoffice_finance_repository.dart';
+import 'package:cabine_flow/backoffice/data/repositories/supabase_backoffice_finance_repository.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/backoffice_login_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/backoffice_shell_page.dart';
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
 import 'package:cabine_flow/core/migrations/legacy_territory_backfill_service.dart';
 import 'package:cabine_flow/core/migrations/legacy_catalog_backfill_service.dart';
+import 'package:cabine_flow/core/migrations/legacy_finance_backfill_service.dart';
 import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
 import 'package:cabine_flow/features/agents/data/repositories/fake_agent_repository.dart';
 import 'package:cabine_flow/features/agents/data/repositories/firestore_agent_repository.dart';
@@ -47,6 +50,7 @@ class BackofficeApp extends StatelessWidget {
     this.supportRepository,
     this.refundRepository,
     this.adminOfferRepository,
+    this.financeRepository,
   });
 
   final AuthRepository? authRepository;
@@ -57,6 +61,7 @@ class BackofficeApp extends StatelessWidget {
   final SupportRequestRepository? supportRepository;
   final RefundRepository? refundRepository;
   final AdminOfferRepository? adminOfferRepository;
+  final BackofficeFinanceRepository? financeRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -95,6 +100,11 @@ class BackofficeApp extends StatelessWidget {
             : firebaseReady
             ? FirestoreAdminOfferRepository()
             : FakeAdminOfferRepository());
+    final BackofficeFinanceRepository? effectiveFinance =
+        financeRepository ??
+        (SupabaseBootstrap.isInitialized
+            ? SupabaseBackofficeFinanceRepository()
+            : null);
 
     return MaterialApp(
       title: 'IzyTel Back-office',
@@ -111,6 +121,7 @@ class BackofficeApp extends StatelessWidget {
         supportRepository: effectiveSupport,
         refundRepository: effectiveRefunds,
         adminOfferRepository: effectiveOffers,
+        financeRepository: effectiveFinance,
       ),
     );
   }
@@ -126,6 +137,7 @@ class _BackofficeAccessGate extends StatefulWidget {
     required this.supportRepository,
     required this.refundRepository,
     required this.adminOfferRepository,
+    required this.financeRepository,
   });
 
   final AuthRepository authRepository;
@@ -136,6 +148,7 @@ class _BackofficeAccessGate extends StatefulWidget {
   final SupportRequestRepository supportRepository;
   final RefundRepository refundRepository;
   final AdminOfferRepository adminOfferRepository;
+  final BackofficeFinanceRepository? financeRepository;
 
   @override
   State<_BackofficeAccessGate> createState() => _BackofficeAccessGateState();
@@ -169,6 +182,7 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
           SupabaseBootstrap.isInitialized) {
         unawaited(LegacyTerritoryBackfillService().runIfNeeded());
         unawaited(LegacyCatalogBackfillService().runIfNeeded());
+        unawaited(LegacyFinanceBackfillService().runIfNeeded());
       }
       return;
     }
@@ -197,6 +211,7 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
         SupabaseBootstrap.isInitialized) {
       unawaited(LegacyTerritoryBackfillService().runIfNeeded());
       unawaited(LegacyCatalogBackfillService().runIfNeeded());
+      unawaited(LegacyFinanceBackfillService().runIfNeeded());
     }
   }
 
@@ -229,6 +244,7 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
       supportRepository: widget.supportRepository,
       refundRepository: widget.refundRepository,
       adminOfferRepository: widget.adminOfferRepository,
+      financeRepository: widget.financeRepository,
       onLogout: _logout,
     );
   }

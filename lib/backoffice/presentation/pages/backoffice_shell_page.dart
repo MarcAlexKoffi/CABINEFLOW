@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:cabine_flow/backoffice/domain/repositories/backoffice_user_repository.dart';
 import 'package:cabine_flow/backoffice/data/repositories/fake_territory_repository.dart';
 import 'package:cabine_flow/backoffice/domain/repositories/territory_repository.dart';
+import 'package:cabine_flow/backoffice/domain/repositories/backoffice_finance_repository.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/backoffice_dashboard_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/catalog/backoffice_offers_page.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/finances/backoffice_finance_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/clients/backoffice_refunds_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/clients/backoffice_support_requests_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/team/backoffice_agent_issues_page.dart';
@@ -384,6 +386,7 @@ class BackofficeShellPage extends StatefulWidget {
     this.supportRepository,
     this.refundRepository,
     this.adminOfferRepository,
+    this.financeRepository,
     required this.onLogout,
   });
 
@@ -395,6 +398,7 @@ class BackofficeShellPage extends StatefulWidget {
   final SupportRequestRepository? supportRepository;
   final RefundRepository? refundRepository;
   final AdminOfferRepository? adminOfferRepository;
+  final BackofficeFinanceRepository? financeRepository;
   final Future<void> Function() onLogout;
 
   @override
@@ -1000,9 +1004,46 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
           user: widget.user,
           repository: offersRepository,
         );
+      case BackofficeDestination.finances:
+        return _financeContent(BackofficeFinanceModule.overview);
+      case BackofficeDestination.waveCash:
+        return _financeContent(BackofficeFinanceModule.waveCash);
+      case BackofficeDestination.commissions:
+        return _financeContent(BackofficeFinanceModule.commissions);
+      case BackofficeDestination.suppliers:
+        return _financeContent(BackofficeFinanceModule.suppliers);
+      case BackofficeDestination.customerCredits:
+        return _financeContent(BackofficeFinanceModule.customerCredits);
+      case BackofficeDestination.expenses:
+        return _financeContent(BackofficeFinanceModule.expenses);
+      case BackofficeDestination.workingCapital:
+        return _financeContent(BackofficeFinanceModule.workingCapital);
+      case BackofficeDestination.reconciliations:
+        return _financeContent(BackofficeFinanceModule.reconciliations);
+      case BackofficeDestination.movements:
+        return _financeContent(BackofficeFinanceModule.movements);
+      case BackofficeDestination.closings:
+        return _financeContent(BackofficeFinanceModule.closings);
       default:
         return _BackofficeModulePlaceholder(destination: destination);
     }
+  }
+
+  Widget _financeContent(BackofficeFinanceModule module) {
+    final BackofficeFinanceRepository? repository = widget.financeRepository;
+    if (repository == null) {
+      return const _BackofficeModuleUnavailable(
+        title: 'Finances indisponibles',
+        message:
+            'BO-5 nécessite Supabase et le repository financier canonique. Aucune écriture Firestore de secours n’est utilisée.',
+      );
+    }
+    return BackofficeFinancePage(
+      user: widget.user,
+      repository: repository,
+      ordersRepository: widget.ordersRepository,
+      module: module,
+    );
   }
 
   @override
