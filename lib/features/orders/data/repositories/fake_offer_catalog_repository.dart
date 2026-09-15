@@ -16,6 +16,13 @@ class FakeOfferCatalogRepository implements OfferCatalogRepository {
     }).toList();
   }
 
+  @override
+  Stream<List<OfferCatalogItem>> watchOffers({
+    required MobileNetwork network,
+  }) async* {
+    yield await fetchOffers(network: network);
+  }
+
   static const List<OfferCatalogItem> _offers = [
     OfferCatalogItem(
       id: 'orange-internet',

@@ -4,6 +4,7 @@ import 'package:cabine_flow/backoffice/domain/repositories/backoffice_user_repos
 import 'package:cabine_flow/backoffice/data/repositories/fake_territory_repository.dart';
 import 'package:cabine_flow/backoffice/domain/repositories/territory_repository.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/backoffice_dashboard_page.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/catalog/backoffice_offers_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/clients/backoffice_refunds_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/clients/backoffice_support_requests_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/team/backoffice_agent_issues_page.dart';
@@ -29,6 +30,7 @@ import 'package:cabine_flow/features/agents/domain/repositories/agent_repository
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
 import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
@@ -381,6 +383,7 @@ class BackofficeShellPage extends StatefulWidget {
     this.territoryRepository,
     this.supportRepository,
     this.refundRepository,
+    this.adminOfferRepository,
     required this.onLogout,
   });
 
@@ -391,6 +394,7 @@ class BackofficeShellPage extends StatefulWidget {
   final TerritoryRepository? territoryRepository;
   final SupportRequestRepository? supportRepository;
   final RefundRepository? refundRepository;
+  final AdminOfferRepository? adminOfferRepository;
   final Future<void> Function() onLogout;
 
   @override
@@ -982,6 +986,19 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
         return BackofficeUsersPage(
           currentUser: widget.user,
           repository: widget.userRepository,
+        );
+      case BackofficeDestination.offers:
+        final AdminOfferRepository? offersRepository = widget.adminOfferRepository;
+        if (offersRepository == null) {
+          return const _BackofficeModuleUnavailable(
+            title: 'Catalogue indisponible',
+            message:
+                'Le module Offres & tarifs nécessite le repository Catalogue Supabase.',
+          );
+        }
+        return BackofficeOffersPage(
+          user: widget.user,
+          repository: offersRepository,
         );
       default:
         return _BackofficeModulePlaceholder(destination: destination);

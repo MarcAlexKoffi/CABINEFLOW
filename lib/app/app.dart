@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:cabine_flow/app/app_routes.dart';
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/migrations/legacy_catalog_backfill_service.dart';
 import 'package:cabine_flow/features/agents/data/repositories/fake_agent_repository.dart';
 import 'package:cabine_flow/features/agents/data/repositories/firestore_agent_repository.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
@@ -23,9 +26,11 @@ import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_rep
 import 'package:cabine_flow/features/navigation/presentation/pages/main_shell_page.dart';
 import 'package:cabine_flow/features/offers/data/repositories/fake_admin_offer_repository.dart';
 import 'package:cabine_flow/features/offers/data/repositories/firestore_admin_offer_repository.dart';
+import 'package:cabine_flow/features/offers/data/repositories/supabase_admin_offer_repository.dart';
 import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/fake_offer_catalog_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/firestore_offer_catalog_repository.dart';
+import 'package:cabine_flow/features/orders/data/repositories/supabase_offer_catalog_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/firestore_orders_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/hybrid_orders_repository.dart';
@@ -103,13 +108,17 @@ class CabineFlowApp extends StatelessWidget {
     final OfferCatalogRepository effectiveOfferCatalogRepository =
         offerCatalogRepository ??
         (isFirebaseInitialized
-            ? FirestoreOfferCatalogRepository()
+            ? SupabaseBootstrap.isInitialized
+                  ? SupabaseOfferCatalogRepository()
+                  : FirestoreOfferCatalogRepository()
             : const FakeOfferCatalogRepository());
 
     final AdminOfferRepository effectiveAdminOfferRepository =
         adminOfferRepository ??
         (isFirebaseInitialized
-            ? FirestoreAdminOfferRepository()
+            ? SupabaseBootstrap.isInitialized
+                  ? SupabaseAdminOfferRepository()
+                  : FirestoreAdminOfferRepository()
             : FakeAdminOfferRepository());
 
     final PaymentLinkRepository effectivePaymentLinkRepository =
@@ -178,6 +187,11 @@ class CabineFlowApp extends StatelessWidget {
 
             if (arguments is! AppUser) {
               return _createRecoveryRoute(effectiveAuthRepository);
+            }
+
+            if (arguments.role == UserRole.administrator &&
+                SupabaseBootstrap.isInitialized) {
+              unawaited(LegacyCatalogBackfillService().runIfNeeded());
             }
 
             return MaterialPageRoute<void>(

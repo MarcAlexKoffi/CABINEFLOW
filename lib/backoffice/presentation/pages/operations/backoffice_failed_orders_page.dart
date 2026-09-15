@@ -213,26 +213,70 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
     }
   }
 
+  Future<QueueOrder?> _freshOrderForTreatment(QueueOrder displayed) async {
+    try {
+      final QueueOrder fresh = await widget.historyRepository.fetchOrderById(
+        orderId: displayed.id,
+      );
+      if (!mounted) return null;
+
+      if (fresh.status != displayed.status ||
+          fresh.paymentStatus != displayed.paymentStatus) {
+        setState(() {
+          _orders = <QueueOrder>[
+            for (final QueueOrder item in _orders)
+              if (item.id == fresh.id) fresh else item,
+          ].where(_isFailureRelated).toList(growable: false);
+        });
+      }
+      return fresh;
+    } catch (_) {
+      if (!mounted) return null;
+      IzyTelFeedback.error(
+        context,
+        'Impossible de v\u00e9rifier l\u2019\u00e9tat actuel de la commande. R\u00e9essayez dans un instant.',
+      );
+      return null;
+    }
+  }
+
   Future<void> _chooseTreatment(QueueOrder order) async {
-    final RefundCase? existing = _refundFor(order);
+    final QueueOrder? fresh = await _freshOrderForTreatment(order);
+    if (fresh == null || !mounted) return;
+    final QueueOrder current = fresh;
+
+    final RefundCase? existing = _refundFor(current);
     if (existing != null && existing.status != RefundStatus.rejected) {
-      widget.onOpenRefunds(order.reference);
+      widget.onOpenRefunds(current.reference);
       return;
     }
 
-    final bool canReassign = order.status == QueueOrderStatus.failed &&
-        order.isFundedForProcessing &&
+    if (current.status == QueueOrderStatus.refundPending ||
+        current.status == QueueOrderStatus.refunded) {
+      widget.onOpenRefunds(current.reference);
+      return;
+    }
+    if (current.status != QueueOrderStatus.failed) {
+      IzyTelFeedback.show(
+        context,
+        'Cette commande n\u2019est plus en \u00e9tat \u00c9chou\u00e9. La liste vient d\u2019\u00eatre synchronis\u00e9e.',
+      );
+      return;
+    }
+
+    final bool canReassign = current.status == QueueOrderStatus.failed &&
+        current.isFundedForProcessing &&
         (existing == null || existing.status == RefundStatus.rejected);
-    final bool canRefund = order.status == QueueOrderStatus.failed &&
-        order.paymentStatus == OrderPaymentStatus.confirmed &&
+    final bool canRefund = current.status == QueueOrderStatus.failed &&
+        current.paymentStatus == OrderPaymentStatus.confirmed &&
         existing == null;
 
     if (canReassign && !canRefund) {
-      await _prepareReassignment(order);
+      await _prepareReassignment(current);
       return;
     }
     if (!canReassign && canRefund) {
-      await _createRefund(order);
+      await _createRefund(current);
       return;
     }
     if (!canReassign && !canRefund) return;
@@ -240,7 +284,7 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
     final String? choice = await showDialog<String>(
       context: context,
       builder: (BuildContext dialogContext) => AlertDialog(
-        title: Text('Traiter ${order.reference}'),
+        title: Text('Traiter ${current.reference}'),
         content: const Text(
           'Choisissez la suite adaptée après vos vérifications. Une réaffectation remet la commande en circulation ; un remboursement ouvre un dossier financier distinct.',
         ),
@@ -264,9 +308,9 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
     );
     if (!mounted) return;
     if (choice == 'reassign') {
-      await _prepareReassignment(order);
+      await _prepareReassignment(current);
     } else if (choice == 'refund') {
-      await _createRefund(order);
+      await _createRefund(current);
     }
   }
 
@@ -285,22 +329,33 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
 
     final RefundCreationDraft? draft = await _refundDraft(order);
     if (draft == null || _processing.contains(order.id)) return;
-    setState(() => _processing.add(order.id));
+
+    final QueueOrder? fresh = await _freshOrderForTreatment(order);
+    if (fresh == null || !mounted) return;
+    if (fresh.status != QueueOrderStatus.failed) {
+      IzyTelFeedback.show(
+        context,
+        'La commande a chang\u00e9 d\u2019\u00e9tat pendant votre v\u00e9rification. Aucun remboursement n\u2019a \u00e9t\u00e9 cr\u00e9\u00e9.',
+      );
+      return;
+    }
+
+    setState(() => _processing.add(fresh.id));
     try {
       await widget.refundRepository.create(
         request: RefundCreationRequest(
-          orderId: order.id,
-          orderReference: order.reference,
+          orderId: fresh.id,
+          orderReference: fresh.reference,
           origin: RefundOrigin.failedOrder,
-          customerAuthUid: order.customerAuthUid,
-          clientName: order.clientName,
-          clientWhatsappPhone: order.clientWhatsappPhone,
-          originalAmount: order.amount,
+          customerAuthUid: fresh.customerAuthUid,
+          clientName: fresh.clientName,
+          clientWhatsappPhone: fresh.clientWhatsappPhone,
+          originalAmount: fresh.amount,
           amount: draft.amount,
           reason: draft.reason,
           reasonNote: draft.reasonNote,
           paymentChannel: 'wave',
-          originalPaymentReference: _initialPaymentReference(order),
+          originalPaymentReference: _initialPaymentReference(fresh),
         ),
         staffId: widget.user.id,
         staffName: widget.user.name,
@@ -308,14 +363,17 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
       if (!mounted) return;
       IzyTelFeedback.success(
         context,
-        'Dossier de remboursement créé pour ${order.reference}.',
+        'Dossier de remboursement créé pour ${fresh.reference}.',
       );
-      widget.onOpenRefunds(order.reference);
+      widget.onOpenRefunds(fresh.reference);
     } catch (error) {
       if (!mounted) return;
-      IzyTelFeedback.error(context, error.toString());
+      final String message = error.toString()
+          .replaceFirst('Bad state: ', '')
+          .replaceFirst('StateError: ', '');
+      IzyTelFeedback.error(context, message);
     } finally {
-      if (mounted) setState(() => _processing.remove(order.id));
+      if (mounted) setState(() => _processing.remove(fresh.id));
     }
   }
 

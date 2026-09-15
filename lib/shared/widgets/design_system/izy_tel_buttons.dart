@@ -47,7 +47,14 @@ class IzyTelPrimaryButton extends StatelessWidget {
                   Icon(icon, size: 20),
                   const SizedBox(width: 8),
                 ],
-                Text(text),
+                Flexible(
+                  child: Text(
+                    text,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               ],
             ),
     );
@@ -100,7 +107,14 @@ class IzyTelSecondaryButton extends StatelessWidget {
                   Icon(icon, size: 20),
                   const SizedBox(width: 8),
                 ],
-                Text(text),
+                Flexible(
+                  child: Text(
+                    text,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               ],
             ),
     );

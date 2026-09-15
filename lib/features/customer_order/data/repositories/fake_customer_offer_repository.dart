@@ -6,6 +6,31 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 class FakeCustomerOfferRepository implements CustomerOfferRepository {
   const FakeCustomerOfferRepository();
 
+  @override
+  Stream<List<CustomerOffer>> watchOffers({
+    required CustomerService service,
+    required MobileNetwork network,
+  }) async* {
+    yield await fetchOffers(service: service, network: network);
+  }
+
+  @override
+  Stream<List<CustomerOffer>> watchAllOffers() async* {
+    final List<List<CustomerOffer>> groups = await Future.wait(
+      <Future<List<CustomerOffer>>>[
+        for (final MobileNetwork network in MobileNetwork.values)
+          ...<Future<List<CustomerOffer>>>[
+            fetchOffers(
+              service: CustomerService.internetSubscription,
+              network: network,
+            ),
+            fetchOffers(service: CustomerService.calls, network: network),
+          ],
+      ],
+    );
+    yield List<CustomerOffer>.unmodifiable(groups.expand((items) => items));
+  }
+
   static const List<CustomerOffer> _offers = <CustomerOffer>[
     CustomerOffer(
       id: 'orange-internet-500',

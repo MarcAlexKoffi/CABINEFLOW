@@ -10,6 +10,7 @@ import 'package:cabine_flow/backoffice/presentation/pages/backoffice_login_page.
 import 'package:cabine_flow/backoffice/presentation/pages/backoffice_shell_page.dart';
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
 import 'package:cabine_flow/core/migrations/legacy_territory_backfill_service.dart';
+import 'package:cabine_flow/core/migrations/legacy_catalog_backfill_service.dart';
 import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
 import 'package:cabine_flow/features/agents/data/repositories/fake_agent_repository.dart';
 import 'package:cabine_flow/features/agents/data/repositories/firestore_agent_repository.dart';
@@ -19,6 +20,10 @@ import 'package:cabine_flow/features/auth/data/repositories/firebase_auth_reposi
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
+import 'package:cabine_flow/features/offers/data/repositories/fake_admin_offer_repository.dart';
+import 'package:cabine_flow/features/offers/data/repositories/firestore_admin_offer_repository.dart';
+import 'package:cabine_flow/features/offers/data/repositories/supabase_admin_offer_repository.dart';
+import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/firestore_orders_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/hybrid_orders_repository.dart';
@@ -41,6 +46,7 @@ class BackofficeApp extends StatelessWidget {
     this.territoryRepository,
     this.supportRepository,
     this.refundRepository,
+    this.adminOfferRepository,
   });
 
   final AuthRepository? authRepository;
@@ -50,6 +56,7 @@ class BackofficeApp extends StatelessWidget {
   final TerritoryRepository? territoryRepository;
   final SupportRequestRepository? supportRepository;
   final RefundRepository? refundRepository;
+  final AdminOfferRepository? adminOfferRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -81,6 +88,13 @@ class BackofficeApp extends StatelessWidget {
         supportRepository ?? createOperationalSupportRequestRepository();
     final RefundRepository effectiveRefunds =
         refundRepository ?? createOperationalRefundRepository();
+    final AdminOfferRepository effectiveOffers =
+        adminOfferRepository ??
+        (SupabaseBootstrap.isInitialized
+            ? SupabaseAdminOfferRepository()
+            : firebaseReady
+            ? FirestoreAdminOfferRepository()
+            : FakeAdminOfferRepository());
 
     return MaterialApp(
       title: 'IzyTel Back-office',
@@ -96,6 +110,7 @@ class BackofficeApp extends StatelessWidget {
         territoryRepository: effectiveTerritory,
         supportRepository: effectiveSupport,
         refundRepository: effectiveRefunds,
+        adminOfferRepository: effectiveOffers,
       ),
     );
   }
@@ -110,6 +125,7 @@ class _BackofficeAccessGate extends StatefulWidget {
     required this.territoryRepository,
     required this.supportRepository,
     required this.refundRepository,
+    required this.adminOfferRepository,
   });
 
   final AuthRepository authRepository;
@@ -119,6 +135,7 @@ class _BackofficeAccessGate extends StatefulWidget {
   final TerritoryRepository territoryRepository;
   final SupportRequestRepository supportRepository;
   final RefundRepository refundRepository;
+  final AdminOfferRepository adminOfferRepository;
 
   @override
   State<_BackofficeAccessGate> createState() => _BackofficeAccessGateState();
@@ -151,6 +168,7 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
       if (resolved.role == UserRole.administrator &&
           SupabaseBootstrap.isInitialized) {
         unawaited(LegacyTerritoryBackfillService().runIfNeeded());
+        unawaited(LegacyCatalogBackfillService().runIfNeeded());
       }
       return;
     }
@@ -178,6 +196,7 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
     if (user.role == UserRole.administrator &&
         SupabaseBootstrap.isInitialized) {
       unawaited(LegacyTerritoryBackfillService().runIfNeeded());
+      unawaited(LegacyCatalogBackfillService().runIfNeeded());
     }
   }
 
@@ -209,6 +228,7 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
       territoryRepository: widget.territoryRepository,
       supportRepository: widget.supportRepository,
       refundRepository: widget.refundRepository,
+      adminOfferRepository: widget.adminOfferRepository,
       onLogout: _logout,
     );
   }

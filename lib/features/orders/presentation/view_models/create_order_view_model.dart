@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cabine_flow/features/orders/domain/models/create_order_request.dart';
 import 'package:cabine_flow/features/orders/domain/models/offer_catalog_item.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
@@ -14,6 +16,9 @@ class CreateOrderViewModel extends ChangeNotifier {
 
   final OrdersRepository _ordersRepository;
   final OfferCatalogRepository _offerCatalogRepository;
+
+  StreamSubscription<List<OfferCatalogItem>>? _offerSubscription;
+  int _offerSubscriptionGeneration = 0;
 
   MobileNetwork _selectedNetwork = MobileNetwork.orange;
   OrderOperationType? _selectedOperationType;
@@ -77,7 +82,7 @@ class CreateOrderViewModel extends ChangeNotifier {
   }
 
   Future<void> initialize() async {
-    await _loadOffers();
+    await _subscribeToOffers();
   }
 
   Future<void> selectNetwork(MobileNetwork network) async {
@@ -91,7 +96,7 @@ class CreateOrderViewModel extends ChangeNotifier {
 
     notifyListeners();
 
-    await _loadOffers();
+    await _subscribeToOffers();
   }
 
   void selectOperationType(OrderOperationType? operationType) {
@@ -114,22 +119,67 @@ class CreateOrderViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _loadOffers() async {
+  Future<void> _subscribeToOffers() async {
+    final int generation = ++_offerSubscriptionGeneration;
+    final MobileNetwork network = _selectedNetwork;
+
+    await _offerSubscription?.cancel();
+
     _isLoadingOffers = true;
     _errorMessage = null;
-
     notifyListeners();
 
-    try {
-      _networkOffers = await _offerCatalogRepository.fetchOffers(
-        network: _selectedNetwork,
-      );
-    } catch (_) {
-      _errorMessage = 'Impossible de charger le catalogue des offres.';
-    } finally {
-      _isLoadingOffers = false;
-      notifyListeners();
-    }
+    final Completer<void> firstSnapshot = Completer<void>();
+
+    _offerSubscription = _offerCatalogRepository
+        .watchOffers(network: network)
+        .listen(
+          (List<OfferCatalogItem> offers) {
+            if (generation != _offerSubscriptionGeneration ||
+                network != _selectedNetwork) {
+              return;
+            }
+
+            _networkOffers = offers;
+            _isLoadingOffers = false;
+            _errorMessage = null;
+            notifyListeners();
+
+            if (!firstSnapshot.isCompleted) {
+              firstSnapshot.complete();
+            }
+          },
+          onError: (Object _, StackTrace _) {
+            if (generation == _offerSubscriptionGeneration &&
+                network == _selectedNetwork) {
+              _isLoadingOffers = false;
+              _errorMessage = 'Impossible de charger le catalogue des offres.';
+              notifyListeners();
+            }
+            if (!firstSnapshot.isCompleted) {
+              firstSnapshot.complete();
+            }
+          },
+          onDone: () {
+            if (!firstSnapshot.isCompleted) {
+              if (generation == _offerSubscriptionGeneration &&
+                  network == _selectedNetwork) {
+                _isLoadingOffers = false;
+                notifyListeners();
+              }
+              firstSnapshot.complete();
+            }
+          },
+        );
+
+    await firstSnapshot.future;
+  }
+
+  @override
+  void dispose() {
+    _offerSubscriptionGeneration += 1;
+    unawaited(_offerSubscription?.cancel());
+    super.dispose();
   }
 
   Future<QueueOrder?> createOrder(CreateOrderRequest request) async {

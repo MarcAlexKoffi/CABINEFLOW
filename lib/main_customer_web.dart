@@ -13,13 +13,10 @@ Future<void> main() async {
   // actualisation, une fermeture ou l'ouverture d'un nouvel onglet.
   await auth.setPersistence(Persistence.LOCAL);
 
-  // Attend que Firebase ait terminé de restaurer l'utilisateur enregistré
-  // avant que le repository décide de créer une nouvelle session anonyme.
-  await auth.authStateChanges().first;
-
-  // Les demandes clients sont désormais opérationnelles dans Supabase.
-  // L'initialisation intervient après la restauration Firebase afin que le
-  // premier appel Data API dispose immédiatement du JWT Firebase courant.
+  // Le catalogue public n'a pas besoin d'attendre la restauration Firebase.
+  // Les repositories de commandes/profil savent déjà attendre la session
+  // restaurée avant de créer une éventuelle session anonyme. On peut donc
+  // afficher l'accueil immédiatement après le bootstrap Supabase local.
   await SupabaseBootstrap.initialize();
 
   runApp(const CustomerOrderApp());

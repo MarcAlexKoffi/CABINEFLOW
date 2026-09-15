@@ -38,27 +38,13 @@ class CustomerHomePage extends StatefulWidget {
 }
 
 class _CustomerHomePageState extends State<CustomerHomePage> {
-  late final Future<List<CustomerOffer>> _featuredOffers =
-      _loadFeaturedOffers();
+  late final Stream<List<CustomerOffer>> _featuredOffers = widget
+      .offerRepository
+      .watchAllOffers()
+      .map(_selectFeaturedOffers);
 
-  Future<List<CustomerOffer>> _loadFeaturedOffers() async {
-    final List<List<CustomerOffer>> groups = await Future.wait(
-      <Future<List<CustomerOffer>>>[
-        for (final MobileNetwork network
-            in MobileNetwork.values) ...<Future<List<CustomerOffer>>>[
-          widget.offerRepository.fetchOffers(
-            service: CustomerService.internetSubscription,
-            network: network,
-          ),
-          widget.offerRepository.fetchOffers(
-            service: CustomerService.calls,
-            network: network,
-          ),
-        ],
-      ],
-    );
-
-    final List<CustomerOffer> values = groups.expand((items) => items).toList();
+  List<CustomerOffer> _selectFeaturedOffers(List<CustomerOffer> source) {
+    final List<CustomerOffer> values = source.toList(growable: true);
     values.sort((CustomerOffer a, CustomerOffer b) {
       final int badgeScoreA = a.badgeLabel == null ? 1 : 0;
       final int badgeScoreB = b.badgeLabel == null ? 1 : 0;
@@ -68,7 +54,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       }
       return a.amount.compareTo(b.amount);
     });
-    return values.take(3).toList(growable: false);
+    return List<CustomerOffer>.unmodifiable(values.take(3));
   }
 
   @override
@@ -137,7 +123,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             ),
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
-          final bool desktop = constraints.maxWidth >= 820;
+          final bool desktop = constraints.maxWidth >= 980;
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
               desktop ? 34 : 18,
@@ -182,7 +168,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                 ),
                 const SizedBox(height: 18),
                 _FeaturedOffers(
-                  future: _featuredOffers,
+                  stream: _featuredOffers,
                   desktop: desktop,
                   onChoose: widget.onChooseOffer,
                 ),
@@ -281,8 +267,7 @@ class _HeroSection extends StatelessWidget {
         if (desktop)
           Row(
             children: <Widget>[
-              SizedBox(
-                width: 220,
+              Expanded(
                 child: IzyTelPrimaryButton(
                   text: 'Commander maintenant',
                   icon: Icons.arrow_forward_rounded,
@@ -290,8 +275,7 @@ class _HeroSection extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              SizedBox(
-                width: 170,
+              Expanded(
                 child: IzyTelSecondaryButton(
                   text: 'Voir les offres',
                   onPressed: onOpenOffers,
@@ -944,20 +928,21 @@ class _NetworkGrid extends StatelessWidget {
 
 class _FeaturedOffers extends StatelessWidget {
   const _FeaturedOffers({
-    required this.future,
+    required this.stream,
     required this.desktop,
     required this.onChoose,
   });
-  final Future<List<CustomerOffer>> future;
+  final Stream<List<CustomerOffer>> stream;
   final bool desktop;
   final ValueChanged<CustomerOffer> onChoose;
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<CustomerOffer>>(
-      future: future,
+    return StreamBuilder<List<CustomerOffer>>(
+      stream: stream,
       builder: (BuildContext context, AsyncSnapshot<List<CustomerOffer>> snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
           return _OfferLoadingRow(desktop: desktop);
         }
         if (snapshot.hasError ||

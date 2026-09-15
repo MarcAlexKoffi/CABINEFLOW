@@ -9,12 +9,13 @@ Future<void> main() async {
 
   final FirebaseAuth auth = FirebaseAuth.instance;
   await auth.setPersistence(Persistence.LOCAL);
-  await auth.authStateChanges().first;
 
-  // Le back-office réutilise les mêmes sources canoniques Supabase que le
-  // mobile staff. L'initialisation intervient après restauration Firebase afin
-  // que le JWT staff soit immédiatement disponible pour la Data API/Realtime.
-  await SupabaseBootstrap.initialize();
+  // La restauration Firebase et l'initialisation Supabase sont indépendantes
+  // au démarrage. Les lancer en parallèle évite d'additionner leurs latences.
+  final Future<User?> restoredSession = auth.authStateChanges().first;
+  final Future<bool> supabaseReady = SupabaseBootstrap.initialize();
+  await restoredSession;
+  await supabaseReady;
 
   runApp(const BackofficeApp());
 }

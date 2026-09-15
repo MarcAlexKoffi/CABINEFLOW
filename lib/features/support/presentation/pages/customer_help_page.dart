@@ -35,29 +35,51 @@ class CustomerHelpPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool desktopHeader = MediaQuery.sizeOf(context).width >= 900;
+
     return IzyTelShell(
       title: 'Aide',
       onBack: onBack,
-      maxContentWidth: 960,
-      actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 6),
-          child: TextButton(
-            onPressed: onOpenHome,
-            child: const Text('Accueil'),
-          ),
-        ),
-      ],
-      bottomNavigationBar: IzyTelBottomNavigation(
-        current: IzyTelCustomerDestination.help,
-        onHome: onOpenHome,
-        onOffers: onOpenOffers,
-        onHistory: onOpenHistory,
-        onHelp: () {},
-      ),
+      maxContentWidth: 1080,
+      actions: desktopHeader
+          ? <Widget>[
+              TextButton(
+                onPressed: onOpenHome,
+                child: const Text('Accueil'),
+              ),
+              TextButton(
+                onPressed: onOpenOffers,
+                child: const Text('Offres'),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 14),
+                child: TextButton(
+                  onPressed: onOpenHistory,
+                  child: const Text('Historique'),
+                ),
+              ),
+            ]
+          : <Widget>[
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: TextButton(
+                  onPressed: onOpenHome,
+                  child: const Text('Accueil'),
+                ),
+              ),
+            ],
+      bottomNavigationBar: desktopHeader
+          ? null
+          : IzyTelBottomNavigation(
+              current: IzyTelCustomerDestination.help,
+              onHome: onOpenHome,
+              onOffers: onOpenOffers,
+              onHistory: onOpenHistory,
+              onHelp: () {},
+            ),
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
-          final bool desktop = constraints.maxWidth >= 760;
+          final bool desktop = constraints.maxWidth >= 900;
           return ListView(
             padding: EdgeInsets.fromLTRB(
               desktop ? 32 : 18,

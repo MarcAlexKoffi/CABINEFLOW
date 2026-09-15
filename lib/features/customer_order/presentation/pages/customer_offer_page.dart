@@ -37,7 +37,8 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
   late final TextEditingController _transferAmountController;
   late final TextEditingController _customOfferLabelController;
   late final TextEditingController _customOfferAmountController;
-  late final Future<List<CustomerOffer>> _offersFuture;
+  late final Stream<List<CustomerOffer>> _offersStream;
+  String? _lastCatalogSignature;
 
   CustomerService get _service => widget.viewModel.draft.service!;
   MobileNetwork get _network => widget.viewModel.draft.network!;
@@ -65,9 +66,9 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
           : '',
     );
 
-    _offersFuture = _isTransfer
-        ? Future<List<CustomerOffer>>.value(const <CustomerOffer>[])
-        : widget.offerRepository.fetchOffers(
+    _offersStream = _isTransfer
+        ? Stream<List<CustomerOffer>>.value(const <CustomerOffer>[])
+        : widget.offerRepository.watchOffers(
             service: _service,
             network: _network,
           );
@@ -525,11 +526,30 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
     );
   }
 
+  void _scheduleCatalogReconciliation(List<CustomerOffer> offers) {
+    final String signature = offers
+        .map((CustomerOffer offer) =>
+            "${offer.id}|${offer.amount}|${offer.catalogLabel}|${offer.title}|${offer.badgeLabel}|${offer.details.join('~')}")
+        .join('||');
+    if (_lastCatalogSignature == signature) {
+      return;
+    }
+    _lastCatalogSignature = signature;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      widget.viewModel.reconcileCatalogOffers(offers);
+    });
+  }
+
   Widget _buildOfferList() {
-    return FutureBuilder<List<CustomerOffer>>(
-      future: _offersFuture,
+    return StreamBuilder<List<CustomerOffer>>(
+      stream: _offersStream,
       builder: (BuildContext context, AsyncSnapshot<List<CustomerOffer>> snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
           return const SizedBox(
             height: 220,
             child: Center(child: CircularProgressIndicator()),
@@ -545,6 +565,7 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
 
         final List<CustomerOffer> offers =
             snapshot.data ?? const <CustomerOffer>[];
+        _scheduleCatalogReconciliation(offers);
 
         if (offers.isEmpty) {
           return const _OfferLoadMessage(

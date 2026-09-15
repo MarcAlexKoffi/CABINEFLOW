@@ -74,6 +74,13 @@ class FirestoreOfferCatalogRepository implements OfferCatalogRepository {
     );
   }
 
+  @override
+  Stream<List<OfferCatalogItem>> watchOffers({
+    required MobileNetwork network,
+  }) async* {
+    yield await fetchOffers(network: network);
+  }
+
   OrderOperationType? _operationTypeFrom(String value) {
     for (final OrderOperationType type in OrderOperationType.values) {
       if (type.name == value) {

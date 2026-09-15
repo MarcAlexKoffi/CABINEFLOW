@@ -106,19 +106,40 @@ class _CustomerOrderHistoryPageState extends State<CustomerOrderHistoryPage> {
   @override
   Widget build(BuildContext context) {
     final List<CustomerOrderReceipt> orders = _visibleOrders;
-    final bool desktop = MediaQuery.sizeOf(context).width >= 760;
+    final bool desktop = MediaQuery.sizeOf(context).width >= 900;
 
     return IzyTelShell(
       title: 'Historique',
       onBack: widget.onBack,
-      maxContentWidth: 960,
-      bottomNavigationBar: IzyTelBottomNavigation(
-        current: IzyTelCustomerDestination.history,
-        onHome: widget.onOpenHome,
-        onOffers: widget.onOpenOffers,
-        onHistory: () {},
-        onHelp: widget.onOpenHelp,
-      ),
+      maxContentWidth: 1080,
+      actions: desktop
+          ? <Widget>[
+              TextButton(
+                onPressed: widget.onOpenHome,
+                child: const Text('Accueil'),
+              ),
+              TextButton(
+                onPressed: widget.onOpenOffers,
+                child: const Text('Offres'),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 14),
+                child: TextButton(
+                  onPressed: widget.onOpenHelp,
+                  child: const Text('Aide'),
+                ),
+              ),
+            ]
+          : null,
+      bottomNavigationBar: desktop
+          ? null
+          : IzyTelBottomNavigation(
+              current: IzyTelCustomerDestination.history,
+              onHome: widget.onOpenHome,
+              onOffers: widget.onOpenOffers,
+              onHistory: () {},
+              onHelp: widget.onOpenHelp,
+            ),
       child: RefreshIndicator(
         onRefresh: widget.viewModel.reloadHistory,
         child: ListView(

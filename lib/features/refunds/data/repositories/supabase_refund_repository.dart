@@ -1,7 +1,9 @@
+import 'dart:async';
+
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
 import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseRefundRepository implements RefundRepository {
@@ -9,6 +11,8 @@ class SupabaseRefundRepository implements RefundRepository {
     : _client = client ?? Supabase.instance.client;
 
   static const String tableName = 'refunds';
+  static const Duration _pollInterval = Duration(seconds: 4);
+
   final SupabaseClient _client;
   @override
   Stream<List<RefundCase>> watchAll() => _watch();
@@ -26,62 +30,45 @@ class SupabaseRefundRepository implements RefundRepository {
   }
 
   Stream<List<RefundCase>> _watch({String? orderId}) async* {
-    // La Data API reste la source fiable de premier affichage. Realtime est un
-    // accélérateur : s'il refuse momentanément le JWT Firebase, on conserve les
-    // données REST au lieu de mettre tout le module en erreur.
-    yield await _fetch(orderId: orderId);
+    List<RefundCase>? lastSuccessful;
+    int consecutiveFailures = 0;
 
-    try {
-      final String? token = await FirebaseAuth.instance.currentUser?.getIdToken();
-      if (token == null || token.trim().isEmpty) return;
-      await _client.realtime.setAuth(token);
-
-      dynamic realtimeQuery = _client
-          .from(tableName)
-          .stream(primaryKey: const <String>['order_id']);
-      if (orderId != null) {
-        realtimeQuery = realtimeQuery.eq('order_id', orderId);
+    while (true) {
+      try {
+        final List<Map<String, dynamic>> rows = orderId == null
+            ? await _client.from(tableName).select()
+            : await _client.from(tableName).select().eq('order_id', orderId);
+        final List<RefundCase> refunds = rows
+            .map(_fromRow)
+            .whereType<RefundCase>()
+            .toList(growable: false)
+          ..sort(
+            (RefundCase a, RefundCase b) =>
+                b.updatedAt.compareTo(a.updatedAt),
+          );
+        lastSuccessful = List<RefundCase>.unmodifiable(refunds);
+        consecutiveFailures = 0;
+        yield lastSuccessful;
+      } catch (error, stackTrace) {
+        IzyTelLog.backendError(
+          'SupabaseRefunds.watch',
+          error,
+          stackTrace: stackTrace,
+        );
+        if (!BackendFailurePolicy.canRetryRead(error)) {
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+        consecutiveFailures += 1;
+        if (lastSuccessful != null) yield lastSuccessful;
       }
-      final Stream<List<Map<String, dynamic>>> rowsStream = realtimeQuery;
 
-      await for (final List<Map<String, dynamic>> rows in rowsStream) {
-        yield _mapRows(rows);
-      }
-    } catch (error, stackTrace) {
-      IzyTelLog.backendError(
-        'SupabaseRefundRepository.Realtime',
-        error,
-        stackTrace: stackTrace,
+      await Future<void>.delayed(
+        BackendFailurePolicy.retryDelay(
+          baseDelay: _pollInterval,
+          consecutiveFailures: consecutiveFailures,
+        ),
       );
-      // Important : ne pas propager l'erreur Realtime au StreamBuilder. Le
-      // dernier instantané REST reste utilisable et les actions RPC continuent.
     }
-  }
-
-  Future<List<RefundCase>> _fetch({String? orderId}) async {
-    dynamic query = _client.from(tableName).select();
-    if (orderId != null) {
-      query = query.eq('order_id', orderId);
-    }
-    final dynamic response = await query;
-    final List<Map<String, dynamic>> rows = response is List
-        ? response
-              .whereType<Map>()
-              .map((Map row) => Map<String, dynamic>.from(row))
-              .toList(growable: false)
-        : const <Map<String, dynamic>>[];
-    return _mapRows(rows);
-  }
-
-  List<RefundCase> _mapRows(List<Map<String, dynamic>> rows) {
-    final List<RefundCase> refunds = rows
-        .map(_fromRow)
-        .whereType<RefundCase>()
-        .toList(growable: false)
-      ..sort(
-        (RefundCase a, RefundCase b) => b.updatedAt.compareTo(a.updatedAt),
-      );
-    return List<RefundCase>.unmodifiable(refunds);
   }
 
   @override
@@ -104,18 +91,28 @@ class SupabaseRefundRepository implements RefundRepository {
       throw ArgumentError('Le motif du remboursement est invalide.');
     }
 
-    final dynamic response = await _client.rpc(
-      'izytel_create_refund',
-      params: <String, dynamic>{
-        'p_order_id': orderId,
-        'p_order_reference': reference,
-        'p_origin': request.origin.storageValue,
-        'p_support_request_id': request.supportRequestId.trim(),
-        'p_amount': request.amount,
-        'p_reason': request.reason.storageValue,
-        'p_reason_note': note,
-      },
-    );
+    final dynamic response;
+    try {
+      response = await _client.rpc(
+        'izytel_create_refund',
+        params: <String, dynamic>{
+          'p_order_id': orderId,
+          'p_order_reference': reference,
+          'p_origin': request.origin.storageValue,
+          'p_support_request_id': request.supportRequestId.trim(),
+          'p_amount': request.amount,
+          'p_reason': request.reason.storageValue,
+          'p_reason_note': note,
+        },
+      );
+    } on PostgrestException catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'SupabaseRefunds.create',
+        error,
+        stackTrace: stackTrace,
+      );
+      throw _friendlyPostgrestError(error);
+    }
     final Map<String, dynamic>? row = _firstRow(response);
     final RefundCase? refund = row == null ? null : _fromRow(row);
     if (refund == null) {
@@ -195,7 +192,45 @@ class SupabaseRefundRepository implements RefundRepository {
   );
 
   Future<void> _rpcVoid(String function, Map<String, dynamic> params) async {
-    await _client.rpc(function, params: params);
+    try {
+      await _client.rpc(function, params: params);
+    } on PostgrestException catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'SupabaseRefunds.$function',
+        error,
+        stackTrace: stackTrace,
+      );
+      throw _friendlyPostgrestError(error);
+    }
+  }
+
+  StateError _friendlyPostgrestError(PostgrestException error) {
+    final String message = error.message.trim().toUpperCase();
+    final String friendly = switch (message) {
+      'ADMIN_REQUIRED' =>
+        'Cette action de remboursement est r\u00e9serv\u00e9e \u00e0 un administrateur.',
+      'ORDER_NOT_FOUND' =>
+        'La commande associ\u00e9e est introuvable dans le registre op\u00e9rationnel.',
+      'CONFIRMED_WAVE_PAYMENT_REQUIRED' =>
+        'Cette commande n\u2019a pas de paiement Wave confirm\u00e9 \u00e0 rembourser.',
+      'REFUND_AMOUNT_INVALID' =>
+        'Le montant demand\u00e9 pour le remboursement est invalide.',
+      'REFUND_ALREADY_EXISTS' || 'REFUND_STATE_ALREADY_ACTIVE' =>
+        'Un dossier de remboursement existe d\u00e9j\u00e0 pour cette commande.',
+      'FAILED_ORDER_REQUIRED' =>
+        'Cette commande n\u2019est plus en \u00e9tat \u00c9chou\u00e9. Actualisez la liste avant de lancer un remboursement.',
+      'SUPPORT_REQUEST_REQUIRED' || 'SUPPORT_REQUEST_INVALID' =>
+        'La demande client li\u00e9e \u00e0 ce remboursement n\u2019est plus valide.',
+      'REFUND_REASON_INVALID' || 'REFUND_REASON_NOTE_INVALID' =>
+        'Le motif du remboursement est invalide.',
+      'REFUND_REJECTION_REASON_INVALID' =>
+        'Pr\u00e9cisez un motif de rejet valide.',
+      'REFUND_TRANSITION_INVALID' =>
+        'Cette transition de remboursement n\u2019est plus disponible. Actualisez le dossier.',
+      _ =>
+        'L\u2019action de remboursement n\u2019a pas pu \u00eatre effectu\u00e9e. Actualisez puis r\u00e9essayez.',
+    };
+    return StateError(friendly);
   }
 
   RefundCase? _fromRow(Map<String, dynamic> row) {

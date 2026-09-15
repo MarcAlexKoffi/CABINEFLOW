@@ -1,7 +1,6 @@
 import 'package:cabine_flow/core/theme/customer_app_colors.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_offer.dart';
-import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_offer_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_bottom_navigation.dart';
@@ -38,33 +37,24 @@ class CustomerCatalogPage extends StatefulWidget {
 class _CustomerCatalogPageState extends State<CustomerCatalogPage> {
   CustomerOfferType? _typeFilter;
   MobileNetwork? _networkFilter;
-  late Future<List<CustomerOffer>> _offersFuture = _loadOffers();
+  late Stream<List<CustomerOffer>> _offersStream = _watchOffers();
 
-  Future<List<CustomerOffer>> _loadOffers() async {
-    final List<List<CustomerOffer>> groups = await Future.wait(
-      <Future<List<CustomerOffer>>>[
-        for (final MobileNetwork network
-            in MobileNetwork.values) ...<Future<List<CustomerOffer>>>[
-          widget.offerRepository.fetchOffers(
-            service: CustomerService.internetSubscription,
-            network: network,
-          ),
-          widget.offerRepository.fetchOffers(
-            service: CustomerService.calls,
-            network: network,
-          ),
-        ],
-      ],
-    );
-    final List<CustomerOffer> values = groups.expand((items) => items).toList();
-    values.sort((CustomerOffer a, CustomerOffer b) {
-      final int byNetwork = a.network.index.compareTo(b.network.index);
-      if (byNetwork != 0) {
-        return byNetwork;
-      }
-      return a.amount.compareTo(b.amount);
+  Stream<List<CustomerOffer>> _watchOffers() {
+    return widget.offerRepository.watchAllOffers().map((List<CustomerOffer> source) {
+      final List<CustomerOffer> values = source.toList(growable: true);
+      values.sort((CustomerOffer a, CustomerOffer b) {
+        final int byNetwork = a.network.index.compareTo(b.network.index);
+        if (byNetwork != 0) {
+          return byNetwork;
+        }
+        final int byType = a.type.index.compareTo(b.type.index);
+        if (byType != 0) {
+          return byType;
+        }
+        return a.amount.compareTo(b.amount);
+      });
+      return List<CustomerOffer>.unmodifiable(values);
     });
-    return values;
   }
 
   List<CustomerOffer> _filtered(List<CustomerOffer> source) {
@@ -83,34 +73,64 @@ class _CustomerCatalogPageState extends State<CustomerCatalogPage> {
 
   void _retry() {
     setState(() {
-      _offersFuture = _loadOffers();
+      _offersStream = _watchOffers();
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final bool desktopHeader = MediaQuery.sizeOf(context).width >= 900;
+
     return IzyTelShell(
       title: 'Offres',
       onBack: widget.onBack,
-      maxContentWidth: 1080,
-      actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 6),
-          child: TextButton(
-            onPressed: widget.onStartOrder,
-            child: const Text('Commander'),
-          ),
-        ),
-      ],
-      bottomNavigationBar: IzyTelBottomNavigation(
-        current: IzyTelCustomerDestination.offers,
-        onHome: widget.onOpenHome,
-        onOffers: () {},
-        onHistory: widget.onOpenHistory,
-        onHelp: widget.onOpenHelp,
-      ),
-      child: FutureBuilder<List<CustomerOffer>>(
-        future: _offersFuture,
+      maxContentWidth: 1180,
+      actions: desktopHeader
+          ? <Widget>[
+              TextButton(
+                onPressed: widget.onOpenHome,
+                child: const Text('Accueil'),
+              ),
+              TextButton(
+                onPressed: widget.onOpenHistory,
+                child: const Text('Historique'),
+              ),
+              TextButton(
+                onPressed: widget.onOpenHelp,
+                child: const Text('Aide'),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 14, left: 4),
+                child: FilledButton(
+                  onPressed: widget.onStartOrder,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 42),
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                  ),
+                  child: const Text('Commander'),
+                ),
+              ),
+            ]
+          : <Widget>[
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: TextButton(
+                  onPressed: widget.onStartOrder,
+                  child: const Text('Commander'),
+                ),
+              ),
+            ],
+      bottomNavigationBar: desktopHeader
+          ? null
+          : IzyTelBottomNavigation(
+              current: IzyTelCustomerDestination.offers,
+              onHome: widget.onOpenHome,
+              onOffers: () {},
+              onHistory: widget.onOpenHistory,
+              onHelp: widget.onOpenHelp,
+            ),
+      child: StreamBuilder<List<CustomerOffer>>(
+        stream: _offersStream,
         builder:
             (
               BuildContext context,
@@ -118,7 +138,7 @@ class _CustomerCatalogPageState extends State<CustomerCatalogPage> {
             ) {
               return LayoutBuilder(
                 builder: (BuildContext context, BoxConstraints constraints) {
-                  final bool desktop = constraints.maxWidth >= 760;
+                  final bool desktop = constraints.maxWidth >= 900;
                   return ListView(
                     padding: EdgeInsets.fromLTRB(
                       desktop ? 32 : 18,
@@ -146,7 +166,8 @@ class _CustomerCatalogPageState extends State<CustomerCatalogPage> {
                             setState(() => _networkFilter = value),
                       ),
                       const SizedBox(height: 24),
-                      if (snapshot.connectionState != ConnectionState.done)
+                      if (snapshot.connectionState == ConnectionState.waiting &&
+                          !snapshot.hasData)
                         const _CatalogLoading()
                       else if (snapshot.hasError)
                         IzyTelErrorState(

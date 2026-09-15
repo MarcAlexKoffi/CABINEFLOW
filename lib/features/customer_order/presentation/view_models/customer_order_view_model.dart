@@ -548,6 +548,50 @@ class CustomerOrderViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Garde la sélection en cours cohérente avec le catalogue temps réel.
+  ///
+  /// Une offre suspendue disparaît immédiatement de la sélection. Une offre
+  /// modifiée (prix/libellé/détails) remplace la copie devenue obsolète avant
+  /// que le client puisse poursuivre la commande.
+  void reconcileCatalogOffers(List<CustomerOffer> offers) {
+    final CustomerOffer? current = _draft.offer;
+    if (current == null || _draft.usesCustomOffer) {
+      return;
+    }
+
+    CustomerOffer? latest;
+    for (final CustomerOffer offer in offers) {
+      if (offer.id == current.id) {
+        latest = offer;
+        break;
+      }
+    }
+
+    if (latest == null) {
+      _draft = _draft.copyWith(clearOffer: true, clearAmount: true);
+      notifyListeners();
+      return;
+    }
+
+    final bool changed = current.network != latest.network ||
+        current.type != latest.type ||
+        current.title != latest.title ||
+        current.catalogLabel != latest.catalogLabel ||
+        current.amount != latest.amount ||
+        current.badgeLabel != latest.badgeLabel ||
+        !listEquals(current.details, latest.details);
+    if (!changed) {
+      return;
+    }
+
+    _draft = _draft.copyWith(
+      offer: latest,
+      amount: latest.amount,
+      clearCustomOfferLabel: true,
+    );
+    notifyListeners();
+  }
+
   void continueFromOffer() {
     if (!canContinueFromOffer) {
       return;

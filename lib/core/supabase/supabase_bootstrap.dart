@@ -32,9 +32,8 @@ class SupabaseBootstrap {
 
       // Le callback accessToken couvre la Data API et Storage. Pour Realtime,
       // on synchronise aussi explicitement le JWT Firebase avec le WebSocket.
-      // Cela est indispensable lorsque Firebase restaure/change sa session
-      // après l'initialisation de Supabase.
-      await _syncRealtimeAuth(FirebaseAuth.instance.currentUser);
+      // Cette synchronisation ne doit toutefois pas retarder le premier écran :
+      // l'écoute idTokenChanges reprend automatiquement le JWT restauré ensuite.
       _firebaseTokenSubscription ??= FirebaseAuth.instance
           .idTokenChanges()
           .listen(
@@ -49,6 +48,7 @@ class SupabaseBootstrap {
               );
             },
           );
+      unawaited(_syncRealtimeAuth(FirebaseAuth.instance.currentUser));
 
       return true;
     } catch (error, stackTrace) {
