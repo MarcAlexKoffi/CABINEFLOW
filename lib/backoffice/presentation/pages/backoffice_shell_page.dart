@@ -7,6 +7,7 @@ import 'package:cabine_flow/backoffice/domain/repositories/backoffice_finance_re
 import 'package:cabine_flow/backoffice/presentation/pages/backoffice_dashboard_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/catalog/backoffice_offers_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/finances/backoffice_finance_page.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/control/backoffice_control_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/clients/backoffice_refunds_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/clients/backoffice_support_requests_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/team/backoffice_agent_issues_page.dart';
@@ -23,10 +24,10 @@ import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart'
 import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_order_widgets.dart';
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
-import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/auth/presentation/widgets/staff_profile_avatar.dart';
+import 'package:cabine_flow/features/control/domain/repositories/control_repository.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
@@ -275,31 +276,12 @@ extension _BackofficeDestinationX on BackofficeDestination {
       case BackofficeDestination.reconciliations:
       case BackofficeDestination.movements:
       case BackofficeDestination.closings:
-        return permissions.canViewOperationalFinances;
+        return user.role == UserRole.administrator;
       case BackofficeDestination.activityJournal:
-      case BackofficeDestination.audit:
       case BackofficeDestination.statistics:
         return permissions.canAccessStaffShell;
-    }
-  }
-
-  String get milestone {
-    switch (section) {
-      case _BackofficeSection.overview:
-      case _BackofficeSection.administration:
-        return 'BO-1';
-      case _BackofficeSection.operations:
-        return 'BO-2';
-      case _BackofficeSection.clients:
-      case _BackofficeSection.team:
-        return 'BO-3';
-      case _BackofficeSection.catalog:
-        return 'BO-4';
-      case _BackofficeSection.finances:
-        return 'BO-5';
-      case _BackofficeSection.control:
-      case _BackofficeSection.pilotage:
-        return 'BO-6';
+      case BackofficeDestination.audit:
+        return user.role == UserRole.administrator;
     }
   }
 }
@@ -387,6 +369,7 @@ class BackofficeShellPage extends StatefulWidget {
     this.refundRepository,
     this.adminOfferRepository,
     this.financeRepository,
+    this.controlRepository,
     required this.onLogout,
   });
 
@@ -399,6 +382,7 @@ class BackofficeShellPage extends StatefulWidget {
   final RefundRepository? refundRepository;
   final AdminOfferRepository? adminOfferRepository;
   final BackofficeFinanceRepository? financeRepository;
+  final ControlRepository? controlRepository;
   final Future<void> Function() onLogout;
 
   @override
@@ -1024,9 +1008,28 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
         return _financeContent(BackofficeFinanceModule.movements);
       case BackofficeDestination.closings:
         return _financeContent(BackofficeFinanceModule.closings);
-      default:
-        return _BackofficeModulePlaceholder(destination: destination);
+      case BackofficeDestination.activityJournal:
+        return _controlContent(BackofficeControlModule.activity);
+      case BackofficeDestination.audit:
+        return _controlContent(BackofficeControlModule.audit);
+      case BackofficeDestination.statistics:
+        return _controlContent(BackofficeControlModule.statistics);
     }
+  }
+
+  Widget _controlContent(BackofficeControlModule module) {
+    final ControlRepository? repository = widget.controlRepository;
+    if (repository == null) {
+      return const _BackofficeModuleUnavailable(
+        title: 'Contrôle / Pilotage indisponible',
+        message: 'BO-6 nécessite Supabase pour consolider le journal, l’audit et les statistiques canoniques.',
+      );
+    }
+    return BackofficeControlPage(
+      user: widget.user,
+      repository: repository,
+      module: module,
+    );
   }
 
   Widget _financeContent(BackofficeFinanceModule module) {
@@ -2235,99 +2238,6 @@ class _BackofficeModuleUnavailable extends StatelessWidget {
       icon: Symbols.cloud_off_rounded,
       title: title,
       message: message,
-    );
-  }
-}
-
-class _BackofficeModulePlaceholder extends StatelessWidget {
-  const _BackofficeModulePlaceholder({required this.destination});
-
-  final BackofficeDestination destination;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          destination.section.label.isEmpty
-              ? 'ESPACE IZYTEL'
-              : destination.section.label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: BackofficePalette.primary,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.0,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(destination.label, style: Theme.of(context).textTheme.headlineLarge),
-        const SizedBox(height: 7),
-        Text(
-          'La navigation est prête. Le branchement métier de ce module est prévu dans ${destination.milestone}.',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        const SizedBox(height: IzyTelSpacing.xl),
-        Container(
-          width: double.infinity,
-          constraints: const BoxConstraints(minHeight: 300),
-          decoration: BoxDecoration(
-            gradient: BackofficeGradients.soft,
-            border: Border.all(color: BackofficePalette.line),
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: BackofficeShadows.panel,
-          ),
-          child: Stack(
-            children: <Widget>[
-              Positioned(
-                top: -80,
-                right: -65,
-                child: Container(
-                  width: 220,
-                  height: 220,
-                  decoration: const BoxDecoration(
-                    color: Color(0x102F6BFF),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(34),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Container(
-                      width: 58,
-                      height: 58,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        gradient: BackofficeGradients.brand,
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: BackofficeShadows.glow,
-                      ),
-                      child: Icon(destination.icon, size: 28, color: Colors.white),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Module en préparation',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 650),
-                      child: Text(
-                        'L’écran Web sera connecté à la même logique métier et aux mêmes backends que le mobile. Aucun flux validé n’est dupliqué ou remplacé.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          height: 1.55,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

@@ -9,6 +9,7 @@ import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -158,18 +159,13 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(success)));
+      IzyTelFeedback.success(context, success);
       _reload();
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_financeError(error)),
-          backgroundColor: BackofficePalette.danger,
-        ),
-      );
+      IzyTelFeedback.error(context, _financeError(error));
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -1738,9 +1734,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
   }
 
   void _showInputError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: BackofficePalette.danger),
-    );
+    IzyTelFeedback.error(context, message);
   }
 }
 

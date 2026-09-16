@@ -58,17 +58,21 @@ void main() {
     expect(performance, contains('widget.user.permissions.canManageFinanceSettings'));
   });
 
-  test('Espace Manager expose la supervision financière sans remplacer Agents', () {
+  test('Espace Manager garde le pilotage mais n expose plus les finances', () {
     final String more = compact(
       read('lib/features/more/presentation/pages/more_page.dart'),
     );
     final String shell = compact(
       read('lib/features/navigation/presentation/pages/main_shell_page.dart'),
     );
+    final int start = more.indexOf('Widget _buildManager');
+    final int end = more.indexOf('void _historyUnavailable', start);
+    final String managerBlock = more.substring(start, end);
 
-    expect(more, contains("title: 'Finances opérationnelles'"));
-    expect(more, contains('permissions.canViewOperationalFinances'));
-    expect(more, contains('FinancesPage('));
+    expect(managerBlock, contains("title: 'Pilotage opérationnel'"));
+    expect(managerBlock, contains('ManagerPilotagePage('));
+    expect(managerBlock, isNot(contains("title: 'Finances opérationnelles'")));
+    expect(managerBlock, isNot(contains('FinancesPage(')));
     expect(shell, contains('widget.user.isManager ? AgentManagementPage('));
     expect(shell, contains('commissionRepository: widget.commissionRepository'));
   });

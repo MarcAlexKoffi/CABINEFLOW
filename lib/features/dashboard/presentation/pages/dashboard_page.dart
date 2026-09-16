@@ -350,7 +350,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       _PartialDataBanner(message: _viewModel.errorMessage!),
                       const SizedBox(height: 12),
                     ],
-                    _OverviewCard(data: data),
+                    _OverviewCard(data: data, managerMode: widget.user.isManager),
                     const SizedBox(height: 22),
                     const _SectionTitle(
                       title: 'Priorités',
@@ -550,9 +550,10 @@ class _Header extends StatelessWidget {
 }
 
 class _OverviewCard extends StatelessWidget {
-  const _OverviewCard({required this.data});
+  const _OverviewCard({required this.data, required this.managerMode});
 
   final DashboardData data;
+  final bool managerMode;
 
   @override
   Widget build(BuildContext context) {
@@ -584,7 +585,7 @@ class _OverviewCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'Encaissements aujourd’hui',
+                      managerMode ? 'Supervision du jour' : 'Encaissements aujourd’hui',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: Colors.white.withAlpha(205),
                         fontWeight: FontWeight.w600,
@@ -592,7 +593,7 @@ class _OverviewCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      formatCfaFull(data.todayRevenue),
+                      managerMode ? '${data.statistics.completed} commandes terminées' : formatCfaFull(data.todayRevenue),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.headlineMedium?.copyWith(
@@ -603,7 +604,9 @@ class _OverviewCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    _RevenueTrend(percentage: data.revenueChangePercentage),
+                    managerMode
+                        ? _OperationalSummary(orders: data.ordersToProcess)
+                        : _RevenueTrend(percentage: data.revenueChangePercentage),
                   ],
                 ),
               ),
@@ -616,8 +619,8 @@ class _OverviewCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Colors.white.withAlpha(38)),
                 ),
-                child: const Icon(
-                  Symbols.account_balance_wallet_rounded,
+                child: Icon(
+                  managerMode ? Symbols.monitoring_rounded : Symbols.account_balance_wallet_rounded,
                   color: Colors.white,
                   size: 27,
                 ),
@@ -660,6 +663,30 @@ class _OverviewCard extends StatelessWidget {
     final int hours = minutes ~/ 60;
     final int remaining = minutes % 60;
     return remaining == 0 ? '${hours}h' : '${hours}h ${remaining}m';
+  }
+}
+
+class _OperationalSummary extends StatelessWidget {
+  const _OperationalSummary({required this.orders});
+  final int orders;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(28),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withAlpha(38)),
+      ),
+      child: Text(
+        '$orders commandes suivies',
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+      ),
+    );
   }
 }
 

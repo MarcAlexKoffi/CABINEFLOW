@@ -6,7 +6,7 @@ void main() {
   String read(String path) => File(path).readAsStringSync();
   String compact(String value) => value.replaceAll(RegExp(r'\s+'), ' ');
 
-  test('M4 couvre Agents, assistance, signalements et finances Manager', () {
+  test('M4 couvre Agents, assistance, signalements et pilotage Manager', () {
     final String more = compact(
       read('lib/features/more/presentation/pages/more_page.dart'),
     );
@@ -26,13 +26,14 @@ void main() {
     expect(more, contains("title: 'Affectations des commandes'"));
     expect(more, contains("title: 'Agents'"));
     expect(more, contains("title: 'Signalements agents'"));
-    expect(more, contains("title: 'Finances opérationnelles'"));
+    expect(more, contains("title: 'Pilotage opérationnel'"));
+    expect(more, contains('ManagerPilotagePage('));
 
     expect(manager, contains('canAssignOrders: true'));
     expect(manager, contains('canConfirmPayments: true'));
     expect(manager, contains('canViewSupportRequests: true'));
     expect(manager, contains('canResolveAgentIssues: true'));
-    expect(manager, contains('canViewOperationalFinances: true'));
+    expect(manager, contains('canViewOperationalFinances: false'));
     expect(manager, contains('canManageAgents: false'));
     expect(manager, contains('canManageOffers: false'));
     expect(manager, contains('canManageRefunds: false'));

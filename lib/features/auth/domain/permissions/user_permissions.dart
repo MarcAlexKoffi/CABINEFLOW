@@ -66,7 +66,7 @@ class UserPermissions {
     canProcessSupportRequests: false,
     canViewAgentDirectory: true,
     canResolveAgentIssues: true,
-    canViewOperationalFinances: true,
+    canViewOperationalFinances: false,
     canManageAgents: false,
     canManageOffers: false,
     canManageFailedOrders: false,

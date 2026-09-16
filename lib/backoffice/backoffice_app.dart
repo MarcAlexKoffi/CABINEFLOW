@@ -8,6 +8,8 @@ import 'package:cabine_flow/backoffice/domain/repositories/backoffice_user_repos
 import 'package:cabine_flow/backoffice/domain/repositories/territory_repository.dart';
 import 'package:cabine_flow/backoffice/domain/repositories/backoffice_finance_repository.dart';
 import 'package:cabine_flow/backoffice/data/repositories/supabase_backoffice_finance_repository.dart';
+import 'package:cabine_flow/features/control/data/repositories/supabase_control_repository.dart';
+import 'package:cabine_flow/features/control/domain/repositories/control_repository.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/backoffice_login_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/backoffice_shell_page.dart';
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
@@ -51,6 +53,7 @@ class BackofficeApp extends StatelessWidget {
     this.refundRepository,
     this.adminOfferRepository,
     this.financeRepository,
+    this.controlRepository,
   });
 
   final AuthRepository? authRepository;
@@ -62,6 +65,7 @@ class BackofficeApp extends StatelessWidget {
   final RefundRepository? refundRepository;
   final AdminOfferRepository? adminOfferRepository;
   final BackofficeFinanceRepository? financeRepository;
+  final ControlRepository? controlRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +109,11 @@ class BackofficeApp extends StatelessWidget {
         (SupabaseBootstrap.isInitialized
             ? SupabaseBackofficeFinanceRepository()
             : null);
+    final ControlRepository? effectiveControl =
+        controlRepository ??
+        (SupabaseBootstrap.isInitialized
+            ? SupabaseControlRepository()
+            : null);
 
     return MaterialApp(
       title: 'IzyTel Back-office',
@@ -122,6 +131,7 @@ class BackofficeApp extends StatelessWidget {
         refundRepository: effectiveRefunds,
         adminOfferRepository: effectiveOffers,
         financeRepository: effectiveFinance,
+        controlRepository: effectiveControl,
       ),
     );
   }
@@ -138,6 +148,7 @@ class _BackofficeAccessGate extends StatefulWidget {
     required this.refundRepository,
     required this.adminOfferRepository,
     required this.financeRepository,
+    required this.controlRepository,
   });
 
   final AuthRepository authRepository;
@@ -149,6 +160,7 @@ class _BackofficeAccessGate extends StatefulWidget {
   final RefundRepository refundRepository;
   final AdminOfferRepository adminOfferRepository;
   final BackofficeFinanceRepository? financeRepository;
+  final ControlRepository? controlRepository;
 
   @override
   State<_BackofficeAccessGate> createState() => _BackofficeAccessGateState();
@@ -245,6 +257,7 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
       refundRepository: widget.refundRepository,
       adminOfferRepository: widget.adminOfferRepository,
       financeRepository: widget.financeRepository,
+      controlRepository: widget.controlRepository,
       onLogout: _logout,
     );
   }

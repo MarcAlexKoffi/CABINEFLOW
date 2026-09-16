@@ -16,7 +16,8 @@ void main() {
 
       expect(shell, contains('BackofficeDestination.offers'));
       expect(shell, contains('BackofficeOffersPage('));
-      expect(shell, contains("return 'BO-4';"));
+      // Le jalon textuel BO-4 n'est plus porte par le shell depuis BO-6.
+      // Le contrat utile est le routage vers la vraie page Catalogue.
       expect(page, contains('Catalogue commercial IzyTel'));
       expect(page, contains('Nouvelle offre'));
       expect(page, contains('Synchroniser historique'));
@@ -54,9 +55,14 @@ void main() {
         'lib/features/customer_order/presentation/pages/customer_order_flow_page.dart',
       );
 
+      // Les repositories factorisent maintenant le nom de table dans _offersTable.
+      // On valide le contrat réel (même table Supabase + requête via cette constante)
+      // au lieu d'exiger une chaîne littérale .from('catalog_offers').
       expect(staff, contains("_offersTable = 'catalog_offers'"));
+      expect(staff, contains('.from(_offersTable)'));
       expect(staff, contains(".eq('is_active', true)"));
       expect(customer, contains("_offersTable = 'catalog_offers'"));
+      expect(customer, contains('.from(_offersTable)'));
       expect(customer, contains(".eq('is_active', true)"));
       expect(app, contains('SupabaseOfferCatalogRepository()'));
       expect(app, contains('SupabaseAdminOfferRepository()'));

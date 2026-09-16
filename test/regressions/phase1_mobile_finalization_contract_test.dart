@@ -61,7 +61,8 @@ void main() {
     expect(more, contains("title: 'Affectations des commandes'"));
     expect(more, contains("title: 'Agents'"));
     expect(more, contains("title: 'Signalements agents'"));
-    expect(more, contains("title: 'Finances opérationnelles'"));
+    expect(more, contains("title: 'Pilotage opérationnel'"));
+    expect(manager, contains('canViewOperationalFinances: false'));
     expect(manager, contains('canAssignOrders: true'));
     expect(manager, contains('canConfirmPayments: true'));
     expect(manager, contains('canResolveAgentIssues: true'));

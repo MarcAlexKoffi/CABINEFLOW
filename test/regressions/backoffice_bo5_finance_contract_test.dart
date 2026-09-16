@@ -44,7 +44,6 @@ void main() {
       }
       expect(shell, contains('BackofficeFinancePage('));
       expect(shell, contains('ordersRepository: widget.ordersRepository'));
-      expect(shell, contains("return 'BO-5';"));
       expect(page, isNot(contains('Module en préparation')));
     });
 

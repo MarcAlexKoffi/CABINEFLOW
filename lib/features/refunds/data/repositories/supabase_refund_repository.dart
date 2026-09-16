@@ -1,9 +1,7 @@
-import 'dart:async';
-
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
-import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
 import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseRefundRepository implements RefundRepository {
@@ -11,8 +9,6 @@ class SupabaseRefundRepository implements RefundRepository {
     : _client = client ?? Supabase.instance.client;
 
   static const String tableName = 'refunds';
-  static const Duration _pollInterval = Duration(seconds: 4);
-
   final SupabaseClient _client;
   @override
   Stream<List<RefundCase>> watchAll() => _watch();
@@ -30,45 +26,61 @@ class SupabaseRefundRepository implements RefundRepository {
   }
 
   Stream<List<RefundCase>> _watch({String? orderId}) async* {
-    List<RefundCase>? lastSuccessful;
-    int consecutiveFailures = 0;
+    // Premier affichage via Data API : Realtime reste un accélérateur.
+    // Si l'abonnement Realtime échoue, le dernier état REST reste utilisable.
+    yield await _fetch(orderId: orderId);
 
-    while (true) {
-      try {
-        final List<Map<String, dynamic>> rows = orderId == null
-            ? await _client.from(tableName).select()
-            : await _client.from(tableName).select().eq('order_id', orderId);
-        final List<RefundCase> refunds = rows
-            .map(_fromRow)
-            .whereType<RefundCase>()
-            .toList(growable: false)
-          ..sort(
-            (RefundCase a, RefundCase b) =>
-                b.updatedAt.compareTo(a.updatedAt),
-          );
-        lastSuccessful = List<RefundCase>.unmodifiable(refunds);
-        consecutiveFailures = 0;
-        yield lastSuccessful;
-      } catch (error, stackTrace) {
-        IzyTelLog.backendError(
-          'SupabaseRefunds.watch',
-          error,
-          stackTrace: stackTrace,
-        );
-        if (!BackendFailurePolicy.canRetryRead(error)) {
-          Error.throwWithStackTrace(error, stackTrace);
-        }
-        consecutiveFailures += 1;
-        if (lastSuccessful != null) yield lastSuccessful;
+    try {
+      final String? token = await FirebaseAuth.instance.currentUser?.getIdToken();
+      if (token == null || token.trim().isEmpty) return;
+      await _client.realtime.setAuth(token);
+
+      dynamic realtimeQuery = _client
+          .from(tableName)
+          .stream(primaryKey: const <String>['order_id']);
+      if (orderId != null) {
+        realtimeQuery = realtimeQuery.eq('order_id', orderId);
       }
+      final Stream<List<Map<String, dynamic>>> rowsStream = realtimeQuery;
 
-      await Future<void>.delayed(
-        BackendFailurePolicy.retryDelay(
-          baseDelay: _pollInterval,
-          consecutiveFailures: consecutiveFailures,
-        ),
+      await for (final List<Map<String, dynamic>> rows in rowsStream) {
+        yield _mapRows(rows);
+      }
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'SupabaseRefundRepository.Realtime',
+        error,
+        stackTrace: stackTrace,
       );
+      // Ne pas propager une panne Realtime au StreamBuilder : les actions RPC
+      // et le dernier instantané REST restent disponibles.
     }
+  }
+
+  Future<List<RefundCase>> _fetch({String? orderId}) async {
+    dynamic query = _client.from(tableName).select();
+    if (orderId != null) {
+      query = query.eq('order_id', orderId);
+    }
+    final dynamic response = await query;
+    final List<Map<String, dynamic>> rows = response is List
+        ? response
+              .whereType<Map>()
+              .map((Map row) => Map<String, dynamic>.from(row))
+              .toList(growable: false)
+        : const <Map<String, dynamic>>[];
+    return _mapRows(rows);
+  }
+
+  List<RefundCase> _mapRows(List<Map<String, dynamic>> rows) {
+    final List<RefundCase> refunds = rows
+        .map(_fromRow)
+        .whereType<RefundCase>()
+        .toList(growable: false)
+      ..sort(
+        (RefundCase a, RefundCase b) => b.updatedAt.compareTo(a.updatedAt),
+      );
+    return List<RefundCase>.unmodifiable(refunds);
   }
 
   @override

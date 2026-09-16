@@ -1,5 +1,6 @@
 import 'package:cabine_flow/app/app_routes.dart';
 import 'package:cabine_flow/core/services/session_preferences.dart';
+import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
@@ -11,7 +12,8 @@ import 'package:cabine_flow/features/auth/presentation/pages/staff_personal_prof
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:cabine_flow/features/auth/presentation/widgets/manager_profile_avatar.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
-import 'package:cabine_flow/features/finances/presentation/pages/finances_page.dart';
+import 'package:cabine_flow/features/control/data/repositories/supabase_control_repository.dart';
+import 'package:cabine_flow/features/control/presentation/pages/manager_pilotage_page.dart';
 import 'package:cabine_flow/features/more/presentation/pages/admin_activity_journal_page.dart';
 import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
 import 'package:cabine_flow/features/offers/presentation/pages/offer_management_page.dart';
@@ -517,24 +519,19 @@ class MorePage extends StatelessWidget {
       );
     }
 
-    void openOperationalFinances() {
-      final CommissionRepository? commissions = commissionRepository;
-      if (commissions == null) {
+    void openPilotage() {
+      if (!SupabaseBootstrap.isInitialized) {
         IzyTelFeedback.show(
           context,
-          'La supervision financière n’est pas disponible dans ce contexte.',
+          'Le pilotage opérationnel nécessite la connexion Supabase.',
           tone: IzyTelFeedbackTone.warning,
         );
         return;
       }
       Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
-          builder: (BuildContext context) => FinancesPage(
-            user: user,
-            ordersRepository: ordersRepository,
-            commissionRepository: commissions,
-            agentRepository: agentRepository,
-            onOpenPayments: onOpenPayments ?? () {},
+          builder: (BuildContext context) => ManagerPilotagePage(
+            repository: SupabaseControlRepository(),
           ),
         ),
       );
@@ -589,13 +586,11 @@ class MorePage extends StatelessWidget {
                             label: 'Signalements agents',
                             onTap: openIssues,
                           ),
-                        if (permissions.canViewOperationalFinances &&
-                            commissionRepository != null)
-                          IzyTelAccountAction(
-                            icon: Symbols.account_balance_rounded,
-                            label: 'Finances opérationnelles',
-                            onTap: openOperationalFinances,
-                          ),
+                        IzyTelAccountAction(
+                          icon: Symbols.monitoring_rounded,
+                          label: 'Pilotage opérationnel',
+                          onTap: openPilotage,
+                        ),
                         IzyTelAccountAction(
                           icon: Symbols.logout_rounded,
                           label: 'Se déconnecter',
@@ -642,6 +637,19 @@ class MorePage extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: IzyTelSpacing.lg),
+            const _SectionLabel('Pilotage'),
+            const SizedBox(height: 6),
+            IzyTelSurface(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: IzyTelMenuRow(
+                icon: Symbols.monitoring_rounded,
+                title: 'Pilotage opérationnel',
+                subtitle: 'Suivre les commandes, incidents et performances de tes zones sans exposer les finances sensibles.',
+                iconColor: IzyTelColors.primary,
+                onTap: openPilotage,
+              ),
+            ),
             if (permissions.canViewAgentDirectory ||
                 permissions.canResolveAgentIssues) ...<Widget>[
               const SizedBox(height: IzyTelSpacing.lg),
@@ -674,23 +682,6 @@ class MorePage extends StatelessWidget {
                         onTap: openIssues,
                       ),
                   ],
-                ),
-              ),
-            ],
-            if (permissions.canViewOperationalFinances &&
-                commissionRepository != null) ...<Widget>[
-              const SizedBox(height: IzyTelSpacing.lg),
-              const _SectionLabel('Suivi financier'),
-              const SizedBox(height: 6),
-              IzyTelSurface(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                child: IzyTelMenuRow(
-                  icon: Symbols.account_balance_rounded,
-                  title: 'Finances opérationnelles',
-                  subtitle:
-                      'Consulter commissions, fournisseurs et mouvements déjà migrés vers Supabase.',
-                  iconColor: IzyTelColors.success,
-                  onTap: openOperationalFinances,
                 ),
               ),
             ],
