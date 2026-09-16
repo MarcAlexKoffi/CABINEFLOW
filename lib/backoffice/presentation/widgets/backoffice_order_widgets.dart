@@ -1,9 +1,11 @@
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
+import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_modal.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_operator_brand.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:material_symbols_icons/symbols.dart';
 
 class BackofficePageIntro extends StatelessWidget {
@@ -368,13 +370,6 @@ class BackofficeNetworkBadge extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: color.withValues(alpha: .22)),
-        boxShadow: const <BoxShadow>[
-          BoxShadow(
-            color: Color(0x08102A56),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -385,7 +380,7 @@ class BackofficeNetworkBadge extends StatelessWidget {
             child: Image.asset(
               network.brandLogoAsset,
               fit: BoxFit.contain,
-              filterQuality: FilterQuality.high,
+              filterQuality: FilterQuality.medium,
               semanticLabel: 'Logo ${network.brandLabel}',
               errorBuilder: (_, _, _) => Container(
                 alignment: Alignment.center,
@@ -437,13 +432,6 @@ class BackofficeWaveBadge extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: waveBlue.withValues(alpha: .22)),
-        boxShadow: const <BoxShadow>[
-          BoxShadow(
-            color: Color(0x08102A56),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -454,7 +442,7 @@ class BackofficeWaveBadge extends StatelessWidget {
             child: Image.asset(
               'assets/images/wave_logo.png',
               fit: BoxFit.contain,
-              filterQuality: FilterQuality.high,
+              filterQuality: FilterQuality.medium,
               semanticLabel: 'Logo Wave',
               errorBuilder: (_, _, _) => const Icon(
                 Symbols.waves_rounded,
@@ -538,17 +526,28 @@ class BackofficeDesktopTable extends StatelessWidget {
     super.key,
     required this.columns,
     required this.rows,
+    this.maxBodyHeight = 640,
   });
 
   final List<BackofficeTableColumnSpec> columns;
   final List<BackofficeDesktopTableRow> rows;
+  final double maxBodyHeight;
 
   @override
   Widget build(BuildContext context) {
+    final double viewportBound = (MediaQuery.sizeOf(context).height * .62)
+        .clamp(320.0, maxBodyHeight)
+        .toDouble();
+    final double estimatedBodyHeight = rows.length * 88.0;
+    final double bodyHeight = estimatedBodyHeight
+        .clamp(0.0, viewportBound)
+        .toDouble();
+
     return Container(
       decoration: backofficePanelDecoration(),
       clipBehavior: Clip.antiAlias,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           Container(
             constraints: const BoxConstraints(minHeight: 50),
@@ -564,19 +563,24 @@ class BackofficeDesktopTable extends StatelessWidget {
               ),
             ),
             child: Row(
-              children: columns.map((BackofficeTableColumnSpec column) {
+              children: columns.asMap().entries.map((entry) {
+                final BackofficeTableColumnSpec column = entry.value;
+                final bool isLast = entry.key == columns.length - 1;
                 return Expanded(
                   flex: column.flex,
-                  child: Align(
-                    alignment: column.alignment,
-                    child: Text(
-                      column.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: BackofficePalette.muted,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: .35,
+                  child: Padding(
+                    padding: EdgeInsets.only(right: isLast ? 0 : 12),
+                    child: Align(
+                      alignment: column.alignment,
+                      child: Text(
+                        column.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: BackofficePalette.muted,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: .35,
+                        ),
                       ),
                     ),
                   ),
@@ -584,11 +588,28 @@ class BackofficeDesktopTable extends StatelessWidget {
               }).toList(growable: false),
             ),
           ),
-          for (int index = 0; index < rows.length; index++)
-            rows[index].copyWith(
-              showDivider: index < rows.length - 1,
-              backgroundColor: rows[index].backgroundColor ??
-                  (index.isEven ? Colors.white : const Color(0xFFFBFCFF)),
+          if (rows.isNotEmpty)
+            SizedBox(
+              height: bodyHeight,
+              child: Scrollbar(
+                child: ListView.builder(
+                  primary: false,
+                  padding: EdgeInsets.zero,
+                  physics: const ClampingScrollPhysics(),
+                  scrollCacheExtent: const ScrollCacheExtent.pixels(240.0),
+                  itemCount: rows.length,
+                  itemBuilder: (BuildContext context, int index) {
+                    final BackofficeDesktopTableRow item = rows[index];
+                    return item.copyWith(
+                      showDivider: index < rows.length - 1,
+                      backgroundColor: item.backgroundColor ??
+                          (index.isEven
+                              ? Colors.white
+                              : const Color(0xFFFBFCFF)),
+                    );
+                  },
+                ),
+              ),
             ),
         ],
       ),
@@ -798,196 +819,237 @@ Future<void> showBackofficeOrderDetails(
   BuildContext context,
   QueueOrder order,
 ) {
-  return showDialog<void>(
+  return showBackofficeModal<void>(
     context: context,
     builder: (BuildContext dialogContext) {
-      return Dialog(
-        insetPadding: const EdgeInsets.all(20),
-        backgroundColor: Colors.transparent,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: Container(
-            decoration: backofficePanelDecoration(radius: 22, elevated: true),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(22),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      final String paymentReference = order.paymentReference?.trim().isNotEmpty == true
+          ? order.paymentReference!.trim()
+          : (order.paymentDeclaredReference?.trim().isNotEmpty == true
+              ? order.paymentDeclaredReference!.trim()
+              : 'Non renseignée');
+      return BackofficeModalShell(
+        title: order.reference,
+        subtitle: '${order.clientName} • ${formatOrderDateTime(order.createdAt)}',
+        icon: Symbols.receipt_long_rounded,
+        maxWidth: 900,
+        chips: <Widget>[
+          BackofficeStatusBadge(
+            label: orderStatusLabel(order.status),
+            color: orderStatusColor(order.status),
+            icon: orderStatusIcon(order.status),
+          ),
+          BackofficeNetworkBadge(network: order.network),
+          BackofficeStatusBadge(
+            label: paymentStatusLabel(order.paymentStatus),
+            color: order.paymentStatus == OrderPaymentStatus.confirmed
+                ? BackofficePalette.success
+                : BackofficePalette.warning,
+            icon: Symbols.account_balance_wallet_rounded,
+          ),
+        ],
+        actions: <Widget>[
+          FilledButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            icon: const Icon(Symbols.check_rounded),
+            label: const Text('Fermer'),
+          ),
+        ],
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            BackofficeModalHero(
+              leading: IzyTelOperatorLogo(network: order.network, size: 58, borderRadius: 16),
+              eyebrow: networkLabel(order.network),
+              value: formatCfaFull(order.amount),
+              caption: '${operationTypeLabel(order.operationType)} • ${order.offerLabel}',
+              trailing: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: <Widget>[
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Container(
-                        width: 46,
-                        height: 46,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: BackofficePalette.primarySoft,
-                          borderRadius: BorderRadius.circular(14),
+                  Text(
+                    'BÉNÉFICIAIRE',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: BackofficePalette.faint,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: .5,
                         ),
-                        child: const Icon(
-                          Symbols.receipt_long_rounded,
-                          color: BackofficePalette.primaryStrong,
-                          fill: 1,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    formatIvorianPhone(order.beneficiaryPhone),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: BackofficePalette.ink,
+                          fontWeight: FontWeight.w900,
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              order.reference,
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${order.clientName} • ${formatOrderDateTime(order.createdAt)}',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Fermer',
-                        onPressed: () => Navigator.of(dialogContext).pop(),
-                        icon: const Icon(Symbols.close_rounded),
-                      ),
-                    ],
                   ),
-                  const SizedBox(height: 18),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: <Widget>[
-                      BackofficeStatusBadge(
-                        label: orderStatusLabel(order.status),
-                        color: orderStatusColor(order.status),
-                        icon: orderStatusIcon(order.status),
-                      ),
-                      BackofficeNetworkBadge(network: order.network),
-                      BackofficeStatusBadge(
-                        label: paymentStatusLabel(order.paymentStatus),
-                        color: order.paymentStatus == OrderPaymentStatus.confirmed
-                            ? BackofficePalette.success
-                            : BackofficePalette.warning,
-                        icon: Symbols.account_balance_wallet_rounded,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  _DetailSection(
-                    title: 'Commande',
-                    rows: <_DetailRow>[
-                      _DetailRow('Montant', formatCfaFull(order.amount)),
-                      _DetailRow('Service', operationTypeLabel(order.operationType)),
-                      _DetailRow('Offre', order.offerLabel),
-                      _DetailRow('Bénéficiaire', formatIvorianPhone(order.beneficiaryPhone)),
-                      _DetailRow('Source', orderSourceLabel(order.source)),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  _DetailSection(
-                    title: 'Client & paiement',
-                    rows: <_DetailRow>[
-                      _DetailRow('Client', order.clientName),
-                      _DetailRow('WhatsApp', formatIvorianPhone(order.clientWhatsappPhone)),
-                      _DetailRow('Référence paiement', order.paymentReference?.trim().isNotEmpty == true ? order.paymentReference! : 'Non renseignée'),
-                      _DetailRow('Déclaré le', order.paymentDeclaredAt == null ? 'Non déclaré' : formatOrderDateTime(order.paymentDeclaredAt!)),
-                      _DetailRow('Confirmé le', order.paymentConfirmedAt == null ? 'Non confirmé' : formatOrderDateTime(order.paymentConfirmedAt!)),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  _DetailSection(
-                    title: 'Affectation',
-                    rows: <_DetailRow>[
-                      _DetailRow('Agent', order.assignedAgentName?.trim().isNotEmpty == true ? order.assignedAgentName! : 'Non affecté'),
-                      _DetailRow('Statut', order.assignmentStatus.name),
-                      _DetailRow('Mode', order.assignmentMode?.name ?? 'Non renseigné'),
-                      _DetailRow('Affectée le', order.assignedAt == null ? 'Non renseigné' : formatOrderDateTime(order.assignedAt!)),
-                    ],
-                  ),
-                  if (order.failureReason != null ||
-                      order.observation?.trim().isNotEmpty == true) ...<Widget>[
-                    const SizedBox(height: 14),
-                    _DetailSection(
-                      title: 'Échec / observation',
-                      rows: <_DetailRow>[
-                        _DetailRow('Motif', failureReasonLabel(order.failureReason)),
-                        _DetailRow('Observation', order.observation?.trim().isNotEmpty == true ? order.observation! : 'Aucune'),
-                      ],
-                    ),
-                  ],
                 ],
               ),
             ),
-          ),
+            const SizedBox(height: 14),
+            BackofficeModalSection(
+              title: 'Commande',
+              subtitle: 'Informations de vente et de traitement.',
+              icon: Symbols.shopping_bag_rounded,
+              child: BackofficeInfoGrid(
+                items: <BackofficeInfoItem>[
+                  BackofficeInfoItem(
+                    label: 'Montant',
+                    value: formatCfaFull(order.amount),
+                    icon: Symbols.payments_rounded,
+                    emphasis: true,
+                  ),
+                  BackofficeInfoItem(
+                    label: 'Service',
+                    value: operationTypeLabel(order.operationType),
+                    icon: Symbols.swap_horiz_rounded,
+                  ),
+                  BackofficeInfoItem(
+                    label: 'Offre',
+                    value: order.offerLabel,
+                    icon: Symbols.sell_rounded,
+                  ),
+                  BackofficeInfoItem(
+                    label: 'Source',
+                    value: orderSourceLabel(order.source),
+                    icon: Symbols.devices_rounded,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            BackofficeModalSection(
+              title: 'Client & bénéficiaire',
+              subtitle: 'Coordonnées utilisées pour la commande.',
+              icon: Symbols.person_rounded,
+              child: BackofficeInfoGrid(
+                items: <BackofficeInfoItem>[
+                  BackofficeInfoItem(
+                    label: 'Client',
+                    value: order.clientName,
+                    icon: Symbols.badge_rounded,
+                  ),
+                  BackofficeInfoItem(
+                    label: 'WhatsApp client',
+                    value: formatIvorianPhone(order.clientWhatsappPhone),
+                    icon: Symbols.chat_rounded,
+                  ),
+                  BackofficeInfoItem(
+                    label: 'Bénéficiaire',
+                    value: formatIvorianPhone(order.beneficiaryPhone),
+                    icon: Symbols.phone_android_rounded,
+                    emphasis: true,
+                  ),
+                  BackofficeInfoItem(
+                    label: 'Réseau',
+                    value: networkLabel(order.network),
+                    icon: Symbols.cell_tower_rounded,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            BackofficeModalSection(
+              title: 'Paiement',
+              subtitle: 'Traçabilité de la déclaration et de la confirmation.',
+              icon: Symbols.account_balance_wallet_rounded,
+              tone: order.paymentStatus == OrderPaymentStatus.confirmed
+                  ? BackofficePalette.success
+                  : BackofficePalette.warning,
+              child: BackofficeInfoGrid(
+                items: <BackofficeInfoItem>[
+                  BackofficeInfoItem(
+                    label: 'Référence paiement',
+                    value: paymentReference,
+                    icon: Symbols.tag_rounded,
+                    emphasis: true,
+                    selectable: true,
+                  ),
+                  BackofficeInfoItem(
+                    label: 'Statut',
+                    value: paymentStatusLabel(order.paymentStatus),
+                    icon: Symbols.verified_rounded,
+                  ),
+                  BackofficeInfoItem(
+                    label: 'Déclaré le',
+                    value: order.paymentDeclaredAt == null
+                        ? 'Non déclaré'
+                        : formatOrderDateTime(order.paymentDeclaredAt!),
+                    icon: Symbols.schedule_rounded,
+                  ),
+                  BackofficeInfoItem(
+                    label: 'Confirmé le',
+                    value: order.paymentConfirmedAt == null
+                        ? 'Non confirmé'
+                        : formatOrderDateTime(order.paymentConfirmedAt!),
+                    icon: Symbols.event_available_rounded,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            BackofficeModalSection(
+              title: 'Affectation & exécution',
+              subtitle: 'Agent responsable et origine de l’affectation.',
+              icon: Symbols.assignment_ind_rounded,
+              child: BackofficeInfoGrid(
+                items: <BackofficeInfoItem>[
+                  BackofficeInfoItem(
+                    label: 'Agent',
+                    value: order.assignedAgentName?.trim().isNotEmpty == true
+                        ? order.assignedAgentName!.trim()
+                        : 'Non affecté',
+                    icon: Symbols.support_agent_rounded,
+                    emphasis: true,
+                  ),
+                  BackofficeInfoItem(
+                    label: 'Statut affectation',
+                    value: order.assignmentStatus.name,
+                    icon: Symbols.rule_rounded,
+                  ),
+                  BackofficeInfoItem(
+                    label: 'Mode',
+                    value: order.assignmentMode?.name ?? 'Non renseigné',
+                    icon: Symbols.route_rounded,
+                  ),
+                  BackofficeInfoItem(
+                    label: 'Affectée le',
+                    value: order.assignedAt == null
+                        ? 'Non renseigné'
+                        : formatOrderDateTime(order.assignedAt!),
+                    icon: Symbols.event_rounded,
+                  ),
+                ],
+              ),
+            ),
+            if (order.failureReason != null ||
+                order.observation?.trim().isNotEmpty == true) ...<Widget>[
+              const SizedBox(height: 14),
+              BackofficeModalSection(
+                title: 'Échec / observation',
+                subtitle: 'Informations à contrôler avant toute reprise.',
+                icon: Symbols.error_rounded,
+                tone: BackofficePalette.danger,
+                backgroundColor: const Color(0xFFFFFAFA),
+                child: BackofficeInfoGrid(
+                  items: <BackofficeInfoItem>[
+                    BackofficeInfoItem(
+                      label: 'Motif',
+                      value: failureReasonLabel(order.failureReason),
+                      icon: Symbols.report_problem_rounded,
+                    ),
+                    BackofficeInfoItem(
+                      label: 'Observation',
+                      value: order.observation?.trim().isNotEmpty == true
+                          ? order.observation!.trim()
+                          : 'Aucune',
+                      icon: Symbols.notes_rounded,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
         ),
       );
     },
   );
-}
-
-class _DetailSection extends StatelessWidget {
-  const _DetailSection({required this.title, required this.rows});
-
-  final String title;
-  final List<_DetailRow> rows;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: BackofficePalette.surfaceAlt,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: BackofficePalette.line),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            title,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: BackofficePalette.ink,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 11),
-          for (final _DetailRow row in rows) ...<Widget>[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                SizedBox(
-                  width: 148,
-                  child: Text(
-                    row.label,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    row.value,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: BackofficePalette.ink,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (row != rows.last) const SizedBox(height: 8),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _DetailRow {
-  const _DetailRow(this.label, this.value);
-
-  final String label;
-  final String value;
 }

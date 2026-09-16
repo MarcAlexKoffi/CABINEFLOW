@@ -1,11 +1,13 @@
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
 import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_order_widgets.dart';
+import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_modal.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/features/payments/presentation/view_models/payments_view_model.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_operator_brand.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -100,7 +102,7 @@ class _BackofficePaymentsPageState extends State<BackofficePaymentsPage> {
   }).length;
 
   Future<void> _confirmPayment(QueueOrder order) async {
-    final String? reference = await showDialog<String?>(
+    final String? reference = await showBackofficeModal<String?>(
       context: context,
       builder: (BuildContext dialogContext) {
         return _PaymentConfirmationDialog(order: order);
@@ -476,7 +478,7 @@ class _PaymentList extends StatelessWidget {
             BackofficeTableColumnSpec(label: 'STATUT', flex: 2),
             BackofficeTableColumnSpec(label: 'PAIEMENT', flex: 2),
             BackofficeTableColumnSpec(label: 'CLIENT', flex: 2),
-            BackofficeTableColumnSpec(label: 'RÉSEAU', flex: 1),
+            BackofficeTableColumnSpec(label: 'RÉSEAU', flex: 2),
             BackofficeTableColumnSpec(
               label: 'MONTANT',
               flex: 1,
@@ -575,8 +577,11 @@ class _PaymentList extends StatelessWidget {
                   ),
                 ),
                 BackofficeTableCellSpec(
-                  flex: 1,
-                  child: BackofficeNetworkBadge(network: order.network),
+                  flex: 2,
+                  child: BackofficeNetworkBadge(
+                    network: order.network,
+                    compact: true,
+                  ),
                 ),
                 BackofficeTableCellSpec(
                   flex: 1,
@@ -643,59 +648,101 @@ class _PaymentConfirmationDialogState extends State<_PaymentConfirmationDialog> 
   @override
   Widget build(BuildContext context) {
     final QueueOrder order = widget.order;
-    return AlertDialog(
-      title: const Row(
+    return BackofficeModalShell(
+      title: 'Confirmer le paiement',
+      subtitle: 'Vérifie les informations avant de rendre la commande disponible au traitement.',
+      icon: Symbols.verified_rounded,
+      iconColor: BackofficePalette.success,
+      maxWidth: 720,
+      closeValue: null,
+      chips: <Widget>[
+        BackofficeNetworkBadge(network: order.network),
+        BackofficeStatusBadge(
+          label: paymentStatusLabel(order.paymentStatus),
+          color: BackofficePalette.warning,
+          icon: Symbols.account_balance_wallet_rounded,
+        ),
+      ],
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          Icon(Symbols.verified_rounded, color: BackofficePalette.primary, fill: 1),
-          SizedBox(width: 10),
-          Text('Confirmer le paiement'),
+          BackofficeModalHero(
+            leading: IzyTelOperatorLogo(
+              network: order.network,
+              size: 58,
+              borderRadius: 16,
+            ),
+            eyebrow: order.reference,
+            value: formatCfaFull(order.amount),
+            caption: '${order.clientName} • ${networkLabel(order.network)}',
+            trailing: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: <Widget>[
+                Text(
+                  'BÉNÉFICIAIRE',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: BackofficePalette.faint,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: .45,
+                      ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  formatIvorianPhone(order.beneficiaryPhone),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: BackofficePalette.ink,
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          BackofficeModalSection(
+            title: 'Vérification du paiement',
+            subtitle: 'La référence saisie restera liée à cette commande.',
+            icon: Symbols.fact_check_rounded,
+            tone: BackofficePalette.success,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                TextField(
+                  controller: _referenceController,
+                  decoration: const InputDecoration(
+                    labelText: 'Référence Wave / paiement',
+                    hintText: 'Ex. référence de transaction',
+                    prefixIcon: Icon(Symbols.tag_rounded),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(13),
+                    border: Border.all(color: BackofficePalette.line),
+                  ),
+                  child: CheckboxListTile(
+                    value: _checked,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text(
+                      'J’ai vérifié le paiement dans le canal de paiement.',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    subtitle: const Text(
+                      'La confirmation rend la commande disponible pour le traitement.',
+                    ),
+                    onChanged: (bool? value) => setState(() => _checked = value ?? false),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
-      content: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: BackofficePalette.primarySoft,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(order.reference, style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 5),
-                  Text('${order.clientName} • ${formatCfaFull(order.amount)}'),
-                  const SizedBox(height: 4),
-                  Text('Bénéficiaire : ${formatIvorianPhone(order.beneficiaryPhone)}'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _referenceController,
-              decoration: const InputDecoration(
-                labelText: 'Référence Wave / paiement',
-                prefixIcon: Icon(Symbols.tag_rounded),
-              ),
-            ),
-            const SizedBox(height: 12),
-            CheckboxListTile(
-              value: _checked,
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              title: const Text('J’ai vérifié le paiement dans le canal de paiement.'),
-              subtitle: const Text('La confirmation rend la commande disponible pour le traitement.'),
-              onChanged: (bool? value) => setState(() => _checked = value ?? false),
-            ),
-          ],
-        ),
-      ),
       actions: <Widget>[
-        TextButton(
+        OutlinedButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Annuler'),
         ),

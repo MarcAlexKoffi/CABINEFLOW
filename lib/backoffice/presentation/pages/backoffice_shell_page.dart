@@ -1777,6 +1777,7 @@ class _BackofficeContentFrame extends StatelessWidget {
                 ),
               ),
               SingleChildScrollView(
+                physics: const ClampingScrollPhysics(),
                 padding: EdgeInsets.fromLTRB(
                   desktop ? 30 : 18,
                   desktop ? 28 : 20,

@@ -1,6 +1,7 @@
 import 'package:cabine_flow/backoffice/domain/models/backoffice_user_account.dart';
 import 'package:cabine_flow/backoffice/domain/repositories/backoffice_user_repository.dart';
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
+import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_modal.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -45,32 +46,27 @@ class _BackofficeUsersPageState extends State<BackofficeUsersPage> {
   }
 
   void _showCreationRoadmap() {
-    showDialog<void>(
+    showBackofficeModal<void>(
       context: context,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          icon: Container(
-            width: 50,
-            height: 50,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              gradient: BackofficeGradients.brand,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: BackofficeShadows.glow,
-            ),
-            child: const Icon(Symbols.person_add_rounded, color: Colors.white),
-          ),
-          title: const Text('Création de compte'),
-          content: const SizedBox(
-            width: 500,
+        return BackofficeModalShell(
+          title: 'Création de compte',
+          subtitle: 'Provisioning sécurisé des accès IzyTel.',
+          icon: Symbols.person_add_rounded,
+          maxWidth: 620,
+          body: const BackofficeModalSection(
+            title: 'Pourquoi cette action est protégée ?',
+            subtitle: 'Le navigateur ne crée jamais directement un compte privilégié.',
+            icon: Symbols.shield_rounded,
             child: Text(
               'Le registre affiche les comptes réels IzyTel. La création des accès, l’attribution des rôles et le provisioning Supabase restent sécurisés côté serveur afin qu’aucun compte privilégié ne soit créé directement depuis le navigateur.',
             ),
           ),
           actions: <Widget>[
-            FilledButton(
+            FilledButton.icon(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Compris'),
+              icon: const Icon(Symbols.check_rounded),
+              label: const Text('Compris'),
             ),
           ],
         );
@@ -142,73 +138,141 @@ class _BackofficeUsersPageState extends State<BackofficeUsersPage> {
   }
 
   void _showUserDetails(BuildContext context, BackofficeUserAccount user) {
-    showDialog<void>(
+    showBackofficeModal<void>(
       context: context,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-          contentPadding: const EdgeInsets.fromLTRB(24, 18, 24, 10),
-          title: Row(
+        final Color statusTone = user.isPending
+            ? BackofficePalette.warning
+            : user.isActive
+                ? BackofficePalette.success
+                : BackofficePalette.danger;
+        return BackofficeModalShell(
+          title: user.name,
+          subtitle: user.email.trim().isEmpty ? 'Compte IzyTel' : user.email.trim(),
+          leading: _LargeAvatar(user: user),
+          maxWidth: 820,
+          chips: <Widget>[
+            _RolePill(role: user.role),
+            _StatusPill(user: user),
+          ],
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              _LargeAvatar(user: user),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(user.name),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 7,
-                      runSpacing: 7,
-                      children: <Widget>[
-                        _RolePill(role: user.role),
-                        _StatusPill(user: user),
-                      ],
+              BackofficeModalHero(
+                leading: Container(
+                  width: 54,
+                  height: 54,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: statusTone.withValues(alpha: .10),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    user.isActive ? Symbols.verified_user_rounded : Symbols.person_off_rounded,
+                    color: statusTone,
+                    size: 27,
+                    fill: 1,
+                  ),
+                ),
+                eyebrow: 'Compte ${user.role.label}',
+                value: user.statusLabel,
+                caption: user.isPending
+                    ? 'Ce compte attend encore une validation ou un provisioning.'
+                    : user.isActive
+                        ? 'Accès actif dans le registre IzyTel.'
+                        : 'Accès désactivé dans le registre IzyTel.',
+              ),
+              const SizedBox(height: 14),
+              BackofficeModalSection(
+                title: 'Identité & contact',
+                subtitle: 'Informations principales du compte.',
+                icon: Symbols.account_circle_rounded,
+                child: BackofficeInfoGrid(
+                  items: <BackofficeInfoItem>[
+                    BackofficeInfoItem(
+                      label: 'Nom',
+                      value: _fallback(user.name),
+                      icon: Symbols.badge_rounded,
+                      emphasis: true,
+                    ),
+                    BackofficeInfoItem(
+                      label: 'E-mail',
+                      value: _fallback(user.email),
+                      icon: Symbols.mail_rounded,
+                      selectable: true,
+                    ),
+                    BackofficeInfoItem(
+                      label: 'Téléphone',
+                      value: _fallback(user.phoneNumber),
+                      icon: Symbols.phone_rounded,
+                      selectable: true,
+                    ),
+                    BackofficeInfoItem(
+                      label: 'Rôle',
+                      value: user.role.label,
+                      icon: Symbols.admin_panel_settings_rounded,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              BackofficeModalSection(
+                title: 'Accès & activité',
+                subtitle: 'État du compte et repères temporels.',
+                icon: Symbols.history_rounded,
+                child: BackofficeInfoGrid(
+                  items: <BackofficeInfoItem>[
+                    BackofficeInfoItem(
+                      label: 'Statut',
+                      value: user.statusLabel,
+                      icon: Symbols.rule_rounded,
+                      emphasis: true,
+                    ),
+                    BackofficeInfoItem(
+                      label: 'Créé le',
+                      value: _formatDate(user.createdAt),
+                      icon: Symbols.event_rounded,
+                    ),
+                    BackofficeInfoItem(
+                      label: 'Dernière activité',
+                      value: _formatDate(user.lastActivityAt),
+                      icon: Symbols.schedule_rounded,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              BackofficeModalSection(
+                title: 'Identifiant technique',
+                subtitle: 'À utiliser uniquement pour le support ou l’audit.',
+                icon: Symbols.fingerprint_rounded,
+                backgroundColor: const Color(0xFFFAFBFD),
+                child: BackofficeInfoGrid(
+                  minItemWidth: 520,
+                  items: <BackofficeInfoItem>[
+                    BackofficeInfoItem(
+                      label: 'UID',
+                      value: user.id,
+                      icon: Symbols.key_rounded,
+                      selectable: true,
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: BackofficePalette.surfaceAlt,
-                border: Border.all(color: BackofficePalette.line),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  _DetailRow(label: 'UID', value: user.id),
-                  _DetailRow(label: 'E-mail', value: _fallback(user.email)),
-                  _DetailRow(label: 'Téléphone', value: _fallback(user.phoneNumber)),
-                  _DetailRow(label: 'Rôle', value: user.role.label),
-                  _DetailRow(label: 'Statut', value: user.statusLabel),
-                  _DetailRow(label: 'Créé le', value: _formatDate(user.createdAt)),
-                  _DetailRow(
-                    label: 'Dernière activité',
-                    value: _formatDate(user.lastActivityAt),
-                    last: true,
-                  ),
-                ],
-              ),
-            ),
-          ),
           actions: <Widget>[
-            FilledButton(
+            FilledButton.icon(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Fermer'),
+              icon: const Icon(Symbols.check_rounded),
+              label: const Text('Fermer'),
             ),
           ],
         );
       },
     );
   }
+
 }
 
 class _UsersHeader extends StatelessWidget {
@@ -952,54 +1016,6 @@ class _Pill extends StatelessWidget {
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: color,
               fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({
-    required this.label,
-    required this.value,
-    this.last = false,
-  });
-
-  final String label;
-  final String value;
-  final bool last;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        border: last
-            ? null
-            : const Border(bottom: BorderSide(color: BackofficePalette.line)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          SizedBox(
-            width: 145,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: BackofficePalette.muted,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          Expanded(
-            child: SelectableText(
-              value,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: BackofficePalette.ink,
-                fontWeight: FontWeight.w600,
-              ),
             ),
           ),
         ],

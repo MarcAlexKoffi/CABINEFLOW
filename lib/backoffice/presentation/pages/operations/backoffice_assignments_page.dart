@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
 import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_order_widgets.dart';
+import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_modal.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
@@ -10,7 +11,7 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/orders/presentation/view_models/agent_assignment_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
-import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_operator_brand.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -158,7 +159,7 @@ class _BackofficeAssignmentsPageState extends State<BackofficeAssignmentsPage> {
   int get _manualCount => _orders.where((QueueOrder order) => order.manualAssignmentRequired).length;
 
   Future<void> _openAssignment(QueueOrder order) async {
-    final bool? assigned = await showDialog<bool>(
+    final bool? assigned = await showBackofficeModal<bool>(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
@@ -171,9 +172,8 @@ class _BackofficeAssignmentsPageState extends State<BackofficeAssignmentsPage> {
       },
     );
     if (assigned == true && mounted) {
-      IzyTelFeedback.success(
-        context,
-        '${order.reference} affectée avec succès.',
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${order.reference} affectée avec succès.')),
       );
       await _refresh();
     }
@@ -590,99 +590,142 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
       Navigator.of(context).pop(true);
       return;
     }
-    IzyTelFeedback.error(
-      context,
-      _viewModel.errorMessage ?? 'Impossible d’affecter cette commande.',
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(_viewModel.errorMessage ?? 'Impossible d’affecter cette commande.')),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      insetPadding: const EdgeInsets.all(18),
-      backgroundColor: Colors.transparent,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 920, maxHeight: 760),
-        child: Container(
-          decoration: backofficePanelDecoration(radius: 22, elevated: true),
-          child: Column(
+    final QueueOrder order = widget.order;
+    return BackofficeModalShell(
+      title: 'Affecter ${order.reference}',
+      subtitle: 'Sélectionne uniquement un Agent réellement compatible avec la commande.',
+      icon: Symbols.assignment_ind_rounded,
+      maxWidth: 980,
+      closeValue: false,
+      chips: <Widget>[
+        BackofficeNetworkBadge(network: order.network),
+        BackofficeStatusBadge(
+          label: orderStatusLabel(order.status),
+          color: orderStatusColor(order.status),
+          icon: orderStatusIcon(order.status),
+        ),
+      ],
+      body: ListenableBuilder(
+        listenable: _viewModel,
+        builder: (BuildContext context, Widget? child) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 14, 16),
-                child: Row(
-                  children: <Widget>[
-                    Container(
-                      width: 44,
-                      height: 44,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(color: BackofficePalette.primarySoft, borderRadius: BorderRadius.circular(13)),
-                      child: const Icon(Symbols.assignment_ind_rounded, color: BackofficePalette.primary, fill: 1),
+              BackofficeModalHero(
+                leading: IzyTelOperatorLogo(
+                  network: order.network,
+                  size: 58,
+                  borderRadius: 16,
+                ),
+                eyebrow: networkLabel(order.network),
+                value: formatCfaFull(order.amount),
+                caption: '${order.clientName} • ${formatIvorianPhone(order.beneficiaryPhone)}',
+                trailing: BackofficeStatusBadge(
+                  label: '${_viewModel.assignableCount} disponible${_viewModel.assignableCount > 1 ? 's' : ''}',
+                  color: _viewModel.assignableCount > 0
+                      ? BackofficePalette.success
+                      : BackofficePalette.warning,
+                  icon: Symbols.groups_rounded,
+                ),
+              ),
+              const SizedBox(height: 14),
+              BackofficeModalSection(
+                title: 'Commande à affecter',
+                subtitle: 'Repères utiles avant de choisir l’Agent.',
+                icon: Symbols.receipt_long_rounded,
+                child: BackofficeInfoGrid(
+                  items: <BackofficeInfoItem>[
+                    BackofficeInfoItem(
+                      label: 'Référence',
+                      value: order.reference,
+                      icon: Symbols.tag_rounded,
+                      selectable: true,
+                      emphasis: true,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text('Affecter ${widget.order.reference}', style: Theme.of(context).textTheme.titleLarge),
-                          const SizedBox(height: 3),
-                          Text('${networkLabel(widget.order.network)} • ${formatCfaFull(widget.order.amount)} • ${widget.order.clientName}', style: Theme.of(context).textTheme.bodySmall),
-                        ],
-                      ),
+                    BackofficeInfoItem(
+                      label: 'Client',
+                      value: order.clientName,
+                      icon: Symbols.person_rounded,
                     ),
-                    IconButton(onPressed: () => Navigator.of(context).pop(false), icon: const Icon(Symbols.close_rounded)),
+                    BackofficeInfoItem(
+                      label: 'Bénéficiaire',
+                      value: formatIvorianPhone(order.beneficiaryPhone),
+                      icon: Symbols.phone_android_rounded,
+                      emphasis: true,
+                    ),
+                    BackofficeInfoItem(
+                      label: 'Réseau',
+                      value: networkLabel(order.network),
+                      icon: Symbols.cell_tower_rounded,
+                    ),
                   ],
                 ),
               ),
-              const Divider(height: 1),
-              Expanded(
-                child: ListenableBuilder(
-                  listenable: _viewModel,
-                  builder: (BuildContext context, Widget? child) {
-                    if (_viewModel.isLoading && _viewModel.candidates.isEmpty) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (_viewModel.errorMessage != null && _viewModel.candidates.isEmpty) {
-                      return Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: BackofficeInlineError(message: _viewModel.errorMessage!, onRetry: _viewModel.start),
-                      );
-                    }
-                    return ListView(
-                      padding: const EdgeInsets.all(18),
-                      children: <Widget>[
-                        Row(
-                          children: <Widget>[
-                            Expanded(child: Text('Agents compatibles', style: Theme.of(context).textTheme.titleMedium)),
-                            BackofficeStatusBadge(label: '${_viewModel.assignableCount} disponibles', color: BackofficePalette.primary, icon: Symbols.group_rounded),
-                          ],
-                        ),
+              const SizedBox(height: 14),
+              if (_viewModel.isLoading && _viewModel.candidates.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 48),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_viewModel.errorMessage != null && _viewModel.candidates.isEmpty)
+                BackofficeInlineError(
+                  message: _viewModel.errorMessage!,
+                  onRetry: _viewModel.start,
+                )
+              else ...<Widget>[
+                BackofficeModalSection(
+                  title: 'Agents compatibles',
+                  subtitle: 'Disponibilité, capacité et zones sont contrôlées avant l’affectation.',
+                  icon: Symbols.support_agent_rounded,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      if (_viewModel.errorMessage != null) ...<Widget>[
+                        BackofficeInlineError(message: _viewModel.errorMessage!),
                         const SizedBox(height: 12),
-                        if (_viewModel.errorMessage != null) ...<Widget>[
-                          BackofficeInlineError(message: _viewModel.errorMessage!),
-                          const SizedBox(height: 12),
-                        ],
-                        if (_viewModel.candidates.isEmpty)
-                          const BackofficeEmptyState(icon: Symbols.group_off_rounded, title: 'Aucun agent compatible', message: 'Vérifie les réseaux, capacités et disponibilités des agents.')
-                        else
-                          ..._viewModel.candidates.map((AgentAssignmentCandidate candidate) => Padding(
+                      ],
+                      if (_viewModel.candidates.isEmpty)
+                        const BackofficeEmptyState(
+                          icon: Symbols.group_off_rounded,
+                          title: 'Aucun agent compatible',
+                          message: 'Vérifie les réseaux, capacités et disponibilités des agents.',
+                        )
+                      else
+                        ..._viewModel.candidates.map(
+                          (AgentAssignmentCandidate candidate) => Padding(
                             padding: const EdgeInsets.only(bottom: 10),
                             child: _CandidateCard(
                               candidate: candidate,
                               processing: _viewModel.assigningAgentId == candidate.agent.userId,
                               onAssign: () => _assign(candidate),
                             ),
-                          )),
-                      ],
-                    );
-                  },
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ],
-          ),
-        ),
+          );
+        },
       ),
+      actions: <Widget>[
+        OutlinedButton.icon(
+          onPressed: () => Navigator.of(context).pop(false),
+          icon: const Icon(Symbols.close_rounded),
+          label: const Text('Annuler'),
+        ),
+      ],
     );
   }
+
 }
 
 class _CandidateCard extends StatelessWidget {

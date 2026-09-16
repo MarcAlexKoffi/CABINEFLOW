@@ -405,7 +405,7 @@ class _OrdersList extends StatelessWidget {
         return BackofficeDesktopTable(
           columns: const <BackofficeTableColumnSpec>[
             BackofficeTableColumnSpec(label: 'STATUT', flex: 2),
-            BackofficeTableColumnSpec(label: 'COMMANDE', flex: 2),
+            BackofficeTableColumnSpec(label: 'COMMANDE', flex: 3),
             BackofficeTableColumnSpec(label: 'CLIENT', flex: 2),
             BackofficeTableColumnSpec(
               label: 'MONTANT',
@@ -458,7 +458,7 @@ class _OrdersList extends StatelessWidget {
                   ),
                 ),
                 BackofficeTableCellSpec(
-                  flex: 2,
+                  flex: 3,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -469,23 +469,19 @@ class _OrdersList extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
+                      const SizedBox(height: 4),
+                      BackofficeNetworkBadge(
+                        network: order.network,
+                        compact: true,
+                      ),
                       const SizedBox(height: 3),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Flexible(child: BackofficeNetworkBadge(network: order.network)),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              formatOrderDateTime(order.createdAt),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                color: BackofficePalette.faint,
-                              ),
-                            ),
-                          ),
-                        ],
+                      Text(
+                        formatOrderDateTime(order.createdAt),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: BackofficePalette.faint,
+                        ),
                       ),
                     ],
                   ),

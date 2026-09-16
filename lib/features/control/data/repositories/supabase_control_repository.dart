@@ -17,6 +17,25 @@ class SupabaseControlRepository implements ControlRepository {
     final Map<String, dynamic> json = response.map(
       (dynamic key, dynamic value) => MapEntry(key.toString(), value),
     );
+
+    // BO-7.1 : la série temporelle est isolée dans un RPC additif pour ne pas
+    // remplacer le snapshot BO-6 déjà validé en production. Si une ancienne
+    // préproduction ne possède pas encore ce RPC, le contrôle BO-6 reste
+    // utilisable et la zone graphique affiche simplement un état vide.
+    try {
+      final dynamic trend = await _client.rpc(
+        'izytel_bo7_daily_trend',
+        params: const <String, dynamic>{'p_days': 30},
+      );
+      if (trend is List) {
+        json['daily_trend'] = trend;
+      } else if (trend is Map && trend['daily_trend'] is List) {
+        json['daily_trend'] = trend['daily_trend'];
+      }
+    } on PostgrestException {
+      json['daily_trend'] = const <dynamic>[];
+    }
+
     return ControlSnapshot.fromJson(json);
   }
 }

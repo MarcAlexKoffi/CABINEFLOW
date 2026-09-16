@@ -129,6 +129,32 @@ class ControlAgentPerformance {
   }
 }
 
+class ControlDailyTrend {
+  const ControlDailyTrend({
+    required this.date,
+    required this.orders,
+    required this.completed,
+    required this.failed,
+    required this.completedAmount,
+  });
+
+  final DateTime? date;
+  final int orders;
+  final int completed;
+  final int failed;
+  final int completedAmount;
+
+  factory ControlDailyTrend.fromJson(Map<String, dynamic> json) {
+    return ControlDailyTrend(
+      date: _date(json['date']),
+      orders: _i(json['orders']),
+      completed: _i(json['completed']),
+      failed: _i(json['failed']),
+      completedAmount: _i(json['completed_amount']),
+    );
+  }
+}
+
 class ControlSnapshot {
   const ControlSnapshot({
     required this.generatedAt,
@@ -141,6 +167,7 @@ class ControlSnapshot {
     required this.audit,
     required this.networkBreakdown,
     required this.agentPerformance,
+    required this.dailyTrend,
   });
 
   final DateTime? generatedAt;
@@ -153,6 +180,7 @@ class ControlSnapshot {
   final List<ControlAuditEvent> audit;
   final List<ControlNetworkMetric> networkBreakdown;
   final List<ControlAgentPerformance> agentPerformance;
+  final List<ControlDailyTrend> dailyTrend;
 
   factory ControlSnapshot.fromJson(Map<String, dynamic> json) {
     final Map<String, dynamic> scope = _map(json['scope']);
@@ -174,6 +202,9 @@ class ControlSnapshot {
           .toList(growable: false),
       agentPerformance: _list(json['agent_performance'])
           .map(ControlAgentPerformance.fromJson)
+          .toList(growable: false),
+      dailyTrend: _list(json['daily_trend'])
+          .map(ControlDailyTrend.fromJson)
           .toList(growable: false),
     );
   }

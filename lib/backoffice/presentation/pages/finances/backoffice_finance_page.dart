@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cabine_flow/backoffice/domain/models/backoffice_finance_snapshot.dart';
 import 'package:cabine_flow/backoffice/domain/repositories/backoffice_finance_repository.dart';
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
+import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_modal.dart';
 import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_order_widgets.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
@@ -1646,14 +1647,35 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
   }
 
   Future<void> _confirmDeleteSupplier(String id, String name) async {
-    final bool? confirmed = await showDialog<bool>(
+    final bool? confirmed = await showBackofficeModal<bool>(
       context: context,
-      builder: (BuildContext dialogContext) => AlertDialog(
-        title: const Text('Retirer le fournisseur ?'),
-        content: Text('$name sera retiré du registre actif. S’il possède un historique financier, Supabase refusera la suppression et proposera de le suspendre.'),
+      builder: (BuildContext dialogContext) => BackofficeModalShell(
+        title: 'Retirer le fournisseur ?',
+        subtitle: name,
+        icon: Symbols.delete_outline_rounded,
+        iconColor: BackofficePalette.danger,
+        maxWidth: 620,
+        closeValue: false,
+        body: BackofficeModalSection(
+          title: 'Conséquence de l’action',
+          subtitle: 'Les historiques financiers restent protégés.',
+          icon: Symbols.warning_rounded,
+          tone: BackofficePalette.warning,
+          backgroundColor: const Color(0xFFFFFCF5),
+          child: Text(
+            '$name sera retiré du registre actif. S’il possède un historique financier, Supabase refusera la suppression et proposera de le suspendre.',
+          ),
+        ),
         actions: <Widget>[
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Annuler')),
-          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Retirer')),
+          OutlinedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Symbols.delete_outline_rounded),
+            label: const Text('Retirer'),
+          ),
         ],
       ),
     );
@@ -1687,25 +1709,35 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     required List<Widget> fields,
     String confirmLabel = 'Enregistrer',
   }) {
-    return showDialog<bool>(
+    return showBackofficeModal<bool>(
       context: context,
-      builder: (BuildContext dialogContext) => AlertDialog(
-        scrollable: true,
-        title: Text(title),
-        content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 540),
+      builder: (BuildContext dialogContext) => BackofficeModalShell(
+        title: title,
+        subtitle: description,
+        icon: Symbols.edit_note_rounded,
+        maxWidth: 680,
+        closeValue: false,
+        body: BackofficeModalSection(
+          title: 'Informations',
+          subtitle: 'Vérifie les données avant validation.',
+          icon: Symbols.tune_rounded,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              Text(description),
-              const SizedBox(height: 18),
               ...fields,
             ],
           ),
         ),
         actions: <Widget>[
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Annuler')),
-          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: Text(confirmLabel)),
+          OutlinedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Symbols.check_rounded),
+            label: Text(confirmLabel),
+          ),
         ],
       ),
     );
@@ -1716,26 +1748,36 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     required String description,
     required List<Widget> Function(StateSetter setDialogState) builder,
   }) {
-    return showDialog<bool>(
+    return showBackofficeModal<bool>(
       context: context,
       builder: (BuildContext dialogContext) => StatefulBuilder(
-        builder: (BuildContext context, StateSetter setDialogState) => AlertDialog(
-          scrollable: true,
-          title: Text(title),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
+        builder: (BuildContext context, StateSetter setDialogState) => BackofficeModalShell(
+          title: title,
+          subtitle: description,
+          icon: Symbols.edit_note_rounded,
+          maxWidth: 700,
+          closeValue: false,
+          body: BackofficeModalSection(
+            title: 'Informations',
+            subtitle: 'Les champs restent modifiables jusqu’à la validation.',
+            icon: Symbols.tune_rounded,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                Text(description),
-                const SizedBox(height: 18),
                 ...builder(setDialogState),
               ],
             ),
           ),
           actions: <Widget>[
-            TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Annuler')),
-            FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Enregistrer')),
+            OutlinedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Symbols.check_rounded),
+              label: const Text('Enregistrer'),
+            ),
           ],
         ),
       ),
