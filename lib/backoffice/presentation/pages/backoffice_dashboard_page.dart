@@ -1,6 +1,8 @@
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_operator_brand.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -342,6 +344,35 @@ class _DashboardHero extends StatelessWidget {
                         icon: Symbols.payments_rounded,
                         label: 'Volume terminé',
                         value: formatCfa(snapshot.completedAmount),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'RÉSEAUX',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Colors.white.withValues(alpha: .70),
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: .75,
+                          fontSize: 9.5,
+                        ),
+                      ),
+                      const SizedBox(height: 9),
+                      const Wrap(
+                        spacing: 9,
+                        runSpacing: 9,
+                        children: <Widget>[
+                          IzyTelOperatorLogo(
+                            network: MobileNetwork.orange,
+                            size: 28,
+                          ),
+                          IzyTelOperatorLogo(
+                            network: MobileNetwork.mtn,
+                            size: 28,
+                          ),
+                          IzyTelOperatorLogo(
+                            network: MobileNetwork.moov,
+                            size: 28,
+                          ),
+                        ],
                       ),
                     ],
                   ),

@@ -51,7 +51,14 @@ class IzyTelOperatorLogo extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(borderRadius),
-        border: Border.all(color: network.brandColor.withValues(alpha: 0.20)),
+        border: Border.all(color: network.brandColor.withValues(alpha: 0.18)),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: network.brandColor.withValues(alpha: 0.08),
+            blurRadius: size * 0.28,
+            offset: Offset(0, size * 0.10),
+          ),
+        ],
       ),
       clipBehavior: Clip.antiAlias,
       child: Image.asset(
@@ -59,6 +66,22 @@ class IzyTelOperatorLogo extends StatelessWidget {
         fit: BoxFit.contain,
         filterQuality: FilterQuality.high,
         semanticLabel: 'Logo ${network.brandLabel}',
+        errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) {
+          return Container(
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: network.softBrandColor,
+              borderRadius: BorderRadius.circular(borderRadius * .72),
+            ),
+            child: Text(
+              network.brandLabel.substring(0, 1),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: network.brandColor,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          );
+        },
       ),
     );
   }

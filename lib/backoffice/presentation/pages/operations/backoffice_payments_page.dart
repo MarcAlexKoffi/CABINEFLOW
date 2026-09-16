@@ -6,7 +6,6 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/features/payments/presentation/view_models/payments_view_model.dart';
-import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -118,7 +117,7 @@ class _BackofficePaymentsPageState extends State<BackofficePaymentsPage> {
     final String message = success
         ? 'Paiement ${order.reference} confirmé. La commande est prête pour le traitement.'
         : (_viewModel.errorMessage ?? 'Impossible de confirmer ce paiement.');
-    IzyTelFeedback.show(context, message);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _filterLabel(PaymentOrderFilter filter) {
@@ -146,10 +145,18 @@ class _BackofficePaymentsPageState extends State<BackofficePaymentsPage> {
               description:
                   'Contrôle les déclarations Wave, les paiements expirés et les confirmations sans perdre la visibilité sur les commandes déjà réglées.',
               icon: Symbols.payments_rounded,
-              trailing: OutlinedButton.icon(
-                onPressed: _viewModel.loadPayments,
-                icon: const Icon(Symbols.refresh_rounded),
-                label: const Text('Actualiser'),
+              trailing: Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: <Widget>[
+                  const BackofficeWaveBadge(),
+                  OutlinedButton.icon(
+                    onPressed: _viewModel.loadPayments,
+                    icon: const Icon(Symbols.refresh_rounded),
+                    label: const Text('Actualiser'),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),

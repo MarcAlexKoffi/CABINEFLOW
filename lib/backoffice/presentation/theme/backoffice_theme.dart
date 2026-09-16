@@ -93,17 +93,17 @@ class BackofficeShadows {
 
   static const List<BoxShadow> panel = <BoxShadow>[
     BoxShadow(
-      color: Color(0x0D1D4ED8),
-      blurRadius: 24,
+      color: Color(0x0A102A56),
+      blurRadius: 26,
       offset: Offset(0, 10),
     ),
   ];
 
   static const List<BoxShadow> elevated = <BoxShadow>[
     BoxShadow(
-      color: Color(0x141D4ED8),
-      blurRadius: 38,
-      offset: Offset(0, 16),
+      color: Color(0x16102A56),
+      blurRadius: 42,
+      offset: Offset(0, 18),
     ),
   ];
 
@@ -123,29 +123,30 @@ class BackofficeTheme {
     final ThemeData base = AppTheme.light;
     final TextTheme text = base.textTheme.copyWith(
       displaySmall: base.textTheme.displaySmall?.copyWith(
-        fontSize: 34,
-        height: 1.12,
+        fontSize: 36,
+        height: 1.08,
         fontWeight: FontWeight.w800,
-        letterSpacing: -1,
+        letterSpacing: -1.15,
         color: BackofficePalette.ink,
       ),
       headlineLarge: base.textTheme.headlineLarge?.copyWith(
-        fontSize: 30,
-        height: 1.15,
+        fontSize: 32,
+        height: 1.12,
         fontWeight: FontWeight.w800,
-        letterSpacing: -.75,
+        letterSpacing: -.9,
         color: BackofficePalette.ink,
       ),
       headlineMedium: base.textTheme.headlineMedium?.copyWith(
-        fontSize: 24,
-        height: 1.18,
+        fontSize: 26,
+        height: 1.16,
         fontWeight: FontWeight.w800,
-        letterSpacing: -.45,
+        letterSpacing: -.55,
         color: BackofficePalette.ink,
       ),
       titleLarge: base.textTheme.titleLarge?.copyWith(
-        fontSize: 18,
+        fontSize: 19,
         fontWeight: FontWeight.w800,
+        letterSpacing: -.18,
         color: BackofficePalette.ink,
       ),
       titleMedium: base.textTheme.titleMedium?.copyWith(

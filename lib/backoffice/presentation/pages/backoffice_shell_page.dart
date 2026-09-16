@@ -1022,7 +1022,7 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
     if (repository == null) {
       return const _BackofficeModuleUnavailable(
         title: 'Contrôle / Pilotage indisponible',
-        message: 'BO-6 nécessite Supabase pour consolider le journal, l’audit et les statistiques canoniques.',
+        message: 'Supabase doit être disponible pour consolider le journal, l’audit et les statistiques de pilotage.',
       );
     }
     return BackofficeControlPage(
@@ -1038,7 +1038,7 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
       return const _BackofficeModuleUnavailable(
         title: 'Finances indisponibles',
         message:
-            'BO-5 nécessite Supabase et le repository financier canonique. Aucune écriture Firestore de secours n’est utilisée.',
+            'Le centre financier nécessite Supabase et le référentiel financier canonique. Aucune écriture Firestore de secours n’est utilisée.',
       );
     }
     return BackofficeFinancePage(
@@ -1253,13 +1253,24 @@ class _BackofficeSidebarState extends State<_BackofficeSidebar> {
                 child: Row(
                   children: <Widget>[
                     Container(
-                      width: 46,
-                      height: 46,
-                      padding: const EdgeInsets.all(7),
+                      width: 48,
+                      height: 48,
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: BackofficePalette.primarySoft,
-                        border: Border.all(color: const Color(0xFFDCE7FF)),
-                        borderRadius: BorderRadius.circular(14),
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: <Color>[Colors.white, Color(0xFFEAF2FF)],
+                        ),
+                        border: Border.all(color: const Color(0xFFD7E4FA)),
+                        borderRadius: BorderRadius.circular(15),
+                        boxShadow: const <BoxShadow>[
+                          BoxShadow(
+                            color: Color(0x101D4ED8),
+                            blurRadius: 16,
+                            offset: Offset(0, 7),
+                          ),
+                        ],
                       ),
                       child: const IzyTelBrandMark(size: 32),
                     ),
@@ -1294,61 +1305,34 @@ class _BackofficeSidebarState extends State<_BackofficeSidebar> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   decoration: BoxDecoration(
-                    color: BackofficePalette.primarySoft,
-                    border: Border.all(color: const Color(0xFFDCE7FF)),
-                    borderRadius: BorderRadius.circular(13),
+                    color: BackofficePalette.surfaceAlt,
+                    border: Border.all(color: BackofficePalette.line),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     children: <Widget>[
                       Container(
-                        width: 28,
-                        height: 28,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(9),
-                        ),
-                        child: const Icon(
-                          Symbols.verified_user_rounded,
-                          size: 18,
-                          color: BackofficePalette.primary,
-                          fill: 1,
-                          weight: 600,
+                        width: 7,
+                        height: 7,
+                        decoration: const BoxDecoration(
+                          color: BackofficePalette.success,
+                          shape: BoxShape.circle,
                         ),
                       ),
-                      const SizedBox(width: 9),
+                      const SizedBox(width: 8),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            Text(
-                              widget.user.role == UserRole.administrator
-                                  ? 'Espace Administrateur'
-                                  : 'Espace Manager',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                    color: BackofficePalette.primaryStrong,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                            ),
-                            const SizedBox(height: 1),
-                            Text(
-                              widget.user.role == UserRole.administrator
-                                  ? 'Accès complet'
-                                  : 'Supervision opérationnelle',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                    color: BackofficePalette.muted,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                          ],
+                        child: Text(
+                          widget.user.role == UserRole.administrator
+                              ? 'Administrateur · accès complet'
+                              : 'Manager · supervision opérationnelle',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: BackofficePalette.muted,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ],
@@ -1697,11 +1681,18 @@ class _BackofficeContentFrame extends StatelessWidget {
       children: <Widget>[
         if (desktop)
           Container(
-            height: 84,
+            height: 80,
             padding: const EdgeInsets.symmetric(horizontal: 30),
             decoration: const BoxDecoration(
               color: Colors.white,
               border: Border(bottom: BorderSide(color: BackofficePalette.line)),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: Color(0x07102A56),
+                  blurRadius: 14,
+                  offset: Offset(0, 5),
+                ),
+              ],
             ),
             child: Row(
               children: <Widget>[
@@ -1750,35 +1741,7 @@ class _BackofficeContentFrame extends StatelessWidget {
                   notifications: notifications,
                   onSelected: onNotificationSelected,
                 ),
-                const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0FBF6),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Row(
-                    children: <Widget>[
-                      Container(
-                        width: 7,
-                        height: 7,
-                        decoration: const BoxDecoration(
-                          color: BackofficePalette.success,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 7),
-                      Text(
-                        'Espace sécurisé',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: BackofficePalette.success,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 _BackofficeUserMenu(user: user, onLogout: onLogout),
               ],
             ),
@@ -1787,7 +1750,19 @@ class _BackofficeContentFrame extends StatelessWidget {
           child: Stack(
             children: <Widget>[
               const Positioned.fill(
-                child: ColoredBox(color: BackofficePalette.canvas),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: <Color>[
+                        Color(0xFFF8FAFD),
+                        Color(0xFFF5F8FC),
+                        Color(0xFFF8FBFF),
+                      ],
+                    ),
+                  ),
+                ),
               ),
               Positioned(
                 top: -140,

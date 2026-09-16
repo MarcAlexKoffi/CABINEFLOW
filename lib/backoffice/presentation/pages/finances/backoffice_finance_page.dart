@@ -184,14 +184,23 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
             BackofficePageIntro(
-              eyebrow: 'BO-5 · FINANCES',
+              eyebrow: 'Finances / ${widget.module.title}',
               title: widget.module.title,
               description: widget.module.description,
               icon: widget.module.icon,
-              trailing: OutlinedButton.icon(
-                onPressed: _busy ? null : _reload,
-                icon: const Icon(Symbols.refresh_rounded),
-                label: const Text('Actualiser'),
+              trailing: Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: <Widget>[
+                  if (widget.module == BackofficeFinanceModule.waveCash)
+                    const BackofficeWaveBadge(),
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : _reload,
+                    icon: const Icon(Symbols.refresh_rounded),
+                    label: const Text('Actualiser'),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 18),
@@ -220,7 +229,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       icon: Symbols.database_rounded,
       color: BackofficePalette.success,
       text:
-          'Supabase est la source canonique BO-5. Les actions financières sont journalisées et les autres écrans se rafraîchissent via finance_change_feed.',
+          'Les données financières sont consolidées dans Supabase, journalisées et synchronisées automatiquement entre les écrans IzyTel.',
     );
   }
 
@@ -861,7 +870,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
         const SizedBox(height: 18),
         _section(
           title: 'Historique des clôtures',
-          subtitle: 'Une journée clôturée devient un snapshot d’audit et n’est pas modifiée par les écrans BO-5.',
+          subtitle: 'Une journée clôturée devient un instantané d’audit immuable dans les écrans financiers.',
           child: _simpleRows(
             s.closings,
             emptyTitle: 'Aucune clôture',
@@ -1108,7 +1117,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
         title: 'Comptes rattachés aux fournisseurs',
         detail: orphanSupplierAccounts == 0
             ? '${s.supplierAccounts.length} compte(s) fournisseur rattaché(s)'
-            : '$orphanSupplierAccounts compte(s) sans fournisseur dans le registre BO-5',
+            : '$orphanSupplierAccounts compte(s) sans fournisseur dans le registre financier',
       ),
       _FinanceCheck(
         ok: supplierNegative == 0,
@@ -1835,7 +1844,7 @@ class _FinanceErrorState extends StatelessWidget {
     return BackofficeEmptyState(
       icon: Symbols.cloud_off_rounded,
       title: 'Données financières indisponibles',
-      message: 'Le snapshot BO-5 ne peut pas être chargé pour le moment. Les autres modules IzyTel restent disponibles.',
+      message: 'Les données financières ne peuvent pas être chargées pour le moment. Les autres modules IzyTel restent disponibles.',
       action: OutlinedButton.icon(onPressed: onRetry, icon: const Icon(Symbols.refresh_rounded), label: const Text('Réessayer')),
     );
   }

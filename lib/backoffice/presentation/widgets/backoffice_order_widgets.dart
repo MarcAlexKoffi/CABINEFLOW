@@ -2,6 +2,7 @@ import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart'
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_operator_brand.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -23,80 +24,161 @@ class BackofficePageIntro extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final bool compact = constraints.maxWidth < 780;
-        final Widget copy = Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Container(
-              width: 48,
-              height: 48,
-              alignment: Alignment.center,
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Colors.white,
+            Color(0xFFF7FAFF),
+            Color(0xFFF1F7FF),
+          ],
+          stops: <double>[0, .58, 1],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDDE7F7)),
+        boxShadow: BackofficeShadows.panel,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: <Widget>[
+          Positioned(
+            right: -64,
+            top: -72,
+            child: Container(
+              width: 210,
+              height: 210,
               decoration: BoxDecoration(
-                color: BackofficePalette.primarySoft,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFDCE7FF)),
-              ),
-              child: Icon(
-                icon,
-                size: 25,
-                color: BackofficePalette.primaryStrong,
-                fill: 1,
-                weight: 650,
+                shape: BoxShape.circle,
+                color: BackofficePalette.primary.withValues(alpha: .055),
               ),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    eyebrow.toUpperCase(),
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: BackofficePalette.primary,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: .9,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    description,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      height: 1.5,
-                    ),
-                  ),
-                ],
+          ),
+          Positioned(
+            right: 95,
+            bottom: -76,
+            child: Container(
+              width: 150,
+              height: 150,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: BackofficePalette.cyan.withValues(alpha: .045),
               ),
             ),
-          ],
-        );
+          ),
+          Padding(
+            padding: const EdgeInsets.all(22),
+            child: LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                final bool compact = constraints.maxWidth < 800;
+                final Widget copy = Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Container(
+                      width: 52,
+                      height: 52,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        gradient: BackofficeGradients.brand,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: BackofficeShadows.glow,
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 26,
+                        color: Colors.white,
+                        fill: 1,
+                        weight: 650,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: BackofficePalette.primarySoft,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: BackofficePalette.primary.withValues(
+                                  alpha: .14,
+                                ),
+                              ),
+                            ),
+                            child: Text(
+                              eyebrow.toUpperCase(),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(
+                                    color: BackofficePalette.primaryStrong,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: .75,
+                                  ),
+                            ),
+                          ),
+                          const SizedBox(height: 9),
+                          Text(
+                            title,
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineMedium
+                                ?.copyWith(
+                                  fontSize: compact ? 24 : 28,
+                                  letterSpacing: -.6,
+                                ),
+                          ),
+                          const SizedBox(height: 7),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 760),
+                            child: Text(
+                              description,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    height: 1.55,
+                                    color: BackofficePalette.muted,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
 
-        if (trailing == null) return copy;
-        if (compact) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              copy,
-              const SizedBox(height: 14),
-              Align(alignment: Alignment.centerLeft, child: trailing!),
-            ],
-          );
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Expanded(child: copy),
-            const SizedBox(width: 20),
-            trailing!,
-          ],
-        );
-      },
+                if (trailing == null) return copy;
+                if (compact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      copy,
+                      const SizedBox(height: 16),
+                      Align(alignment: Alignment.centerLeft, child: trailing!),
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: <Widget>[
+                    Expanded(child: copy),
+                    const SizedBox(width: 24),
+                    trailing!,
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -120,42 +202,60 @@ class BackofficeMetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(minWidth: 160),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-      decoration: backofficePanelDecoration(elevated: true),
+      constraints: const BoxConstraints(minWidth: 160, minHeight: 142),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Colors.white,
+            emphasis.withValues(alpha: .035),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: emphasis.withValues(alpha: .13)),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x0A102A56),
+            blurRadius: 20,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Row(
             children: <Widget>[
               Container(
-                width: 34,
-                height: 34,
+                width: 38,
+                height: 38,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: emphasis.withValues(alpha: .10),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   icon,
-                  size: 19,
+                  size: 20,
                   color: emphasis,
                   fill: 1,
-                  weight: 620,
+                  weight: 640,
                 ),
               ),
               const Spacer(),
               Container(
-                width: 7,
-                height: 7,
+                width: 28,
+                height: 4,
                 decoration: BoxDecoration(
-                  color: emphasis,
-                  shape: BoxShape.circle,
+                  color: emphasis.withValues(alpha: .72),
+                  borderRadius: BorderRadius.circular(99),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 13),
           Text(
             label.toUpperCase(),
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -164,21 +264,26 @@ class BackofficeMetricCard extends StatelessWidget {
               letterSpacing: .7,
             ),
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 4),
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontSize: 21,
+              fontSize: 25,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -.6,
+              color: BackofficePalette.ink,
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 3),
           Text(
             caption,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: BackofficePalette.muted,
+            ),
           ),
         ],
       ),
@@ -239,26 +344,166 @@ class BackofficeStatusBadge extends StatelessWidget {
 }
 
 class BackofficeNetworkBadge extends StatelessWidget {
-  const BackofficeNetworkBadge({super.key, required this.network});
+  const BackofficeNetworkBadge({
+    super.key,
+    required this.network,
+    this.compact = false,
+  });
 
   final MobileNetwork network;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final Color color = networkColor(network);
+    final Color color = network.brandColor;
+    final double logoSize = compact ? 20 : 24;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      padding: EdgeInsets.fromLTRB(
+        compact ? 6 : 7,
+        compact ? 4 : 5,
+        compact ? 8 : 10,
+        compact ? 4 : 5,
+      ),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: .08),
-        borderRadius: BorderRadius.circular(9),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: .22)),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x08102A56),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
       ),
-      child: Text(
-        networkLabel(network),
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: color,
-          fontWeight: FontWeight.w800,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          SizedBox(
+            width: logoSize,
+            height: logoSize,
+            child: Image.asset(
+              network.brandLogoAsset,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+              semanticLabel: 'Logo ${network.brandLabel}',
+              errorBuilder: (_, _, _) => Container(
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: .10),
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  network.brandLabel.substring(0, 1),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SizedBox(width: compact ? 5 : 7),
+          Text(
+            network.brandLabel,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: BackofficePalette.ink,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class BackofficeWaveBadge extends StatelessWidget {
+  const BackofficeWaveBadge({super.key, this.compact = false});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    const Color waveBlue = Color(0xFF1BB6EA);
+    final double logoSize = compact ? 20 : 25;
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        compact ? 7 : 8,
+        compact ? 5 : 6,
+        compact ? 9 : 11,
+        compact ? 5 : 6,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: waveBlue.withValues(alpha: .22)),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x08102A56),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          SizedBox(
+            width: logoSize,
+            height: logoSize,
+            child: Image.asset(
+              'assets/images/wave_logo.png',
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+              semanticLabel: 'Logo Wave',
+              errorBuilder: (_, _, _) => const Icon(
+                Symbols.waves_rounded,
+                size: 20,
+                color: waveBlue,
+              ),
+            ),
+          ),
+          SizedBox(width: compact ? 5 : 7),
+          Text(
+            'Wave',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: BackofficePalette.ink,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class BackofficeToolbarPanel extends StatelessWidget {
+  const BackofficeToolbarPanel({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(14),
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: BackofficePalette.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: BackofficePalette.line),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x08102A56),
+            blurRadius: 18,
+            offset: Offset(0, 7),
+          ),
+        ],
+      ),
+      child: child,
     );
   }
 }
@@ -308,7 +553,16 @@ class BackofficeDesktopTable extends StatelessWidget {
           Container(
             constraints: const BoxConstraints(minHeight: 50),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            color: BackofficePalette.surfaceAlt,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: <Color>[Color(0xFFF6F9FF), Color(0xFFFAFCFF)],
+              ),
+              border: Border(
+                bottom: BorderSide(color: BackofficePalette.line),
+              ),
+            ),
             child: Row(
               children: columns.map((BackofficeTableColumnSpec column) {
                 return Expanded(
@@ -331,7 +585,11 @@ class BackofficeDesktopTable extends StatelessWidget {
             ),
           ),
           for (int index = 0; index < rows.length; index++)
-            rows[index].copyWith(showDivider: index < rows.length - 1),
+            rows[index].copyWith(
+              showDivider: index < rows.length - 1,
+              backgroundColor: rows[index].backgroundColor ??
+                  (index.isEven ? Colors.white : const Color(0xFFFBFCFF)),
+            ),
         ],
       ),
     );
@@ -354,11 +612,14 @@ class BackofficeDesktopTableRow extends StatelessWidget {
   final Color? accentColor;
   final bool showDivider;
 
-  BackofficeDesktopTableRow copyWith({bool? showDivider}) {
+  BackofficeDesktopTableRow copyWith({
+    bool? showDivider,
+    Color? backgroundColor,
+  }) {
     return BackofficeDesktopTableRow(
       cells: cells,
       onTap: onTap,
-      backgroundColor: backgroundColor,
+      backgroundColor: backgroundColor ?? this.backgroundColor,
       accentColor: accentColor,
       showDivider: showDivider ?? this.showDivider,
     );
@@ -366,43 +627,55 @@ class BackofficeDesktopTableRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Widget row = Container(
-      constraints: const BoxConstraints(minHeight: 72),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-      decoration: BoxDecoration(
-        color: backgroundColor ?? Colors.white,
-        border: showDivider
-            ? const Border(bottom: BorderSide(color: BackofficePalette.line))
-            : null,
-      ),
-      child: Row(
-        children: cells.map((BackofficeTableCellSpec cell) {
-          return Expanded(
-            flex: cell.flex,
-            child: Align(
-              alignment: cell.alignment,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: cell.child,
-              ),
-            ),
-          );
-        }).toList(growable: false),
+    final Widget row = Material(
+      color: backgroundColor ?? Colors.white,
+      child: InkWell(
+        onTap: onTap,
+        hoverColor: BackofficePalette.primarySoft.withValues(alpha: .55),
+        splashColor: BackofficePalette.primarySoft,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 72),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            border: showDivider
+                ? const Border(
+                    bottom: BorderSide(color: BackofficePalette.line),
+                  )
+                : null,
+          ),
+          child: Row(
+            children: cells.map((BackofficeTableCellSpec cell) {
+              return Expanded(
+                flex: cell.flex,
+                child: Align(
+                  alignment: cell.alignment,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: cell.child,
+                  ),
+                ),
+              );
+            }).toList(growable: false),
+          ),
+        ),
       ),
     );
 
     return Stack(
       children: <Widget>[
-        Material(
-          color: Colors.transparent,
-          child: InkWell(onTap: onTap, child: row),
-        ),
+        row,
         if (accentColor != null)
           Positioned(
             left: 0,
-            top: 0,
-            bottom: 0,
-            child: Container(width: 3, color: accentColor),
+            top: 10,
+            bottom: 10,
+            child: Container(
+              width: 3,
+              decoration: BoxDecoration(
+                color: accentColor,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
           ),
       ],
     );

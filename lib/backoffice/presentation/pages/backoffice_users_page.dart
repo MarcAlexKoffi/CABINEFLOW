@@ -64,7 +64,7 @@ class _BackofficeUsersPageState extends State<BackofficeUsersPage> {
           content: const SizedBox(
             width: 500,
             child: Text(
-              'BO-1 expose le registre réel des utilisateurs en lecture seule. La création d’un compte Firebase Auth, l’attribution du rôle et le provisioning Supabase seront branchés ensemble via une action serveur sécurisée afin de ne jamais créer un compte privilégié depuis le navigateur.',
+              'Le registre affiche les comptes réels IzyTel. La création des accès, l’attribution des rôles et le provisioning Supabase restent sécurisés côté serveur afin qu’aucun compte privilégié ne soit créé directement depuis le navigateur.',
             ),
           ),
           actions: <Widget>[
@@ -146,7 +146,6 @@ class _BackofficeUsersPageState extends State<BackofficeUsersPage> {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          scrollable: true,
           titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
           contentPadding: const EdgeInsets.fromLTRB(24, 18, 24, 10),
           title: Row(
