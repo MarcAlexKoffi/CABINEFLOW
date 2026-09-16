@@ -60,6 +60,11 @@ class FirestoreAdminOfferRepository implements AdminOfferRepository {
     });
   }
 
+  @override
+  Future<void> deleteOffer({required String offerId}) {
+    return _offers.doc(offerId).delete();
+  }
+
   Map<String, dynamic> _toFirestore(
     AdminOfferDraft draft, {
     required bool isCreation,

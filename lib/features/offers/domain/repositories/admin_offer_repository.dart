@@ -14,4 +14,7 @@ abstract class AdminOfferRepository {
     required String offerId,
     required bool isActive,
   });
+
+  /// Retire l'offre du catalogue courant tout en préservant l'historique.
+  Future<void> deleteOffer({required String offerId});
 }

@@ -562,6 +562,8 @@ class _BackofficeOffersPageState extends State<BackofficeOffersPage> {
                               _openEditor(offer);
                             } else if (value == 'status') {
                               _toggleStatus(offer);
+                            } else if (value == 'delete') {
+                              _deleteOffer(offer);
                             }
                           },
                           itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
@@ -585,6 +587,22 @@ class _BackofficeOffersPageState extends State<BackofficeOffersPage> {
                                 ),
                                 title: Text(
                                   offer.isActive ? 'Suspendre' : 'Réactiver',
+                                ),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                            const PopupMenuDivider(),
+                            const PopupMenuItem<String>(
+                              value: 'delete',
+                              child: ListTile(
+                                dense: true,
+                                leading: Icon(
+                                  Symbols.delete_forever_rounded,
+                                  color: BackofficePalette.danger,
+                                ),
+                                title: Text(
+                                  'Supprimer',
+                                  style: TextStyle(color: BackofficePalette.danger),
                                 ),
                                 contentPadding: EdgeInsets.zero,
                               ),
@@ -691,6 +709,18 @@ class _BackofficeOffersPageState extends State<BackofficeOffersPage> {
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _busy ? null : () => _deleteOffer(offer),
+                style: TextButton.styleFrom(
+                  foregroundColor: BackofficePalette.danger,
+                ),
+                icon: const Icon(Symbols.delete_forever_rounded),
+                label: const Text('Supprimer l’offre'),
+              ),
+            ),
           ],
         ],
       ),
@@ -790,6 +820,55 @@ class _BackofficeOffersPageState extends State<BackofficeOffersPage> {
       if (mounted) {
         setState(() => _busy = false);
       }
+    }
+  }
+
+  Future<void> _deleteOffer(AdminOffer offer) async {
+    if (!_canManage || _busy) return;
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Supprimer cette offre ?'),
+          content: Text(
+            '« ${offer.title} » sera retirée du catalogue IzyTel. '
+            'Les commandes déjà passées conserveront leurs informations historiques.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: BackofficePalette.danger,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Symbols.delete_forever_rounded),
+              label: const Text('Supprimer'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      await widget.repository.deleteOffer(offerId: offer.id);
+      if (!mounted) return;
+      _reloadStream();
+      IzyTelFeedback.success(context, 'Offre supprimée du catalogue.');
+    } catch (_) {
+      if (!mounted) return;
+      IzyTelFeedback.error(
+        context,
+        'Impossible de supprimer cette offre pour le moment.',
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 

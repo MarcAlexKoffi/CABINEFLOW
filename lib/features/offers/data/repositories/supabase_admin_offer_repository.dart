@@ -83,6 +83,14 @@ class SupabaseAdminOfferRepository implements AdminOfferRepository {
     );
   }
 
+  @override
+  Future<void> deleteOffer({required String offerId}) async {
+    await _client.rpc(
+      'izytel_delete_catalog_offer',
+      params: <String, dynamic>{'p_offer_id': offerId},
+    );
+  }
+
   Future<List<AdminOffer>> _fetchOffers() async {
     final dynamic response = await _client.from(tableName).select();
     final List<Map<String, dynamic>> rows = <Map<String, dynamic>>[
@@ -103,6 +111,8 @@ class SupabaseAdminOfferRepository implements AdminOfferRepository {
   }
 
   AdminOffer? _fromRow(Map<String, dynamic> row) {
+    if (row['deleted_at'] != null) return null;
+
     final String id = _string(row['id']);
     final MobileNetwork? network = _network(_string(row['network']));
     final OfferService? service = _service(_string(row['service']));

@@ -60,11 +60,9 @@ class _BackofficeControlPageState extends State<BackofficeControlPage> {
           return _ControlError(onRetry: _reload);
         }
         final ControlSnapshot snapshot = async.data!;
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(28, 22, 28, 36),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
               _ScopeBanner(snapshot: snapshot, onRefresh: _reload),
               const SizedBox(height: 18),
               switch (widget.module) {
@@ -72,8 +70,7 @@ class _BackofficeControlPageState extends State<BackofficeControlPage> {
                 BackofficeControlModule.audit => _AuditView(snapshot: snapshot),
                 BackofficeControlModule.statistics => _StatisticsView(snapshot: snapshot),
               },
-            ],
-          ),
+          ],
         );
       },
     );

@@ -179,11 +179,9 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     return StreamBuilder<BackofficeFinanceSnapshot>(
       stream: _stream,
       builder: (BuildContext context, AsyncSnapshot<BackofficeFinanceSnapshot> async) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(24, 22, 24, 40),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
             BackofficePageIntro(
               eyebrow: 'Finances / ${widget.module.title}',
               title: widget.module.title,
@@ -218,8 +216,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
               _moduleBody(snapshot)
             else
               _FinanceErrorState(onRetry: _reload),
-            ],
-          ),
+          ],
         );
       },
     );

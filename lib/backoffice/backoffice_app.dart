@@ -39,9 +39,10 @@ import 'package:cabine_flow/features/support/data/repositories/operational_suppo
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_brand.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-class BackofficeApp extends StatelessWidget {
+class BackofficeApp extends StatefulWidget {
   const BackofficeApp({
     super.key,
     this.authRepository,
@@ -68,49 +69,57 @@ class BackofficeApp extends StatelessWidget {
   final ControlRepository? controlRepository;
 
   @override
+  State<BackofficeApp> createState() => _BackofficeAppState();
+}
+
+class _BackofficeAppState extends State<BackofficeApp> {
+  final GlobalKey<_BackofficeAccessGateState> _accessGateKey =
+      GlobalKey<_BackofficeAccessGateState>();
+
+  @override
   Widget build(BuildContext context) {
     final bool firebaseReady = Firebase.apps.isNotEmpty;
     final AuthRepository effectiveAuth =
-        authRepository ??
+        widget.authRepository ??
         (firebaseReady ? FirebaseAuthRepository() : FakeAuthRepository());
     final BackofficeUserRepository effectiveUsers =
-        userRepository ??
+        widget.userRepository ??
         (firebaseReady
             ? FirestoreBackofficeUserRepository()
             : const FakeBackofficeUserRepository());
     final OrdersRepository effectiveOrders =
-        ordersRepository ??
+        widget.ordersRepository ??
         (firebaseReady
             ? SupabaseBootstrap.isInitialized
                   ? HybridOrdersRepository()
                   : FirestoreOrdersRepository()
             : FakeOrdersRepository(isTest: true));
     final AgentRepository effectiveAgents =
-        agentRepository ??
+        widget.agentRepository ??
         (firebaseReady ? FirestoreAgentRepository() : FakeAgentRepository());
     final TerritoryRepository effectiveTerritory =
-        territoryRepository ??
+        widget.territoryRepository ??
         (SupabaseBootstrap.isInitialized
             ? SupabaseTerritoryRepository()
             : FakeTerritoryRepository());
     final SupportRequestRepository effectiveSupport =
-        supportRepository ?? createOperationalSupportRequestRepository();
+        widget.supportRepository ?? createOperationalSupportRequestRepository();
     final RefundRepository effectiveRefunds =
-        refundRepository ?? createOperationalRefundRepository();
+        widget.refundRepository ?? createOperationalRefundRepository();
     final AdminOfferRepository effectiveOffers =
-        adminOfferRepository ??
+        widget.adminOfferRepository ??
         (SupabaseBootstrap.isInitialized
             ? SupabaseAdminOfferRepository()
             : firebaseReady
             ? FirestoreAdminOfferRepository()
             : FakeAdminOfferRepository());
     final BackofficeFinanceRepository? effectiveFinance =
-        financeRepository ??
+        widget.financeRepository ??
         (SupabaseBootstrap.isInitialized
             ? SupabaseBackofficeFinanceRepository()
             : null);
     final ControlRepository? effectiveControl =
-        controlRepository ??
+        widget.controlRepository ??
         (SupabaseBootstrap.isInitialized
             ? SupabaseControlRepository()
             : null);
@@ -121,7 +130,16 @@ class BackofficeApp extends StatelessWidget {
       theme: BackofficeTheme.light,
       darkTheme: BackofficeTheme.light,
       themeMode: ThemeMode.light,
+      builder: (BuildContext context, Widget? child) {
+        final Widget content = child ?? const SizedBox.shrink();
+        if (!kIsWeb) return content;
+        return _BackofficeWebActivityBoundary(
+          onActivity: () => _accessGateKey.currentState?.registerUserActivity(),
+          child: content,
+        );
+      },
       home: _BackofficeAccessGate(
+        key: _accessGateKey,
         authRepository: effectiveAuth,
         userRepository: effectiveUsers,
         ordersRepository: effectiveOrders,
@@ -139,6 +157,7 @@ class BackofficeApp extends StatelessWidget {
 
 class _BackofficeAccessGate extends StatefulWidget {
   const _BackofficeAccessGate({
+    super.key,
     required this.authRepository,
     required this.userRepository,
     required this.ordersRepository,
@@ -167,8 +186,11 @@ class _BackofficeAccessGate extends StatefulWidget {
 }
 
 class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
+  static const Duration _webInactivityTimeout = Duration(minutes: 15);
+
   bool _loading = true;
   AppUser? _user;
+  Timer? _webInactivityTimer;
 
   @override
   void initState() {
@@ -176,6 +198,27 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
     _restoreSession();
   }
 
+  @override
+  void dispose() {
+    _webInactivityTimer?.cancel();
+    super.dispose();
+  }
+
+  void registerUserActivity() {
+    if (!kIsWeb || _user == null) return;
+    _armWebInactivityTimer();
+  }
+
+  void _armWebInactivityTimer() {
+    if (!kIsWeb || _user == null) return;
+    _webInactivityTimer?.cancel();
+    _webInactivityTimer = Timer(_webInactivityTimeout, _handleWebInactivity);
+  }
+
+  Future<void> _handleWebInactivity() async {
+    if (!mounted || _user == null) return;
+    await _logout();
+  }
 
   Future<void> _restoreSession() async {
     final AuthLoginResult result = await widget.authRepository
@@ -190,6 +233,7 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
         _user = resolved;
         _loading = false;
       });
+      _armWebInactivityTimer();
       if (resolved.role == UserRole.administrator &&
           SupabaseBootstrap.isInitialized) {
         unawaited(LegacyTerritoryBackfillService().runIfNeeded());
@@ -219,6 +263,7 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
   void _handleAuthenticated(AppUser user) {
     if (!_canAccessBackoffice(user)) return;
     setState(() => _user = user);
+    _armWebInactivityTimer();
     if (user.role == UserRole.administrator &&
         SupabaseBootstrap.isInitialized) {
       unawaited(LegacyTerritoryBackfillService().runIfNeeded());
@@ -228,9 +273,13 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
   }
 
   Future<void> _logout() async {
-    await widget.authRepository.logout();
-    if (!mounted) return;
-    setState(() => _user = null);
+    _webInactivityTimer?.cancel();
+    _webInactivityTimer = null;
+    try {
+      await widget.authRepository.logout();
+    } finally {
+      if (mounted) setState(() => _user = null);
+    }
   }
 
   @override
@@ -259,6 +308,32 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
       financeRepository: widget.financeRepository,
       controlRepository: widget.controlRepository,
       onLogout: _logout,
+    );
+  }
+}
+
+class _BackofficeWebActivityBoundary extends StatelessWidget {
+  const _BackofficeWebActivityBoundary({
+    required this.onActivity,
+    required this.child,
+  });
+
+  final VoidCallback onActivity;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => onActivity(),
+      onPointerSignal: (_) => onActivity(),
+      child: Focus(
+        onKeyEvent: (FocusNode node, KeyEvent event) {
+          onActivity();
+          return KeyEventResult.ignored;
+        },
+        child: child,
+      ),
     );
   }
 }

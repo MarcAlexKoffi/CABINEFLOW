@@ -106,6 +106,14 @@ class FakeAdminOfferRepository implements AdminOfferRepository {
     _emit();
   }
 
+  @override
+  Future<void> deleteOffer({required String offerId}) async {
+    final int removed = _offers.length;
+    _offers.removeWhere((AdminOffer item) => item.id == offerId);
+    if (_offers.length == removed) throw StateError('Offre introuvable.');
+    _emit();
+  }
+
   void _emit() {
     if (!_controller.isClosed) {
       _controller.add(List<AdminOffer>.unmodifiable(_offers));
