@@ -1,6 +1,10 @@
+import 'dart:async';
+
+import 'package:cabine_flow/backoffice/data/repositories/supabase_backoffice_case_pagination_repository.dart';
 import 'package:cabine_flow/backoffice/presentation/services/backoffice_whatsapp_service.dart';
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
 import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_order_widgets.dart';
+import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_pagination.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
@@ -39,55 +43,88 @@ class BackofficeRefundsPage extends StatefulWidget {
 
 class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
   final TextEditingController _searchController = TextEditingController();
-  late final Stream<List<RefundCase>> _stream;
+  late final SupabaseBackofficeCasePaginationRepository _pageRepository;
+  late Future<BackofficeRefundPageData> _pageFuture;
+  Timer? _searchDebounce;
   _RefundScope _scope = _RefundScope.pending;
   String _query = '';
   bool _submitting = false;
   IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
+  int _page = 1;
+  int _pageSize = 25;
 
   @override
   void initState() {
     super.initState();
-    _stream = widget.repository.watchAll();
+    _pageRepository = SupabaseBackofficeCasePaginationRepository();
     final String initialReference = widget.initialOrderReference?.trim() ?? '';
     if (initialReference.isNotEmpty) {
       _scope = _RefundScope.all;
       _query = initialReference;
       _searchController.text = initialReference;
     }
+    _pageFuture = _fetchPage();
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
+  Future<BackofficeRefundPageData> _fetchPage() {
+    final DateTimeRange? range = _period.resolvedRange();
+    return _pageRepository.fetchRefundPage(
+      start: range?.start,
+      end: range?.end,
+      scope: switch (_scope) {
+        _RefundScope.all => 'all',
+        _RefundScope.pending => 'pending',
+        _RefundScope.approved => 'approved',
+        _RefundScope.refunded => 'refunded',
+        _RefundScope.reconciled => 'reconciled',
+        _RefundScope.rejected => 'rejected',
+      },
+      query: _query,
+      page: _page,
+      pageSize: _pageSize,
+    );
+  }
+
+  void _reload({bool resetPage = false}) {
+    if (resetPage) _page = 1;
+    setState(() => _pageFuture = _fetchPage());
+  }
+
+  void _onSearchChanged(String value) {
+    _query = value;
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) _reload(resetPage: true);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<RefundCase>>(
-      stream: _stream,
-      builder: (BuildContext context, AsyncSnapshot<List<RefundCase>> snapshot) {
+    return FutureBuilder<BackofficeRefundPageData>(
+      future: _pageFuture,
+      builder: (BuildContext context, AsyncSnapshot<BackofficeRefundPageData> snapshot) {
         if (snapshot.hasError) {
-          return const BackofficeEmptyState(
+          return BackofficeEmptyState(
             icon: Symbols.cloud_off_rounded,
             title: 'Remboursements indisponibles',
             message: 'Les dossiers de remboursement ne peuvent pas être chargés pour le moment.',
+            action: OutlinedButton.icon(
+              onPressed: () => _reload(),
+              icon: const Icon(Symbols.refresh_rounded),
+              label: const Text('Réessayer'),
+            ),
           );
         }
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final List<RefundCase> all = snapshot.data!;
-        final List<RefundCase> periodItems = all
-            .where((RefundCase item) => _period.contains(item.requestedAt))
-            .toList(growable: false);
-        final int pending = periodItems.where((RefundCase item) => item.status == RefundStatus.pendingApproval).length;
-        final int approved = periodItems.where((RefundCase item) => item.status == RefundStatus.approved).length;
-        final int completed = periodItems.where((RefundCase item) => item.isRefundCompleted).length;
-        final int exposure = periodItems.where((RefundCase item) => item.status.isActive).fold<int>(0, (int total, RefundCase item) => total + item.amount);
-        final List<RefundCase> visible = _filtered(periodItems);
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        final BackofficeRefundPageData data = snapshot.data!;
+        final List<RefundCase> visible = data.items;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -97,21 +134,25 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
               title: 'Centre des remboursements',
               description: 'Crée, valide, exécute et rapproche les remboursements IzyTel, qu’ils proviennent d’une demande client, d’une commande échouée ou d’un traitement manuel. La sortie Wave est comptabilisée uniquement lorsque le remboursement réel est marqué effectué.',
               icon: Symbols.currency_exchange_rounded,
-              trailing: widget.user.permissions.canManageRefunds &&
-                      widget.orderHistoryRepository != null
+              trailing: widget.user.permissions.canManageRefunds && widget.orderHistoryRepository != null
                   ? FilledButton.icon(
-                      onPressed: _submitting ? null : () => _createManualRefund(all),
+                      onPressed: _submitting ? null : _createManualRefund,
                       icon: const Icon(Symbols.add_rounded),
                       label: const Text('Nouveau remboursement'),
                     )
                   : null,
             ),
             const SizedBox(height: 18),
-            _metrics(pending: pending, approved: approved, completed: completed, exposure: exposure),
+            _metrics(
+              pending: data.pendingCount,
+              approved: data.approvedCount,
+              completed: data.completedCount,
+              exposure: data.exposure,
+            ),
             const SizedBox(height: 14),
             _financeNotice(),
             const SizedBox(height: 14),
-            _filters(all: all, visibleCount: visible.length),
+            _filters(data: data),
             const SizedBox(height: 14),
             if (visible.isEmpty)
               const BackofficeEmptyState(
@@ -131,6 +172,18 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
                   );
                 },
               ),
+            if (data.total > 0) ...<Widget>[
+              const SizedBox(height: 14),
+              BackofficePaginationBar(
+                page: _page,
+                pageSize: _pageSize,
+                total: data.total,
+                loading: snapshot.connectionState == ConnectionState.waiting,
+                onPrevious: _page > 1 ? () { _page -= 1; _reload(); } : null,
+                onNext: _page * _pageSize < data.total ? () { _page += 1; _reload(); } : null,
+                onPageSizeChanged: (int value) { _pageSize = value; _reload(resetPage: true); },
+              ),
+            ],
           ],
         );
       },
@@ -187,13 +240,15 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
     );
   }
 
-  Widget _filters({required List<RefundCase> all, required int visibleCount}) {
-    final List<RefundCase> periodItems = all
-        .where((RefundCase item) => _period.contains(item.requestedAt))
-        .toList(growable: false);
-    int count(RefundStatus status) => periodItems
-        .where((RefundCase item) => item.status == status)
-        .length;
+  Widget _filters({required BackofficeRefundPageData data}) {
+    int countFor(_RefundScope scope) => switch (scope) {
+      _RefundScope.all => data.allCount,
+      _RefundScope.pending => data.pendingCount,
+      _RefundScope.approved => data.approvedCount,
+      _RefundScope.refunded => data.refundedCount,
+      _RefundScope.reconciled => data.reconciledCount,
+      _RefundScope.rejected => data.rejectedCount,
+    };
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: backofficePanelDecoration(),
@@ -204,7 +259,7 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
             builder: (BuildContext context, BoxConstraints constraints) {
               final Widget search = TextField(
                 controller: _searchController,
-                onChanged: (String value) => setState(() => _query = value),
+                onChanged: _onSearchChanged,
                 decoration: InputDecoration(
                   hintText: 'Référence, client, téléphone ou motif',
                   prefixIcon: const Icon(Symbols.search_rounded),
@@ -222,26 +277,25 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Vue'),
                 items: <DropdownMenuItem<_RefundScope>>[
-                  DropdownMenuItem(value: _RefundScope.all, child: Text('Tous (${periodItems.length})')),
-                  DropdownMenuItem(value: _RefundScope.pending, child: Text('À valider (${count(RefundStatus.pendingApproval)})')),
-                  DropdownMenuItem(value: _RefundScope.approved, child: Text('À effectuer (${count(RefundStatus.approved)})')),
-                  DropdownMenuItem(value: _RefundScope.refunded, child: Text('Remboursés (${count(RefundStatus.refunded)})')),
-                  DropdownMenuItem(value: _RefundScope.reconciled, child: Text('Rapprochés (${count(RefundStatus.reconciled)})')),
-                  DropdownMenuItem(value: _RefundScope.rejected, child: Text('Rejetés (${count(RefundStatus.rejected)})')),
+                  for (final _RefundScope item in _RefundScope.values)
+                    DropdownMenuItem<_RefundScope>(
+                      value: item,
+                      child: Text('${_scopeLabel(item)} (${countFor(item)})'),
+                    ),
                 ],
                 onChanged: (_RefundScope? value) {
-                  if (value != null) setState(() => _scope = value);
+                  if (value != null) {
+                    _scope = value;
+                    _reload(resetPage: true);
+                  }
                 },
               );
-              final int scopeTotal = _scopeCount(all);
               final Widget indicator = Align(
                 alignment: Alignment.centerLeft,
                 child: Padding(
                   padding: const EdgeInsets.only(top: 9),
                   child: Text(
-                    _query.trim().isEmpty
-                        ? '$scopeTotal dossier${scopeTotal > 1 ? 's' : ''} dans cette vue'
-                        : '$visibleCount affiché${visibleCount > 1 ? 's' : ''} sur $scopeTotal dans cette vue',
+                    '${data.total} résultat${data.total > 1 ? 's' : ''} après recherche et filtres',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: BackofficePalette.muted,
                       fontWeight: FontWeight.w700,
@@ -250,24 +304,11 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
                 ),
               );
               if (constraints.maxWidth < 760) {
-                return Column(
-                  children: <Widget>[
-                    search,
-                    const SizedBox(height: 10),
-                    scope,
-                    indicator,
-                  ],
-                );
+                return Column(children: <Widget>[search, const SizedBox(height: 10), scope, indicator]);
               }
               return Column(
                 children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Expanded(flex: 3, child: search),
-                      const SizedBox(width: 10),
-                      SizedBox(width: 260, child: scope),
-                    ],
-                  ),
+                  Row(children: <Widget>[Expanded(flex: 3, child: search), const SizedBox(width: 10), SizedBox(width: 260, child: scope)]),
                   indicator,
                 ],
               );
@@ -277,7 +318,8 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
           IzyTelPeriodFilterBar(
             value: _period,
             onChanged: (IzyTelPeriodFilterValue value) {
-              setState(() => _period = value);
+              _period = value;
+              _reload(resetPage: true);
             },
             compact: MediaQuery.sizeOf(context).width < 760,
             calendarHelpText: 'Retrouver d’anciens remboursements',
@@ -287,45 +329,21 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
     );
   }
 
-
-  int _scopeCount(List<RefundCase> all) {
-    return all.where((RefundCase item) {
-      if (!_period.contains(item.requestedAt)) return false;
-      return switch (_scope) {
-        _RefundScope.all => true,
-        _RefundScope.pending => item.status == RefundStatus.pendingApproval,
-        _RefundScope.approved => item.status == RefundStatus.approved,
-        _RefundScope.refunded => item.status == RefundStatus.refunded,
-        _RefundScope.reconciled => item.status == RefundStatus.reconciled,
-        _RefundScope.rejected => item.status == RefundStatus.rejected,
-      };
-    }).length;
-  }
+  String _scopeLabel(_RefundScope scope) => switch (scope) {
+    _RefundScope.all => 'Tous',
+    _RefundScope.pending => 'À valider',
+    _RefundScope.approved => 'À effectuer',
+    _RefundScope.refunded => 'Remboursés',
+    _RefundScope.reconciled => 'Rapprochés',
+    _RefundScope.rejected => 'Rejetés',
+  };
 
   void _clearSearch() {
     _searchController.clear();
-    setState(() => _query = '');
+    _query = '';
+    _reload(resetPage: true);
   }
 
-  List<RefundCase> _filtered(List<RefundCase> all) {
-    final String query = _query.trim().toLowerCase();
-    final List<RefundCase> result = all.where((RefundCase item) {
-      if (!_period.contains(item.requestedAt)) return false;
-      final bool inScope = switch (_scope) {
-        _RefundScope.all => true,
-        _RefundScope.pending => item.status == RefundStatus.pendingApproval,
-        _RefundScope.approved => item.status == RefundStatus.approved,
-        _RefundScope.refunded => item.status == RefundStatus.refunded,
-        _RefundScope.reconciled => item.status == RefundStatus.reconciled,
-        _RefundScope.rejected => item.status == RefundStatus.rejected,
-      };
-      if (!inScope) return false;
-      if (query.isEmpty) return true;
-      return <String>[item.orderReference, item.clientName, item.clientWhatsappPhone, item.reason.label, item.status.label].join(' ').toLowerCase().contains(query);
-    }).toList(growable: false);
-    result.sort((RefundCase a, RefundCase b) => b.updatedAt.compareTo(a.updatedAt));
-    return result;
-  }
 
   Widget _desktopTable(List<RefundCase> refunds) {
     return BackofficeDesktopTable(
@@ -426,7 +444,7 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
     }
   }
 
-  Future<void> _createManualRefund(List<RefundCase> existing) async {
+  Future<void> _createManualRefund() async {
     final OrderHistoryRepository? history = widget.orderHistoryRepository;
     if (history == null || _submitting) return;
 
@@ -442,9 +460,15 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
     if (mounted) setState(() => _submitting = false);
     if (!mounted) return;
 
-    final Set<String> existingOrderIds = existing
-        .map((RefundCase value) => value.orderId)
-        .toSet();
+    late final Set<String> existingOrderIds;
+    try {
+      existingOrderIds = await _pageRepository.fetchRefundOrderIds();
+    } catch (error) {
+      if (mounted) {
+        _showMessage('Impossible de vérifier les remboursements existants : $error');
+      }
+      return;
+    }
     final List<QueueOrder> eligible = orders
         .where(
           (QueueOrder order) =>
@@ -489,8 +513,10 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
         staffName: widget.user.name,
       );
       if (!mounted) return;
-      _clearSearch();
-      setState(() => _scope = _RefundScope.pending);
+      _searchController.clear();
+      _query = '';
+      _scope = _RefundScope.pending;
+      _reload(resetPage: true);
       _showMessage(
         'Dossier créé. Il est maintenant disponible dans « À valider ».',
       );
@@ -874,6 +900,7 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
       await action();
       if (!mounted) return;
       _showMessage(successMessage);
+      _reload(resetPage: true);
     } catch (error) {
       if (!mounted) return;
       _showMessage(error.toString());

@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
 import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_charts.dart';
 import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_modal.dart';
+import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_pagination.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/control/domain/models/control_snapshot.dart';
@@ -71,7 +74,6 @@ class _BackofficeControlPageState extends State<BackofficeControlPage> {
               const SizedBox(height: 18),
               switch (widget.module) {
                 BackofficeControlModule.activity => _ActivityView(
-                    snapshot: snapshot,
                     repository: widget.repository,
                     onOpenModule: widget.onOpenActivityModule,
                   ),
@@ -145,28 +147,23 @@ extension on _ActivityDomainFilter {
         _ActivityDomainFilter.agents => 'Agents',
       };
 
-  bool accepts(String rawDomain) {
-    if (this == _ActivityDomainFilter.all) return true;
-    final String domain = rawDomain.trim().toLowerCase();
-    return switch (this) {
-      _ActivityDomainFilter.all => true,
-      _ActivityDomainFilter.orders => domain == 'orders',
-      _ActivityDomainFilter.payments => domain == 'payments',
-      _ActivityDomainFilter.assignments => domain == 'assignments',
-      _ActivityDomainFilter.support => domain == 'support',
-      _ActivityDomainFilter.agents => domain == 'agents',
-    };
-  }
+  String? get rpcValue => switch (this) {
+        _ActivityDomainFilter.all => null,
+        _ActivityDomainFilter.orders => 'orders',
+        _ActivityDomainFilter.payments => 'payments',
+        _ActivityDomainFilter.assignments => 'assignments',
+        _ActivityDomainFilter.support => 'support',
+        _ActivityDomainFilter.agents => 'agents',
+      };
 }
+
 
 class _ActivityView extends StatefulWidget {
   const _ActivityView({
-    required this.snapshot,
     required this.repository,
     this.onOpenModule,
   });
 
-  final ControlSnapshot snapshot;
   final ControlRepository repository;
   final ValueChanged<ControlActivityEvent>? onOpenModule;
 
@@ -178,143 +175,140 @@ class _ActivityViewState extends State<_ActivityView> {
   String _query = '';
   _ActivityDomainFilter _domain = _ActivityDomainFilter.all;
   IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
-  List<ControlActivityEvent>? _periodItems;
-  int? _periodTotal;
-  bool _periodLoading = false;
-  String? _periodError;
+  late Future<ControlActivityPageData> _pageFuture;
+  Timer? _searchDebounce;
+  int _page = 1;
+  int _pageSize = 25;
 
-  List<ControlActivityEvent> get _sourceEvents =>
-      _period.preset == IzyTelPeriodPreset.all
-          ? widget.snapshot.activity
-          : (_periodItems ?? const <ControlActivityEvent>[]);
+  @override
+  void initState() {
+    super.initState();
+    _pageFuture = _fetchPage();
+  }
 
-  Future<void> _setPeriod(IzyTelPeriodFilterValue value) async {
-    setState(() {
-      _period = value;
-      _periodError = null;
-      if (value.preset == IzyTelPeriodPreset.all) {
-        _periodItems = null;
-        _periodTotal = null;
-        _periodLoading = false;
-      } else {
-        _periodLoading = true;
-      }
-    });
-    if (value.preset == IzyTelPeriodPreset.all) return;
-    final DateTimeRange? range = value.resolvedRange();
-    try {
-      final ControlActivityPageData page = await widget.repository.fetchActivityPage(
-        start: range?.start,
-        end: range?.end,
-        limit: 100,
-      );
-      if (!mounted || _period != value) return;
-      setState(() {
-        _periodItems = page.items;
-        _periodTotal = page.total;
-        _periodLoading = false;
-      });
-    } catch (_) {
-      if (!mounted || _period != value) return;
-      setState(() {
-        _periodLoading = false;
-        _periodError = 'Impossible de charger cette période du journal.';
-      });
+  @override
+  void didUpdateWidget(covariant _ActivityView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.repository != widget.repository) {
+      _page = 1;
+      _pageFuture = _fetchPage();
     }
   }
 
-  List<ControlActivityEvent> get _filteredEvents {
-    final String query = _query.trim().toLowerCase();
-    return _sourceEvents.where((ControlActivityEvent event) {
-      if (!_domain.accepts(event.domain)) return false;
-      if (query.isEmpty) return true;
-      final String haystack = <String>[
-        event.title,
-        event.reference,
-        event.actorName,
-        event.domain,
-        event.eventKind,
-        ...event.details.entries.map((MapEntry<String, dynamic> entry) =>
-            '${entry.key} ${_valueLabel(entry.value)}'),
-      ].join(' ').toLowerCase();
-      return haystack.contains(query);
-    }).toList(growable: false);
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
+  }
+
+  Future<ControlActivityPageData> _fetchPage() {
+    final DateTimeRange? range = _period.resolvedRange();
+    return widget.repository.fetchActivityPage(
+      start: range?.start,
+      end: range?.end,
+      domain: _domain.rpcValue,
+      query: _query,
+      offset: (_page - 1) * _pageSize,
+      limit: _pageSize,
+    );
+  }
+
+  void _reload({bool resetPage = false}) {
+    if (resetPage) _page = 1;
+    setState(() => _pageFuture = _fetchPage());
+  }
+
+  void _setPeriod(IzyTelPeriodFilterValue value) {
+    _period = value;
+    _reload(resetPage: true);
+  }
+
+  void _onSearchChanged(String value) {
+    _query = value;
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) _reload(resetPage: true);
+    });
+  }
+
+  void _setDomain(_ActivityDomainFilter value) {
+    if (_domain == value) return;
+    _domain = value;
+    _reload(resetPage: true);
   }
 
   @override
   Widget build(BuildContext context) {
-    final List<ControlActivityEvent> events = _filteredEvents;
     final bool compact = MediaQuery.sizeOf(context).width < 760;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        _SectionHeading(
-          title: 'Journal d’activité',
-          subtitle:
-              '${events.length} événement${events.length > 1 ? 's' : ''} affiché${events.length > 1 ? 's' : ''} sur ${_periodTotal ?? _sourceEvents.length}. Cliquez sur une ligne pour consulter le détail.',
-        ),
-        const SizedBox(height: 12),
-        IzyTelPeriodFilterBar(
-          value: _period,
-          onChanged: _setPeriod,
-          compact: compact,
-          calendarHelpText: 'Rechercher une ancienne activité',
-        ),
-        if (_periodLoading) ...<Widget>[
-          const SizedBox(height: 10),
-          const LinearProgressIndicator(minHeight: 2),
-        ],
-        if (_periodError != null) ...<Widget>[
-          const SizedBox(height: 10),
-          Text(
-            _periodError!,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: BackofficePalette.danger,
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-        ],
-        const SizedBox(height: 12),
-        if (compact)
-          Column(
-            children: <Widget>[
-              _ActivitySearchField(onChanged: (String value) => setState(() => _query = value)),
-              const SizedBox(height: 10),
-              _ActivityDomainField(
-                value: _domain,
-                onChanged: (_ActivityDomainFilter value) => setState(() => _domain = value),
+    return FutureBuilder<ControlActivityPageData>(
+      future: _pageFuture,
+      builder: (BuildContext context, AsyncSnapshot<ControlActivityPageData> async) {
+        final ControlActivityPageData? data = async.data;
+        final List<ControlActivityEvent> events = data?.items ?? const <ControlActivityEvent>[];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _SectionHeading(
+              title: 'Journal d’activité',
+              subtitle: data == null
+                  ? 'Chargement du journal…'
+                  : '${events.length} événement${events.length > 1 ? 's' : ''} sur ${data.total}. Les filtres et la recherche sont appliqués avant la pagination serveur.',
+            ),
+            const SizedBox(height: 12),
+            IzyTelPeriodFilterBar(
+              value: _period,
+              onChanged: _setPeriod,
+              compact: compact,
+              calendarHelpText: 'Rechercher une ancienne activité',
+            ),
+            const SizedBox(height: 12),
+            if (compact)
+              Column(
+                children: <Widget>[
+                  _ActivitySearchField(onChanged: _onSearchChanged),
+                  const SizedBox(height: 10),
+                  _ActivityDomainField(value: _domain, onChanged: _setDomain),
+                ],
+              )
+            else
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    flex: 3,
+                    child: _ActivitySearchField(onChanged: _onSearchChanged),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: _ActivityDomainField(value: _domain, onChanged: _setDomain),
+                  ),
+                ],
               ),
-            ],
-          )
-        else
-          Row(
-            children: <Widget>[
-              Expanded(
-                flex: 3,
-                child: _ActivitySearchField(
-                  onChanged: (String value) => setState(() => _query = value),
+            const SizedBox(height: 12),
+            if (async.connectionState == ConnectionState.waiting && !async.hasData)
+              const SizedBox(
+                height: 180,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (async.hasError)
+              _EmptyCard(
+                icon: Symbols.cloud_off_rounded,
+                title: 'Journal indisponible',
+                subtitle: 'Impossible de charger cette page du journal.',
+                action: OutlinedButton.icon(
+                  onPressed: () => _reload(),
+                  icon: const Icon(Symbols.refresh_rounded),
+                  label: const Text('Réessayer'),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: _ActivityDomainField(
-                  value: _domain,
-                  onChanged: (_ActivityDomainFilter value) => setState(() => _domain = value),
-                ),
-              ),
-            ],
-          ),
-        const SizedBox(height: 12),
-        if (events.isEmpty && !_periodLoading)
-          const _EmptyCard(
-            icon: Symbols.search_off_rounded,
-            title: 'Aucune activité correspondante',
-            subtitle: 'Modifiez la recherche ou le domaine sélectionné.',
-          )
-        else
-          ...events.take(150).map(
+              )
+            else if (events.isEmpty)
+              const _EmptyCard(
+                icon: Symbols.search_off_rounded,
+                title: 'Aucune activité correspondante',
+                subtitle: 'Modifiez la période, la recherche ou le domaine sélectionné.',
+              )
+            else
+              ...events.map(
                 (ControlActivityEvent event) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: _EventCard(
@@ -327,7 +321,34 @@ class _ActivityViewState extends State<_ActivityView> {
                   ),
                 ),
               ),
-      ],
+            if (data != null && data.total > 0) ...<Widget>[
+              const SizedBox(height: 6),
+              BackofficePaginationBar(
+                page: _page,
+                pageSize: _pageSize,
+                total: data.total,
+                loading: async.connectionState == ConnectionState.waiting,
+                onPrevious: _page > 1
+                    ? () {
+                        _page -= 1;
+                        _reload();
+                      }
+                    : null,
+                onNext: _page * _pageSize < data.total
+                    ? () {
+                        _page += 1;
+                        _reload();
+                      }
+                    : null,
+                onPageSizeChanged: (int value) {
+                  _pageSize = value;
+                  _reload(resetPage: true);
+                },
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -386,105 +407,104 @@ class _AuditView extends StatefulWidget {
 
 class _AuditViewState extends State<_AuditView> {
   IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
-  List<ControlAuditEvent>? _periodItems;
-  int? _periodTotal;
-  bool _periodLoading = false;
-  String? _periodError;
+  late Future<ControlAuditPageData> _pageFuture;
+  int _page = 1;
+  int _pageSize = 25;
 
-  List<ControlAuditEvent> get _events =>
-      _period.preset == IzyTelPeriodPreset.all
-          ? widget.snapshot.audit
-          : (_periodItems ?? const <ControlAuditEvent>[]);
-
-  Future<void> _setPeriod(IzyTelPeriodFilterValue value) async {
-    setState(() {
-      _period = value;
-      _periodError = null;
-      if (value.preset == IzyTelPeriodPreset.all) {
-        _periodItems = null;
-        _periodTotal = null;
-        _periodLoading = false;
-      } else {
-        _periodLoading = true;
-      }
-    });
-    if (value.preset == IzyTelPeriodPreset.all) return;
-    final DateTimeRange? range = value.resolvedRange();
-    try {
-      final ControlAuditPageData page = await widget.repository.fetchAuditPage(
-        start: range?.start,
-        end: range?.end,
-        limit: 100,
-      );
-      if (!mounted || _period != value) return;
-      setState(() {
-        _periodItems = page.items;
-        _periodTotal = page.total;
-        _periodLoading = false;
-      });
-    } catch (_) {
-      if (!mounted || _period != value) return;
-      setState(() {
-        _periodLoading = false;
-        _periodError = 'Impossible de charger cette période de l’audit.';
-      });
+  @override
+  void initState() {
+    super.initState();
+    if (widget.snapshot.auditAllowed) {
+      _pageFuture = _fetchPage();
     }
   }
 
   @override
+  void didUpdateWidget(covariant _AuditView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.snapshot.auditAllowed &&
+        (!oldWidget.snapshot.auditAllowed || oldWidget.repository != widget.repository)) {
+      _page = 1;
+      _pageFuture = _fetchPage();
+    }
+  }
+
+  Future<ControlAuditPageData> _fetchPage() {
+    final DateTimeRange? range = _period.resolvedRange();
+    return widget.repository.fetchAuditPage(
+      start: range?.start,
+      end: range?.end,
+      offset: (_page - 1) * _pageSize,
+      limit: _pageSize,
+    );
+  }
+
+  void _reload({bool resetPage = false}) {
+    if (resetPage) _page = 1;
+    setState(() => _pageFuture = _fetchPage());
+  }
+
+  void _setPeriod(IzyTelPeriodFilterValue value) {
+    _period = value;
+    _reload(resetPage: true);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final ControlSnapshot snapshot = widget.snapshot;
-    if (!snapshot.auditAllowed) {
+    if (!widget.snapshot.auditAllowed) {
       return const _EmptyCard(
         icon: Symbols.lock_rounded,
         title: 'Audit réservé à l’Administrateur',
         subtitle: 'Les Managers disposent du journal opérationnel et des statistiques de leur périmètre, sans accès à l’audit sensible.',
       );
     }
-    if (_period.preset == IzyTelPeriodPreset.all && snapshot.audit.isEmpty) {
-      return const _EmptyCard(
-        icon: Symbols.fact_check_rounded,
-        title: 'Aucun événement d’audit',
-        subtitle: 'Aucune modification auditée n’est disponible pour le moment.',
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        _SectionHeading(
-          title: 'Audit / historique',
-          subtitle: '${_events.length} action${_events.length > 1 ? 's' : ''} affichée${_events.length > 1 ? 's' : ''} sur ${_periodTotal ?? _events.length}. Cliquez sur une action pour inspecter les données auditées.',
-        ),
-        const SizedBox(height: 12),
-        IzyTelPeriodFilterBar(
-          value: _period,
-          onChanged: _setPeriod,
-          compact: MediaQuery.sizeOf(context).width < 760,
-          calendarHelpText: 'Rechercher un ancien événement d’audit',
-        ),
-        if (_periodLoading) ...<Widget>[
-          const SizedBox(height: 10),
-          const LinearProgressIndicator(minHeight: 2),
-        ],
-        if (_periodError != null) ...<Widget>[
-          const SizedBox(height: 10),
-          Text(
-            _periodError!,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: BackofficePalette.danger,
-                  fontWeight: FontWeight.w700,
+
+    return FutureBuilder<ControlAuditPageData>(
+      future: _pageFuture,
+      builder: (BuildContext context, AsyncSnapshot<ControlAuditPageData> async) {
+        final ControlAuditPageData? data = async.data;
+        final List<ControlAuditEvent> events = data?.items ?? const <ControlAuditEvent>[];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _SectionHeading(
+              title: 'Audit / historique',
+              subtitle: data == null
+                  ? 'Chargement de l’audit…'
+                  : '${events.length} action${events.length > 1 ? 's' : ''} sur ${data.total}. La période est appliquée avant la pagination serveur.',
+            ),
+            const SizedBox(height: 12),
+            IzyTelPeriodFilterBar(
+              value: _period,
+              onChanged: _setPeriod,
+              compact: MediaQuery.sizeOf(context).width < 760,
+              calendarHelpText: 'Rechercher un ancien événement d’audit',
+            ),
+            const SizedBox(height: 12),
+            if (async.connectionState == ConnectionState.waiting && !async.hasData)
+              const SizedBox(
+                height: 180,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (async.hasError)
+              _EmptyCard(
+                icon: Symbols.cloud_off_rounded,
+                title: 'Audit indisponible',
+                subtitle: 'Impossible de charger cette page de l’audit.',
+                action: OutlinedButton.icon(
+                  onPressed: () => _reload(),
+                  icon: const Icon(Symbols.refresh_rounded),
+                  label: const Text('Réessayer'),
                 ),
-          ),
-        ],
-        const SizedBox(height: 12),
-        if (_events.isEmpty && !_periodLoading)
-          const _EmptyCard(
-            icon: Symbols.search_off_rounded,
-            title: 'Aucun audit sur cette période',
-            subtitle: 'Choisissez une autre période ou revenez à l’historique complet.',
-          )
-        else
-          ..._events.take(150).map(
+              )
+            else if (events.isEmpty)
+              const _EmptyCard(
+                icon: Symbols.search_off_rounded,
+                title: 'Aucun audit sur cette période',
+                subtitle: 'Choisissez une autre période ou revenez à l’historique complet.',
+              )
+            else
+              ...events.map(
                 (ControlAuditEvent event) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: _AuditEventCard(
@@ -493,7 +513,34 @@ class _AuditViewState extends State<_AuditView> {
                   ),
                 ),
               ),
-      ],
+            if (data != null && data.total > 0) ...<Widget>[
+              const SizedBox(height: 6),
+              BackofficePaginationBar(
+                page: _page,
+                pageSize: _pageSize,
+                total: data.total,
+                loading: async.connectionState == ConnectionState.waiting,
+                onPrevious: _page > 1
+                    ? () {
+                        _page -= 1;
+                        _reload();
+                      }
+                    : null,
+                onNext: _page * _pageSize < data.total
+                    ? () {
+                        _page += 1;
+                        _reload();
+                      }
+                    : null,
+                onPageSizeChanged: (int value) {
+                  _pageSize = value;
+                  _reload(resetPage: true);
+                },
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -1529,10 +1576,16 @@ class _MetricCard extends StatelessWidget {
 
 
 class _EmptyCard extends StatelessWidget {
-  const _EmptyCard({required this.icon, required this.title, required this.subtitle});
+  const _EmptyCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.action,
+  });
   final IconData icon;
   final String title;
   final String subtitle;
+  final Widget? action;
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1544,6 +1597,10 @@ class _EmptyCard extends StatelessWidget {
         Text(title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
         const SizedBox(height: 5),
         Text(subtitle, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: BackofficePalette.muted)),
+        if (action != null) ...<Widget>[
+          const SizedBox(height: 14),
+          action!,
+        ],
       ]),
     );
   }

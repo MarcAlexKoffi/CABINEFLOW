@@ -1,6 +1,10 @@
+import 'dart:async';
+
+import 'package:cabine_flow/backoffice/data/repositories/supabase_backoffice_case_pagination_repository.dart';
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
 import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_modal.dart';
 import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_order_widgets.dart';
+import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_pagination.dart';
 import 'package:cabine_flow/features/agents/data/repositories/supabase_agent_issue_center_repository.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_issue_center_models.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
@@ -33,81 +37,107 @@ class BackofficeAgentIssuesPage extends StatefulWidget {
 class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
   late final Stream<List<AgentDirectoryEntry>> _agentsStream;
   late final SupabaseAgentIssueCenterRepository _centerRepository;
-  late Stream<AgentIssueCenterSnapshot> _centerStream;
+  late final SupabaseBackofficeCasePaginationRepository _pageRepository;
+  late Future<BackofficeAgentIssuePageData> _pageFuture;
   final TextEditingController _searchController = TextEditingController();
   final Set<String> _busyIssueIds = <String>{};
+  Timer? _searchDebounce;
 
   _IssueScope _scope = _IssueScope.open;
   _IssueNetworkScope _networkScope = _IssueNetworkScope.all;
   _IssueSort _sort = _IssueSort.recent;
   String _query = '';
   IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
+  int _page = 1;
+  int _pageSize = 25;
 
   @override
   void initState() {
     super.initState();
     _agentsStream = widget.repository.watchAgents();
     _centerRepository = SupabaseAgentIssueCenterRepository();
-    _centerStream = _centerRepository.watchSnapshot();
+    _pageRepository = SupabaseBackofficeCasePaginationRepository();
+    _pageFuture = _fetchPage();
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
+  Future<BackofficeAgentIssuePageData> _fetchPage() {
+    final DateTimeRange? range = _period.resolvedRange();
+    return _pageRepository.fetchAgentIssuePage(
+      start: range?.start,
+      end: range?.end,
+      scope: switch (_scope) {
+        _IssueScope.all => 'all',
+        _IssueScope.open => 'open',
+        _IssueScope.inProgress => 'in_progress',
+        _IssueScope.resolved => 'resolved',
+        _IssueScope.cancelled => 'cancelled',
+      },
+      network: switch (_networkScope) {
+        _IssueNetworkScope.all => null,
+        _IssueNetworkScope.orange => 'orange',
+        _IssueNetworkScope.mtn => 'mtn',
+        _IssueNetworkScope.moov => 'moov',
+        _IssueNetworkScope.unspecified => '__none__',
+      },
+      query: _query,
+      sort: switch (_sort) {
+        _IssueSort.recent => 'recent',
+        _IssueSort.oldest => 'oldest',
+        _IssueSort.updated => 'updated',
+      },
+      page: _page,
+      pageSize: _pageSize,
+    );
+  }
+
+  void _reload({bool resetPage = false}) {
+    if (resetPage) _page = 1;
+    setState(() => _pageFuture = _fetchPage());
+  }
+
+  void _onSearchChanged(String value) {
+    _query = value;
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) _reload(resetPage: true);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<AgentIssueCenterSnapshot>(
-      stream: _centerStream,
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<AgentIssueCenterSnapshot> centerSnapshot,
-      ) {
-        if (centerSnapshot.hasError && !centerSnapshot.hasData) {
+    return FutureBuilder<BackofficeAgentIssuePageData>(
+      future: _pageFuture,
+      builder: (BuildContext context, AsyncSnapshot<BackofficeAgentIssuePageData> centerSnapshot) {
+        if (centerSnapshot.hasError) {
           return BackofficeEmptyState(
             icon: Symbols.report_problem_rounded,
             title: 'Signalements indisponibles',
-            message:
-                'Impossible de charger le centre de signalements Agents pour le moment.',
+            message: 'Impossible de charger le centre de signalements Agents pour le moment.',
             action: OutlinedButton.icon(
-              onPressed: _reload,
+              onPressed: () => _reload(),
               icon: const Icon(Symbols.refresh_rounded),
               label: const Text('Réessayer'),
             ),
           );
         }
-        if (!centerSnapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
+        if (!centerSnapshot.hasData) return const Center(child: CircularProgressIndicator());
 
         return StreamBuilder<List<AgentDirectoryEntry>>(
           stream: _agentsStream,
-          builder: (
-            BuildContext context,
-            AsyncSnapshot<List<AgentDirectoryEntry>> agentsSnapshot,
-          ) {
-            final AgentIssueCenterSnapshot snapshot = centerSnapshot.data!;
-            final List<AgentDirectoryEntry> agents =
-                agentsSnapshot.data ?? const <AgentDirectoryEntry>[];
-            final Map<String, AgentDirectoryEntry> agentById =
-                <String, AgentDirectoryEntry>{
-                  for (final AgentDirectoryEntry agent in agents)
-                    agent.userId: agent,
-                };
-            final List<AgentIssueCenterItem> all = snapshot.issues;
-            final List<AgentIssueCenterItem> periodItems = all
-                .where(
-                  (AgentIssueCenterItem issue) => _period.contains(issue.createdAt),
-                )
-                .toList(growable: false);
-            final int open = _count(periodItems, 'open');
-            final int progress = _count(periodItems, 'in_progress');
-            final int resolved = _count(periodItems, 'resolved');
-            final int cancelled = _count(periodItems, 'cancelled');
-            final List<AgentIssueCenterItem> visible =
-                _filtered(periodItems, agentById);
+          builder: (BuildContext context, AsyncSnapshot<List<AgentDirectoryEntry>> agentsSnapshot) {
+            final BackofficeAgentIssuePageData data = centerSnapshot.data!;
+            final List<AgentDirectoryEntry> agents = agentsSnapshot.data ?? const <AgentDirectoryEntry>[];
+            final Map<String, AgentDirectoryEntry> agentById = <String, AgentDirectoryEntry>{
+              for (final AgentDirectoryEntry agent in agents) agent.userId: agent,
+            };
+            final List<AgentIssueCenterItem> visible = data.items;
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -115,58 +145,55 @@ class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
                 const BackofficePageIntro(
                   eyebrow: 'Équipe / Signalements',
                   title: 'Centre de signalements Agents',
-                  description:
-                      'Centralise les incidents terrain, priorise leur traitement et conserve un historique lisible de chaque prise en charge.',
+                  description: 'Centralise les incidents terrain, priorise leur traitement et conserve un historique lisible de chaque prise en charge.',
                   icon: Symbols.report_problem_rounded,
                 ),
                 const SizedBox(height: 14),
-                _scopeBanner(snapshot),
+                _scopeBanner(data),
                 const SizedBox(height: 14),
                 _metrics(
-                  open: open,
-                  progress: progress,
-                  resolved: resolved,
-                  cancelled: cancelled,
+                  open: data.openCount,
+                  progress: data.inProgressCount,
+                  resolved: data.resolvedCount,
+                  cancelled: data.cancelledCount,
                 ),
                 const SizedBox(height: 14),
-                _filters(
-                  all: periodItems,
-                  open: open,
-                  progress: progress,
-                  resolved: resolved,
-                  cancelled: cancelled,
-                ),
+                _filters(data: data),
                 const SizedBox(height: 14),
-                _resultsHeader(visible.length, periodItems.length),
+                _resultsHeader(visible.length, data.total),
                 const SizedBox(height: 10),
                 if (visible.isEmpty)
                   const BackofficeEmptyState(
                     icon: Symbols.task_alt_rounded,
                     title: 'Aucun signalement dans cette vue',
-                    message:
-                        'Les signalements correspondant aux filtres actifs apparaîtront ici.',
+                    message: 'Les signalements correspondant aux filtres actifs apparaîtront ici.',
                   )
                 else
                   LayoutBuilder(
                     builder: (BuildContext context, BoxConstraints constraints) {
-                      if (constraints.maxWidth >= 980) {
-                        return _desktopTable(visible, agentById);
-                      }
+                      if (constraints.maxWidth >= 980) return _desktopTable(visible, agentById);
                       return Column(
                         children: visible
-                            .map(
-                              (AgentIssueCenterItem issue) => Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: _mobileCard(
-                                  issue,
-                                  agentById[issue.agentId],
-                                ),
-                              ),
-                            )
+                            .map((AgentIssueCenterItem issue) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: _mobileCard(issue, agentById[issue.agentId]),
+                                ))
                             .toList(growable: false),
                       );
                     },
                   ),
+                if (data.total > 0) ...<Widget>[
+                  const SizedBox(height: 14),
+                  BackofficePaginationBar(
+                    page: _page,
+                    pageSize: _pageSize,
+                    total: data.total,
+                    loading: centerSnapshot.connectionState == ConnectionState.waiting,
+                    onPrevious: _page > 1 ? () { _page -= 1; _reload(); } : null,
+                    onNext: _page * _pageSize < data.total ? () { _page += 1; _reload(); } : null,
+                    onPageSizeChanged: (int value) { _pageSize = value; _reload(resetPage: true); },
+                  ),
+                ],
               ],
             );
           },
@@ -175,8 +202,8 @@ class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
     );
   }
 
-  Widget _scopeBanner(AgentIssueCenterSnapshot snapshot) {
-    final bool managerScope = snapshot.isManagerScope;
+  Widget _scopeBanner(BackofficeAgentIssuePageData snapshot) {
+    final bool managerScope = snapshot.scopeType == 'manager_territory';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
       decoration: BoxDecoration(
@@ -227,7 +254,7 @@ class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
           const SizedBox(width: 8),
           IconButton(
             tooltip: 'Actualiser',
-            onPressed: _reload,
+            onPressed: () => _reload(),
             icon: const Icon(Symbols.refresh_rounded, size: 20),
           ),
         ],
@@ -287,13 +314,7 @@ class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
     );
   }
 
-  Widget _filters({
-    required List<AgentIssueCenterItem> all,
-    required int open,
-    required int progress,
-    required int resolved,
-    required int cancelled,
-  }) {
+  Widget _filters({required BackofficeAgentIssuePageData data}) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: backofficePanelDecoration(),
@@ -301,130 +322,68 @@ class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final Widget search = TextField(
-            controller: _searchController,
-            onChanged: (String value) => setState(() => _query = value),
-            decoration: const InputDecoration(
-              hintText: 'Agent, type, réseau, description ou intervenant',
-              prefixIcon: Icon(Symbols.search_rounded),
-            ),
-          );
-          final Widget scope = DropdownButtonFormField<_IssueScope>(
-            initialValue: _scope,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'État'),
-            items: <DropdownMenuItem<_IssueScope>>[
-              DropdownMenuItem(
-                value: _IssueScope.all,
-                child: Text('Tous (${all.length})'),
-              ),
-              DropdownMenuItem(
-                value: _IssueScope.open,
-                child: Text('Ouverts ($open)'),
-              ),
-              DropdownMenuItem(
-                value: _IssueScope.inProgress,
-                child: Text('En cours ($progress)'),
-              ),
-              DropdownMenuItem(
-                value: _IssueScope.resolved,
-                child: Text('Résolus ($resolved)'),
-              ),
-              DropdownMenuItem(
-                value: _IssueScope.cancelled,
-                child: Text('Sans suite ($cancelled)'),
-              ),
-            ],
-            onChanged: (_IssueScope? value) {
-              if (value != null) setState(() => _scope = value);
-            },
-          );
-          final Widget network = DropdownButtonFormField<_IssueNetworkScope>(
-            initialValue: _networkScope,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Réseau'),
-            items: const <DropdownMenuItem<_IssueNetworkScope>>[
-              DropdownMenuItem(
-                value: _IssueNetworkScope.all,
-                child: Text('Tous les réseaux'),
-              ),
-              DropdownMenuItem(
-                value: _IssueNetworkScope.orange,
-                child: Text('Orange'),
-              ),
-              DropdownMenuItem(
-                value: _IssueNetworkScope.mtn,
-                child: Text('MTN'),
-              ),
-              DropdownMenuItem(
-                value: _IssueNetworkScope.moov,
-                child: Text('Moov Africa'),
-              ),
-              DropdownMenuItem(
-                value: _IssueNetworkScope.unspecified,
-                child: Text('Non précisé'),
-              ),
-            ],
-            onChanged: (_IssueNetworkScope? value) {
-              if (value != null) setState(() => _networkScope = value);
-            },
-          );
-          final Widget sort = DropdownButtonFormField<_IssueSort>(
-            initialValue: _sort,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Tri'),
-            items: const <DropdownMenuItem<_IssueSort>>[
-              DropdownMenuItem(
-                value: _IssueSort.recent,
-                child: Text('Plus récents'),
-              ),
-              DropdownMenuItem(
-                value: _IssueSort.oldest,
-                child: Text('Plus anciens'),
-              ),
-              DropdownMenuItem(
-                value: _IssueSort.updated,
-                child: Text('Dernière activité'),
-              ),
-            ],
-            onChanged: (_IssueSort? value) {
-              if (value != null) setState(() => _sort = value);
-            },
-          );
-
-          if (constraints.maxWidth < 820) {
-            return Column(
-              children: <Widget>[
-                search,
-                const SizedBox(height: 10),
-                scope,
-                const SizedBox(height: 10),
-                network,
-                const SizedBox(height: 10),
-                sort,
-              ],
-            );
-          }
-          return Row(
-            children: <Widget>[
-              Expanded(flex: 4, child: search),
-              const SizedBox(width: 10),
-              SizedBox(width: 190, child: scope),
-              const SizedBox(width: 10),
-              SizedBox(width: 190, child: network),
-              const SizedBox(width: 10),
-              SizedBox(width: 180, child: sort),
-            ],
-          );
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final Widget search = TextField(
+                controller: _searchController,
+                onChanged: _onSearchChanged,
+                decoration: const InputDecoration(
+                  hintText: 'Agent, type, réseau, description ou intervenant',
+                  prefixIcon: Icon(Symbols.search_rounded),
+                ),
+              );
+              final Widget scope = DropdownButtonFormField<_IssueScope>(
+                initialValue: _scope,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'État'),
+                items: <DropdownMenuItem<_IssueScope>>[
+                  DropdownMenuItem(value: _IssueScope.all, child: Text('Tous (${data.allCount})')),
+                  DropdownMenuItem(value: _IssueScope.open, child: Text('Ouverts (${data.openCount})')),
+                  DropdownMenuItem(value: _IssueScope.inProgress, child: Text('En cours (${data.inProgressCount})')),
+                  DropdownMenuItem(value: _IssueScope.resolved, child: Text('Résolus (${data.resolvedCount})')),
+                  DropdownMenuItem(value: _IssueScope.cancelled, child: Text('Sans suite (${data.cancelledCount})')),
+                ],
+                onChanged: (_IssueScope? value) {
+                  if (value != null) { _scope = value; _reload(resetPage: true); }
+                },
+              );
+              final Widget network = DropdownButtonFormField<_IssueNetworkScope>(
+                initialValue: _networkScope,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Réseau'),
+                items: const <DropdownMenuItem<_IssueNetworkScope>>[
+                  DropdownMenuItem(value: _IssueNetworkScope.all, child: Text('Tous les réseaux')),
+                  DropdownMenuItem(value: _IssueNetworkScope.orange, child: Text('Orange')),
+                  DropdownMenuItem(value: _IssueNetworkScope.mtn, child: Text('MTN')),
+                  DropdownMenuItem(value: _IssueNetworkScope.moov, child: Text('Moov Africa')),
+                  DropdownMenuItem(value: _IssueNetworkScope.unspecified, child: Text('Non précisé')),
+                ],
+                onChanged: (_IssueNetworkScope? value) {
+                  if (value != null) { _networkScope = value; _reload(resetPage: true); }
+                },
+              );
+              final Widget sort = DropdownButtonFormField<_IssueSort>(
+                initialValue: _sort,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Tri'),
+                items: const <DropdownMenuItem<_IssueSort>>[
+                  DropdownMenuItem(value: _IssueSort.recent, child: Text('Plus récents')),
+                  DropdownMenuItem(value: _IssueSort.oldest, child: Text('Plus anciens')),
+                  DropdownMenuItem(value: _IssueSort.updated, child: Text('Dernière activité')),
+                ],
+                onChanged: (_IssueSort? value) {
+                  if (value != null) { _sort = value; _reload(resetPage: true); }
+                },
+              );
+              if (constraints.maxWidth < 820) {
+                return Column(children: <Widget>[search, const SizedBox(height: 10), scope, const SizedBox(height: 10), network, const SizedBox(height: 10), sort]);
+              }
+              return Row(children: <Widget>[Expanded(flex: 4, child: search), const SizedBox(width: 10), SizedBox(width: 190, child: scope), const SizedBox(width: 10), SizedBox(width: 190, child: network), const SizedBox(width: 10), SizedBox(width: 180, child: sort)]);
             },
           ),
           const SizedBox(height: 12),
           IzyTelPeriodFilterBar(
             value: _period,
-            onChanged: (IzyTelPeriodFilterValue value) {
-              setState(() => _period = value);
-            },
+            onChanged: (IzyTelPeriodFilterValue value) { _period = value; _reload(resetPage: true); },
             compact: MediaQuery.sizeOf(context).width < 760,
             calendarHelpText: 'Retrouver d’anciens signalements Agents',
           ),
@@ -432,6 +391,7 @@ class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
       ),
     );
   }
+
 
   Widget _resultsHeader(int visible, int all) {
     return Row(
@@ -452,63 +412,6 @@ class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
         ),
       ],
     );
-  }
-
-  List<AgentIssueCenterItem> _filtered(
-    List<AgentIssueCenterItem> all,
-    Map<String, AgentDirectoryEntry> agentById,
-  ) {
-    final String query = _query.trim().toLowerCase();
-    final List<AgentIssueCenterItem> result = all.where((issue) {
-      final bool inScope = switch (_scope) {
-        _IssueScope.all => true,
-        _IssueScope.open => issue.status == 'open',
-        _IssueScope.inProgress => issue.status == 'in_progress',
-        _IssueScope.resolved => issue.status == 'resolved',
-        _IssueScope.cancelled => issue.status == 'cancelled',
-      };
-      if (!inScope || !_matchesNetwork(issue.network)) return false;
-      if (query.isEmpty) return true;
-      return <String>[
-        agentById[issue.agentId]?.name ?? issue.agentId,
-        agentById[issue.agentId]?.agentCode ?? '',
-        issue.type,
-        issue.description,
-        issue.network?.label ?? '',
-        issue.status,
-        issue.resolvedBy,
-        issue.resolutionNote,
-        ...issue.events.map((event) => '${event.actorName} ${event.note}'),
-      ].join(' ').toLowerCase().contains(query);
-    }).toList(growable: false);
-
-    result.sort((AgentIssueCenterItem a, AgentIssueCenterItem b) {
-      switch (_sort) {
-        case _IssueSort.recent:
-          return _dateOrEpoch(b.createdAt).compareTo(_dateOrEpoch(a.createdAt));
-        case _IssueSort.oldest:
-          return _dateOrEpoch(a.createdAt).compareTo(_dateOrEpoch(b.createdAt));
-        case _IssueSort.updated:
-          return _dateOrEpoch(b.updatedAt ?? b.createdAt)
-              .compareTo(_dateOrEpoch(a.updatedAt ?? a.createdAt));
-      }
-    });
-    return result;
-  }
-
-  bool _matchesNetwork(AgentNetwork? network) {
-    switch (_networkScope) {
-      case _IssueNetworkScope.all:
-        return true;
-      case _IssueNetworkScope.orange:
-        return network == AgentNetwork.orange;
-      case _IssueNetworkScope.mtn:
-        return network == AgentNetwork.mtn;
-      case _IssueNetworkScope.moov:
-        return network == AgentNetwork.moov;
-      case _IssueNetworkScope.unspecified:
-        return network == null;
-    }
   }
 
   Widget _desktopTable(
@@ -1155,9 +1058,6 @@ class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
         note: note,
       );
       if (!mounted) return;
-      setState(() {
-        _centerStream = _centerRepository.watchSnapshot();
-      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -1169,6 +1069,7 @@ class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
           ),
         ),
       );
+      _reload(resetPage: true);
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1181,15 +1082,7 @@ class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
     }
   }
 
-  void _reload() {
-    setState(() {
-      _centerStream = _centerRepository.watchSnapshot();
-    });
-  }
 
-  int _count(List<AgentIssueCenterItem> issues, String status) {
-    return issues.where((issue) => issue.status == status).length;
-  }
 
   String _friendlyError(Object error) {
     final String raw = error.toString();
@@ -1325,10 +1218,6 @@ class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
       case AgentNetwork.moov:
         return MobileNetwork.moov;
     }
-  }
-
-  DateTime _dateOrEpoch(DateTime? value) {
-    return value ?? DateTime.fromMillisecondsSinceEpoch(0);
   }
 
   String _ageLabel(DateTime? value) {

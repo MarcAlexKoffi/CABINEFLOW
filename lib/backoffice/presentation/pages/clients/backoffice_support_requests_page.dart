@@ -1,6 +1,10 @@
+import 'dart:async';
+
+import 'package:cabine_flow/backoffice/data/repositories/supabase_backoffice_case_pagination_repository.dart';
 import 'package:cabine_flow/backoffice/presentation/services/backoffice_whatsapp_service.dart';
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
 import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_order_widgets.dart';
+import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_pagination.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
@@ -43,152 +47,179 @@ class BackofficeSupportRequestsPage extends StatefulWidget {
 class _BackofficeSupportRequestsPageState
     extends State<BackofficeSupportRequestsPage> {
   final TextEditingController _searchController = TextEditingController();
-  late final Stream<List<SupportRequest>> _stream;
-  late final Stream<List<RefundCase>> _refundStream;
+  late final SupabaseBackofficeCasePaginationRepository _pageRepository;
+  late Future<BackofficeSupportPageData> _pageFuture;
+  Timer? _searchDebounce;
   _SupportScope _scope = _SupportScope.newRequests;
   String _query = '';
   bool _submitting = false;
   IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
+  int _page = 1;
+  int _pageSize = 25;
 
   @override
   void initState() {
     super.initState();
-    _stream = widget.repository.watchAllRequests();
-    _refundStream = widget.refundRepository.watchAll();
+    _pageRepository = SupabaseBackofficeCasePaginationRepository();
     final String initialReference = widget.initialOrderReference?.trim() ?? '';
     if (initialReference.isNotEmpty) {
       _scope = _SupportScope.all;
       _query = initialReference;
       _searchController.text = initialReference;
     }
+    _pageFuture = _fetchPage();
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
+  Future<BackofficeSupportPageData> _fetchPage() {
+    final DateTimeRange? range = _period.resolvedRange();
+    return _pageRepository.fetchSupportPage(
+      start: range?.start,
+      end: range?.end,
+      scope: switch (_scope) {
+        _SupportScope.all => 'all',
+        _SupportScope.newRequests => 'new',
+        _SupportScope.inProgress => 'in_progress',
+        _SupportScope.resolved => 'resolved',
+      },
+      query: _query,
+      page: _page,
+      pageSize: _pageSize,
+    );
+  }
+
+  void _reload({bool resetPage = false}) {
+    if (resetPage) _page = 1;
+    setState(() => _pageFuture = _fetchPage());
+  }
+
+  void _onSearchChanged(String value) {
+    _query = value;
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) _reload(resetPage: true);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<SupportRequest>>(
-      stream: _stream,
-      builder: (BuildContext context, AsyncSnapshot<List<SupportRequest>> requestSnapshot) {
-        if (requestSnapshot.hasError) {
-          return const BackofficeEmptyState(
+    return FutureBuilder<BackofficeSupportPageData>(
+      future: _pageFuture,
+      builder: (BuildContext context, AsyncSnapshot<BackofficeSupportPageData> snapshot) {
+        if (snapshot.hasError) {
+          return BackofficeEmptyState(
             icon: Symbols.cloud_off_rounded,
             title: 'Demandes clients indisponibles',
-            message:
-                'Le centre d’assistance ne peut pas être chargé pour le moment.',
+            message: 'Le centre d’assistance ne peut pas être chargé pour le moment.',
+            action: OutlinedButton.icon(
+              onPressed: () => _reload(),
+              icon: const Icon(Symbols.refresh_rounded),
+              label: const Text('Réessayer'),
+            ),
           );
         }
-        if (!requestSnapshot.hasData) {
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        return StreamBuilder<List<RefundCase>>(
-          stream: _refundStream,
-          builder: (BuildContext context, AsyncSnapshot<List<RefundCase>> refundSnapshot) {
-            final List<SupportRequest> all = requestSnapshot.data!;
-            final List<SupportRequest> periodItems = all
-                .where((SupportRequest item) => _period.contains(item.createdAt))
-                .toList(growable: false);
-            final List<RefundCase> refunds =
-                refundSnapshot.data ?? const <RefundCase>[];
-            final int newCount = periodItems
-                .where(
-                  (SupportRequest item) =>
-                      item.status == SupportRequestStatus.newRequest,
-                )
-                .length;
-            final int inProgressCount = periodItems
-                .where(
-                  (SupportRequest item) =>
-                      item.status == SupportRequestStatus.inProgress,
-                )
-                .length;
-            final int resolvedCount = periodItems
-                .where((SupportRequest item) => item.isResolved)
-                .length;
-            final List<SupportRequest> visible = _filtered(periodItems);
+        final BackofficeSupportPageData data = snapshot.data!;
+        final List<SupportRequest> visible = data.items
+            .map((BackofficeSupportPageItem item) => item.request)
+            .toList(growable: false);
+        final List<RefundCase> refunds = data.items
+            .map((BackofficeSupportPageItem item) => item.refund)
+            .whereType<RefundCase>()
+            .toList(growable: false);
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                BackofficePageIntro(
-                  eyebrow: 'Clients / Assistance',
-                  title: 'Centre des demandes clients',
-                  description: widget.user.permissions.canProcessSupportRequests
-                      ? 'Traite chaque demande jusqu’à son issue réelle : résolution simple ou remboursement lié, avec notification WhatsApp vérifiable.'
-                      : 'Supervise les demandes clients, leurs remboursements liés et leur avancement en lecture seule.',
-                  icon: Symbols.support_agent_rounded,
-                ),
-                const SizedBox(height: 18),
-                _metrics(
-                  allCount: periodItems.length,
-                  newCount: newCount,
-                  inProgressCount: inProgressCount,
-                  resolvedCount: resolvedCount,
-                ),
-                const SizedBox(height: 14),
-                if (refundSnapshot.hasError) ...<Widget>[
-                  _linkedWorkflowBanner(
-                    icon: Symbols.warning_rounded,
-                    title: 'Lien remboursements temporairement indisponible',
-                    message:
-                        'Les demandes restent consultables, mais leur dossier de remboursement associé ne peut pas être vérifié pour le moment.',
-                    color: BackofficePalette.warning,
-                  ),
-                  const SizedBox(height: 14),
-                ] else ...<Widget>[
-                  _linkedWorkflowBanner(
-                    icon: Symbols.account_tree_rounded,
-                    title: 'Workflow lié Demande → Remboursement',
-                    message:
-                        'Après vérification, choisissez explicitement « Résoudre sans remboursement » ou « Créer remboursement ». Aucun dossier financier n’est créé automatiquement. Une fois un remboursement réellement effectué, sa sortie est intégrée à la Caisse Wave et aux mouvements financiers.',
-                    color: BackofficePalette.primary,
-                  ),
-                  const SizedBox(height: 14),
-                ],
-                _filters(
-                  allCount: periodItems.length,
-                  newCount: newCount,
-                  inProgressCount: inProgressCount,
-                  resolvedCount: resolvedCount,
-                ),
-                const SizedBox(height: 14),
-                if (visible.isEmpty)
-                  const BackofficeEmptyState(
-                    icon: Symbols.inbox_rounded,
-                    title: 'Aucune demande dans cette vue',
-                    message:
-                        'Les demandes correspondant aux filtres actifs apparaîtront ici.',
-                  )
-                else
-                  LayoutBuilder(
-                    builder:
-                        (BuildContext context, BoxConstraints constraints) {
-                          if (constraints.maxWidth >= 920) {
-                            return _desktopTable(visible, refunds);
-                          }
-                          return Column(
-                            children: visible
-                                .map(
-                                  (SupportRequest request) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 10),
-                                    child: _mobileCard(
-                                      request,
-                                      _refundFor(request, refunds),
-                                    ),
-                                  ),
-                                )
-                                .toList(growable: false),
-                          );
-                        },
-                  ),
-              ],
-            );
-          },
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            BackofficePageIntro(
+              eyebrow: 'Clients / Assistance',
+              title: 'Centre des demandes clients',
+              description: widget.user.permissions.canProcessSupportRequests
+                  ? 'Traite chaque demande jusqu’à son issue réelle : résolution simple ou remboursement lié, avec notification WhatsApp vérifiable.'
+                  : 'Supervise les demandes clients, leurs remboursements liés et leur avancement en lecture seule.',
+              icon: Symbols.support_agent_rounded,
+            ),
+            const SizedBox(height: 18),
+            _metrics(
+              allCount: data.allCount,
+              newCount: data.newCount,
+              inProgressCount: data.inProgressCount,
+              resolvedCount: data.resolvedCount,
+            ),
+            const SizedBox(height: 14),
+            _linkedWorkflowBanner(
+              icon: Symbols.account_tree_rounded,
+              title: 'Workflow lié Demande → Remboursement',
+              message: 'Après vérification, choisissez explicitement « Résoudre sans remboursement » ou « Créer remboursement ». Aucun dossier financier n’est créé automatiquement. Une fois un remboursement réellement effectué, sa sortie est intégrée à la Caisse Wave et aux mouvements financiers.',
+              color: BackofficePalette.primary,
+            ),
+            const SizedBox(height: 14),
+            _filters(
+              allCount: data.allCount,
+              newCount: data.newCount,
+              inProgressCount: data.inProgressCount,
+              resolvedCount: data.resolvedCount,
+            ),
+            const SizedBox(height: 14),
+            if (visible.isEmpty)
+              const BackofficeEmptyState(
+                icon: Symbols.inbox_rounded,
+                title: 'Aucune demande dans cette vue',
+                message: 'Les demandes correspondant aux filtres actifs apparaîtront ici.',
+              )
+            else
+              LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  if (constraints.maxWidth >= 920) {
+                    return _desktopTable(visible, refunds);
+                  }
+                  return Column(
+                    children: visible
+                        .map(
+                          (SupportRequest request) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _mobileCard(request, _refundFor(request, refunds)),
+                          ),
+                        )
+                        .toList(growable: false),
+                  );
+                },
+              ),
+            if (data.total > 0) ...<Widget>[
+              const SizedBox(height: 14),
+              BackofficePaginationBar(
+                page: _page,
+                pageSize: _pageSize,
+                total: data.total,
+                loading: snapshot.connectionState == ConnectionState.waiting,
+                onPrevious: _page > 1
+                    ? () {
+                        _page -= 1;
+                        _reload();
+                      }
+                    : null,
+                onNext: _page * _pageSize < data.total
+                    ? () {
+                        _page += 1;
+                        _reload();
+                      }
+                    : null,
+                onPageSizeChanged: (int value) {
+                  _pageSize = value;
+                  _reload(resetPage: true);
+                },
+              ),
+            ],
+          ],
         );
       },
     );
@@ -301,7 +332,7 @@ class _BackofficeSupportRequestsPageState
             builder: (BuildContext context, BoxConstraints constraints) {
               final Widget search = TextField(
                 controller: _searchController,
-                onChanged: (String value) => setState(() => _query = value),
+                onChanged: _onSearchChanged,
                 decoration: const InputDecoration(
                   hintText: 'Référence, motif, description ou responsable',
                   prefixIcon: Icon(Symbols.search_rounded),
@@ -318,7 +349,10 @@ class _BackofficeSupportRequestsPageState
                   DropdownMenuItem(value: _SupportScope.resolved, child: Text('Historique ($resolvedCount)')),
                 ],
                 onChanged: (_SupportScope? value) {
-                  if (value != null) setState(() => _scope = value);
+                  if (value != null) {
+                    _scope = value;
+                    _reload(resetPage: true);
+                  }
                 },
               );
               if (constraints.maxWidth < 760) {
@@ -339,7 +373,8 @@ class _BackofficeSupportRequestsPageState
           IzyTelPeriodFilterBar(
             value: _period,
             onChanged: (IzyTelPeriodFilterValue value) {
-              setState(() => _period = value);
+              _period = value;
+              _reload(resetPage: true);
             },
             compact: MediaQuery.sizeOf(context).width < 760,
             calendarHelpText: 'Retrouver d’anciennes demandes clients',
@@ -349,42 +384,6 @@ class _BackofficeSupportRequestsPageState
     );
   }
 
-
-  List<SupportRequest> _filtered(List<SupportRequest> all) {
-    final String query = _query.trim().toLowerCase();
-    final Iterable<SupportRequest> scoped = all
-        .where((SupportRequest item) => _period.contains(item.createdAt))
-        .where((SupportRequest item) {
-      switch (_scope) {
-        case _SupportScope.all:
-          return true;
-        case _SupportScope.newRequests:
-          return item.status == SupportRequestStatus.newRequest;
-        case _SupportScope.inProgress:
-          return item.status == SupportRequestStatus.inProgress;
-        case _SupportScope.resolved:
-          return item.isResolved;
-      }
-    });
-    final List<SupportRequest> result = scoped
-        .where((SupportRequest item) {
-          if (query.isEmpty) return true;
-          return <String>[
-            item.orderReference,
-            item.type.label,
-            item.description,
-            item.status.label,
-            item.assignedToName ?? '',
-            item.resolvedByName ?? '',
-          ].join(' ').toLowerCase().contains(query);
-        })
-        .toList(growable: false);
-    result.sort(
-      (SupportRequest a, SupportRequest b) =>
-          b.updatedAt.compareTo(a.updatedAt),
-    );
-    return result;
-  }
 
   RefundCase? _refundFor(SupportRequest request, List<RefundCase> refunds) {
     for (final RefundCase refund in refunds) {
@@ -673,6 +672,7 @@ class _BackofficeSupportRequestsPageState
       _showMessage(
         'Remboursement créé. La demande reste en cours jusqu’au remboursement réel du client.',
       );
+      _reload(resetPage: true);
       widget.onOpenRefunds?.call(refund.orderReference);
     } catch (error) {
       if (!mounted) return;
@@ -747,6 +747,7 @@ class _BackofficeSupportRequestsPageState
       await action();
       if (!mounted) return;
       _showMessage(successMessage);
+      _reload(resetPage: true);
     } catch (error) {
       if (!mounted) return;
       _showMessage(error.toString());

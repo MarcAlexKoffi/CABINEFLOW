@@ -27,7 +27,6 @@ import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/auth/presentation/widgets/staff_profile_avatar.dart';
-import 'package:cabine_flow/features/control/domain/models/control_snapshot.dart';
 import 'package:cabine_flow/features/control/domain/repositories/control_repository.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
@@ -429,64 +428,28 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
   }
 
   void _startOperationalNotificationWatchers() {
-    _paymentNotificationSubscription = widget.ordersRepository
-        .watchPaymentTrackingOrders()
-        .listen(
-          (List<QueueOrder> orders) {
-            if (!mounted) return;
-            setState(() {
-              _paymentNotificationOrders = orders;
-              _lastOperationalUpdateAt = DateTime.now();
-            });
-          },
-          onError: (Object error, StackTrace stackTrace) {
-            IzyTelLog.backendError(
-              'Backoffice.notifications.payments',
-              error,
-              stackTrace: stackTrace,
-            );
-          },
-        );
-
-    _assignmentNotificationSubscription = widget.ordersRepository
-        .watchPaidQueue()
-        .listen(
-          (List<QueueOrder> orders) {
-            if (!mounted) return;
-            setState(() {
-              _assignmentNotificationOrders = orders;
-              _lastOperationalUpdateAt = DateTime.now();
-            });
-          },
-          onError: (Object error, StackTrace stackTrace) {
-            IzyTelLog.backendError(
-              'Backoffice.notifications.assignments',
-              error,
-              stackTrace: stackTrace,
-            );
-          },
-        );
-
+    // Une seule source hybride Commandes suffit pour les notifications du shell.
+    // Avant ce hotfix, paiements + affectations + historique ouvraient chacun leur
+    // propre watch Phase 4, donc trois lectures completes Supabase toutes les 3 s.
     final OrderHistoryRepository? historyRepository = _historyRepository;
     if (historyRepository != null) {
-      _historyNotificationSubscription = historyRepository
-          .watchOrderHistory()
-          .listen(
-            (List<QueueOrder> orders) {
-              if (!mounted) return;
-              setState(() {
-                _historyNotificationOrders = orders;
-                _lastOperationalUpdateAt = DateTime.now();
-              });
-            },
-            onError: (Object error, StackTrace stackTrace) {
-              IzyTelLog.backendError(
-                'Backoffice.notifications.history',
-                error,
-                stackTrace: stackTrace,
-              );
-            },
-          );
+      _historyNotificationSubscription = historyRepository.watchOrderHistory().listen(
+        (List<QueueOrder> orders) {
+          if (!mounted) return;
+          final String next = _orderNotificationFingerprint(orders);
+          final String current = _orderNotificationFingerprint(_historyNotificationOrders);
+          if (next == current) return;
+          setState(() {
+            _historyNotificationOrders = orders;
+            _paymentNotificationOrders = orders;
+            _assignmentNotificationOrders = orders;
+            _lastOperationalUpdateAt = DateTime.now();
+          });
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          IzyTelLog.backendError('Backoffice.notifications.orders', error, stackTrace: stackTrace);
+        },
+      );
     }
 
     final SupportRequestRepository? supportRepository = widget.supportRepository;
@@ -495,6 +458,10 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
       _supportNotificationSubscription = supportRepository.watchAllRequests().listen(
         (List<SupportRequest> requests) {
           if (!mounted) return;
+          if (_supportNotificationFingerprint(requests) ==
+              _supportNotificationFingerprint(_supportNotificationRequests)) {
+            return;
+          }
           setState(() {
             _supportNotificationRequests = requests;
             _lastOperationalUpdateAt = DateTime.now();
@@ -508,17 +475,21 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
 
     if (BackofficeDestination.agentIssues.visibleFor(widget.user)) {
       _agentIssueNotificationSubscription = widget.agentRepository.watchAllAgentIssues().listen(
-      (List<AgentIssue> issues) {
-        if (!mounted) return;
-        setState(() {
-          _agentIssueNotificationItems = issues;
-          _lastOperationalUpdateAt = DateTime.now();
-        });
-      },
-      onError: (Object error, StackTrace stackTrace) {
-        IzyTelLog.backendError('Backoffice.notifications.agent-issues', error, stackTrace: stackTrace);
-      },
-    );
+        (List<AgentIssue> issues) {
+          if (!mounted) return;
+          if (_agentIssueNotificationFingerprint(issues) ==
+              _agentIssueNotificationFingerprint(_agentIssueNotificationItems)) {
+            return;
+          }
+          setState(() {
+            _agentIssueNotificationItems = issues;
+            _lastOperationalUpdateAt = DateTime.now();
+          });
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          IzyTelLog.backendError('Backoffice.notifications.agent-issues', error, stackTrace: stackTrace);
+        },
+      );
     }
 
     final RefundRepository? refundRepository = widget.refundRepository;
@@ -527,10 +498,14 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
       _refundNotificationSubscription = refundRepository.watchAll().listen(
         (List<RefundCase> refunds) {
           if (!mounted) return;
+          if (_refundNotificationFingerprint(refunds) ==
+              _refundNotificationFingerprint(_refundNotificationItems)) {
+            return;
+          }
           setState(() {
-          _refundNotificationItems = refunds;
-          _lastOperationalUpdateAt = DateTime.now();
-        });
+            _refundNotificationItems = refunds;
+            _lastOperationalUpdateAt = DateTime.now();
+          });
         },
         onError: (Object error, StackTrace stackTrace) {
           IzyTelLog.backendError('Backoffice.notifications.refunds', error, stackTrace: stackTrace);
@@ -538,6 +513,23 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
       );
     }
   }
+
+  String _orderNotificationFingerprint(List<QueueOrder> orders) => orders
+      .map((QueueOrder order) =>
+          '${order.id}:${order.status}:${order.paymentStatus}:${order.assignedAgentId ?? ''}')
+      .join('|');
+
+  String _supportNotificationFingerprint(List<SupportRequest> requests) => requests
+      .map((SupportRequest request) => '${request.id}:${request.status}:${request.updatedAt.millisecondsSinceEpoch}')
+      .join('|');
+
+  String _agentIssueNotificationFingerprint(List<AgentIssue> issues) => issues
+      .map((AgentIssue issue) => '${issue.id}:${issue.status}:${issue.updatedAt?.millisecondsSinceEpoch ?? 0}')
+      .join('|');
+
+  String _refundNotificationFingerprint(List<RefundCase> refunds) => refunds
+      .map((RefundCase refund) => '${refund.id}:${refund.status}:${refund.updatedAt.millisecondsSinceEpoch}')
+      .join('|');
 
   bool _paymentRequiresVerification(QueueOrder order) {
     return order.hasPaymentToReviewAfterExpiration ||
@@ -1018,30 +1010,6 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
     }
   }
 
-  void _openActivityModule(ControlActivityEvent event) {
-    final String domain = event.domain.trim().toLowerCase();
-    final String kind = event.eventKind.trim().toLowerCase();
-    final BackofficeDestination? destination = switch (domain) {
-      'payments' => BackofficeDestination.payments,
-      'assignments' => BackofficeDestination.assignments,
-      'support' => BackofficeDestination.customerRequests,
-      'agents' => BackofficeDestination.agentIssues,
-      'refunds' => BackofficeDestination.refunds,
-      'orders' => kind.contains('failed')
-          ? BackofficeDestination.failedOrders
-          : BackofficeDestination.orders,
-      _ => null,
-    };
-    if (destination == null || !destination.visibleFor(widget.user)) return;
-
-    if (destination == BackofficeDestination.customerRequests && event.reference.isNotEmpty) {
-      _supportFocusOrderReference = event.reference;
-    } else if (destination == BackofficeDestination.refunds && event.reference.isNotEmpty) {
-      _refundFocusOrderReference = event.reference;
-    }
-    _selectDestination(destination);
-  }
-
   Widget _controlContent(BackofficeControlModule module) {
     final ControlRepository? repository = widget.controlRepository;
     if (repository == null) {
@@ -1054,7 +1022,6 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
       user: widget.user,
       repository: repository,
       module: module,
-      onOpenActivityModule: _openActivityModule,
     );
   }
 

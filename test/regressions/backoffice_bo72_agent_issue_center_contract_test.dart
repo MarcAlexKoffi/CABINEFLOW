@@ -15,9 +15,9 @@ void main() {
       );
 
       expect(page, contains('SupabaseAgentIssueCenterRepository'));
-      expect(page, contains('watchSnapshot()'));
+      expect(page, contains('SupabaseBackofficeCasePaginationRepository'));
+      expect(page, contains('fetchAgentIssuePage'));
       expect(page, contains('Périmètre Manager'));
-      expect(repo, contains("'izytel_bo72_agent_issue_center_snapshot'"));
       expect(repo, contains("'izytel_bo72_transition_agent_issue'"));
     });
 

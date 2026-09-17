@@ -54,7 +54,7 @@ void main() {
       );
 
       expect(page, contains("title: 'Audit réservé à l’Administrateur'"));
-      expect(page, contains('if (!snapshot.auditAllowed)'));
+      expect(page, contains('auditAllowed'));
       expect(page, contains('class _AuditEventCard extends StatelessWidget'));
       expect(page, contains('_showAuditDetail(context, event)'));
       expect(page, contains("title: 'Données auditées'"));
