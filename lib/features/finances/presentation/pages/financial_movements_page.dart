@@ -9,6 +9,7 @@ import 'package:cabine_flow/features/finances/domain/models/network_finance_mode
 import 'package:cabine_flow/features/finances/domain/repositories/finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/domain/repositories/network_finance_repository.dart';
 import 'package:cabine_flow/features/finances/presentation/widgets/financial_ui.dart';
+import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
@@ -51,6 +52,7 @@ class FinancialMovementsPage extends StatefulWidget {
 
 class _FinancialMovementsPageState extends State<FinancialMovementsPage> {
   _MovementFilter _filter = _MovementFilter.all;
+  IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
   late Future<List<_FinancialMovement>> _future;
 
   @override
@@ -245,20 +247,25 @@ class _FinancialMovementsPageState extends State<FinancialMovementsPage> {
               }
               final List<_FinancialMovement> all =
                   snapshot.data ?? const <_FinancialMovement>[];
-              final int incoming = all
+              final List<_FinancialMovement> periodAll = all
+                  .where(
+                    (_FinancialMovement item) => _period.contains(item.date),
+                  )
+                  .toList(growable: false);
+              final int incoming = periodAll
                   .where((_FinancialMovement item) => item.amount > 0)
                   .fold<int>(
                     0,
                     (int total, _FinancialMovement item) => total + item.amount,
                   );
-              final int outgoing = all
+              final int outgoing = periodAll
                   .where((_FinancialMovement item) => item.amount < 0)
                   .fold<int>(
                     0,
                     (int total, _FinancialMovement item) =>
                         total + item.amount.abs(),
                   );
-              final List<_FinancialMovement> visible = all
+              final List<_FinancialMovement> visible = periodAll
                   .where((_FinancialMovement item) {
                     switch (_filter) {
                       case _MovementFilter.all:
@@ -298,12 +305,22 @@ class _FinancialMovementsPageState extends State<FinancialMovementsPage> {
                           ],
                         ),
                         const SizedBox(height: 12),
+                        IzyTelPeriodFilterBar(
+                          value: _period,
+                          compact: true,
+                          calendarHelpText:
+                              'Filtrer les mouvements financiers par période',
+                          onChanged: (IzyTelPeriodFilterValue value) {
+                            setState(() => _period = value);
+                          },
+                        ),
+                        const SizedBox(height: 10),
                         Row(
                           children: [
                             Expanded(
                               child: FinanceFilterPill(
                                 label: 'Tous',
-                                count: all.length,
+                                count: periodAll.length,
                                 selected: _filter == _MovementFilter.all,
                                 onTap: () => setState(
                                   () => _filter = _MovementFilter.all,

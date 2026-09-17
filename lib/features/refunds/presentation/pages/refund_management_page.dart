@@ -11,6 +11,7 @@ import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
 import 'package:cabine_flow/features/refunds/presentation/widgets/refund_text_input_sheet.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
+import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -37,6 +38,7 @@ class _RefundManagementPageState extends State<RefundManagementPage> {
   final TextEditingController _searchController = TextEditingController();
   late final Stream<List<RefundCase>> _refundsStream;
   _RefundFilter _filter = _RefundFilter.all;
+  IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
 
   @override
   void initState() {
@@ -86,14 +88,19 @@ class _RefundManagementPageState extends State<RefundManagementPage> {
             }
 
             final List<RefundCase> all = snapshot.data!;
+            final List<RefundCase> periodAll = all
+                .where(
+                  (RefundCase value) => _period.contains(_refundActivityDate(value)),
+                )
+                .toList(growable: false);
             final List<RefundCase> visible = _filtered(all);
-            final List<RefundCase> pending = all
+            final List<RefundCase> pending = periodAll
                 .where(
                   (RefundCase value) =>
                       value.status == RefundStatus.pendingApproval,
                 )
                 .toList(growable: false);
-            final List<RefundCase> approved = all
+            final List<RefundCase> approved = periodAll
                 .where(
                   (RefundCase value) => value.status == RefundStatus.approved,
                 )
@@ -185,6 +192,15 @@ class _RefundManagementPageState extends State<RefundManagementPage> {
                         ),
                       ),
                       const SizedBox(height: 10),
+                      IzyTelPeriodFilterBar(
+                        value: _period,
+                        compact: true,
+                        calendarHelpText: 'Filtrer les remboursements par période',
+                        onChanged: (IzyTelPeriodFilterValue value) {
+                          setState(() => _period = value);
+                        },
+                      ),
+                      const SizedBox(height: 10),
                       SizedBox(
                         height: 34,
                         child: ListView(
@@ -192,7 +208,7 @@ class _RefundManagementPageState extends State<RefundManagementPage> {
                           children: [
                             FinanceFilterPill(
                               label: 'Tous',
-                              count: all.length,
+                              count: periodAll.length,
                               selected: _filter == _RefundFilter.all,
                               onTap: () => _setFilter(_RefundFilter.all),
                             ),
@@ -274,10 +290,15 @@ class _RefundManagementPageState extends State<RefundManagementPage> {
     setState(() => _filter = value);
   }
 
+  DateTime _refundActivityDate(RefundCase value) {
+    return value.refundedAt ?? value.updatedAt;
+  }
+
   List<RefundCase> _filtered(List<RefundCase> all) {
     final String query = _searchController.text.trim().toLowerCase();
     return all
         .where((RefundCase value) {
+          if (!_period.contains(_refundActivityDate(value))) return false;
           if (!_matchesFilter(value)) return false;
           if (query.isEmpty) return true;
           return value.orderReference.toLowerCase().contains(query) ||

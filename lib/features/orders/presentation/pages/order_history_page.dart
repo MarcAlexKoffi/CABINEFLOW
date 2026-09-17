@@ -634,7 +634,17 @@ class _ActiveFilters extends StatelessWidget {
   Widget build(BuildContext context) {
     final List<Widget> chips = <Widget>[];
 
-    if (filters.period != OrderHistoryPeriod.all) {
+    if (filters.hasCustomPeriod) {
+      chips.add(
+        _FilterSummaryChip(
+          label:
+              '${_compactDate(filters.customStart!)} → ${_compactDate(filters.customEnd!)}',
+          onDeleted: () {
+            onChanged(filters.copyWith(clearCustomPeriod: true));
+          },
+        ),
+      );
+    } else if (filters.period != OrderHistoryPeriod.all) {
       chips.add(
         _FilterSummaryChip(
           label: historyPeriodLabel(filters.period),
@@ -879,6 +889,7 @@ class _OrderHistoryFilterSheet extends StatefulWidget {
 
 class _OrderHistoryFilterSheetState extends State<_OrderHistoryFilterSheet> {
   late OrderHistoryPeriod _period;
+  DateTimeRange? _customRange;
   late Set<OrderHistoryStateFilter> _states;
   late Set<MobileNetwork> _networks;
   late TextEditingController _minimumController;
@@ -890,6 +901,12 @@ class _OrderHistoryFilterSheetState extends State<_OrderHistoryFilterSheet> {
     super.initState();
     final OrderHistoryFilters filters = widget.initialFilters;
     _period = filters.period;
+    if (filters.hasCustomPeriod) {
+      _customRange = DateTimeRange(
+        start: filters.customStart!,
+        end: filters.customEnd!,
+      );
+    }
     _states = Set<OrderHistoryStateFilter>.from(filters.states);
     _networks = Set<MobileNetwork>.from(filters.networks);
     _minimumController = TextEditingController(
@@ -911,6 +928,7 @@ class _OrderHistoryFilterSheetState extends State<_OrderHistoryFilterSheet> {
   void _reset() {
     setState(() {
       _period = OrderHistoryPeriod.all;
+      _customRange = null;
       _states.clear();
       _networks.clear();
       _minimumController.clear();
@@ -944,8 +962,32 @@ class _OrderHistoryFilterSheetState extends State<_OrderHistoryFilterSheet> {
         minimumAmount: minimum,
         maximumAmount: maximum,
         operatorId: _operatorId,
+        customStart: _customRange?.start,
+        customEnd: _customRange?.end,
       ),
     );
+  }
+
+  Future<void> _pickCustomPeriod() async {
+    final DateTime now = DateTime.now();
+    final DateTimeRange? picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2000, 1, 1),
+      lastDate: DateTime(now.year, now.month, now.day),
+      initialDateRange: _customRange,
+      initialEntryMode: DatePickerEntryMode.calendar,
+      helpText: 'Choisir une période historique',
+      cancelText: 'Annuler',
+      confirmText: 'Appliquer',
+      saveText: 'Appliquer',
+      fieldStartHintText: 'JJ/MM/AAAA',
+      fieldEndHintText: 'JJ/MM/AAAA',
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _customRange = picked;
+      _period = OrderHistoryPeriod.all;
+    });
   }
 
   @override
@@ -1032,13 +1074,26 @@ class _OrderHistoryFilterSheetState extends State<_OrderHistoryFilterSheet> {
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
-                        children: OrderHistoryPeriod.values.map((period) {
-                          return _ChoicePill(
-                            label: historyPeriodLabel(period),
-                            selected: _period == period,
-                            onTap: () => setState(() => _period = period),
-                          );
-                        }).toList(),
+                        children: <Widget>[
+                          ...OrderHistoryPeriod.values.map((period) {
+                            return _ChoicePill(
+                              label: historyPeriodLabel(period),
+                              selected:
+                                  _customRange == null && _period == period,
+                              onTap: () => setState(() {
+                                _customRange = null;
+                                _period = period;
+                              }),
+                            );
+                          }),
+                          _ChoicePill(
+                            label: _customRange == null
+                                ? 'Calendrier'
+                                : '${_compactDate(_customRange!.start)} → ${_compactDate(_customRange!.end)}',
+                            selected: _customRange != null,
+                            onTap: _pickCustomPeriod,
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 24),
                       const _FilterSectionLabel(
@@ -1241,6 +1296,11 @@ class _FilterSectionLabel extends StatelessWidget {
       ],
     );
   }
+}
+
+String _compactDate(DateTime value) {
+  final DateTime local = value.toLocal();
+  return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')}/${local.year}';
 }
 
 class _ChoicePill extends StatelessWidget {

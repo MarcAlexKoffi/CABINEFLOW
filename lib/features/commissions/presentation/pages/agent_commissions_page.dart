@@ -7,10 +7,11 @@ import 'package:cabine_flow/features/commissions/domain/repositories/agent_commi
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
+import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-class AgentCommissionsPage extends StatelessWidget {
+class AgentCommissionsPage extends StatefulWidget {
   const AgentCommissionsPage({
     super.key,
     required this.user,
@@ -21,10 +22,17 @@ class AgentCommissionsPage extends StatelessWidget {
   final CommissionRepository repository;
 
   @override
+  State<AgentCommissionsPage> createState() => _AgentCommissionsPageState();
+}
+
+class _AgentCommissionsPageState extends State<AgentCommissionsPage> {
+  IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
+
+  @override
   Widget build(BuildContext context) {
     final AgentCommissionSummaryRepository? summaryRepository =
-        repository is AgentCommissionSummaryRepository
-        ? repository as AgentCommissionSummaryRepository
+        widget.repository is AgentCommissionSummaryRepository
+        ? widget.repository as AgentCommissionSummaryRepository
         : null;
     return Scaffold(
       backgroundColor: IzyTelColors.background,
@@ -42,10 +50,10 @@ class AgentCommissionsPage extends StatelessWidget {
         ),
       ),
       body: StreamBuilder<List<CommissionEntry>>(
-        stream: repository.watchCommissions(agentId: user.id),
+        stream: widget.repository.watchCommissions(agentId: widget.user.id),
         builder: (context, commissionSnapshot) {
           return StreamBuilder<List<CommissionPayout>>(
-            stream: repository.watchPayouts(agentId: user.id),
+            stream: widget.repository.watchPayouts(agentId: widget.user.id),
             builder: (context, payoutSnapshot) {
               return StreamBuilder<AgentCommissionSummary?>(
                 stream: summaryRepository?.watchAgentCommissionSummary() ??
@@ -73,6 +81,17 @@ class AgentCommissionsPage extends StatelessWidget {
                       commissionSnapshot.data ?? const <CommissionEntry>[];
                   final List<CommissionPayout> payouts =
                       payoutSnapshot.data ?? const <CommissionPayout>[];
+                  final List<CommissionEntry> periodCommissions = commissions
+                      .where(
+                        (CommissionEntry value) =>
+                            _period.contains(value.earnedAt),
+                      )
+                      .toList(growable: false);
+                  final List<CommissionPayout> periodPayouts = payouts
+                      .where(
+                        (CommissionPayout value) => _period.contains(value.paidAt),
+                      )
+                      .toList(growable: false);
                   final AgentCommissionSummary? summary = summarySnapshot.data;
                   final DateTime now = DateTime.now();
                   final int fallbackEarned = commissions.fold<int>(
@@ -133,6 +152,15 @@ class AgentCommissionsPage extends StatelessWidget {
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: IzyTelSpacing.md),
+                      IzyTelPeriodFilterBar(
+                        value: _period,
+                        compact: true,
+                        calendarHelpText: 'Filtrer mes commissions par période',
+                        onChanged: (IzyTelPeriodFilterValue value) {
+                          setState(() => _period = value);
+                        },
                       ),
                       const SizedBox(height: IzyTelSpacing.md),
                       IzyTelSurface(
@@ -199,9 +227,13 @@ class AgentCommissionsPage extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: IzyTelSpacing.xl),
-                      const IzyTelSectionHeader(title: 'Dernières commissions'),
+                      IzyTelSectionHeader(
+                        title: _period.isActive
+                            ? 'Commissions sur la période'
+                            : 'Dernières commissions',
+                      ),
                       const SizedBox(height: IzyTelSpacing.sm),
-                      if (commissions.isEmpty)
+                      if (periodCommissions.isEmpty)
                         const _AgentCommissionState(
                           icon: Symbols.payments_rounded,
                           title: 'Aucune commission',
@@ -217,20 +249,24 @@ class AgentCommissionsPage extends StatelessWidget {
                             children: <Widget>[
                               for (
                                 int index = 0;
-                                index < commissions.take(8).length;
+                                index < periodCommissions.take(8).length;
                                 index++
                               ) ...<Widget>[
-                                _CommissionEntryRow(entry: commissions[index]),
-                                if (index < commissions.take(8).length - 1)
+                                _CommissionEntryRow(entry: periodCommissions[index]),
+                                if (index < periodCommissions.take(8).length - 1)
                                   const Divider(height: 1),
                               ],
                             ],
                           ),
                         ),
                       const SizedBox(height: IzyTelSpacing.xl),
-                      const IzyTelSectionHeader(title: 'Versements reçus'),
+                      IzyTelSectionHeader(
+                        title: _period.isActive
+                            ? 'Versements sur la période'
+                            : 'Versements reçus',
+                      ),
                       const SizedBox(height: IzyTelSpacing.sm),
-                      if (payouts.isEmpty)
+                      if (periodPayouts.isEmpty)
                         const _AgentCommissionState(
                           icon: Symbols.account_balance_wallet_rounded,
                           title: 'Aucun versement',
@@ -246,11 +282,11 @@ class AgentCommissionsPage extends StatelessWidget {
                             children: <Widget>[
                               for (
                                 int index = 0;
-                                index < payouts.take(6).length;
+                                index < periodPayouts.take(6).length;
                                 index++
                               ) ...<Widget>[
-                                _PayoutRow(payout: payouts[index]),
-                                if (index < payouts.take(6).length - 1)
+                                _PayoutRow(payout: periodPayouts[index]),
+                                if (index < periodPayouts.take(6).length - 1)
                                   const Divider(height: 1),
                               ],
                             ],

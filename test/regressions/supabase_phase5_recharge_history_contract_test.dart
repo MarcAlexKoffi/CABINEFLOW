@@ -21,10 +21,17 @@ void main() {
     final String page = read(
       'lib/features/orders/presentation/pages/agent_history_page.dart',
     );
+    final String periodFilter = read(
+      'lib/shared/widgets/izytel_period_filter.dart',
+    );
     expect(page, contains("_tabBox('Recharges'"));
     expect(page, contains('Rechercher fournisseur, référence ou note'));
     expect(page, contains('AgentNetwork.values'));
-    expect(page, contains('showDateRangePicker'));
+    expect(page, contains('IzyTelPeriodFilterBar('));
+    expect(page, contains('_syncRechargePeriod'));
+    expect(page, contains('_loadRecharges(resetPagination: true)'));
+    expect(periodFilter, contains('showDateRangePicker('));
+    expect(periodFilter, contains('DateTime(2000, 1, 1)'));
     expect(page, contains(r"'Page $_rechargePage'"));
     expect(page, contains("label: const Text('Précédent')"));
     expect(page, contains("label: const Text('Suivant')"));

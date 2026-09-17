@@ -17,6 +17,7 @@ import 'package:cabine_flow/features/orders/presentation/pages/agent_order_detai
 import 'package:cabine_flow/features/orders/presentation/view_models/agent_orders_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
+import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -46,6 +47,7 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
   Timer? _searchDebounce;
   String? _openDetailRouteOrderId;
   int _tab = 0;
+  IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
 
   List<SupplierRecharge> _recharges = const <SupplierRecharge>[];
   AgentRechargeHistorySummary _rechargeSummary =
@@ -113,9 +115,49 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
   void _selectTab(int value) {
     if (_tab == value) return;
     setState(() => _tab = value);
-    if (value == 4 && !_rechargesLoaded && !_rechargesLoading) {
+    if (value == 4) {
+      _syncRechargePeriod();
+      if (!_rechargesLoading) {
+        unawaited(_loadRecharges(resetPagination: true));
+      }
+    }
+  }
+
+  void _syncRechargePeriod() {
+    final DateTimeRange? range = _period.resolvedRange();
+    if (range == null) {
+      _rechargeFilter = _rechargeFilter.copyWith(
+        clearFrom: true,
+        clearTo: true,
+      );
+      return;
+    }
+    _rechargeFilter = _rechargeFilter.copyWith(
+      from: range.start,
+      to: range.end,
+    );
+  }
+
+  void _setPeriod(IzyTelPeriodFilterValue value) {
+    setState(() => _period = value);
+    if (_tab == 4) {
+      _syncRechargePeriod();
       unawaited(_loadRecharges(resetPagination: true));
     }
+  }
+
+  DateTime _orderActivityDate(QueueOrder order, [int? tab]) {
+    final int targetTab = tab ?? _tab;
+    if (targetTab == 1) return order.completedAt ?? order.createdAt;
+    if (targetTab == 2) return order.completedAt ?? order.createdAt;
+    if (targetTab == 3) {
+      return order.lastAssignmentRefusedAt ?? order.createdAt;
+    }
+    return order.lastResumedAt ??
+        order.lastHeldAt ??
+        order.takenAt ??
+        order.assignedAt ??
+        order.createdAt;
   }
 
   Future<void> _loadRecharges({bool resetPagination = false}) async {
@@ -191,50 +233,40 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
     unawaited(_loadRecharges(resetPagination: true));
   }
 
-  Future<void> _pickRechargeDates() async {
-    final DateTime now = DateTime.now();
-    final DateTimeRange? range = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(now.year - 5),
-      lastDate: DateTime(now.year + 1),
-      initialDateRange:
-          _rechargeFilter.from != null && _rechargeFilter.to != null
-          ? DateTimeRange(
-              start: _rechargeFilter.from!,
-              end: _rechargeFilter.to!,
-            )
-          : null,
-    );
-    if (range == null || !mounted) return;
-    _rechargeFilter = _rechargeFilter.copyWith(
-      from: DateTime(range.start.year, range.start.month, range.start.day),
-      to: DateTime(
-        range.end.year,
-        range.end.month,
-        range.end.day,
-        23,
-        59,
-        59,
-        999,
-      ),
-    );
-    await _loadRecharges(resetPagination: true);
-  }
-
-  void _clearRechargeDates() {
-    _rechargeFilter = _rechargeFilter.copyWith(clearFrom: true, clearTo: true);
-    unawaited(_loadRecharges(resetPagination: true));
-  }
-
   Widget _historyTabs() {
+    int periodCount(List<QueueOrder> orders, int tab) {
+      return orders
+          .where(
+            (QueueOrder order) =>
+                _period.contains(_orderActivityDate(order, tab)),
+          )
+          .length;
+    }
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: <Widget>[
-          _tabBox('En cours', _viewModel.inProgressCount, 0),
-          _tabBox('Réussies', _viewModel.successfulHistoryCount, 1),
-          _tabBox('Échecs', _viewModel.failedCount, 2),
-          _tabBox('Refus', _viewModel.refusedHistoryCount, 3),
+          _tabBox(
+            'En cours',
+            periodCount(_viewModel.inProgressOrders, 0),
+            0,
+          ),
+          _tabBox(
+            'Réussies',
+            periodCount(_viewModel.successfulHistoryOrders, 1),
+            1,
+          ),
+          _tabBox(
+            'Échecs',
+            periodCount(_viewModel.failedOrders, 2),
+            2,
+          ),
+          _tabBox(
+            'Refus',
+            periodCount(_viewModel.refusedHistoryOrders, 3),
+            3,
+          ),
           _tabBox('Recharges', _rechargeSummary.totalCount, 4),
         ],
       ),
@@ -265,13 +297,19 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
         child: ListenableBuilder(
           listenable: _viewModel,
           builder: (BuildContext context, Widget? child) {
-              final List<QueueOrder> orders = switch (_tab) {
+              final List<QueueOrder> sourceOrders = switch (_tab) {
                 0 => _viewModel.inProgressOrders,
                 1 => _viewModel.successfulHistoryOrders,
                 2 => _viewModel.failedOrders,
                 3 => _viewModel.refusedHistoryOrders,
                 _ => const <QueueOrder>[],
               };
+              final List<QueueOrder> orders = sourceOrders
+                  .where(
+                    (QueueOrder order) =>
+                        _period.contains(_orderActivityDate(order)),
+                  )
+                  .toList(growable: false);
 
               return RefreshIndicator(
                 onRefresh: _tab == 4
@@ -304,6 +342,13 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
                     ),
                     const SizedBox(height: 18),
                     _historyTabs(),
+                    const SizedBox(height: 12),
+                    IzyTelPeriodFilterBar(
+                      value: _period,
+                      compact: true,
+                      calendarHelpText: 'Filtrer mon historique par période',
+                      onChanged: _setPeriod,
+                    ),
                     const SizedBox(height: 18),
                     if (_tab == 4)
                       ..._buildRechargeChildren(context)
@@ -395,16 +440,6 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
                 onTap: () => _setRechargeNetwork(network),
               ),
             ],
-            const SizedBox(width: 6),
-            _RechargeFilterChip(
-              label: _rechargeFilter.from == null ? 'Dates' : 'Période active',
-              selected: _rechargeFilter.from != null,
-              icon: Symbols.calendar_month_rounded,
-              onTap: _pickRechargeDates,
-              onClear: _rechargeFilter.from == null
-                  ? null
-                  : _clearRechargeDates,
-            ),
           ],
         ),
       ),
@@ -537,26 +572,17 @@ class _RechargeFilterChip extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
-    this.icon,
-    this.onClear,
   });
 
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  final IconData? icon;
-  final VoidCallback? onClear;
 
   @override
   Widget build(BuildContext context) {
     return InputChip(
-      avatar: icon == null ? null : Icon(icon, size: 17),
       label: Text(label),
       onPressed: onTap,
-      deleteIcon: onClear == null
-          ? null
-          : const Icon(Symbols.close_rounded, size: 16),
-      onDeleted: onClear,
       backgroundColor: selected
           ? IzyTelColors.primarySoft
           : IzyTelColors.surface,

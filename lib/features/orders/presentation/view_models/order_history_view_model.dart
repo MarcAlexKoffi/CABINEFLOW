@@ -204,12 +204,33 @@ class OrderHistoryViewModel extends ChangeNotifier {
   }
 
   bool _matchesPeriod(QueueOrder order) {
+    final DateTime localCreatedAt = order.createdAt.toLocal();
+    if (_filters.hasCustomPeriod) {
+      final DateTime startValue = _filters.customStart!.toLocal();
+      final DateTime endValue = _filters.customEnd!.toLocal();
+      final DateTime start = DateTime(
+        startValue.year,
+        startValue.month,
+        startValue.day,
+      );
+      final DateTime end = DateTime(
+        endValue.year,
+        endValue.month,
+        endValue.day,
+        23,
+        59,
+        59,
+        999,
+        999,
+      );
+      return !localCreatedAt.isBefore(start) && !localCreatedAt.isAfter(end);
+    }
+
     if (_filters.period == OrderHistoryPeriod.all) {
       return true;
     }
 
     final DateTime now = DateTime.now();
-    final DateTime localCreatedAt = order.createdAt.toLocal();
     final DateTime today = DateTime(now.year, now.month, now.day);
     final DateTime orderDay = DateTime(
       localCreatedAt.year,

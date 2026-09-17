@@ -12,6 +12,8 @@ class OrderHistoryFilters {
     this.minimumAmount,
     this.maximumAmount,
     this.operatorId,
+    this.customStart,
+    this.customEnd,
   });
 
   final OrderHistoryPeriod period;
@@ -20,9 +22,14 @@ class OrderHistoryFilters {
   final int? minimumAmount;
   final int? maximumAmount;
   final String? operatorId;
+  final DateTime? customStart;
+  final DateTime? customEnd;
+
+  bool get hasCustomPeriod => customStart != null && customEnd != null;
 
   bool get isEmpty {
     return period == OrderHistoryPeriod.all &&
+        !hasCustomPeriod &&
         states.isEmpty &&
         networks.isEmpty &&
         minimumAmount == null &&
@@ -33,7 +40,7 @@ class OrderHistoryFilters {
   int get activeFilterCount {
     int count = 0;
 
-    if (period != OrderHistoryPeriod.all) {
+    if (hasCustomPeriod || period != OrderHistoryPeriod.all) {
       count++;
     }
 
@@ -58,9 +65,12 @@ class OrderHistoryFilters {
     int? minimumAmount,
     int? maximumAmount,
     String? operatorId,
+    DateTime? customStart,
+    DateTime? customEnd,
     bool clearMinimumAmount = false,
     bool clearMaximumAmount = false,
     bool clearOperatorId = false,
+    bool clearCustomPeriod = false,
   }) {
     return OrderHistoryFilters(
       period: period ?? this.period,
@@ -73,6 +83,10 @@ class OrderHistoryFilters {
           ? null
           : maximumAmount ?? this.maximumAmount,
       operatorId: clearOperatorId ? null : operatorId ?? this.operatorId,
+      customStart: clearCustomPeriod
+          ? null
+          : customStart ?? this.customStart,
+      customEnd: clearCustomPeriod ? null : customEnd ?? this.customEnd,
     );
   }
 }

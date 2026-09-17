@@ -4,6 +4,7 @@ import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
+import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -26,6 +27,7 @@ class AgentIssuesPage extends StatefulWidget {
 class _AgentIssuesPageState extends State<AgentIssuesPage> {
   final TextEditingController _searchController = TextEditingController();
   _AgentIssueFilter _filter = _AgentIssueFilter.all;
+  IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
   String _query = '';
 
   @override
@@ -59,6 +61,7 @@ class _AgentIssuesPageState extends State<AgentIssuesPage> {
 
   List<AgentIssue> _filteredIssues(List<AgentIssue> issues) {
     Iterable<AgentIssue> filtered = issues.where((AgentIssue issue) {
+      if (!_period.contains(issue.createdAt)) return false;
       return switch (_filter) {
         _AgentIssueFilter.all => true,
         _AgentIssueFilter.active => _isIssueActive(issue.status),
@@ -127,7 +130,10 @@ class _AgentIssuesPageState extends State<AgentIssuesPage> {
           }
 
           final List<AgentIssue> issues = snapshot.data ?? const <AgentIssue>[];
-          final int activeCount = issues
+          final List<AgentIssue> periodIssues = issues
+              .where((AgentIssue issue) => _period.contains(issue.createdAt))
+              .toList(growable: false);
+          final int activeCount = periodIssues
               .where((AgentIssue issue) => _isIssueActive(issue.status))
               .length;
           final List<AgentIssue> filtered = _filteredIssues(issues);
@@ -141,7 +147,7 @@ class _AgentIssuesPageState extends State<AgentIssuesPage> {
               110,
             ),
             children: <Widget>[
-              _IssueOverview(total: issues.length, open: activeCount),
+              _IssueOverview(total: periodIssues.length, open: activeCount),
               const SizedBox(height: IzyTelSpacing.lg),
               TextField(
                 controller: _searchController,
@@ -160,6 +166,15 @@ class _AgentIssuesPageState extends State<AgentIssuesPage> {
                           icon: const Icon(Symbols.close_rounded),
                         ),
                 ),
+              ),
+              const SizedBox(height: IzyTelSpacing.sm),
+              IzyTelPeriodFilterBar(
+                value: _period,
+                compact: true,
+                calendarHelpText: 'Filtrer mes signalements par période',
+                onChanged: (IzyTelPeriodFilterValue value) {
+                  setState(() => _period = value);
+                },
               ),
               const SizedBox(height: IzyTelSpacing.sm),
               SingleChildScrollView(

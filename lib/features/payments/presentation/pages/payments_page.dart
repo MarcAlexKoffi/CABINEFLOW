@@ -10,6 +10,7 @@ import 'package:cabine_flow/features/orders/presentation/widgets/order_display_h
 import 'package:cabine_flow/features/payments/presentation/view_models/payments_view_model.dart';
 import 'package:cabine_flow/features/payments/presentation/widgets/payments_widgets.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
+import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -36,6 +37,7 @@ class PaymentsPage extends StatefulWidget {
 class _PaymentsPageState extends State<PaymentsPage> {
   Timer? _clockTimer;
   late final PaymentsViewModel _viewModel;
+  IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
 
   @override
   void initState() {
@@ -73,14 +75,51 @@ class _PaymentsPageState extends State<PaymentsPage> {
     };
   }
 
-  List<PaymentOrderFilter> get _visibleFilters {
+  bool _matchesPaymentFilter(
+    QueueOrder order,
+    PaymentOrderFilter filter,
+  ) {
+    return switch (filter) {
+      PaymentOrderFilter.all => true,
+      PaymentOrderFilter.linkToSend =>
+        order.source == OrderSource.operatorApp &&
+            order.status == QueueOrderStatus.awaitingPayment &&
+            order.paymentRequestSentAt == null,
+      PaymentOrderFilter.awaitingPayment =>
+        (order.source == OrderSource.operatorApp &&
+                order.status == QueueOrderStatus.awaitingPayment &&
+                order.paymentRequestSentAt != null) ||
+            (order.source == OrderSource.customerWeb &&
+                order.paymentStatus == OrderPaymentStatus.declared &&
+                (order.status == QueueOrderStatus.paymentToVerify ||
+                    order.status == QueueOrderStatus.awaitingPayment)),
+      PaymentOrderFilter.afterExpiration => order.hasPaymentToReviewAfterExpiration,
+      PaymentOrderFilter.confirmed =>
+        order.paymentStatus == OrderPaymentStatus.confirmed &&
+            order.paidAt != null &&
+            order.paymentReference != null,
+    };
+  }
+
+  int _countForFilter(
+    PaymentOrderFilter filter,
+    Iterable<QueueOrder> orders,
+  ) {
+    return orders
+        .where((QueueOrder order) => _matchesPaymentFilter(order, filter))
+        .length;
+  }
+
+  List<PaymentOrderFilter> _visibleFiltersFor(
+    Iterable<QueueOrder> periodOrders,
+  ) {
     final List<PaymentOrderFilter> filters = <PaymentOrderFilter>[
       PaymentOrderFilter.all,
       PaymentOrderFilter.awaitingPayment,
       PaymentOrderFilter.afterExpiration,
       PaymentOrderFilter.confirmed,
     ];
-    if (_viewModel.countForFilter(PaymentOrderFilter.linkToSend) > 0) {
+    if (_countForFilter(PaymentOrderFilter.linkToSend, periodOrders) > 0) {
       filters.insert(1, PaymentOrderFilter.linkToSend);
     }
     return filters;
@@ -94,12 +133,20 @@ class _PaymentsPageState extends State<PaymentsPage> {
                 order.status == QueueOrderStatus.awaitingPayment));
   }
 
-  int get _verificationAmount => _viewModel.allOrders
+  DateTime _paymentActivityDate(QueueOrder order) {
+    return order.paymentConfirmedAt ??
+        order.paymentDeclaredAt ??
+        order.paidAt ??
+        order.paymentRequestSentAt ??
+        order.createdAt;
+  }
+
+  int _verificationAmount(Iterable<QueueOrder> orders) => orders
       .where(_requiresManualVerification)
       .fold<int>(0, (int total, QueueOrder order) => total + order.amount);
 
-  int get _verificationCount =>
-      _viewModel.allOrders.where(_requiresManualVerification).length;
+  int _verificationCount(Iterable<QueueOrder> orders) =>
+      orders.where(_requiresManualVerification).length;
 
   void _showMessage(String message) {
     IzyTelFeedback.show(context, message);
@@ -170,7 +217,20 @@ class _PaymentsPageState extends State<PaymentsPage> {
     return ListenableBuilder(
       listenable: _viewModel,
       builder: (BuildContext context, Widget? child) {
-        final List<QueueOrder> visibleOrders = _viewModel.visibleOrders;
+        final List<QueueOrder> periodOrders = _viewModel.allOrders
+            .where(
+              (QueueOrder order) =>
+                  _period.contains(_paymentActivityDate(order)),
+            )
+            .toList(growable: false);
+        final List<PaymentOrderFilter> visibleFilters =
+            _visibleFiltersFor(periodOrders);
+        final Set<String> periodOrderIds = periodOrders
+            .map((QueueOrder order) => order.id)
+            .toSet();
+        final List<QueueOrder> visibleOrders = _viewModel.visibleOrders
+            .where((QueueOrder order) => periodOrderIds.contains(order.id))
+            .toList(growable: false);
 
         return SafeArea(
           bottom: false,
@@ -195,23 +255,32 @@ class _PaymentsPageState extends State<PaymentsPage> {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 2),
                         child: PaymentAttentionSummary(
-                          count: _verificationCount,
-                          amount: _verificationAmount,
+                          count: _verificationCount(periodOrders),
+                          amount: _verificationAmount(periodOrders),
                         ),
                       ),
                       const SizedBox(height: 12),
+                      IzyTelPeriodFilterBar(
+                        value: _period,
+                        compact: true,
+                        calendarHelpText: 'Filtrer les paiements par période',
+                        onChanged: (IzyTelPeriodFilterValue value) {
+                          setState(() => _period = value);
+                        },
+                      ),
+                      const SizedBox(height: 10),
                       SizedBox(
                         height: 36,
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
-                          itemCount: _visibleFilters.length,
+                          itemCount: visibleFilters.length,
                           separatorBuilder: (_, _) => const SizedBox(width: 7),
                           itemBuilder: (BuildContext context, int index) {
                             final PaymentOrderFilter filter =
-                                _visibleFilters[index];
+                                visibleFilters[index];
                             return PaymentFilterPill(
                               label: _filterLabel(filter),
-                              count: _viewModel.countForFilter(filter),
+                              count: _countForFilter(filter, periodOrders),
                               isSelected: _viewModel.selectedFilter == filter,
                               emphasis: _filterEmphasis(filter),
                               onPressed: () => _viewModel.selectFilter(filter),

@@ -9,6 +9,7 @@ import 'package:cabine_flow/features/orders/presentation/pages/order_detail_page
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
+import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -39,6 +40,7 @@ class _AdminActivityJournalPageState extends State<AdminActivityJournalPage> {
   late final Stream<List<QueueOrder>> _ordersStream;
   late final Stream<List<SupportRequest>> _requestsStream;
   _JournalFilter _filter = _JournalFilter.all;
+  IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
   String _query = '';
 
   @override
@@ -141,7 +143,11 @@ class _AdminActivityJournalPageState extends State<AdminActivityJournalPage> {
                               b.date.compareTo(a.date),
                         );
 
-                    final List<_JournalEntry> visible = entries
+                    final List<_JournalEntry> periodEntries = entries
+                        .where((_JournalEntry entry) => _period.contains(entry.date))
+                        .toList(growable: false);
+
+                    final List<_JournalEntry> visible = periodEntries
                         .where((entry) {
                           if (_filter == _JournalFilter.orders &&
                               entry.kind != _JournalEntryKind.order) {
@@ -157,10 +163,10 @@ class _AdminActivityJournalPageState extends State<AdminActivityJournalPage> {
                         })
                         .toList(growable: false);
 
-                    final int orderCount = entries
+                    final int orderCount = periodEntries
                         .where((entry) => entry.kind == _JournalEntryKind.order)
                         .length;
-                    final int requestCount = entries
+                    final int requestCount = periodEntries
                         .where(
                           (entry) => entry.kind == _JournalEntryKind.request,
                         )
@@ -187,13 +193,22 @@ class _AdminActivityJournalPageState extends State<AdminActivityJournalPage> {
                             },
                           ),
                           const SizedBox(height: IzyTelSpacing.sm),
+                          IzyTelPeriodFilterBar(
+                            value: _period,
+                            compact: true,
+                            calendarHelpText: 'Filtrer le journal par période',
+                            onChanged: (IzyTelPeriodFilterValue value) {
+                              setState(() => _period = value);
+                            },
+                          ),
+                          const SizedBox(height: IzyTelSpacing.sm),
                           SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: Row(
                               children: [
                                 IzyTelFilterPill(
                                   label: 'Tout',
-                                  count: entries.length,
+                                  count: periodEntries.length,
                                   selected: _filter == _JournalFilter.all,
                                   onTap: () => setState(
                                     () => _filter = _JournalFilter.all,

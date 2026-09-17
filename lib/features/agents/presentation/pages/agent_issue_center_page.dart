@@ -6,6 +6,7 @@ import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
+import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -30,6 +31,7 @@ class _AgentIssueCenterPageState extends State<AgentIssueCenterPage> {
   late final Stream<List<AgentDirectoryEntry>> _agentsStream;
   late final Stream<List<AgentIssue>> _issuesStream;
   _AgentIssueTab _selectedTab = _AgentIssueTab.open;
+  IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
   String _query = '';
   bool _isUpdating = false;
 
@@ -104,25 +106,31 @@ class _AgentIssueCenterPageState extends State<AgentIssueCenterPage> {
                               for (final AgentDirectoryEntry agent in agents)
                                 agent.userId: agent,
                             };
+                        final List<AgentIssue> periodIssues = allIssues
+                            .where(
+                              (AgentIssue issue) =>
+                                  _period.contains(issue.createdAt),
+                            )
+                            .toList(growable: false);
                         final List<AgentIssue> visible = _filterIssues(
                           allIssues,
                           agentById,
                         );
-                        final int openCount = allIssues
+                        final int openCount = periodIssues
                             .where((AgentIssue issue) => issue.status == 'open')
                             .length;
-                        final int inProgressCount = allIssues
+                        final int inProgressCount = periodIssues
                             .where(
                               (AgentIssue issue) =>
                                   issue.status == 'in_progress',
                             )
                             .length;
-                        final int resolvedCount = allIssues
+                        final int resolvedCount = periodIssues
                             .where(
                               (AgentIssue issue) => issue.status == 'resolved',
                             )
                             .length;
-                        final int cancelledCount = allIssues
+                        final int cancelledCount = periodIssues
                             .where(
                               (AgentIssue issue) => issue.status == 'cancelled',
                             )
@@ -254,6 +262,16 @@ class _AgentIssueCenterPageState extends State<AgentIssueCenterPage> {
                                 },
                               ),
                               const SizedBox(height: IzyTelSpacing.sm),
+                              IzyTelPeriodFilterBar(
+                                value: _period,
+                                compact: true,
+                                calendarHelpText:
+                                    'Filtrer les signalements agents par période',
+                                onChanged: (IzyTelPeriodFilterValue value) {
+                                  setState(() => _period = value);
+                                },
+                              ),
+                              const SizedBox(height: IzyTelSpacing.sm),
                               SingleChildScrollView(
                                 scrollDirection: Axis.horizontal,
                                 child: Row(
@@ -377,6 +395,7 @@ class _AgentIssueCenterPageState extends State<AgentIssueCenterPage> {
     Map<String, AgentDirectoryEntry> agentById,
   ) {
     Iterable<AgentIssue> filtered = issues.where((AgentIssue issue) {
+      if (!_period.contains(issue.createdAt)) return false;
       return switch (_selectedTab) {
         _AgentIssueTab.all => true,
         _AgentIssueTab.open => issue.status == 'open',
