@@ -27,6 +27,7 @@ import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/auth/presentation/widgets/staff_profile_avatar.dart';
+import 'package:cabine_flow/features/control/domain/models/control_snapshot.dart';
 import 'package:cabine_flow/features/control/domain/repositories/control_repository.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
@@ -1017,6 +1018,30 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
     }
   }
 
+  void _openActivityModule(ControlActivityEvent event) {
+    final String domain = event.domain.trim().toLowerCase();
+    final String kind = event.eventKind.trim().toLowerCase();
+    final BackofficeDestination? destination = switch (domain) {
+      'payments' => BackofficeDestination.payments,
+      'assignments' => BackofficeDestination.assignments,
+      'support' => BackofficeDestination.customerRequests,
+      'agents' => BackofficeDestination.agentIssues,
+      'refunds' => BackofficeDestination.refunds,
+      'orders' => kind.contains('failed')
+          ? BackofficeDestination.failedOrders
+          : BackofficeDestination.orders,
+      _ => null,
+    };
+    if (destination == null || !destination.visibleFor(widget.user)) return;
+
+    if (destination == BackofficeDestination.customerRequests && event.reference.isNotEmpty) {
+      _supportFocusOrderReference = event.reference;
+    } else if (destination == BackofficeDestination.refunds && event.reference.isNotEmpty) {
+      _refundFocusOrderReference = event.reference;
+    }
+    _selectDestination(destination);
+  }
+
   Widget _controlContent(BackofficeControlModule module) {
     final ControlRepository? repository = widget.controlRepository;
     if (repository == null) {
@@ -1029,6 +1054,7 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
       user: widget.user,
       repository: repository,
       module: module,
+      onOpenActivityModule: _openActivityModule,
     );
   }
 
