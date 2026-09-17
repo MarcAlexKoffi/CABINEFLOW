@@ -12,6 +12,7 @@ import 'package:cabine_flow/features/orders/domain/repositories/orders_repositor
 import 'package:cabine_flow/features/orders/presentation/view_models/agent_assignment_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_operator_brand.dart';
+import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -43,6 +44,7 @@ class _BackofficeAssignmentsPageState extends State<BackofficeAssignmentsPage> {
   String? _error;
   _AssignmentScope _scope = _AssignmentScope.toAssign;
   MobileNetwork? _network;
+  IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
 
   @override
   void initState() {
@@ -121,9 +123,13 @@ class _BackofficeAssignmentsPageState extends State<BackofficeAssignmentsPage> {
     super.dispose();
   }
 
+  Iterable<QueueOrder> get _periodOrders => _orders.where(
+        (QueueOrder order) => _period.contains(order.assignedAt ?? order.createdAt),
+      );
+
   List<QueueOrder> get _visibleOrders {
     final String query = _searchController.text.trim().toLowerCase();
-    Iterable<QueueOrder> result = _orders;
+    Iterable<QueueOrder> result = _periodOrders;
     if (_network != null) {
       result = result.where((QueueOrder order) => order.network == _network);
     }
@@ -154,9 +160,9 @@ class _BackofficeAssignmentsPageState extends State<BackofficeAssignmentsPage> {
     return result.toList(growable: false);
   }
 
-  int get _toAssignCount => _orders.where((QueueOrder order) => !order.isAssignedToAgent).length;
-  int get _assignedCount => _orders.where((QueueOrder order) => order.isAssignedToAgent).length;
-  int get _manualCount => _orders.where((QueueOrder order) => order.manualAssignmentRequired).length;
+  int get _toAssignCount => _periodOrders.where((QueueOrder order) => !order.isAssignedToAgent).length;
+  int get _assignedCount => _periodOrders.where((QueueOrder order) => order.isAssignedToAgent).length;
+  int get _manualCount => _periodOrders.where((QueueOrder order) => order.manualAssignmentRequired).length;
 
   Future<void> _openAssignment(QueueOrder order) async {
     final bool? assigned = await showBackofficeModal<bool>(
@@ -198,7 +204,7 @@ class _BackofficeAssignmentsPageState extends State<BackofficeAssignmentsPage> {
         ),
         const SizedBox(height: 16),
         _AssignmentMetrics(
-          total: _orders.length,
+          total: _periodOrders.length,
           toAssign: _toAssignCount,
           assigned: _assignedCount,
           manual: _manualCount,
@@ -232,68 +238,82 @@ class _BackofficeAssignmentsPageState extends State<BackofficeAssignmentsPage> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: backofficePanelDecoration(),
-      child: LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final bool compact = constraints.maxWidth < 820;
-          final Widget search = TextField(
-            controller: _searchController,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              hintText: 'Référence, client, numéro ou agent',
-              prefixIcon: Icon(Symbols.search_rounded),
-            ),
-          );
-          final Widget scope = DropdownButtonFormField<_AssignmentScope>(
-            initialValue: _scope,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Vue'),
-            items: const <DropdownMenuItem<_AssignmentScope>>[
-              DropdownMenuItem(value: _AssignmentScope.toAssign, child: Text('À affecter')),
-              DropdownMenuItem(value: _AssignmentScope.assigned, child: Text('Affectées')),
-              DropdownMenuItem(value: _AssignmentScope.manual, child: Text('Manuelles')),
-              DropdownMenuItem(value: _AssignmentScope.all, child: Text('Toutes')),
-            ],
-            onChanged: (_AssignmentScope? value) {
-              if (value != null) setState(() => _scope = value);
-            },
-          );
-          final Widget network = DropdownButtonFormField<MobileNetwork?>(
-            initialValue: _network,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Réseau'),
-            items: const <DropdownMenuItem<MobileNetwork?>>[
-              DropdownMenuItem(value: null, child: Text('Tous')),
-              DropdownMenuItem(value: MobileNetwork.orange, child: Text('Orange')),
-              DropdownMenuItem(value: MobileNetwork.mtn, child: Text('MTN')),
-              DropdownMenuItem(value: MobileNetwork.moov, child: Text('Moov Africa')),
-            ],
-            onChanged: (MobileNetwork? value) => setState(() => _network = value),
-          );
-          if (compact) {
-            return Column(
-              children: <Widget>[
-                search,
-                const SizedBox(height: 10),
-                Row(
-                  children: <Widget>[
-                    Expanded(child: scope),
-                    const SizedBox(width: 10),
-                    Expanded(child: network),
-                  ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final bool compact = constraints.maxWidth < 820;
+              final Widget search = TextField(
+                controller: _searchController,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  hintText: 'Référence, client, numéro ou agent',
+                  prefixIcon: Icon(Symbols.search_rounded),
                 ),
-              ],
-            );
-          }
-          return Row(
-            children: <Widget>[
-              Expanded(flex: 5, child: search),
-              const SizedBox(width: 10),
-              Expanded(flex: 2, child: scope),
-              const SizedBox(width: 10),
-              Expanded(flex: 2, child: network),
-            ],
-          );
-        },
+              );
+              final Widget scope = DropdownButtonFormField<_AssignmentScope>(
+                initialValue: _scope,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Vue'),
+                items: const <DropdownMenuItem<_AssignmentScope>>[
+                  DropdownMenuItem(value: _AssignmentScope.toAssign, child: Text('À affecter')),
+                  DropdownMenuItem(value: _AssignmentScope.assigned, child: Text('Affectées')),
+                  DropdownMenuItem(value: _AssignmentScope.manual, child: Text('Manuelles')),
+                  DropdownMenuItem(value: _AssignmentScope.all, child: Text('Toutes')),
+                ],
+                onChanged: (_AssignmentScope? value) {
+                  if (value != null) setState(() => _scope = value);
+                },
+              );
+              final Widget network = DropdownButtonFormField<MobileNetwork?>(
+                initialValue: _network,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Réseau'),
+                items: const <DropdownMenuItem<MobileNetwork?>>[
+                  DropdownMenuItem(value: null, child: Text('Tous')),
+                  DropdownMenuItem(value: MobileNetwork.orange, child: Text('Orange')),
+                  DropdownMenuItem(value: MobileNetwork.mtn, child: Text('MTN')),
+                  DropdownMenuItem(value: MobileNetwork.moov, child: Text('Moov Africa')),
+                ],
+                onChanged: (MobileNetwork? value) => setState(() => _network = value),
+              );
+              if (compact) {
+                return Column(
+                  children: <Widget>[
+                    search,
+                    const SizedBox(height: 10),
+                    Row(
+                      children: <Widget>[
+                        Expanded(child: scope),
+                        const SizedBox(width: 10),
+                        Expanded(child: network),
+                      ],
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                children: <Widget>[
+                  Expanded(flex: 5, child: search),
+                  const SizedBox(width: 10),
+                  Expanded(flex: 2, child: scope),
+                  const SizedBox(width: 10),
+                  Expanded(flex: 2, child: network),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          IzyTelPeriodFilterBar(
+            value: _period,
+            onChanged: (IzyTelPeriodFilterValue value) {
+              setState(() => _period = value);
+            },
+            compact: MediaQuery.sizeOf(context).width < 760,
+            calendarHelpText: 'Retrouver d’anciennes affectations',
+          ),
+        ],
       ),
     );
   }

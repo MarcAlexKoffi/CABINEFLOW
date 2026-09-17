@@ -7,6 +7,7 @@ import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -40,6 +41,7 @@ class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
   _IssueNetworkScope _networkScope = _IssueNetworkScope.all;
   _IssueSort _sort = _IssueSort.recent;
   String _query = '';
+  IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
 
   @override
   void initState() {
@@ -95,11 +97,17 @@ class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
                     agent.userId: agent,
                 };
             final List<AgentIssueCenterItem> all = snapshot.issues;
-            final int open = _count(all, 'open');
-            final int progress = _count(all, 'in_progress');
-            final int resolved = _count(all, 'resolved');
-            final int cancelled = _count(all, 'cancelled');
-            final List<AgentIssueCenterItem> visible = _filtered(all, agentById);
+            final List<AgentIssueCenterItem> periodItems = all
+                .where(
+                  (AgentIssueCenterItem issue) => _period.contains(issue.createdAt),
+                )
+                .toList(growable: false);
+            final int open = _count(periodItems, 'open');
+            final int progress = _count(periodItems, 'in_progress');
+            final int resolved = _count(periodItems, 'resolved');
+            final int cancelled = _count(periodItems, 'cancelled');
+            final List<AgentIssueCenterItem> visible =
+                _filtered(periodItems, agentById);
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -122,14 +130,14 @@ class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
                 ),
                 const SizedBox(height: 14),
                 _filters(
-                  all: all,
+                  all: periodItems,
                   open: open,
                   progress: progress,
                   resolved: resolved,
                   cancelled: cancelled,
                 ),
                 const SizedBox(height: 14),
-                _resultsHeader(visible.length, all.length),
+                _resultsHeader(visible.length, periodItems.length),
                 const SizedBox(height: 10),
                 if (visible.isEmpty)
                   const BackofficeEmptyState(
@@ -289,7 +297,10 @@ class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: backofficePanelDecoration(),
-      child: LayoutBuilder(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
           final Widget search = TextField(
             controller: _searchController,
@@ -406,7 +417,18 @@ class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
               SizedBox(width: 180, child: sort),
             ],
           );
-        },
+            },
+          ),
+          const SizedBox(height: 12),
+          IzyTelPeriodFilterBar(
+            value: _period,
+            onChanged: (IzyTelPeriodFilterValue value) {
+              setState(() => _period = value);
+            },
+            compact: MediaQuery.sizeOf(context).width < 760,
+            calendarHelpText: 'Retrouver d’anciens signalements Agents',
+          ),
+        ],
       ),
     );
   }

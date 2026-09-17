@@ -9,8 +9,8 @@ import 'package:cabine_flow/features/orders/domain/repositories/order_history_re
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
+import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
-import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -49,6 +49,7 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
   String? _error;
   _FailureScope _scope = _FailureScope.failed;
   MobileNetwork? _network;
+  IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
 
   @override
   void initState() {
@@ -130,9 +131,12 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
     super.dispose();
   }
 
+  Iterable<QueueOrder> get _periodOrders =>
+      _orders.where((QueueOrder order) => _period.contains(order.createdAt));
+
   List<QueueOrder> get _visibleOrders {
     final String query = _searchController.text.trim().toLowerCase();
-    Iterable<QueueOrder> result = _orders;
+    Iterable<QueueOrder> result = _periodOrders;
     if (_network != null) {
       result = result.where((QueueOrder order) => order.network == _network);
     }
@@ -164,10 +168,10 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
     return result.toList(growable: false);
   }
 
-  int get _failedCount => _orders.where((QueueOrder order) => order.status == QueueOrderStatus.failed || order.status == QueueOrderStatus.cancelled).length;
-  int get _refundPendingCount => _orders.where((QueueOrder order) => order.status == QueueOrderStatus.refundPending).length;
-  int get _refundedCount => _orders.where((QueueOrder order) => order.status == QueueOrderStatus.refunded).length;
-  int get _failedAmount => _orders.where((QueueOrder order) => order.status == QueueOrderStatus.failed).fold<int>(0, (int sum, QueueOrder order) => sum + order.amount);
+  int get _failedCount => _periodOrders.where((QueueOrder order) => order.status == QueueOrderStatus.failed || order.status == QueueOrderStatus.cancelled).length;
+  int get _refundPendingCount => _periodOrders.where((QueueOrder order) => order.status == QueueOrderStatus.refundPending).length;
+  int get _refundedCount => _periodOrders.where((QueueOrder order) => order.status == QueueOrderStatus.refunded).length;
+  int get _failedAmount => _periodOrders.where((QueueOrder order) => order.status == QueueOrderStatus.failed).fold<int>(0, (int sum, QueueOrder order) => sum + order.amount);
 
   Future<void> _prepareReassignment(QueueOrder order) async {
     if (_processing.contains(order.id)) return;
@@ -196,87 +200,41 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
     try {
       final QueueOrder reopened = await widget.ordersRepository.prepareFailedOrderForReassignment(orderId: order.id);
       if (!mounted) return;
-      IzyTelFeedback.success(
-        context,
-        '${order.reference} est prête pour une nouvelle affectation.',
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${order.reference} est prête pour une nouvelle affectation.')),
       );
       widget.onOpenAssignments(reopened);
     } catch (error) {
       if (!mounted) return;
       final String raw = error.toString().replaceFirst('Bad state: ', '');
-      IzyTelFeedback.error(
-        context,
-        raw.isEmpty ? 'Impossible de préparer la réaffectation.' : raw,
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(raw.isEmpty ? 'Impossible de préparer la réaffectation.' : raw)),
       );
     } finally {
       if (mounted) setState(() => _processing.remove(order.id));
     }
   }
 
-  Future<QueueOrder?> _freshOrderForTreatment(QueueOrder displayed) async {
-    try {
-      final QueueOrder fresh = await widget.historyRepository.fetchOrderById(
-        orderId: displayed.id,
-      );
-      if (!mounted) return null;
-
-      if (fresh.status != displayed.status ||
-          fresh.paymentStatus != displayed.paymentStatus) {
-        setState(() {
-          _orders = <QueueOrder>[
-            for (final QueueOrder item in _orders)
-              if (item.id == fresh.id) fresh else item,
-          ].where(_isFailureRelated).toList(growable: false);
-        });
-      }
-      return fresh;
-    } catch (_) {
-      if (!mounted) return null;
-      IzyTelFeedback.error(
-        context,
-        'Impossible de v\u00e9rifier l\u2019\u00e9tat actuel de la commande. R\u00e9essayez dans un instant.',
-      );
-      return null;
-    }
-  }
-
   Future<void> _chooseTreatment(QueueOrder order) async {
-    final QueueOrder? fresh = await _freshOrderForTreatment(order);
-    if (fresh == null || !mounted) return;
-    final QueueOrder current = fresh;
-
-    final RefundCase? existing = _refundFor(current);
+    final RefundCase? existing = _refundFor(order);
     if (existing != null && existing.status != RefundStatus.rejected) {
-      widget.onOpenRefunds(current.reference);
+      widget.onOpenRefunds(order.reference);
       return;
     }
 
-    if (current.status == QueueOrderStatus.refundPending ||
-        current.status == QueueOrderStatus.refunded) {
-      widget.onOpenRefunds(current.reference);
-      return;
-    }
-    if (current.status != QueueOrderStatus.failed) {
-      IzyTelFeedback.show(
-        context,
-        'Cette commande n\u2019est plus en \u00e9tat \u00c9chou\u00e9. La liste vient d\u2019\u00eatre synchronis\u00e9e.',
-      );
-      return;
-    }
-
-    final bool canReassign = current.status == QueueOrderStatus.failed &&
-        current.isFundedForProcessing &&
+    final bool canReassign = order.status == QueueOrderStatus.failed &&
+        order.isFundedForProcessing &&
         (existing == null || existing.status == RefundStatus.rejected);
-    final bool canRefund = current.status == QueueOrderStatus.failed &&
-        current.paymentStatus == OrderPaymentStatus.confirmed &&
+    final bool canRefund = order.status == QueueOrderStatus.failed &&
+        order.paymentStatus == OrderPaymentStatus.confirmed &&
         existing == null;
 
     if (canReassign && !canRefund) {
-      await _prepareReassignment(current);
+      await _prepareReassignment(order);
       return;
     }
     if (!canReassign && canRefund) {
-      await _createRefund(current);
+      await _createRefund(order);
       return;
     }
     if (!canReassign && !canRefund) return;
@@ -284,7 +242,7 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
     final String? choice = await showDialog<String>(
       context: context,
       builder: (BuildContext dialogContext) => AlertDialog(
-        title: Text('Traiter ${current.reference}'),
+        title: Text('Traiter ${order.reference}'),
         content: const Text(
           'Choisissez la suite adaptée après vos vérifications. Une réaffectation remet la commande en circulation ; un remboursement ouvre un dossier financier distinct.',
         ),
@@ -308,17 +266,20 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
     );
     if (!mounted) return;
     if (choice == 'reassign') {
-      await _prepareReassignment(current);
+      await _prepareReassignment(order);
     } else if (choice == 'refund') {
-      await _createRefund(current);
+      await _createRefund(order);
     }
   }
 
   Future<void> _createRefund(QueueOrder order) async {
     if (order.paymentStatus != OrderPaymentStatus.confirmed) {
-      IzyTelFeedback.error(
-        context,
-        'Cette commande n’a pas de paiement Wave confirmé à rembourser.',
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Cette commande n’a pas de paiement Wave confirmé à rembourser.',
+          ),
+        ),
       );
       return;
     }
@@ -329,51 +290,42 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
 
     final RefundCreationDraft? draft = await _refundDraft(order);
     if (draft == null || _processing.contains(order.id)) return;
-
-    final QueueOrder? fresh = await _freshOrderForTreatment(order);
-    if (fresh == null || !mounted) return;
-    if (fresh.status != QueueOrderStatus.failed) {
-      IzyTelFeedback.show(
-        context,
-        'La commande a chang\u00e9 d\u2019\u00e9tat pendant votre v\u00e9rification. Aucun remboursement n\u2019a \u00e9t\u00e9 cr\u00e9\u00e9.',
-      );
-      return;
-    }
-
-    setState(() => _processing.add(fresh.id));
+    setState(() => _processing.add(order.id));
     try {
       await widget.refundRepository.create(
         request: RefundCreationRequest(
-          orderId: fresh.id,
-          orderReference: fresh.reference,
+          orderId: order.id,
+          orderReference: order.reference,
           origin: RefundOrigin.failedOrder,
-          customerAuthUid: fresh.customerAuthUid,
-          clientName: fresh.clientName,
-          clientWhatsappPhone: fresh.clientWhatsappPhone,
-          originalAmount: fresh.amount,
+          customerAuthUid: order.customerAuthUid,
+          clientName: order.clientName,
+          clientWhatsappPhone: order.clientWhatsappPhone,
+          originalAmount: order.amount,
           amount: draft.amount,
           reason: draft.reason,
           reasonNote: draft.reasonNote,
           paymentChannel: 'wave',
-          originalPaymentReference: _initialPaymentReference(fresh),
+          originalPaymentReference: _initialPaymentReference(order),
         ),
         staffId: widget.user.id,
         staffName: widget.user.name,
       );
       if (!mounted) return;
-      IzyTelFeedback.success(
-        context,
-        'Dossier de remboursement créé pour ${fresh.reference}.',
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Dossier de remboursement créé pour ${order.reference}.',
+          ),
+        ),
       );
-      widget.onOpenRefunds(fresh.reference);
+      widget.onOpenRefunds(order.reference);
     } catch (error) {
       if (!mounted) return;
-      final String message = error.toString()
-          .replaceFirst('Bad state: ', '')
-          .replaceFirst('StateError: ', '');
-      IzyTelFeedback.error(context, message);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
     } finally {
-      if (mounted) setState(() => _processing.remove(fresh.id));
+      if (mounted) setState(() => _processing.remove(order.id));
     }
   }
 
@@ -553,68 +505,82 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: backofficePanelDecoration(),
-      child: LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final bool compact = constraints.maxWidth < 820;
-          final Widget search = TextField(
-            controller: _searchController,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              hintText: 'Référence, client, motif, observation ou agent',
-              prefixIcon: Icon(Symbols.search_rounded),
-            ),
-          );
-          final Widget scope = DropdownButtonFormField<_FailureScope>(
-            initialValue: _scope,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Vue'),
-            items: const <DropdownMenuItem<_FailureScope>>[
-              DropdownMenuItem(value: _FailureScope.failed, child: Text('Échouées')),
-              DropdownMenuItem(value: _FailureScope.refundPending, child: Text('Remboursement')),
-              DropdownMenuItem(value: _FailureScope.refunded, child: Text('Remboursées')),
-              DropdownMenuItem(value: _FailureScope.all, child: Text('Toutes')),
-            ],
-            onChanged: (_FailureScope? value) {
-              if (value != null) setState(() => _scope = value);
-            },
-          );
-          final Widget network = DropdownButtonFormField<MobileNetwork?>(
-            initialValue: _network,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Réseau'),
-            items: const <DropdownMenuItem<MobileNetwork?>>[
-              DropdownMenuItem(value: null, child: Text('Tous')),
-              DropdownMenuItem(value: MobileNetwork.orange, child: Text('Orange')),
-              DropdownMenuItem(value: MobileNetwork.mtn, child: Text('MTN')),
-              DropdownMenuItem(value: MobileNetwork.moov, child: Text('Moov Africa')),
-            ],
-            onChanged: (MobileNetwork? value) => setState(() => _network = value),
-          );
-          if (compact) {
-            return Column(
-              children: <Widget>[
-                search,
-                const SizedBox(height: 10),
-                Row(
-                  children: <Widget>[
-                    Expanded(child: scope),
-                    const SizedBox(width: 10),
-                    Expanded(child: network),
-                  ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final bool compact = constraints.maxWidth < 820;
+              final Widget search = TextField(
+                controller: _searchController,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  hintText: 'Référence, client, motif, observation ou agent',
+                  prefixIcon: Icon(Symbols.search_rounded),
                 ),
-              ],
-            );
-          }
-          return Row(
-            children: <Widget>[
-              Expanded(flex: 5, child: search),
-              const SizedBox(width: 10),
-              Expanded(flex: 2, child: scope),
-              const SizedBox(width: 10),
-              Expanded(flex: 2, child: network),
-            ],
-          );
-        },
+              );
+              final Widget scope = DropdownButtonFormField<_FailureScope>(
+                initialValue: _scope,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Vue'),
+                items: const <DropdownMenuItem<_FailureScope>>[
+                  DropdownMenuItem(value: _FailureScope.failed, child: Text('Échouées')),
+                  DropdownMenuItem(value: _FailureScope.refundPending, child: Text('Remboursement')),
+                  DropdownMenuItem(value: _FailureScope.refunded, child: Text('Remboursées')),
+                  DropdownMenuItem(value: _FailureScope.all, child: Text('Toutes')),
+                ],
+                onChanged: (_FailureScope? value) {
+                  if (value != null) setState(() => _scope = value);
+                },
+              );
+              final Widget network = DropdownButtonFormField<MobileNetwork?>(
+                initialValue: _network,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Réseau'),
+                items: const <DropdownMenuItem<MobileNetwork?>>[
+                  DropdownMenuItem(value: null, child: Text('Tous')),
+                  DropdownMenuItem(value: MobileNetwork.orange, child: Text('Orange')),
+                  DropdownMenuItem(value: MobileNetwork.mtn, child: Text('MTN')),
+                  DropdownMenuItem(value: MobileNetwork.moov, child: Text('Moov Africa')),
+                ],
+                onChanged: (MobileNetwork? value) => setState(() => _network = value),
+              );
+              if (compact) {
+                return Column(
+                  children: <Widget>[
+                    search,
+                    const SizedBox(height: 10),
+                    Row(
+                      children: <Widget>[
+                        Expanded(child: scope),
+                        const SizedBox(width: 10),
+                        Expanded(child: network),
+                      ],
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                children: <Widget>[
+                  Expanded(flex: 5, child: search),
+                  const SizedBox(width: 10),
+                  Expanded(flex: 2, child: scope),
+                  const SizedBox(width: 10),
+                  Expanded(flex: 2, child: network),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          IzyTelPeriodFilterBar(
+            value: _period,
+            onChanged: (IzyTelPeriodFilterValue value) {
+              setState(() => _period = value);
+            },
+            compact: MediaQuery.sizeOf(context).width < 760,
+            calendarHelpText: 'Retrouver d’anciennes commandes échouées',
+          ),
+        ],
       ),
     );
   }

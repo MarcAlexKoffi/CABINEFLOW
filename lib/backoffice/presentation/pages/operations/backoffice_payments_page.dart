@@ -8,6 +8,7 @@ import 'package:cabine_flow/features/orders/domain/repositories/orders_repositor
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/features/payments/presentation/view_models/payments_view_model.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_operator_brand.dart';
+import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -30,6 +31,7 @@ class BackofficePaymentsPage extends StatefulWidget {
 class _BackofficePaymentsPageState extends State<BackofficePaymentsPage> {
   late final PaymentsViewModel _viewModel;
   final TextEditingController _searchController = TextEditingController();
+  IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
 
   @override
   void initState() {
@@ -56,6 +58,7 @@ class _BackofficePaymentsPageState extends State<BackofficePaymentsPage> {
   List<QueueOrder> _searchedOrders(List<QueueOrder> orders) {
     final String query = _searchController.text.trim().toLowerCase();
     final List<QueueOrder> result = orders.where((QueueOrder order) {
+      if (!_period.contains(_paymentActivityDate(order))) return false;
       if (query.isEmpty) return true;
       final String haystack = <String>[
         order.reference,
@@ -86,18 +89,25 @@ class _BackofficePaymentsPageState extends State<BackofficePaymentsPage> {
     return result;
   }
 
-  int get _verificationCount =>
-      _viewModel.allOrders.where(_requiresVerification).length;
+  DateTime _paymentActivityDate(QueueOrder order) {
+    return order.paymentDeclaredAt ?? order.paymentConfirmedAt ?? order.createdAt;
+  }
 
-  int get _verificationAmount => _viewModel.allOrders
+  Iterable<QueueOrder> get _periodOrders => _viewModel.allOrders.where(
+        (QueueOrder order) => _period.contains(_paymentActivityDate(order)),
+      );
+
+  int get _verificationCount => _periodOrders.where(_requiresVerification).length;
+
+  int get _verificationAmount => _periodOrders
       .where(_requiresVerification)
       .fold<int>(0, (int sum, QueueOrder order) => sum + order.amount);
 
-  int get _confirmedCount => _viewModel.allOrders.where((QueueOrder order) {
+  int get _confirmedCount => _periodOrders.where((QueueOrder order) {
     return order.paymentStatus == OrderPaymentStatus.confirmed;
   }).length;
 
-  int get _declaredCount => _viewModel.allOrders.where((QueueOrder order) {
+  int get _declaredCount => _periodOrders.where((QueueOrder order) {
     return order.paymentStatus == OrderPaymentStatus.declared;
   }).length;
 
@@ -272,6 +282,15 @@ class _BackofficePaymentsPageState extends State<BackofficePaymentsPage> {
                         ),
                       );
                     }).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  IzyTelPeriodFilterBar(
+                    value: _period,
+                    onChanged: (IzyTelPeriodFilterValue value) {
+                      setState(() => _period = value);
+                    },
+                    compact: MediaQuery.sizeOf(context).width < 760,
+                    calendarHelpText: 'Retrouver d’anciens paiements',
                   ),
                 ],
               ),

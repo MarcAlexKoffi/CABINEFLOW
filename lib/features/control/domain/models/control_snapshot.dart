@@ -253,3 +253,35 @@ List<Map<String, dynamic>> _list(Object? value) {
           ))
       .toList(growable: false);
 }
+
+class ControlActivityPageData {
+  const ControlActivityPageData({required this.total, required this.items});
+
+  final int total;
+  final List<ControlActivityEvent> items;
+
+  factory ControlActivityPageData.fromJson(Map<String, dynamic> json) {
+    return ControlActivityPageData(
+      total: _i(json['total']),
+      items: _list(json['items'])
+          .map(ControlActivityEvent.fromJson)
+          .toList(growable: false),
+    );
+  }
+}
+
+class ControlAuditPageData {
+  const ControlAuditPageData({required this.total, required this.items});
+
+  final int total;
+  final List<ControlAuditEvent> items;
+
+  factory ControlAuditPageData.fromJson(Map<String, dynamic> json) {
+    return ControlAuditPageData(
+      total: _i(json['total']),
+      items: _list(json['items'])
+          .map(ControlAuditEvent.fromJson)
+          .toList(growable: false),
+    );
+  }
+}

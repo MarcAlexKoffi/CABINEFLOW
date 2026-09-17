@@ -9,7 +9,7 @@ import 'package:cabine_flow/features/refunds/domain/repositories/refund_reposito
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
-import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
+import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -39,10 +39,11 @@ class BackofficeRefundsPage extends StatefulWidget {
 
 class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
   final TextEditingController _searchController = TextEditingController();
-  late Stream<List<RefundCase>> _stream;
+  late final Stream<List<RefundCase>> _stream;
   _RefundScope _scope = _RefundScope.pending;
   String _query = '';
   bool _submitting = false;
+  IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
 
   @override
   void initState() {
@@ -54,11 +55,6 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
       _query = initialReference;
       _searchController.text = initialReference;
     }
-  }
-
-  void _reloadStream() {
-    if (!mounted) return;
-    setState(() => _stream = widget.repository.watchAll());
   }
 
   @override
@@ -84,11 +80,14 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
         }
 
         final List<RefundCase> all = snapshot.data!;
-        final int pending = all.where((RefundCase item) => item.status == RefundStatus.pendingApproval).length;
-        final int approved = all.where((RefundCase item) => item.status == RefundStatus.approved).length;
-        final int completed = all.where((RefundCase item) => item.isRefundCompleted).length;
-        final int exposure = all.where((RefundCase item) => item.status.isActive).fold<int>(0, (int total, RefundCase item) => total + item.amount);
-        final List<RefundCase> visible = _filtered(all);
+        final List<RefundCase> periodItems = all
+            .where((RefundCase item) => _period.contains(item.requestedAt))
+            .toList(growable: false);
+        final int pending = periodItems.where((RefundCase item) => item.status == RefundStatus.pendingApproval).length;
+        final int approved = periodItems.where((RefundCase item) => item.status == RefundStatus.approved).length;
+        final int completed = periodItems.where((RefundCase item) => item.isRefundCompleted).length;
+        final int exposure = periodItems.where((RefundCase item) => item.status.isActive).fold<int>(0, (int total, RefundCase item) => total + item.amount);
+        final List<RefundCase> visible = _filtered(periodItems);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -189,88 +188,109 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
   }
 
   Widget _filters({required List<RefundCase> all, required int visibleCount}) {
-    int count(RefundStatus status) => all.where((RefundCase item) => item.status == status).length;
+    final List<RefundCase> periodItems = all
+        .where((RefundCase item) => _period.contains(item.requestedAt))
+        .toList(growable: false);
+    int count(RefundStatus status) => periodItems
+        .where((RefundCase item) => item.status == status)
+        .length;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: backofficePanelDecoration(),
-      child: LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final Widget search = TextField(
-            controller: _searchController,
-            onChanged: (String value) => setState(() => _query = value),
-            decoration: InputDecoration(
-              hintText: 'Référence, client, téléphone ou motif',
-              prefixIcon: const Icon(Symbols.search_rounded),
-              suffixIcon: _query.trim().isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Effacer la recherche',
-                      onPressed: _clearSearch,
-                      icon: const Icon(Symbols.close_rounded),
-                    ),
-            ),
-          );
-          final Widget scope = DropdownButtonFormField<_RefundScope>(
-            initialValue: _scope,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Vue'),
-            items: <DropdownMenuItem<_RefundScope>>[
-              DropdownMenuItem(value: _RefundScope.all, child: Text('Tous (${all.length})')),
-              DropdownMenuItem(value: _RefundScope.pending, child: Text('À valider (${count(RefundStatus.pendingApproval)})')),
-              DropdownMenuItem(value: _RefundScope.approved, child: Text('À effectuer (${count(RefundStatus.approved)})')),
-              DropdownMenuItem(value: _RefundScope.refunded, child: Text('Remboursés (${count(RefundStatus.refunded)})')),
-              DropdownMenuItem(value: _RefundScope.reconciled, child: Text('Rapprochés (${count(RefundStatus.reconciled)})')),
-              DropdownMenuItem(value: _RefundScope.rejected, child: Text('Rejetés (${count(RefundStatus.rejected)})')),
-            ],
-            onChanged: (_RefundScope? value) {
-              if (value != null) setState(() => _scope = value);
-            },
-          );
-          final int scopeTotal = _scopeCount(all);
-          final Widget indicator = Align(
-            alignment: Alignment.centerLeft,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 9),
-              child: Text(
-                _query.trim().isEmpty
-                    ? '$scopeTotal dossier${scopeTotal > 1 ? 's' : ''} dans cette vue'
-                    : '$visibleCount affiché${visibleCount > 1 ? 's' : ''} sur $scopeTotal dans cette vue',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: BackofficePalette.muted,
-                  fontWeight: FontWeight.w700,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final Widget search = TextField(
+                controller: _searchController,
+                onChanged: (String value) => setState(() => _query = value),
+                decoration: InputDecoration(
+                  hintText: 'Référence, client, téléphone ou motif',
+                  prefixIcon: const Icon(Symbols.search_rounded),
+                  suffixIcon: _query.trim().isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Effacer la recherche',
+                          onPressed: _clearSearch,
+                          icon: const Icon(Symbols.close_rounded),
+                        ),
                 ),
-              ),
-            ),
-          );
-          if (constraints.maxWidth < 760) {
-            return Column(
-              children: <Widget>[
-                search,
-                const SizedBox(height: 10),
-                scope,
-                indicator,
-              ],
-            );
-          }
-          return Column(
-            children: <Widget>[
-              Row(
-                children: <Widget>[
-                  Expanded(flex: 3, child: search),
-                  const SizedBox(width: 10),
-                  SizedBox(width: 260, child: scope),
+              );
+              final Widget scope = DropdownButtonFormField<_RefundScope>(
+                initialValue: _scope,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Vue'),
+                items: <DropdownMenuItem<_RefundScope>>[
+                  DropdownMenuItem(value: _RefundScope.all, child: Text('Tous (${periodItems.length})')),
+                  DropdownMenuItem(value: _RefundScope.pending, child: Text('À valider (${count(RefundStatus.pendingApproval)})')),
+                  DropdownMenuItem(value: _RefundScope.approved, child: Text('À effectuer (${count(RefundStatus.approved)})')),
+                  DropdownMenuItem(value: _RefundScope.refunded, child: Text('Remboursés (${count(RefundStatus.refunded)})')),
+                  DropdownMenuItem(value: _RefundScope.reconciled, child: Text('Rapprochés (${count(RefundStatus.reconciled)})')),
+                  DropdownMenuItem(value: _RefundScope.rejected, child: Text('Rejetés (${count(RefundStatus.rejected)})')),
                 ],
-              ),
-              indicator,
-            ],
-          );
-        },
+                onChanged: (_RefundScope? value) {
+                  if (value != null) setState(() => _scope = value);
+                },
+              );
+              final int scopeTotal = _scopeCount(all);
+              final Widget indicator = Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 9),
+                  child: Text(
+                    _query.trim().isEmpty
+                        ? '$scopeTotal dossier${scopeTotal > 1 ? 's' : ''} dans cette vue'
+                        : '$visibleCount affiché${visibleCount > 1 ? 's' : ''} sur $scopeTotal dans cette vue',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: BackofficePalette.muted,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              );
+              if (constraints.maxWidth < 760) {
+                return Column(
+                  children: <Widget>[
+                    search,
+                    const SizedBox(height: 10),
+                    scope,
+                    indicator,
+                  ],
+                );
+              }
+              return Column(
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Expanded(flex: 3, child: search),
+                      const SizedBox(width: 10),
+                      SizedBox(width: 260, child: scope),
+                    ],
+                  ),
+                  indicator,
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          IzyTelPeriodFilterBar(
+            value: _period,
+            onChanged: (IzyTelPeriodFilterValue value) {
+              setState(() => _period = value);
+            },
+            compact: MediaQuery.sizeOf(context).width < 760,
+            calendarHelpText: 'Retrouver d’anciens remboursements',
+          ),
+        ],
       ),
     );
   }
 
+
   int _scopeCount(List<RefundCase> all) {
     return all.where((RefundCase item) {
+      if (!_period.contains(item.requestedAt)) return false;
       return switch (_scope) {
         _RefundScope.all => true,
         _RefundScope.pending => item.status == RefundStatus.pendingApproval,
@@ -290,6 +310,7 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
   List<RefundCase> _filtered(List<RefundCase> all) {
     final String query = _query.trim().toLowerCase();
     final List<RefundCase> result = all.where((RefundCase item) {
+      if (!_period.contains(item.requestedAt)) return false;
       final bool inScope = switch (_scope) {
         _RefundScope.all => true,
         _RefundScope.pending => item.status == RefundStatus.pendingApproval,
@@ -470,8 +491,6 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
       if (!mounted) return;
       _clearSearch();
       setState(() => _scope = _RefundScope.pending);
-      _reloadStream();
-      if (!mounted) return;
       _showMessage(
         'Dossier créé. Il est maintenant disponible dans « À valider ».',
       );
@@ -739,8 +758,6 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
       }
 
       if (!mounted) return;
-      _reloadStream();
-      if (!mounted) return;
       _showMessage(
         !hasSupport
             ? 'Remboursement effectué. La sortie est déduite de la Caisse Wave théorique.'
@@ -856,8 +873,6 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
     try {
       await action();
       if (!mounted) return;
-      _reloadStream();
-      if (!mounted) return;
       _showMessage(successMessage);
     } catch (error) {
       if (!mounted) return;
@@ -868,7 +883,9 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
   }
 
   void _showMessage(String message) {
-    IzyTelFeedback.show(context, message);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   Future<String?> _textDialog({required String title, required String hint, required String actionLabel}) async {

@@ -10,7 +10,7 @@ import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
-import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
+import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -43,11 +43,12 @@ class BackofficeSupportRequestsPage extends StatefulWidget {
 class _BackofficeSupportRequestsPageState
     extends State<BackofficeSupportRequestsPage> {
   final TextEditingController _searchController = TextEditingController();
-  late Stream<List<SupportRequest>> _stream;
-  late Stream<List<RefundCase>> _refundStream;
-  _SupportScope _scope = _SupportScope.all;
+  late final Stream<List<SupportRequest>> _stream;
+  late final Stream<List<RefundCase>> _refundStream;
+  _SupportScope _scope = _SupportScope.newRequests;
   String _query = '';
   bool _submitting = false;
+  IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
 
   @override
   void initState() {
@@ -60,14 +61,6 @@ class _BackofficeSupportRequestsPageState
       _query = initialReference;
       _searchController.text = initialReference;
     }
-  }
-
-  void _reloadStreams() {
-    if (!mounted) return;
-    setState(() {
-      _stream = widget.repository.watchAllRequests();
-      _refundStream = widget.refundRepository.watchAll();
-    });
   }
 
   @override
@@ -97,24 +90,27 @@ class _BackofficeSupportRequestsPageState
           stream: _refundStream,
           builder: (BuildContext context, AsyncSnapshot<List<RefundCase>> refundSnapshot) {
             final List<SupportRequest> all = requestSnapshot.data!;
+            final List<SupportRequest> periodItems = all
+                .where((SupportRequest item) => _period.contains(item.createdAt))
+                .toList(growable: false);
             final List<RefundCase> refunds =
                 refundSnapshot.data ?? const <RefundCase>[];
-            final int newCount = all
+            final int newCount = periodItems
                 .where(
                   (SupportRequest item) =>
                       item.status == SupportRequestStatus.newRequest,
                 )
                 .length;
-            final int inProgressCount = all
+            final int inProgressCount = periodItems
                 .where(
                   (SupportRequest item) =>
                       item.status == SupportRequestStatus.inProgress,
                 )
                 .length;
-            final int resolvedCount = all
+            final int resolvedCount = periodItems
                 .where((SupportRequest item) => item.isResolved)
                 .length;
-            final List<SupportRequest> visible = _filtered(all);
+            final List<SupportRequest> visible = _filtered(periodItems);
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -129,7 +125,7 @@ class _BackofficeSupportRequestsPageState
                 ),
                 const SizedBox(height: 18),
                 _metrics(
-                  allCount: all.length,
+                  allCount: periodItems.length,
                   newCount: newCount,
                   inProgressCount: inProgressCount,
                   resolvedCount: resolvedCount,
@@ -155,7 +151,7 @@ class _BackofficeSupportRequestsPageState
                   const SizedBox(height: 14),
                 ],
                 _filters(
-                  allCount: all.length,
+                  allCount: periodItems.length,
                   newCount: newCount,
                   inProgressCount: inProgressCount,
                   resolvedCount: resolvedCount,
@@ -298,62 +294,67 @@ class _BackofficeSupportRequestsPageState
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: backofficePanelDecoration(),
-      child: LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final Widget search = TextField(
-            controller: _searchController,
-            onChanged: (String value) => setState(() => _query = value),
-            decoration: const InputDecoration(
-              hintText: 'Référence, motif, description ou responsable',
-              prefixIcon: Icon(Symbols.search_rounded),
-            ),
-          );
-          final Widget scope = DropdownButtonFormField<_SupportScope>(
-            initialValue: _scope,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Vue'),
-            items: <DropdownMenuItem<_SupportScope>>[
-              DropdownMenuItem(
-                value: _SupportScope.all,
-                child: Text('Toutes ($allCount)'),
-              ),
-              DropdownMenuItem(
-                value: _SupportScope.newRequests,
-                child: Text('À traiter ($newCount)'),
-              ),
-              DropdownMenuItem(
-                value: _SupportScope.inProgress,
-                child: Text('En cours ($inProgressCount)'),
-              ),
-              DropdownMenuItem(
-                value: _SupportScope.resolved,
-                child: Text('Historique ($resolvedCount)'),
-              ),
-            ],
-            onChanged: (_SupportScope? value) {
-              if (value != null) setState(() => _scope = value);
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final Widget search = TextField(
+                controller: _searchController,
+                onChanged: (String value) => setState(() => _query = value),
+                decoration: const InputDecoration(
+                  hintText: 'Référence, motif, description ou responsable',
+                  prefixIcon: Icon(Symbols.search_rounded),
+                ),
+              );
+              final Widget scope = DropdownButtonFormField<_SupportScope>(
+                initialValue: _scope,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Vue'),
+                items: <DropdownMenuItem<_SupportScope>>[
+                  DropdownMenuItem(value: _SupportScope.all, child: Text('Toutes ($allCount)')),
+                  DropdownMenuItem(value: _SupportScope.newRequests, child: Text('À traiter ($newCount)')),
+                  DropdownMenuItem(value: _SupportScope.inProgress, child: Text('En cours ($inProgressCount)')),
+                  DropdownMenuItem(value: _SupportScope.resolved, child: Text('Historique ($resolvedCount)')),
+                ],
+                onChanged: (_SupportScope? value) {
+                  if (value != null) setState(() => _scope = value);
+                },
+              );
+              if (constraints.maxWidth < 760) {
+                return Column(
+                  children: <Widget>[search, const SizedBox(height: 10), scope],
+                );
+              }
+              return Row(
+                children: <Widget>[
+                  Expanded(flex: 3, child: search),
+                  const SizedBox(width: 10),
+                  SizedBox(width: 250, child: scope),
+                ],
+              );
             },
-          );
-          if (constraints.maxWidth < 760) {
-            return Column(
-              children: <Widget>[search, const SizedBox(height: 10), scope],
-            );
-          }
-          return Row(
-            children: <Widget>[
-              Expanded(flex: 3, child: search),
-              const SizedBox(width: 10),
-              SizedBox(width: 250, child: scope),
-            ],
-          );
-        },
+          ),
+          const SizedBox(height: 12),
+          IzyTelPeriodFilterBar(
+            value: _period,
+            onChanged: (IzyTelPeriodFilterValue value) {
+              setState(() => _period = value);
+            },
+            compact: MediaQuery.sizeOf(context).width < 760,
+            calendarHelpText: 'Retrouver d’anciennes demandes clients',
+          ),
+        ],
       ),
     );
   }
 
+
   List<SupportRequest> _filtered(List<SupportRequest> all) {
     final String query = _query.trim().toLowerCase();
-    final Iterable<SupportRequest> scoped = all.where((SupportRequest item) {
+    final Iterable<SupportRequest> scoped = all
+        .where((SupportRequest item) => _period.contains(item.createdAt))
+        .where((SupportRequest item) {
       switch (_scope) {
         case _SupportScope.all:
           return true;
@@ -612,11 +613,6 @@ class _BackofficeSupportRequestsPageState
         staffName: widget.user.name,
       ),
       successMessage: 'La demande est maintenant en cours de traitement.',
-      onSuccess: () {
-        if (_scope != _SupportScope.all) {
-          setState(() => _scope = _SupportScope.all);
-        }
-      },
     );
   }
 
@@ -674,7 +670,6 @@ class _BackofficeSupportRequestsPageState
       );
 
       if (!mounted) return;
-      _reloadStreams();
       _showMessage(
         'Remboursement créé. La demande reste en cours jusqu’au remboursement réel du client.',
       );
@@ -745,16 +740,11 @@ class _BackofficeSupportRequestsPageState
   Future<void> _runAction(
     Future<void> Function() action, {
     required String successMessage,
-    VoidCallback? onSuccess,
   }) async {
     if (_submitting) return;
     setState(() => _submitting = true);
     try {
       await action();
-      if (!mounted) return;
-      onSuccess?.call();
-      if (!mounted) return;
-      _reloadStreams();
       if (!mounted) return;
       _showMessage(successMessage);
     } catch (error) {
@@ -1257,6 +1247,8 @@ class _BackofficeSupportRequestsPageState
   }
 
   void _showMessage(String message) {
-    IzyTelFeedback.show(context, message);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }

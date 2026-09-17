@@ -7,6 +7,7 @@ import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
+import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -39,6 +40,7 @@ class _BackofficeOrdersPageState extends State<BackofficeOrdersPage> {
   String? _error;
   _OrdersScope _scope = _OrdersScope.all;
   MobileNetwork? _network;
+  IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
 
   @override
   void initState() {
@@ -90,9 +92,12 @@ class _BackofficeOrdersPageState extends State<BackofficeOrdersPage> {
     super.dispose();
   }
 
+  Iterable<QueueOrder> get _periodOrders =>
+      _orders.where((QueueOrder order) => _period.contains(order.createdAt));
+
   List<QueueOrder> get _visibleOrders {
     final String query = _searchController.text.trim().toLowerCase();
-    Iterable<QueueOrder> result = _orders;
+    Iterable<QueueOrder> result = _periodOrders;
 
     if (_network != null) {
       result = result.where((QueueOrder order) => order.network == _network);
@@ -145,7 +150,7 @@ class _BackofficeOrdersPageState extends State<BackofficeOrdersPage> {
     return result.toList(growable: false);
   }
 
-  int get _activeCount => _orders.where((QueueOrder order) {
+  int get _activeCount => _periodOrders.where((QueueOrder order) {
     return <QueueOrderStatus>{
       QueueOrderStatus.awaitingPayment,
       QueueOrderStatus.paymentToVerify,
@@ -164,7 +169,7 @@ class _BackofficeOrdersPageState extends State<BackofficeOrdersPage> {
     }).length;
   }
 
-  int get _completedCount => _orders.where((QueueOrder order) {
+  int get _completedCount => _periodOrders.where((QueueOrder order) {
     return <QueueOrderStatus>{
       QueueOrderStatus.awaitingCustomerConfirmation,
       QueueOrderStatus.completed,
@@ -172,7 +177,7 @@ class _BackofficeOrdersPageState extends State<BackofficeOrdersPage> {
     }.contains(order.status);
   }).length;
 
-  int get _failedCount => _orders.where((QueueOrder order) {
+  int get _failedCount => _periodOrders.where((QueueOrder order) {
     return <QueueOrderStatus>{
       QueueOrderStatus.failed,
       QueueOrderStatus.cancelled,
@@ -201,9 +206,9 @@ class _BackofficeOrdersPageState extends State<BackofficeOrdersPage> {
         _MetricsGrid(
           cards: <Widget>[
             BackofficeMetricCard(
-              label: 'Aujourd’hui',
-              value: '$_todayCount',
-              caption: 'commandes créées',
+              label: _period.isActive ? _period.label : 'Aujourd’hui',
+              value: _period.isActive ? '${_periodOrders.length}' : '$_todayCount',
+              caption: _period.isActive ? 'commandes dans la période' : 'commandes créées',
               icon: Symbols.today_rounded,
             ),
             BackofficeMetricCard(
@@ -262,70 +267,84 @@ class _BackofficeOrdersPageState extends State<BackofficeOrdersPage> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: backofficePanelDecoration(),
-      child: LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final bool compact = constraints.maxWidth < 820;
-          final Widget search = TextField(
-            controller: _searchController,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              hintText: 'Référence, client, numéro, offre ou agent',
-              prefixIcon: Icon(Symbols.search_rounded),
-              isDense: true,
-            ),
-          );
-          final Widget scope = DropdownButtonFormField<_OrdersScope>(
-            initialValue: _scope,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'État'),
-            items: const <DropdownMenuItem<_OrdersScope>>[
-              DropdownMenuItem(value: _OrdersScope.all, child: Text('Toutes')),
-              DropdownMenuItem(value: _OrdersScope.active, child: Text('Actives')),
-              DropdownMenuItem(value: _OrdersScope.completed, child: Text('Terminées')),
-              DropdownMenuItem(value: _OrdersScope.failed, child: Text('Alertes')),
-            ],
-            onChanged: (_OrdersScope? value) {
-              if (value != null) setState(() => _scope = value);
-            },
-          );
-          final Widget network = DropdownButtonFormField<MobileNetwork?>(
-            initialValue: _network,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Réseau'),
-            items: const <DropdownMenuItem<MobileNetwork?>>[
-              DropdownMenuItem(value: null, child: Text('Tous les réseaux')),
-              DropdownMenuItem(value: MobileNetwork.orange, child: Text('Orange')),
-              DropdownMenuItem(value: MobileNetwork.mtn, child: Text('MTN')),
-              DropdownMenuItem(value: MobileNetwork.moov, child: Text('Moov Africa')),
-            ],
-            onChanged: (MobileNetwork? value) => setState(() => _network = value),
-          );
-
-          if (compact) {
-            return Column(
-              children: <Widget>[
-                search,
-                const SizedBox(height: 10),
-                Row(
-                  children: <Widget>[
-                    Expanded(child: scope),
-                    const SizedBox(width: 10),
-                    Expanded(child: network),
-                  ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final bool compact = constraints.maxWidth < 820;
+              final Widget search = TextField(
+                controller: _searchController,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  hintText: 'Référence, client, numéro, offre ou agent',
+                  prefixIcon: Icon(Symbols.search_rounded),
+                  isDense: true,
                 ),
-              ],
-            );
-          }
-          return Row(
-            children: <Widget>[
-              Expanded(flex: 5, child: search),
-              const SizedBox(width: 10),
-              Expanded(flex: 2, child: scope),
-              const SizedBox(width: 10),
-              Expanded(flex: 2, child: network),
-            ],
-          );
-        },
+              );
+              final Widget scope = DropdownButtonFormField<_OrdersScope>(
+                initialValue: _scope,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'État'),
+                items: const <DropdownMenuItem<_OrdersScope>>[
+                  DropdownMenuItem(value: _OrdersScope.all, child: Text('Toutes')),
+                  DropdownMenuItem(value: _OrdersScope.active, child: Text('Actives')),
+                  DropdownMenuItem(value: _OrdersScope.completed, child: Text('Terminées')),
+                  DropdownMenuItem(value: _OrdersScope.failed, child: Text('Alertes')),
+                ],
+                onChanged: (_OrdersScope? value) {
+                  if (value != null) setState(() => _scope = value);
+                },
+              );
+              final Widget network = DropdownButtonFormField<MobileNetwork?>(
+                initialValue: _network,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Réseau'),
+                items: const <DropdownMenuItem<MobileNetwork?>>[
+                  DropdownMenuItem(value: null, child: Text('Tous les réseaux')),
+                  DropdownMenuItem(value: MobileNetwork.orange, child: Text('Orange')),
+                  DropdownMenuItem(value: MobileNetwork.mtn, child: Text('MTN')),
+                  DropdownMenuItem(value: MobileNetwork.moov, child: Text('Moov Africa')),
+                ],
+                onChanged: (MobileNetwork? value) => setState(() => _network = value),
+              );
+
+              if (compact) {
+                return Column(
+                  children: <Widget>[
+                    search,
+                    const SizedBox(height: 10),
+                    Row(
+                      children: <Widget>[
+                        Expanded(child: scope),
+                        const SizedBox(width: 10),
+                        Expanded(child: network),
+                      ],
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                children: <Widget>[
+                  Expanded(flex: 5, child: search),
+                  const SizedBox(width: 10),
+                  Expanded(flex: 2, child: scope),
+                  const SizedBox(width: 10),
+                  Expanded(flex: 2, child: network),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          IzyTelPeriodFilterBar(
+            value: _period,
+            onChanged: (IzyTelPeriodFilterValue value) {
+              setState(() => _period = value);
+            },
+            compact: MediaQuery.sizeOf(context).width < 760,
+            calendarHelpText: 'Retrouver d’anciennes commandes',
+          ),
+        ],
       ),
     );
   }

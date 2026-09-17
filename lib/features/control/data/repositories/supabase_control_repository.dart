@@ -38,4 +38,65 @@ class SupabaseControlRepository implements ControlRepository {
 
     return ControlSnapshot.fromJson(json);
   }
+
+  @override
+  Future<ControlActivityPageData> fetchActivityPage({
+    DateTime? start,
+    DateTime? end,
+    String? domain,
+    String query = '',
+    int offset = 0,
+    int limit = 100,
+  }) async {
+    final dynamic response = await _client.rpc(
+      'izytel_bo75_control_activity_page',
+      params: <String, dynamic>{
+        'p_start': start?.toUtc().toIso8601String(),
+        'p_end': end?.toUtc().toIso8601String(),
+        'p_domain': domain?.trim().isEmpty == true ? null : domain?.trim(),
+        'p_query': query.trim().isEmpty ? null : query.trim(),
+        'p_offset': offset,
+        'p_limit': limit,
+      },
+    );
+    if (response is! Map) {
+      throw StateError('La page du journal d’activité est invalide.');
+    }
+    return ControlActivityPageData.fromJson(
+      response.map(
+        (dynamic key, dynamic value) => MapEntry(key.toString(), value),
+      ),
+    );
+  }
+
+  @override
+  Future<ControlAuditPageData> fetchAuditPage({
+    DateTime? start,
+    DateTime? end,
+    String? domain,
+    String query = '',
+    int offset = 0,
+    int limit = 100,
+  }) async {
+    final dynamic response = await _client.rpc(
+      'izytel_bo75_control_audit_page',
+      params: <String, dynamic>{
+        'p_start': start?.toUtc().toIso8601String(),
+        'p_end': end?.toUtc().toIso8601String(),
+        'p_domain': domain?.trim().isEmpty == true ? null : domain?.trim(),
+        'p_query': query.trim().isEmpty ? null : query.trim(),
+        'p_offset': offset,
+        'p_limit': limit,
+      },
+    );
+    if (response is! Map) {
+      throw StateError('La page d’audit est invalide.');
+    }
+    return ControlAuditPageData.fromJson(
+      response.map(
+        (dynamic key, dynamic value) => MapEntry(key.toString(), value),
+      ),
+    );
+  }
+
 }
