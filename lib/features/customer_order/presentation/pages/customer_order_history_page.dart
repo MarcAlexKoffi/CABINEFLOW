@@ -143,6 +143,7 @@ class _CustomerOrderHistoryPageState extends State<CustomerOrderHistoryPage> {
       child: RefreshIndicator(
         onRefresh: widget.viewModel.reloadHistory,
         child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(
             desktop ? 32 : 18,
             desktop ? 30 : 24,

@@ -4,6 +4,7 @@ import 'package:cabine_flow/features/customer_order/domain/models/customer_ident
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/payment_declaration.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
@@ -43,6 +44,50 @@ void main() {
         expect(viewModel.paymentLinkWasOpened, isFalse);
         expect(viewModel.recoveryErrorMessage, isNull);
 
+        viewModel.dispose();
+      },
+    );
+
+    test(
+      'retrouve une commande avec réseau, type et numéro bénéficiaire',
+      () async {
+        final FakeCustomerOrderRepository repository =
+            FakeCustomerOrderRepository();
+        final CustomerOrderReceipt created = await repository.createOrder(
+          draft: CustomerOrderDraft(
+            identity: CustomerIdentity(
+              name: 'Koffi',
+              whatsappNumber: WhatsappPhoneNumber.parse('07 00 00 00 10'),
+            ),
+            service: CustomerService.calls,
+            network: MobileNetwork.orange,
+            customOfferLabel: 'Souscription appel Orange',
+            amount: 1000,
+            beneficiaryNumber: BeneficiaryPhoneNumber.parse('07 11 22 33 44'),
+          ),
+        );
+        await repository.declarePayment(
+          order: created,
+          declaration: PaymentDeclaration.parse(
+            waveAccountName: 'Koffi',
+            wavePayerPhoneInput: '07 00 00 00 10',
+            approximatePaymentTime: '15:00',
+          ),
+        );
+        final CustomerOrderViewModel viewModel = CustomerOrderViewModel(
+          orderRepository: repository,
+        );
+
+        final bool recovered = await viewModel.recoverOrderByDetails(
+          network: MobileNetwork.orange,
+          service: CustomerService.calls,
+          beneficiaryInput: '07 11 22 33 44',
+        );
+
+        expect(recovered, isTrue);
+        expect(viewModel.currentStep, 8);
+        expect(viewModel.receipt?.id, created.id);
+        expect(viewModel.recoveryErrorMessage, isNull);
         viewModel.dispose();
       },
     );

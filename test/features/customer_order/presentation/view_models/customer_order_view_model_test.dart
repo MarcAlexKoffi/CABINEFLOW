@@ -156,6 +156,39 @@ void main() {
       expect(viewModel.currentStep, 5);
     });
 
+    test(
+      'une offre déjà choisie saute service, réseau et forfait après identification',
+      () {
+        final CustomerOrderViewModel viewModel = CustomerOrderViewModel(
+          orderRepository: FakeCustomerOrderRepository(),
+        );
+        const CustomerOffer offer = CustomerOffer(
+          id: 'orange-calls-direct',
+          network: MobileNetwork.orange,
+          type: CustomerOfferType.calls,
+          title: 'Pass appels',
+          catalogLabel: 'Orange Pass appels',
+          amount: 1000,
+          details: <String>['Appels'],
+        );
+
+        viewModel.selectService(CustomerService.calls);
+        viewModel.selectNetwork(MobileNetwork.orange);
+        viewModel.selectOffer(offer);
+
+        expect(viewModel.currentStep, 1);
+        viewModel.saveIdentity(
+          name: 'Client catalogue',
+          whatsappInput: '05 00 00 00 02',
+        );
+
+        expect(viewModel.currentStep, 5);
+        expect(viewModel.draft.service, CustomerService.calls);
+        expect(viewModel.draft.network, MobileNetwork.orange);
+        expect(viewModel.draft.offer, same(offer));
+      },
+    );
+
     test('changer de réseau efface l’offre et son montant', () {
       final CustomerOrderViewModel viewModel = CustomerOrderViewModel(
         orderRepository: FakeCustomerOrderRepository(),

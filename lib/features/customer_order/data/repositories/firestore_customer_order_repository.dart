@@ -298,6 +298,33 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
   }
 
   @override
+  Future<CustomerOrderReceipt> findCustomerOrder({
+    required MobileNetwork network,
+    required CustomerService service,
+    required String beneficiaryInput,
+  }) async {
+    final User customer = await _ensureAnonymousCustomer();
+    final BeneficiaryPhoneNumber beneficiary = BeneficiaryPhoneNumber.parse(
+      beneficiaryInput,
+    );
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _ordersCollection
+        .where('customerAuthUid', isEqualTo: customer.uid)
+        .get();
+    final List<CustomerOrderReceipt> orders =
+        await _receiptsFromCustomerSnapshot(snapshot);
+
+    for (final CustomerOrderReceipt order in orders) {
+      if (order.draft.network == network &&
+          order.draft.service == service &&
+          order.draft.beneficiaryNumber?.normalized == beneficiary.normalized) {
+        return _overlayOperationalStatus(order);
+      }
+    }
+
+    throw StateError('Commande introuvable ou informations incorrectes.');
+  }
+
+  @override
   Stream<CustomerOrderReceipt> watchOrder({
     required CustomerOrderReceipt order,
   }) {

@@ -68,26 +68,30 @@ class IzyTelSecondaryButton extends StatelessWidget {
     required this.onPressed,
     this.isLoading = false,
     this.icon,
+    this.backgroundColor,
+    this.foregroundColor,
   });
 
   final String text;
   final VoidCallback? onPressed;
   final bool isLoading;
   final IconData? icon;
+  final Color? backgroundColor;
+  final Color? foregroundColor;
 
   @override
   Widget build(BuildContext context) {
+    final Color resolvedBackground =
+        backgroundColor ?? CustomerAppColors.primaryDeep;
+    final Color resolvedForeground =
+        foregroundColor ?? CustomerAppColors.onPrimary;
     return FilledButton(
       onPressed: isLoading ? null : onPressed,
       style: FilledButton.styleFrom(
-        backgroundColor: CustomerAppColors.primaryDeep,
-        foregroundColor: CustomerAppColors.onPrimary,
-        disabledBackgroundColor: CustomerAppColors.primaryDeep.withValues(
-          alpha: 0.35,
-        ),
-        disabledForegroundColor: CustomerAppColors.onPrimary.withValues(
-          alpha: 0.82,
-        ),
+        backgroundColor: resolvedBackground,
+        foregroundColor: resolvedForeground,
+        disabledBackgroundColor: resolvedBackground.withValues(alpha: 0.35),
+        disabledForegroundColor: resolvedForeground.withValues(alpha: 0.82),
       ),
       child: isLoading
           ? const SizedBox(

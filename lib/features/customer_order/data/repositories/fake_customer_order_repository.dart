@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:cabine_flow/features/customer_order/domain/models/beneficiary_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/payment_declaration.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
@@ -151,6 +153,27 @@ class FakeCustomerOrderRepository implements CustomerOrderRepository {
       if (order.reference.toUpperCase() == normalizedReference &&
           order.draft.identity?.whatsappNumber.normalized ==
               whatsapp.normalized) {
+        return order;
+      }
+    }
+
+    throw StateError('Commande introuvable ou informations incorrectes.');
+  }
+
+  @override
+  Future<CustomerOrderReceipt> findCustomerOrder({
+    required MobileNetwork network,
+    required CustomerService service,
+    required String beneficiaryInput,
+  }) async {
+    final BeneficiaryPhoneNumber beneficiary = BeneficiaryPhoneNumber.parse(
+      beneficiaryInput,
+    );
+
+    for (final CustomerOrderReceipt order in _sortedOrders()) {
+      if (order.draft.network == network &&
+          order.draft.service == service &&
+          order.draft.beneficiaryNumber?.normalized == beneficiary.normalized) {
         return order;
       }
     }

@@ -38,10 +38,27 @@ class CustomerHomePage extends StatefulWidget {
 }
 
 class _CustomerHomePageState extends State<CustomerHomePage> {
-  late final Stream<List<CustomerOffer>> _featuredOffers = widget
-      .offerRepository
-      .watchAllOffers()
-      .map(_selectFeaturedOffers);
+  late Stream<List<CustomerOffer>> _featuredOffers;
+
+  @override
+  void initState() {
+    super.initState();
+    _featuredOffers = _watchFeaturedOffers();
+  }
+
+  Stream<List<CustomerOffer>> _watchFeaturedOffers() {
+    return widget.offerRepository.watchAllOffers().map(_selectFeaturedOffers);
+  }
+
+  Future<void> _refreshOffers() async {
+    try {
+      await widget.offerRepository.watchAllOffers().first;
+    } finally {
+      if (mounted) {
+        setState(() => _featuredOffers = _watchFeaturedOffers());
+      }
+    }
+  }
 
   List<CustomerOffer> _selectFeaturedOffers(List<CustomerOffer> source) {
     final List<CustomerOffer> values = source.toList(growable: true);
@@ -124,8 +141,11 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
           final bool desktop = constraints.maxWidth >= 980;
-          return SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(
+          return RefreshIndicator(
+            onRefresh: _refreshOffers,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(
               desktop ? 34 : 18,
               desktop ? 42 : 22,
               desktop ? 34 : 18,
@@ -199,7 +219,8 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                 ],
               ],
             ),
-          );
+          ),
+        );
         },
       ),
     );
@@ -278,6 +299,9 @@ class _HeroSection extends StatelessWidget {
               Expanded(
                 child: IzyTelSecondaryButton(
                   text: 'Voir les offres',
+                  icon: Icons.local_offer_outlined,
+                  backgroundColor: CustomerAppColors.cyanAccent,
+                  foregroundColor: CustomerAppColors.primaryDeep,
                   onPressed: onOpenOffers,
                 ),
               ),
@@ -292,6 +316,9 @@ class _HeroSection extends StatelessWidget {
           const SizedBox(height: 10),
           IzyTelSecondaryButton(
             text: 'Voir les offres',
+            icon: Icons.local_offer_outlined,
+            backgroundColor: CustomerAppColors.cyanAccent,
+            foregroundColor: CustomerAppColors.primaryDeep,
             onPressed: onOpenOffers,
           ),
         ],

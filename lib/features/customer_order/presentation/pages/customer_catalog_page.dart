@@ -77,6 +77,16 @@ class _CustomerCatalogPageState extends State<CustomerCatalogPage> {
     });
   }
 
+  Future<void> _refreshOffers() async {
+    try {
+      await widget.offerRepository.watchAllOffers().first;
+    } finally {
+      if (mounted) {
+        setState(() => _offersStream = _watchOffers());
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool desktopHeader = MediaQuery.sizeOf(context).width >= 900;
@@ -139,8 +149,11 @@ class _CustomerCatalogPageState extends State<CustomerCatalogPage> {
               return LayoutBuilder(
                 builder: (BuildContext context, BoxConstraints constraints) {
                   final bool desktop = constraints.maxWidth >= 900;
-                  return ListView(
-                    padding: EdgeInsets.fromLTRB(
+                  return RefreshIndicator(
+                    onRefresh: _refreshOffers,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(
                       desktop ? 32 : 18,
                       24,
                       desktop ? 32 : 18,
@@ -184,7 +197,8 @@ class _CustomerCatalogPageState extends State<CustomerCatalogPage> {
                           onChoose: widget.onChooseOffer,
                         ),
                     ],
-                  );
+                  ),
+                );
                 },
               );
             },

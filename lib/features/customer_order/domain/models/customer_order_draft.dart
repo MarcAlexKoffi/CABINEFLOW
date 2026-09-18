@@ -27,8 +27,7 @@ class CustomerOrderDraft {
 
   final int? amount;
 
-  /// Stored only after the two beneficiary fields have been validated and
-  /// confirmed as identical.
+  /// Stored after the beneficiary number has been validated by the client flow.
   final BeneficiaryPhoneNumber? beneficiaryNumber;
 
   bool get usesCustomOffer => customOfferLabel != null;

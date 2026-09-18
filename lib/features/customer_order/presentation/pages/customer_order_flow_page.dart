@@ -4,18 +4,15 @@ import 'package:cabine_flow/core/navigation/customer_web_history.dart';
 import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
 import 'package:cabine_flow/features/customer_order/data/local/customer_order_session_store.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/fake_customer_offer_repository.dart';
-import 'package:cabine_flow/features/customer_order/data/repositories/fake_customer_profile_repository.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/firestore_customer_offer_repository.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/supabase_customer_offer_repository.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/firestore_customer_order_repository.dart';
-import 'package:cabine_flow/features/customer_order/data/repositories/firestore_customer_profile_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_offer.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_offer_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_session_store.dart';
-import 'package:cabine_flow/features/customer_order/domain/repositories/customer_profile_repository.dart';
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_beneficiary_page.dart';
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_catalog_page.dart';
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_confirmation_page.dart';
@@ -49,7 +46,6 @@ class CustomerOrderFlowPage extends StatefulWidget {
 class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
   late final CustomerOrderViewModel _viewModel;
   late final CustomerOfferRepository _offerRepository;
-  late final CustomerProfileRepository _profileRepository;
   late final SupportRequestRepository _supportRequestRepository;
   late final CustomerWebHistoryController _webHistory;
 
@@ -74,14 +70,10 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
                   ? SupabaseCustomerOfferRepository()
                   : FirestoreCustomerOfferRepository()
             : const FakeCustomerOfferRepository());
-    _profileRepository = Firebase.apps.isNotEmpty
-        ? FirestoreCustomerProfileRepository()
-        : FakeCustomerProfileRepository();
     _supportRequestRepository = createOperationalSupportRequestRepository();
     _viewModel = CustomerOrderViewModel(
       orderRepository: _orderRepository,
       sessionStore: _sessionStore,
-      profileRepository: _profileRepository,
     );
     _lastObservedStep = _viewModel.currentStep;
     _viewModel.addListener(_handleViewModelNavigationChanged);

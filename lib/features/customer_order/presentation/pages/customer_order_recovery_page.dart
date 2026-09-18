@@ -1,9 +1,12 @@
 import 'package:cabine_flow/core/theme/customer_app_colors.dart';
-import 'package:cabine_flow/features/customer_order/domain/models/customer_order_recovery_key.dart';
-import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone_number.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/beneficiary_phone_number.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_bottom_actions.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_support_button.dart';
+import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_cards.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_operator_brand.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -21,54 +24,46 @@ class CustomerOrderRecoveryPage extends StatefulWidget {
   final VoidCallback onRecovered;
 
   @override
-  State<CustomerOrderRecoveryPage> createState() {
-    return _CustomerOrderRecoveryPageState();
-  }
+  State<CustomerOrderRecoveryPage> createState() =>
+      _CustomerOrderRecoveryPageState();
 }
 
 class _CustomerOrderRecoveryPageState extends State<CustomerOrderRecoveryPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  late final TextEditingController _referenceController;
-  late final TextEditingController _whatsappController;
+  late final TextEditingController _beneficiaryController;
+  MobileNetwork? _network;
+  CustomerService? _service;
 
   @override
   void initState() {
     super.initState();
-    _referenceController = TextEditingController();
-    _whatsappController = TextEditingController();
+    _beneficiaryController = TextEditingController();
   }
 
   @override
   void dispose() {
-    _referenceController.dispose();
-    _whatsappController.dispose();
+    _beneficiaryController.dispose();
     super.dispose();
   }
 
-  String? _validateWhatsapp(String? input) {
-    return WhatsappPhoneNumber.validate(input);
-  }
-
-  void _clearServerError() {
-    widget.viewModel.clearRecoveryError();
-  }
+  void _clearServerError() => widget.viewModel.clearRecoveryError();
 
   Future<void> _recover() async {
     FocusManager.instance.primaryFocus?.unfocus();
-    final bool isValid = _formKey.currentState?.validate() ?? false;
-    if (!isValid) {
+    if (!(_formKey.currentState?.validate() ?? false) ||
+        _network == null ||
+        _service == null) {
       return;
     }
 
-    final bool recovered = await widget.viewModel.recoverOrder(
-      reference: _referenceController.text,
-      whatsappInput: _whatsappController.text,
+    final bool recovered = await widget.viewModel.recoverOrderByDetails(
+      network: _network!,
+      service: _service!,
+      beneficiaryInput: _beneficiaryController.text,
     );
-    if (!mounted || !recovered) {
-      return;
+    if (mounted && recovered) {
+      widget.onRecovered();
     }
-
-    widget.onRecovered();
   }
 
   @override
@@ -78,20 +73,21 @@ class _CustomerOrderRecoveryPageState extends State<CustomerOrderRecoveryPage> {
       onBack: widget.onBack,
       maxContentWidth: 760,
       child: Column(
-        children: [
+        children: <Widget>[
           Expanded(
             child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+                children: <Widget>[
                   Text(
                     'Retrouvez votre commande',
                     style: Theme.of(context).textTheme.displaySmall,
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Même sur un autre téléphone. Saisissez les informations utilisées lors de votre commande pour retrouver son suivi.',
+                    'Indiquez simplement le réseau, le type de commande et le numéro bénéficiaire.',
                     style: TextStyle(
                       color: CustomerAppColors.onSurfaceVariant,
                       fontSize: 14,
@@ -99,13 +95,100 @@ class _CustomerOrderRecoveryPageState extends State<CustomerOrderRecoveryPage> {
                     ),
                   ),
                   const SizedBox(height: 28),
-                  _RecoveryFormCard(
-                    formKey: _formKey,
-                    referenceController: _referenceController,
-                    whatsappController: _whatsappController,
-                    recoveryErrorMessage: widget.viewModel.recoveryErrorMessage,
-                    onChanged: _clearServerError,
-                    validateWhatsapp: _validateWhatsapp,
+                  IzyTelCard(
+                    padding: const EdgeInsets.all(20),
+                    child: Form(
+                      key: _formKey,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          const _FieldLabel(text: 'Réseau'),
+                          DropdownButtonFormField<MobileNetwork>(
+                            initialValue: _network,
+                            decoration: const InputDecoration(
+                              prefixIcon: Icon(Icons.cell_tower_rounded),
+                              hintText: 'Choisissez le réseau',
+                            ),
+                            items: MobileNetwork.values
+                                .map(
+                                  (MobileNetwork network) => DropdownMenuItem<MobileNetwork>(
+                                    value: network,
+                                    child: Text(network.brandLabel),
+                                  ),
+                                )
+                                .toList(growable: false),
+                            validator: (MobileNetwork? value) => value == null
+                                ? 'Sélectionnez le réseau.'
+                                : null,
+                            onChanged: widget.viewModel.isRecoveringOrder
+                                ? null
+                                : (MobileNetwork? value) {
+                                    setState(() => _network = value);
+                                    _clearServerError();
+                                  },
+                          ),
+                          const SizedBox(height: 20),
+                          const _FieldLabel(text: 'Type de commande'),
+                          DropdownButtonFormField<CustomerService>(
+                            initialValue: _service,
+                            decoration: const InputDecoration(
+                              prefixIcon: Icon(Icons.category_outlined),
+                              hintText: 'Choisissez le service',
+                            ),
+                            items: CustomerService.values
+                                .map(
+                                  (CustomerService service) =>
+                                      DropdownMenuItem<CustomerService>(
+                                        value: service,
+                                        child: Text(service.label),
+                                      ),
+                                )
+                                .toList(growable: false),
+                            validator: (CustomerService? value) => value == null
+                                ? 'Sélectionnez le type de commande.'
+                                : null,
+                            onChanged: widget.viewModel.isRecoveringOrder
+                                ? null
+                                : (CustomerService? value) {
+                                    setState(() => _service = value);
+                                    _clearServerError();
+                                  },
+                          ),
+                          const SizedBox(height: 20),
+                          const _FieldLabel(text: 'Numéro bénéficiaire'),
+                          TextFormField(
+                            controller: _beneficiaryController,
+                            keyboardType: TextInputType.phone,
+                            textInputAction: TextInputAction.done,
+                            inputFormatters: <TextInputFormatter>[
+                              FilteringTextInputFormatter.allow(
+                                RegExp(r'[0-9+ ]'),
+                              ),
+                              LengthLimitingTextInputFormatter(20),
+                            ],
+                            decoration: const InputDecoration(
+                              hintText: 'Ex. 07 00 00 00 00',
+                              prefixIcon: Icon(Icons.phone_rounded),
+                            ),
+                            validator: (String? value) =>
+                                BeneficiaryPhoneNumber.validate(
+                                  value,
+                                  emptyMessage:
+                                      'Saisissez le numéro bénéficiaire.',
+                                ),
+                            onChanged: (_) => _clearServerError(),
+                            onFieldSubmitted: (_) => _recover(),
+                          ),
+                          if (widget.viewModel.recoveryErrorMessage != null) ...<Widget>[
+                            const SizedBox(height: 20),
+                            _RecoveryErrorBanner(
+                              message: widget.viewModel.recoveryErrorMessage!,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 14),
                   Container(
@@ -116,7 +199,7 @@ class _CustomerOrderRecoveryPageState extends State<CustomerOrderRecoveryPage> {
                     ),
                     child: const Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+                      children: <Widget>[
                         Icon(
                           Icons.lock_outline_rounded,
                           color: CustomerAppColors.primary,
@@ -125,7 +208,7 @@ class _CustomerOrderRecoveryPageState extends State<CustomerOrderRecoveryPage> {
                         SizedBox(width: 9),
                         Expanded(
                           child: Text(
-                            'Pour protéger vos informations, la référence et le numéro WhatsApp doivent correspondre.',
+                            'Seules les commandes associées à votre session client sont consultées.',
                             style: TextStyle(
                               color: CustomerAppColors.onSurfaceVariant,
                               fontSize: 12,
@@ -144,9 +227,7 @@ class _CustomerOrderRecoveryPageState extends State<CustomerOrderRecoveryPage> {
           ),
           CustomerBottomActions(
             onBack: widget.viewModel.isRecoveringOrder ? null : widget.onBack,
-            onContinue: () {
-              _recover();
-            },
+            onContinue: _recover,
             continueLabel: 'Retrouver ma commande',
             isContinueEnabled: !widget.viewModel.isRecoveringOrder,
             isLoading: widget.viewModel.isRecoveringOrder,
@@ -162,8 +243,8 @@ class _RecoverySupportHelp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: const [
+    return const Column(
+      children: <Widget>[
         Text(
           'Vous n’arrivez pas à retrouver votre commande ?',
           textAlign: TextAlign.center,
@@ -176,95 +257,6 @@ class _RecoverySupportHelp extends StatelessWidget {
         SizedBox(height: 2),
         CustomerSupportButton(),
       ],
-    );
-  }
-}
-
-class _RecoveryFormCard extends StatelessWidget {
-  const _RecoveryFormCard({
-    required this.formKey,
-    required this.referenceController,
-    required this.whatsappController,
-    required this.recoveryErrorMessage,
-    required this.onChanged,
-    required this.validateWhatsapp,
-  });
-
-  final GlobalKey<FormState> formKey;
-  final TextEditingController referenceController;
-  final TextEditingController whatsappController;
-  final String? recoveryErrorMessage;
-  final VoidCallback onChanged;
-  final FormFieldValidator<String> validateWhatsapp;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: CustomerAppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0D000000),
-            blurRadius: 20,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Form(
-        key: formKey,
-        autovalidateMode: AutovalidateMode.onUserInteraction,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const _FieldLabel(text: 'Référence de commande'),
-            TextFormField(
-              controller: referenceController,
-              textCapitalization: TextCapitalization.characters,
-              textInputAction: TextInputAction.next,
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9-]')),
-                LengthLimitingTextInputFormatter(40),
-              ],
-              decoration: const InputDecoration(
-                hintText: 'CF-20260827-XXXXXX',
-                prefixIcon: Icon(Icons.receipt_long_outlined),
-              ),
-              validator: CustomerOrderRecoveryKey.validateReference,
-              onChanged: (_) {
-                onChanged();
-              },
-            ),
-            const SizedBox(height: 22),
-            const _FieldLabel(text: 'Numéro WhatsApp utilisé'),
-            TextFormField(
-              controller: whatsappController,
-              keyboardType: TextInputType.phone,
-              textInputAction: TextInputAction.done,
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ()-]')),
-                LengthLimitingTextInputFormatter(24),
-              ],
-              decoration: const InputDecoration(
-                hintText: '+225 07 12 34 56 78',
-                prefixIcon: Icon(Icons.chat_outlined),
-              ),
-              validator: validateWhatsapp,
-              onChanged: (_) {
-                onChanged();
-              },
-              onFieldSubmitted: (_) {
-                FocusManager.instance.primaryFocus?.unfocus();
-              },
-            ),
-            if (recoveryErrorMessage != null) ...[
-              const SizedBox(height: 22),
-              _RecoveryErrorBanner(message: recoveryErrorMessage!),
-            ],
-          ],
-        ),
-      ),
     );
   }
 }
@@ -305,7 +297,7 @@ class _RecoveryErrorBanner extends StatelessWidget {
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        children: <Widget>[
           const Icon(
             Icons.warning_amber_rounded,
             color: CustomerAppColors.onErrorContainer,

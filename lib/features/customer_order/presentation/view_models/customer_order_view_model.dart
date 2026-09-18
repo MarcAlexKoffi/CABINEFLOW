@@ -2,9 +2,7 @@ import 'dart:async';
 
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/beneficiary_phone_number.dart';
-import 'package:cabine_flow/features/customer_order/domain/models/customer_beneficiary_target.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_identity.dart';
-import 'package:cabine_flow/features/customer_order/domain/models/customer_profile.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_offer.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
@@ -13,7 +11,6 @@ import 'package:cabine_flow/features/customer_order/domain/models/payment_declar
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_repository.dart';
-import 'package:cabine_flow/features/customer_order/domain/repositories/customer_profile_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_session_store.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:flutter/foundation.dart';
@@ -24,15 +21,11 @@ class CustomerOrderViewModel extends ChangeNotifier {
   CustomerOrderViewModel({
     required CustomerOrderRepository orderRepository,
     CustomerOrderSessionStore? sessionStore,
-    CustomerProfileRepository? profileRepository,
   }) : _orderRepository = orderRepository,
-       _sessionStore = sessionStore ?? _NoopCustomerOrderSessionStore(),
-       _profileRepository =
-           profileRepository ?? _NoopCustomerProfileRepository();
+       _sessionStore = sessionStore ?? _NoopCustomerOrderSessionStore();
 
   final CustomerOrderRepository _orderRepository;
   final CustomerOrderSessionStore _sessionStore;
-  final CustomerProfileRepository _profileRepository;
 
   CustomerOrderDraft _draft = const CustomerOrderDraft();
   CustomerOrderReceipt? _receipt;
@@ -43,7 +36,6 @@ class CustomerOrderViewModel extends ChangeNotifier {
   String? _trackingErrorMessage;
   StreamSubscription<CustomerOrderReceipt>? _trackingSubscription;
   StreamSubscription<List<CustomerOrderReceipt>>? _historySubscription;
-  StreamSubscription<CustomerProfile?>? _profileSubscription;
   Timer? _expirationTimer;
   List<CustomerOrderReceipt> _customerOrders = <CustomerOrderReceipt>[];
   CustomerOrderSession? _savedSession;
@@ -51,10 +43,6 @@ class CustomerOrderViewModel extends ChangeNotifier {
   bool _isHistoryInitialized = false;
   bool _hasAttemptedAutomaticRestore = false;
   String? _historyErrorMessage;
-  CustomerProfile? _customerProfile;
-  CustomerBeneficiaryTarget _beneficiaryTarget = CustomerBeneficiaryTarget.self;
-  bool _isLoadingCustomerProfile = false;
-  String? _customerProfileErrorMessage;
   bool _isRecoveringOrder = false;
   String? _recoveryErrorMessage;
   bool _disposed = false;
@@ -78,27 +66,79 @@ class CustomerOrderViewModel extends ChangeNotifier {
       List<CustomerOrderReceipt>.unmodifiable(_customerOrders);
   bool get isLoadingHistory => _isLoadingHistory;
   String? get historyErrorMessage => _historyErrorMessage;
-  CustomerBeneficiaryTarget get beneficiaryTarget => _beneficiaryTarget;
-  bool get isLoadingCustomerProfile => _isLoadingCustomerProfile;
-  String? get customerProfileErrorMessage => _customerProfileErrorMessage;
   bool get isRecoveringOrder => _isRecoveringOrder;
   String? get recoveryErrorMessage => _recoveryErrorMessage;
+  static const int beneficiarySuggestionMinimumOrders = 2;
 
-  BeneficiaryPhoneNumber? get defaultBeneficiaryNumber {
+  List<BeneficiaryPhoneNumber> get suggestedBeneficiaryNumbers {
     final CustomerIdentity? identity = _draft.identity;
-    final CustomerProfile? profile = _customerProfile;
-
-    if (identity == null ||
-        profile == null ||
-        !profile.matchesIdentity(identity)) {
-      return null;
+    final MobileNetwork? network = _draft.network;
+    if (identity == null || network == null) {
+      return const <BeneficiaryPhoneNumber>[];
     }
 
-    return profile.defaultBeneficiaryPhone;
+    final Map<String, int> counts = <String, int>{};
+    final Map<String, BeneficiaryPhoneNumber> numbers =
+        <String, BeneficiaryPhoneNumber>{};
+    final Map<String, DateTime> lastUsedAt = <String, DateTime>{};
+
+    for (final CustomerOrderReceipt order in _customerOrders) {
+      final CustomerIdentity? orderIdentity = order.draft.identity;
+      final BeneficiaryPhoneNumber? beneficiary = order.draft.beneficiaryNumber;
+      if (orderIdentity == null ||
+          beneficiary == null ||
+          order.draft.network != network ||
+          orderIdentity.whatsappNumber.normalized !=
+              identity.whatsappNumber.normalized ||
+          !_countsForBeneficiarySuggestion(order)) {
+        continue;
+      }
+
+      final String key = beneficiary.normalized;
+      counts[key] = (counts[key] ?? 0) + 1;
+      numbers[key] = beneficiary;
+      final DateTime? previousDate = lastUsedAt[key];
+      if (previousDate == null || order.createdAt.isAfter(previousDate)) {
+        lastUsedAt[key] = order.createdAt;
+      }
+    }
+
+    final List<String> eligible = counts.keys
+        .where(
+          (String key) => counts[key]! >= beneficiarySuggestionMinimumOrders,
+        )
+        .toList(growable: false);
+    eligible.sort((String first, String second) {
+      final int byCount = counts[second]!.compareTo(counts[first]!);
+      if (byCount != 0) {
+        return byCount;
+      }
+      return lastUsedAt[second]!.compareTo(lastUsedAt[first]!);
+    });
+
+    return List<BeneficiaryPhoneNumber>.unmodifiable(
+      eligible.map((String key) => numbers[key]!).take(3),
+    );
   }
 
-  bool get hasDefaultBeneficiaryForCurrentIdentity =>
-      defaultBeneficiaryNumber != null;
+  bool _countsForBeneficiarySuggestion(CustomerOrderReceipt order) {
+    if (order.status == QueueOrderStatus.cancelled ||
+        order.status == QueueOrderStatus.expired) {
+      return false;
+    }
+
+    return order.paymentStatus == OrderPaymentStatus.declared ||
+        order.paymentStatus == OrderPaymentStatus.confirmed ||
+        order.paymentStatus == OrderPaymentStatus.credit ||
+        order.status == QueueOrderStatus.paidReady ||
+        order.status == QueueOrderStatus.inProgress ||
+        order.status == QueueOrderStatus.onHold ||
+        order.status == QueueOrderStatus.awaitingCustomerConfirmation ||
+        order.status == QueueOrderStatus.completed ||
+        order.status == QueueOrderStatus.failed ||
+        order.status == QueueOrderStatus.refundPending ||
+        order.status == QueueOrderStatus.refunded;
+  }
 
   CustomerOrderReceipt? get activeOrder {
     final CustomerOrderSession? session = _savedSession;
@@ -127,54 +167,12 @@ class CustomerOrderViewModel extends ChangeNotifier {
 
     _isHistoryInitialized = true;
     await _subscribeToHistory(readSavedSession: true);
-    await _subscribeToCustomerProfile();
   }
 
   Future<void> reloadHistory() async {
     await _historySubscription?.cancel();
     _historySubscription = null;
     await _subscribeToHistory(readSavedSession: false);
-  }
-
-  Future<void> _subscribeToCustomerProfile() async {
-    _isLoadingCustomerProfile = true;
-    _customerProfileErrorMessage = null;
-    notifyListeners();
-
-    try {
-      await _profileSubscription?.cancel();
-      _profileSubscription = _profileRepository.watchCurrentProfile().listen(
-        (CustomerProfile? profile) {
-          _customerProfile = profile;
-          _isLoadingCustomerProfile = false;
-          _customerProfileErrorMessage = null;
-          notifyListeners();
-        },
-        onError: (Object error, StackTrace stackTrace) {
-          IzyTelLog.backendError(
-            'CustomerProfile.watch',
-            error,
-            stackTrace: stackTrace,
-          );
-          _customerProfile = null;
-          _isLoadingCustomerProfile = false;
-          _customerProfileErrorMessage =
-              'Votre numéro habituel n’a pas pu être chargé. Vous pouvez le saisir ci-dessous.';
-          notifyListeners();
-        },
-      );
-    } on Object catch (error, stackTrace) {
-      IzyTelLog.backendError(
-        'CustomerProfile.watch-start',
-        error,
-        stackTrace: stackTrace,
-      );
-      _customerProfile = null;
-      _isLoadingCustomerProfile = false;
-      _customerProfileErrorMessage =
-          'Votre numéro habituel n’a pas pu être chargé. Vous pouvez le saisir ci-dessous.';
-      notifyListeners();
-    }
   }
 
   Future<void> _subscribeToHistory({required bool readSavedSession}) async {
@@ -348,6 +346,44 @@ class CustomerOrderViewModel extends ChangeNotifier {
     }
   }
 
+  Future<bool> recoverOrderByDetails({
+    required MobileNetwork network,
+    required CustomerService service,
+    required String beneficiaryInput,
+  }) async {
+    if (_isRecoveringOrder) {
+      return false;
+    }
+
+    _isRecoveringOrder = true;
+    _recoveryErrorMessage = null;
+    notifyListeners();
+
+    try {
+      final CustomerOrderReceipt recoveredOrder = await _orderRepository
+          .findCustomerOrder(
+            network: network,
+            service: service,
+            beneficiaryInput: beneficiaryInput,
+          );
+      _applyResumedOrder(recoveredOrder, rememberLocally: true);
+      _replaceOrderInHistory(recoveredOrder);
+      return true;
+    } on Object catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'CustomerOrder.recover-by-details',
+        error,
+        stackTrace: stackTrace,
+      );
+      _recoveryErrorMessage =
+          'Commande introuvable. Vérifiez le réseau, le type de commande et le numéro bénéficiaire.';
+      return false;
+    } finally {
+      _isRecoveringOrder = false;
+      notifyListeners();
+    }
+  }
+
   void clearRecoveryError() {
     if (_recoveryErrorMessage == null) {
       return;
@@ -398,12 +434,21 @@ class CustomerOrderViewModel extends ChangeNotifier {
       clearBeneficiaryNumber: identityChanged,
     );
 
-    if (identityChanged) {
-      _beneficiaryTarget = CustomerBeneficiaryTarget.self;
-    }
-
-    _currentStep = 2;
+    _currentStep = _nextStepAfterIdentity();
     notifyListeners();
+  }
+
+  int _nextStepAfterIdentity() {
+    if (_draft.service == null) {
+      return 2;
+    }
+    if (_draft.network == null) {
+      return 3;
+    }
+    if (!canContinueFromOffer) {
+      return 4;
+    }
+    return 5;
   }
 
   void selectService(CustomerService service) {
@@ -573,7 +618,8 @@ class CustomerOrderViewModel extends ChangeNotifier {
       return;
     }
 
-    final bool changed = current.network != latest.network ||
+    final bool changed =
+        current.network != latest.network ||
         current.type != latest.type ||
         current.title != latest.title ||
         current.catalogLabel != latest.catalogLabel ||
@@ -601,21 +647,40 @@ class CustomerOrderViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void selectBeneficiaryTarget(CustomerBeneficiaryTarget target) {
-    if (_beneficiaryTarget == target) {
-      return;
+  void selectSuggestedBeneficiary({
+    required BeneficiaryPhoneNumber beneficiary,
+    bool isPortabilityConfirmed = false,
+  }) {
+    if (!isPortabilityConfirmed &&
+        _draft.network != null &&
+        beneficiary.expectedNetwork != null &&
+        beneficiary.expectedNetwork != _draft.network) {
+      throw const FormatException('PORTABILITY_REQUIRED');
     }
 
-    _beneficiaryTarget = target;
-    _draft = _draft.copyWith(clearBeneficiaryNumber: true);
+    _draft = _draft.copyWith(beneficiaryNumber: beneficiary);
+    _currentStep = 6;
     notifyListeners();
   }
 
-  void useSavedBeneficiaryForMe({bool isPortabilityConfirmed = false}) {
-    final BeneficiaryPhoneNumber? beneficiary = defaultBeneficiaryNumber;
+  void saveBeneficiary({
+    required String phoneInput,
+    String? confirmationInput,
+    bool isPortabilityConfirmed = false,
+  }) {
+    final BeneficiaryPhoneNumber beneficiary = BeneficiaryPhoneNumber.parse(
+      phoneInput,
+    );
 
-    if (beneficiary == null) {
-      return;
+    if (confirmationInput != null && confirmationInput.trim().isNotEmpty) {
+      final BeneficiaryPhoneNumber confirmation = BeneficiaryPhoneNumber.parse(
+        confirmationInput,
+      );
+      if (beneficiary.normalized != confirmation.normalized) {
+        throw const FormatException(
+          'Les deux numéros bénéficiaires ne correspondent pas.',
+        );
+      }
     }
 
     if (!isPortabilityConfirmed &&
@@ -625,112 +690,8 @@ class CustomerOrderViewModel extends ChangeNotifier {
       throw const FormatException('PORTABILITY_REQUIRED');
     }
 
-    _beneficiaryTarget = CustomerBeneficiaryTarget.self;
     _draft = _draft.copyWith(beneficiaryNumber: beneficiary);
     _currentStep = 6;
-    notifyListeners();
-  }
-
-  void saveBeneficiaryForMe({
-    required String phoneInput,
-    required String confirmationInput,
-    bool isPortabilityConfirmed = false,
-  }) {
-    final BeneficiaryPhoneNumber beneficiary = _parseConfirmedBeneficiary(
-      phoneInput: phoneInput,
-      confirmationInput: confirmationInput,
-    );
-    final CustomerIdentity? identity = _draft.identity;
-
-    if (identity == null) {
-      throw StateError(
-        'Identifiez-vous avant de choisir votre numéro habituel.',
-      );
-    }
-
-    if (!isPortabilityConfirmed &&
-        _draft.network != null &&
-        beneficiary.expectedNetwork != _draft.network) {
-      throw const FormatException('PORTABILITY_REQUIRED');
-    }
-
-    _beneficiaryTarget = CustomerBeneficiaryTarget.self;
-    _draft = _draft.copyWith(beneficiaryNumber: beneficiary);
-    _customerProfile = CustomerProfile(
-      name: identity.name,
-      whatsappPhone: identity.whatsappNumber,
-      defaultBeneficiaryPhone: beneficiary,
-    );
-    _currentStep = 6;
-    notifyListeners();
-
-    unawaited(
-      _persistDefaultBeneficiary(identity: identity, beneficiary: beneficiary),
-    );
-  }
-
-  void saveBeneficiary({
-    required String phoneInput,
-    required String confirmationInput,
-    bool isPortabilityConfirmed = false,
-  }) {
-    final BeneficiaryPhoneNumber beneficiary = _parseConfirmedBeneficiary(
-      phoneInput: phoneInput,
-      confirmationInput: confirmationInput,
-    );
-
-    if (!isPortabilityConfirmed &&
-        _draft.network != null &&
-        beneficiary.expectedNetwork != _draft.network) {
-      throw const FormatException('PORTABILITY_REQUIRED');
-    }
-
-    _beneficiaryTarget = CustomerBeneficiaryTarget.other;
-    _draft = _draft.copyWith(beneficiaryNumber: beneficiary);
-    _currentStep = 6;
-    notifyListeners();
-  }
-
-  BeneficiaryPhoneNumber _parseConfirmedBeneficiary({
-    required String phoneInput,
-    required String confirmationInput,
-  }) {
-    final BeneficiaryPhoneNumber beneficiaryNumber =
-        BeneficiaryPhoneNumber.parse(phoneInput);
-    final BeneficiaryPhoneNumber confirmationNumber =
-        BeneficiaryPhoneNumber.parse(confirmationInput);
-
-    if (beneficiaryNumber.normalized != confirmationNumber.normalized) {
-      throw const FormatException(
-        'Les deux numéros bénéficiaires ne correspondent pas.',
-      );
-    }
-
-    return beneficiaryNumber;
-  }
-
-  Future<void> _persistDefaultBeneficiary({
-    required CustomerIdentity identity,
-    required BeneficiaryPhoneNumber beneficiary,
-  }) async {
-    try {
-      await _profileRepository.saveDefaultBeneficiary(
-        identity: identity,
-        beneficiaryPhone: beneficiary,
-      );
-      _customerProfileErrorMessage = null;
-    } on Object catch (error, stackTrace) {
-      // La mémorisation est un confort : une erreur ne doit jamais bloquer la
-      // commande qui contient déjà le bon beneficiaryPhone dans le brouillon.
-      IzyTelLog.backendError(
-        'CustomerProfile.save',
-        error,
-        stackTrace: stackTrace,
-      );
-      _customerProfileErrorMessage =
-          'Votre commande peut continuer, mais le numéro habituel n’a pas pu être mémorisé.';
-    }
-
     notifyListeners();
   }
 
@@ -1009,7 +970,6 @@ class CustomerOrderViewModel extends ChangeNotifier {
     _expirationTimer = null;
     _draft = const CustomerOrderDraft();
     _receipt = null;
-    _beneficiaryTarget = CustomerBeneficiaryTarget.self;
     _currentStep = 1;
     _isSubmitting = false;
     _paymentLinkWasOpened = false;
@@ -1025,7 +985,6 @@ class CustomerOrderViewModel extends ChangeNotifier {
     _expirationTimer?.cancel();
     unawaited(_trackingSubscription?.cancel());
     unawaited(_historySubscription?.cancel());
-    unawaited(_profileSubscription?.cancel());
     super.dispose();
   }
 
@@ -1036,19 +995,6 @@ class CustomerOrderViewModel extends ChangeNotifier {
         _draft.selectedOfferLabel != null &&
         _draft.beneficiaryNumber != null;
   }
-
-}
-
-class _NoopCustomerProfileRepository implements CustomerProfileRepository {
-  @override
-  Future<void> saveDefaultBeneficiary({
-    required CustomerIdentity identity,
-    required BeneficiaryPhoneNumber beneficiaryPhone,
-  }) async {}
-
-  @override
-  Stream<CustomerProfile?> watchCurrentProfile() =>
-      Stream<CustomerProfile?>.value(null);
 }
 
 class _NoopCustomerOrderSessionStore implements CustomerOrderSessionStore {
