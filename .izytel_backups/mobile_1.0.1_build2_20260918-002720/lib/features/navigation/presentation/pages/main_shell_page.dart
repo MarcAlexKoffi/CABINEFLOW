@@ -75,8 +75,7 @@ class MainShellPage extends StatefulWidget {
   }
 }
 
-class _MainShellPageState extends State<MainShellPage>
-    with WidgetsBindingObserver {
+class _MainShellPageState extends State<MainShellPage> {
   int _selectedIndex = 0;
   StreamSubscription<List<AgentDirectoryEntry>>? _staffAgentsSubscription;
   StreamSubscription<List<AutomaticAssignmentQueueItem>>?
@@ -86,7 +85,6 @@ class _MainShellPageState extends State<MainShellPage>
   bool _automaticAssignmentSyncPending = false;
   bool _managerSupabaseStaffDenied = false;
   bool _managerSupabaseWarningShown = false;
-  bool _notificationPermissionWarningShown = false;
   bool _isLoggingOut = false;
   DateTime? _lastBackPressAt;
   bool _handlingSystemBack = false;
@@ -104,12 +102,11 @@ class _MainShellPageState extends State<MainShellPage>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _tabNavigatorObservers = List<NavigatorObserver>.generate(
       _tabNavigatorKeys.length,
       (_) => _IzyTelTabNavigationObserver(_disarmExit),
     );
-    unawaited(_startNotificationRegistry());
+    unawaited(IzyTelNotificationDeviceRegistry.start(user: widget.user));
     if (widget.user.role != UserRole.agent) {
       _wireStaffNotifications();
       _startAutomaticAssignmentWatchers();
@@ -119,56 +116,6 @@ class _MainShellPageState extends State<MainShellPage>
         unawaited(_synchronizePhase5ConsolidatedBackfill());
       }
     }
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) return;
-    unawaited(_refreshNotificationRegistry());
-  }
-
-  Future<void> _startNotificationRegistry() async {
-    try {
-      await IzyTelNotificationDeviceRegistry.start(user: widget.user);
-      _showNotificationPermissionWarningIfNeeded();
-    } on Object catch (error, stackTrace) {
-      // Les notifications restent un service auxiliaire : aucune anomalie FCM
-      // ne doit empecher l'ouverture du shell Agent/Manager.
-      IzyTelLog.backendError(
-        'FCM.device-registry-start',
-        error,
-        stackTrace: stackTrace,
-      );
-    }
-  }
-
-  Future<void> _refreshNotificationRegistry() async {
-    try {
-      await IzyTelNotificationDeviceRegistry.refresh(user: widget.user);
-      _showNotificationPermissionWarningIfNeeded();
-    } on Object catch (error, stackTrace) {
-      IzyTelLog.backendError(
-        'FCM.device-registry-refresh',
-        error,
-        stackTrace: stackTrace,
-      );
-    }
-  }
-
-  void _showNotificationPermissionWarningIfNeeded() {
-    if (!mounted || _notificationPermissionWarningShown) return;
-    if (FirebaseMessagingBootstrap.permissionStatus != 'denied') return;
-
-    _notificationPermissionWarningShown = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      IzyTelFeedback.show(
-        context,
-        'Les notifications IzyTel sont désactivées sur ce téléphone. Active-les dans les paramètres Android pour recevoir les nouvelles commandes.',
-        tone: IzyTelFeedbackTone.warning,
-        duration: const Duration(seconds: 5),
-      );
-    });
   }
 
   void _wireStaffNotifications() {
@@ -368,7 +315,6 @@ class _MainShellPageState extends State<MainShellPage>
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _automaticAssignmentDebounce?.cancel();
     _staffAgentsSubscription?.cancel();
     _staffQueueSubscription?.cancel();

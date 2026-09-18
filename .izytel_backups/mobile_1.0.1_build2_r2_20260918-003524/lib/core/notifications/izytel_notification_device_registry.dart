@@ -6,7 +6,6 @@ import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
 import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -46,8 +45,9 @@ class IzyTelNotificationDeviceRegistry {
   }) async {
     if (_starting) return;
 
-    final String? firebaseUid = _firebaseUidOrNull();
-    if (firebaseUid == null || firebaseUid != user.id.trim()) {
+    final String firebaseUid =
+        (FirebaseAuth.instance.currentUser?.uid ?? '').trim();
+    if (firebaseUid.isEmpty || firebaseUid != user.id.trim()) {
       IzyTelLog.debug(
         '[FCM][device-register-skip] session Firebase incoherente.',
       );
@@ -156,8 +156,9 @@ class IzyTelNotificationDeviceRegistry {
     if (cleanedToken.isEmpty || !SupabaseBootstrap.isInitialized) return;
     if (!_registeringTokens.add(cleanedToken)) return;
 
-    final String? currentUid = _firebaseUidOrNull();
-    if (currentUid == null || currentUid != _activeUid) {
+    final String currentUid =
+        (FirebaseAuth.instance.currentUser?.uid ?? '').trim();
+    if (currentUid.isEmpty || currentUid != _activeUid) {
       _registeringTokens.remove(cleanedToken);
       return;
     }
@@ -190,28 +191,6 @@ class IzyTelNotificationDeviceRegistry {
       );
     } finally {
       _registeringTokens.remove(cleanedToken);
-    }
-  }
-
-
-  /// Retourne l'UID Firebase courant sans jamais lever d'exception.
-  ///
-  /// Les widget tests et certains demarrages transitoires peuvent construire
-  /// le shell avant qu'une app Firebase [DEFAULT] existe. Le registre FCM est
-  /// un service auxiliaire : dans ce cas il se met simplement en attente au
-  /// lieu de faire tomber l'interface.
-  static String? _firebaseUidOrNull() {
-    try {
-      if (Firebase.apps.isEmpty) return null;
-      final String uid = (FirebaseAuth.instance.currentUser?.uid ?? '').trim();
-      return uid.isEmpty ? null : uid;
-    } on Object catch (error, stackTrace) {
-      IzyTelLog.backendError(
-        'FCM.firebase-session-read',
-        error,
-        stackTrace: stackTrace,
-      );
-      return null;
     }
   }
 

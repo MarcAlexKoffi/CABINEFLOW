@@ -18,9 +18,6 @@ class LoginViewModel extends ChangeNotifier {
 
   AuthLoginResult? get loginResult => _loginResult;
 
-  bool get showsAvailabilityWarning =>
-      _loginResult?.status == AuthLoginStatus.unavailable;
-
   Future<AuthLoginResult?> login({
     required String identifier,
     required String password,

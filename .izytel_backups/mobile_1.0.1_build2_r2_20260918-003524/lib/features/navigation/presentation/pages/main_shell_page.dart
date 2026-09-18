@@ -128,31 +128,13 @@ class _MainShellPageState extends State<MainShellPage>
   }
 
   Future<void> _startNotificationRegistry() async {
-    try {
-      await IzyTelNotificationDeviceRegistry.start(user: widget.user);
-      _showNotificationPermissionWarningIfNeeded();
-    } on Object catch (error, stackTrace) {
-      // Les notifications restent un service auxiliaire : aucune anomalie FCM
-      // ne doit empecher l'ouverture du shell Agent/Manager.
-      IzyTelLog.backendError(
-        'FCM.device-registry-start',
-        error,
-        stackTrace: stackTrace,
-      );
-    }
+    await IzyTelNotificationDeviceRegistry.start(user: widget.user);
+    _showNotificationPermissionWarningIfNeeded();
   }
 
   Future<void> _refreshNotificationRegistry() async {
-    try {
-      await IzyTelNotificationDeviceRegistry.refresh(user: widget.user);
-      _showNotificationPermissionWarningIfNeeded();
-    } on Object catch (error, stackTrace) {
-      IzyTelLog.backendError(
-        'FCM.device-registry-refresh',
-        error,
-        stackTrace: stackTrace,
-      );
-    }
+    await IzyTelNotificationDeviceRegistry.refresh(user: widget.user);
+    _showNotificationPermissionWarningIfNeeded();
   }
 
   void _showNotificationPermissionWarningIfNeeded() {

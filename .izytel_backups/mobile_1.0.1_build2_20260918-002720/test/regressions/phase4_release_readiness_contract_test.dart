@@ -9,7 +9,7 @@ void main() {
       'android/app/src/main/AndroidManifest.xml',
     ).readAsStringSync();
 
-    expect(pubspec, contains('version: 1.0.1+2'));
+    expect(pubspec, contains('version: 1.0.0+1'));
     expect(manifest, contains('android:label="IzyTel"'));
   });
 

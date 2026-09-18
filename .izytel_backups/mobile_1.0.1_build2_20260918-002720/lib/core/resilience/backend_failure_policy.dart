@@ -18,20 +18,15 @@ class BackendFailurePolicy {
     if (error is TimeoutException) return true;
 
     if (error is FirebaseException) {
-      if (const <String>{
+      return const <String>{
         'aborted',
         'cancelled',
         'deadline-exceeded',
         'internal',
-        'network-request-failed',
         'resource-exhausted',
-        'retry-limit-exceeded',
         'unavailable',
         'unknown',
-      }.contains(error.code)) {
-        return true;
-      }
-      return _looksTransientText(error.toString());
+      }.contains(error.code);
     }
 
     if (error is PostgrestException) {
@@ -43,25 +38,17 @@ class BackendFailurePolicy {
           code.startsWith('XX')) {
         return true;
       }
-      if (const <String>{
+      return const <String>{
         'PGRST000',
         'PGRST001',
         'PGRST002',
         'PGRST003',
         'PGRSTX00',
-      }.contains(code)) {
-        return true;
-      }
-
-      // Certaines coupures reseau remontent via PostgREST sans code SQL/PGRST.
-      // Dans ce cas, ne les transforme pas en erreur metier definitive.
-      return _looksTransientText(error.toString());
+      }.contains(code);
     }
 
     if (error is AuthException) {
-      final String type = error.runtimeType.toString().toLowerCase();
-      return type.contains('retryable') ||
-          _looksTransientText(error.toString());
+      return error.runtimeType.toString().toLowerCase().contains('retryable');
     }
 
     final String type = error.runtimeType.toString().toLowerCase();
@@ -72,24 +59,13 @@ class BackendFailurePolicy {
       return true;
     }
 
-    return _looksTransientText(error.toString());
-  }
-
-  static bool _looksTransientText(String value) {
-    final String text = value.toLowerCase();
+    final String text = error.toString().toLowerCase();
     return text.contains('timed out') ||
         text.contains('timeout') ||
         text.contains('connection reset') ||
         text.contains('connection refused') ||
-        text.contains('connection closed') ||
         text.contains('network is unreachable') ||
-        text.contains('network request failed') ||
-        text.contains('failed host lookup') ||
-        text.contains('temporary failure') ||
-        text.contains('temporarily unavailable') ||
-        text.contains('socketexception') ||
-        text.contains('clientexception') ||
-        text.contains('handshakeexception');
+        text.contains('failed host lookup');
   }
 
   /// Backoff deterministe pour les pollers.

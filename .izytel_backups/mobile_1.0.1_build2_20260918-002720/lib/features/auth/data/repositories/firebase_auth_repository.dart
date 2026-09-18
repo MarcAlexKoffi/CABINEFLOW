@@ -1,5 +1,3 @@
-import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
-import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
@@ -54,20 +52,13 @@ class FirebaseAuthRepository implements AuthRepository {
       }
 
       return const AuthLoginResult.unavailable(
-        message:
-            'Connexion momentanément indisponible. Réessaie dans un instant.',
+        message: 'Impossible de se connecter pour le moment.',
       );
-    } on FirebaseException catch (error, stackTrace) {
-      return _handleAccessFailure(
-        error,
-        stackTrace,
-        signOutWhenPermanent: true,
-      );
-    } catch (error, stackTrace) {
-      return _handleAccessFailure(
-        error,
-        stackTrace,
-        signOutWhenPermanent: true,
+    } catch (_) {
+      await _safeSignOut();
+
+      return const AuthLoginResult.unavailable(
+        message: 'Impossible de vérifier les autorisations du compte.',
       );
     }
   }
@@ -85,8 +76,8 @@ class FirebaseAuthRepository implements AuthRepository {
       // Ne force pas `reload()` au démarrage : Firebase Auth restaure déjà la
       // session locale. Un reload réseau imposé pouvait renvoyer l'utilisateur
       // à l'écran de connexion après un simple redémarrage ou une coupure.
-      // La lecture du profil Firestore est rejouée en cas d'erreur transitoire
-      // puis retombe sur le cache persistant du téléphone si nécessaire.
+      // La lecture du profil Firestore reste la validation des droits et peut
+      // profiter du cache local lorsque le réseau est momentanément absent.
       return _resolveAccess(
         firebaseUser: currentUser,
         createPendingProfileWhenMissing: true,
@@ -101,19 +92,11 @@ class FirebaseAuthRepository implements AuthRepository {
       }
 
       return const AuthLoginResult.unavailable(
-        message: 'Connexion momentanément instable. Réessaie dans un instant.',
+        message: 'Impossible de vérifier le compte pour le moment.',
       );
-    } on FirebaseException catch (error, stackTrace) {
-      return _handleAccessFailure(
-        error,
-        stackTrace,
-        signOutWhenPermanent: false,
-      );
-    } catch (error, stackTrace) {
-      return _handleAccessFailure(
-        error,
-        stackTrace,
-        signOutWhenPermanent: false,
+    } catch (_) {
+      return const AuthLoginResult.unavailable(
+        message: 'Impossible de vérifier le compte pour le moment.',
       );
     }
   }
@@ -131,8 +114,8 @@ class FirebaseAuthRepository implements AuthRepository {
         .collection('users')
         .doc(firebaseUser.uid);
 
-    final DocumentSnapshot<Map<String, dynamic>> profileSnapshot =
-        await _readProfileSnapshot(profileReference);
+    DocumentSnapshot<Map<String, dynamic>> profileSnapshot =
+        await profileReference.get();
 
     if (!profileSnapshot.exists && createPendingProfileWhenMissing) {
       final String? email = firebaseUser.email?.trim().toLowerCase();
@@ -223,67 +206,6 @@ class FirebaseAuthRepository implements AuthRepository {
         phoneNumber: phoneNumber,
         role: role,
       ),
-    );
-  }
-
-  Future<DocumentSnapshot<Map<String, dynamic>>> _readProfileSnapshot(
-    DocumentReference<Map<String, dynamic>> profileReference,
-  ) async {
-    Object? originalError;
-    StackTrace? originalStackTrace;
-
-    try {
-      return await BackendFailurePolicy.retryIdempotent(
-        () => profileReference.get(),
-        maxAttempts: 3,
-        baseDelay: const Duration(milliseconds: 300),
-        maxDelay: const Duration(seconds: 2),
-      );
-    } catch (error, stackTrace) {
-      originalError = error;
-      originalStackTrace = stackTrace;
-      if (!BackendFailurePolicy.canRetryRead(error)) rethrow;
-    }
-
-    try {
-      final DocumentSnapshot<Map<String, dynamic>> cached =
-          await profileReference.get(const GetOptions(source: Source.cache));
-      if (cached.exists && cached.data() != null) {
-        IzyTelLog.debug('[Auth][profile-cache-fallback]');
-        return cached;
-      }
-    } catch (cacheError, cacheStackTrace) {
-      IzyTelLog.backendError(
-        'Auth.profile-cache',
-        cacheError,
-        stackTrace: cacheStackTrace,
-      );
-    }
-
-    Error.throwWithStackTrace(originalError, originalStackTrace);
-  }
-
-  Future<AuthLoginResult> _handleAccessFailure(
-    Object error,
-    StackTrace stackTrace, {
-    required bool signOutWhenPermanent,
-  }) async {
-    final bool transient = BackendFailurePolicy.canRetryRead(error);
-    IzyTelLog.backendError('Auth.access', error, stackTrace: stackTrace);
-
-    if (transient) {
-      return const AuthLoginResult.unavailable(
-        message:
-            'Connexion momentanément instable. Ta session reste ouverte ; réessaie dans un instant.',
-      );
-    }
-
-    if (signOutWhenPermanent) {
-      await _safeSignOut();
-    }
-
-    return const AuthLoginResult.unavailable(
-      message: 'Impossible de vérifier les autorisations du compte.',
     );
   }
 

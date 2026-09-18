@@ -242,10 +242,8 @@ class _LoginPageState extends State<LoginPage> {
                                     ),
                                     SizedBox(height: compactHeight ? 10 : 14),
                                     if (_viewModel.errorMessage != null) ...[
-                                      _LoginMessageBanner(
+                                      _ErrorBanner(
                                         message: _viewModel.errorMessage!,
-                                        warning:
-                                            _viewModel.showsAvailabilityWarning,
                                       ),
                                       const SizedBox(height: 8),
                                     ],
@@ -598,28 +596,23 @@ class _OrDivider extends StatelessWidget {
   }
 }
 
-class _LoginMessageBanner extends StatelessWidget {
-  const _LoginMessageBanner({
-    required this.message,
-    required this.warning,
-  });
-
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message});
   final String message;
-  final bool warning;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: warning ? IzyTelColors.warningSoft : IzyTelColors.errorSoft,
+        color: IzyTelColors.errorSoft,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          Icon(
-            warning ? Symbols.wifi_off_rounded : Symbols.error_rounded,
-            color: warning ? IzyTelColors.warning : IzyTelColors.error,
+          const Icon(
+            Symbols.error_rounded,
+            color: IzyTelColors.error,
             size: IzyTelIconSize.info,
           ),
           const SizedBox(width: 8),
@@ -627,7 +620,7 @@ class _LoginMessageBanner extends StatelessWidget {
             child: Text(
               message,
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: warning ? IzyTelColors.warning : IzyTelColors.error,
+                color: IzyTelColors.error,
                 fontWeight: FontWeight.w600,
               ),
             ),

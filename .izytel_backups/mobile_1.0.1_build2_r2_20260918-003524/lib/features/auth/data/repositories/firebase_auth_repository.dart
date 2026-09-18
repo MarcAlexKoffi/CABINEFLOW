@@ -5,6 +5,7 @@ import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 class FirebaseAuthRepository implements AuthRepository {
   FirebaseAuthRepository({
@@ -54,8 +55,7 @@ class FirebaseAuthRepository implements AuthRepository {
       }
 
       return const AuthLoginResult.unavailable(
-        message:
-            'Connexion momentanément indisponible. Réessaie dans un instant.',
+        message: 'Connexion momentanément indisponible. Réessaie dans un instant.',
       );
     } on FirebaseException catch (error, stackTrace) {
       return _handleAccessFailure(
@@ -260,7 +260,7 @@ class FirebaseAuthRepository implements AuthRepository {
       );
     }
 
-    Error.throwWithStackTrace(originalError, originalStackTrace);
+    Error.throwWithStackTrace(originalError!, originalStackTrace!);
   }
 
   Future<AuthLoginResult> _handleAccessFailure(
@@ -269,7 +269,11 @@ class FirebaseAuthRepository implements AuthRepository {
     required bool signOutWhenPermanent,
   }) async {
     final bool transient = BackendFailurePolicy.canRetryRead(error);
-    IzyTelLog.backendError('Auth.access', error, stackTrace: stackTrace);
+    IzyTelLog.backendError(
+      'Auth.access',
+      error,
+      stackTrace: stackTrace,
+    );
 
     if (transient) {
       return const AuthLoginResult.unavailable(

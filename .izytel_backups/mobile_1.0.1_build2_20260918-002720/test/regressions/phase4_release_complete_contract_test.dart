@@ -5,12 +5,12 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   String source(String path) => File(path).readAsStringSync();
 
-  test('Phase 4 fige IzyTel 1.0.1+2 et le package Android public', () {
+  test('Phase 4 fige IzyTel 1.0.0+1 et le package Android public', () {
     final String pubspec = source('pubspec.yaml');
     final String gradle = source('android/app/build.gradle.kts');
     final String manifest = source('android/app/src/main/AndroidManifest.xml');
 
-    expect(pubspec, contains('version: 1.0.1+2'));
+    expect(pubspec, contains('version: 1.0.0+1'));
     expect(gradle, contains('applicationId = "com.izytel.app"'));
     expect(gradle, contains('namespace = "com.izytel.app"'));
     expect(manifest, contains('android:label="IzyTel"'));
