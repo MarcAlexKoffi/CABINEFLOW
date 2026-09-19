@@ -60,7 +60,18 @@ class PartnerOrderSnapshot {
     required this.operationType,
     required this.offerLabel,
     required this.updatedAt,
+    this.clientName = 'Client',
+    this.clientWhatsappPhone = '',
+    this.paymentStatus = '',
+    this.paymentPayerName,
+    this.paymentReference,
+    this.firebaseCreatedAt,
+    this.paidAt,
+    this.paymentConfirmedAt,
+    this.assignedAt,
     this.processingStartedAt,
+    this.lastHeldAt,
+    this.lastResumedAt,
     this.completedAt,
     this.failureReason,
     this.observation,
@@ -78,7 +89,18 @@ class PartnerOrderSnapshot {
   final String beneficiaryPhone;
   final String operationType;
   final String offerLabel;
+  final String clientName;
+  final String clientWhatsappPhone;
+  final String paymentStatus;
+  final String? paymentPayerName;
+  final String? paymentReference;
+  final DateTime? firebaseCreatedAt;
+  final DateTime? paidAt;
+  final DateTime? paymentConfirmedAt;
+  final DateTime? assignedAt;
   final DateTime? processingStartedAt;
+  final DateTime? lastHeldAt;
+  final DateTime? lastResumedAt;
   final DateTime? completedAt;
   final String? failureReason;
   final String? observation;
@@ -91,6 +113,8 @@ class PartnerOrderSnapshot {
   bool get isOnHold => orderStatus == 'onHold';
   bool get isCompleted => orderStatus == 'completed';
   bool get isFailed => orderStatus == 'failed';
+  bool get isFundedForProcessing =>
+      paymentStatus == 'confirmed' || paymentStatus == 'credit';
 }
 
 class PartnerFinalizationResult {

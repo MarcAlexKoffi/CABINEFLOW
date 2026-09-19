@@ -25,6 +25,7 @@ import 'package:cabine_flow/features/finances/domain/repositories/finance_operat
 import 'package:cabine_flow/features/finances/domain/repositories/network_finance_repository.dart';
 import 'package:cabine_flow/features/finances/domain/services/network_finance_calculator.dart';
 import 'package:cabine_flow/features/finances/presentation/pages/customer_credits_page.dart';
+import 'package:cabine_flow/features/finances/presentation/pages/cabiniste_finance_supervision_page.dart';
 import 'package:cabine_flow/features/finances/presentation/pages/daily_financial_closing_page.dart';
 import 'package:cabine_flow/features/finances/presentation/pages/finance_expenses_page.dart';
 import 'package:cabine_flow/features/finances/presentation/pages/financial_movements_page.dart';
@@ -229,6 +230,14 @@ class _FinancesPageState extends State<FinancesPage> {
           repository: _refundRepository,
           orderHistoryRepository: history,
         ),
+      ),
+    );
+  }
+
+  void _openCabinisteFinances() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => const CabinisteFinanceSupervisionPage(),
       ),
     );
   }
@@ -569,6 +578,16 @@ class _FinancesPageState extends State<FinancesPage> {
                                 const SizedBox(height: IzyTelSpacing.xl),
                                 const IzyTelSectionHeader(
                                   title: 'Supervision détaillée',
+                                ),
+                                const SizedBox(height: 8),
+                                FinanceActionTile(
+                                  icon: Symbols.storefront_rounded,
+                                  title: 'Cabinistes',
+                                  subtitle:
+                                      'Voir le gain IzyTel, les montants à reverser et le détail par commande.',
+                                  accent: IzyTelColors.success,
+                                  badge: 'Lecture seule',
+                                  onTap: _openCabinisteFinances,
                                 ),
                                 const SizedBox(height: 8),
                                 FinanceActionTile(

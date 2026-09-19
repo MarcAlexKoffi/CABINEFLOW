@@ -50,9 +50,12 @@ class SupabasePartnerOrderRepository {
         .select(
           'order_id, order_reference, network, amount, assignment_state, '
           'order_status, assigned_cabiniste_id, assigned_cabiniste_name, '
-          'beneficiary_phone, operation_type, offer_label, '
-          'processing_started_at, completed_at, failure_reason, observation, '
-          'last_hold_reason, updated_at',
+          'beneficiary_phone, operation_type, offer_label, client_name, '
+          'client_whatsapp_phone, payment_status, payment_payer_name, '
+          'payment_reference, firebase_created_at, paid_at, '
+          'payment_confirmed_at, assigned_at, processing_started_at, '
+          'last_held_at, last_resumed_at, completed_at, failure_reason, '
+          'observation, last_hold_reason, updated_at',
         )
         .eq('assigned_cabiniste_id', account.id)
         .order('updated_at', ascending: false);
@@ -201,6 +204,20 @@ class SupabasePartnerOrderRepository {
         .eq('order_id', cleanedOrderId)
         .maybeSingle();
     return row != null;
+  }
+
+
+  Future<Uint8List?> loadProofBytes(String orderId) async {
+    final String cleanedOrderId = orderId.trim();
+    if (cleanedOrderId.isEmpty) return null;
+    final Map<String, dynamic>? row = await _client
+        .from(proofsTable)
+        .select('storage_path')
+        .eq('order_id', cleanedOrderId)
+        .maybeSingle();
+    final String path = _string(row?['storage_path']);
+    if (path.isEmpty) return null;
+    return _client.storage.from(proofBucket).download(path);
   }
 
   Future<void> updateOwnOperations({
@@ -446,7 +463,20 @@ class SupabasePartnerOrderRepository {
       beneficiaryPhone: _string(row['beneficiary_phone']),
       operationType: _string(row['operation_type']),
       offerLabel: _string(row['offer_label']),
+      clientName: _string(row['client_name']).isEmpty
+          ? 'Client'
+          : _string(row['client_name']),
+      clientWhatsappPhone: _string(row['client_whatsapp_phone']),
+      paymentStatus: _string(row['payment_status']),
+      paymentPayerName: _nullableString(row['payment_payer_name']),
+      paymentReference: _nullableString(row['payment_reference']),
+      firebaseCreatedAt: _dateTime(row['firebase_created_at']),
+      paidAt: _dateTime(row['paid_at']),
+      paymentConfirmedAt: _dateTime(row['payment_confirmed_at']),
+      assignedAt: _dateTime(row['assigned_at']),
       processingStartedAt: _dateTime(row['processing_started_at']),
+      lastHeldAt: _dateTime(row['last_held_at']),
+      lastResumedAt: _dateTime(row['last_resumed_at']),
       completedAt: _dateTime(row['completed_at']),
       failureReason: _nullableString(row['failure_reason']),
       observation: _nullableString(row['observation']),

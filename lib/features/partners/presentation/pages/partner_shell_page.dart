@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:cabine_flow/app/app_routes.dart';
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/notifications/firebase_messaging_bootstrap.dart';
@@ -631,12 +630,33 @@ class _PartnerOrdersPageState extends State<_PartnerOrdersPage> {
 
   Future<void> _acceptOrder(PartnerOrderSnapshot order) async {
     try {
-      await widget.repository.accept(order.orderId);
+      final PartnerOrderSnapshot accepted =
+          await widget.repository.accept(order.orderId);
+      PartnerOrderSnapshot treatmentOrder = accepted;
+      bool started = false;
+      try {
+        treatmentOrder = await widget.repository.startProcessing(order.orderId);
+        started = true;
+      } catch (_) {
+        // L'acceptation reste valide même si le démarrage doit être relancé
+        // depuis le détail de la commande.
+      }
       if (!mounted) return;
       IzyTelFeedback.success(
         context,
-        'Commande ${order.orderReference} acceptée.',
+        started
+            ? 'Commande ${order.orderReference} acceptée. Traitement démarré.'
+            : 'Commande ${order.orderReference} acceptée.',
       );
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => PartnerOrderDetailPage(
+            initialOrder: treatmentOrder,
+            repository: widget.repository,
+          ),
+        ),
+      );
+      if (!mounted) return;
       _reload();
     } catch (error) {
       if (mounted) IzyTelFeedback.error(context, _friendlyError(error));
@@ -644,37 +664,22 @@ class _PartnerOrdersPageState extends State<_PartnerOrdersPage> {
   }
 
   Future<void> _refuseOrder(PartnerOrderSnapshot order) async {
-    final TextEditingController controller = TextEditingController();
-    final String? reason = await showDialog<String>(
+    final String? reason = await showModalBottomSheet<String>(
       context: context,
-      builder: (BuildContext dialogContext) => AlertDialog(
-        title: const Text('Refuser la commande'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLines: 3,
-          decoration: const InputDecoration(
-            labelText: 'Motif du refus',
-            hintText: 'Ex. capacité insuffisante ou indisponibilité réseau',
-          ),
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Annuler'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final String value = controller.text.trim();
-              if (value.isEmpty) return;
-              Navigator.of(dialogContext).pop(value);
-            },
-            child: const Text('Confirmer le refus'),
-          ),
-        ],
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _PartnerReasonSheet(
+        title: 'Refuser la commande',
+        subtitle:
+            '${order.orderReference} sera renvoyée dans le circuit de réaffectation.',
+        label: 'Motif du refus',
+        hint: 'Ex. capacité insuffisante ou indisponibilité réseau…',
+        confirmLabel: 'Confirmer le refus',
+        confirmColor: IzyTelColors.error,
+        maxLength: 500,
       ),
     );
-    controller.dispose();
     if (reason == null || !mounted) return;
     try {
       await widget.repository.refuse(orderId: order.orderId, reason: reason);
@@ -1017,7 +1022,9 @@ class PartnerOrderDetailPage extends StatefulWidget {
 class _PartnerOrderDetailPageState extends State<PartnerOrderDetailPage> {
   final ImagePicker _picker = ImagePicker();
   late PartnerOrderSnapshot _order;
+  Uint8List? _proofBytes;
   bool _proofReady = false;
+  bool _isLoadingProof = true;
   bool _busy = false;
 
   @override
@@ -1029,10 +1036,26 @@ class _PartnerOrderDetailPageState extends State<PartnerOrderDetailPage> {
 
   Future<void> _loadProofState() async {
     try {
-      final bool hasProof = await widget.repository.hasProof(_order.orderId);
-      if (mounted) setState(() => _proofReady = hasProof);
+      final Uint8List? bytes = await widget.repository.loadProofBytes(
+        _order.orderId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _proofBytes = bytes;
+        _proofReady = bytes != null && bytes.isNotEmpty;
+        _isLoadingProof = false;
+      });
     } catch (_) {
-      // Une preuve indisponible au chargement ne doit pas bloquer la page.
+      if (!mounted) return;
+      setState(() => _isLoadingProof = false);
+    }
+  }
+
+  void _showMessage(String message, {bool error = false}) {
+    if (error) {
+      IzyTelFeedback.error(context, message);
+    } else {
+      IzyTelFeedback.show(context, message);
     }
   }
 
@@ -1055,83 +1078,63 @@ class _PartnerOrderDetailPageState extends State<PartnerOrderDetailPage> {
     }
   }
 
-  Future<String?> _askReason({
-    required String title,
-    required String hint,
-  }) async {
-    final TextEditingController controller = TextEditingController();
-    final String? result = await showDialog<String>(
-      context: context,
-      builder: (BuildContext dialogContext) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          minLines: 2,
-          maxLines: 4,
-          decoration: InputDecoration(hintText: hint),
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Annuler'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final String value = controller.text.trim();
-              if (value.length >= 3) Navigator.of(dialogContext).pop(value);
-            },
-            child: const Text('Valider'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    return result;
+  Future<void> _acceptAndStart() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    PartnerOrderSnapshot? accepted;
+    try {
+      accepted = await widget.repository.accept(_order.orderId);
+      PartnerOrderSnapshot updated = accepted;
+      String message = 'Commande acceptée.';
+      try {
+        updated = await widget.repository.startProcessing(_order.orderId);
+        message = 'Commande acceptée. Traitement démarré.';
+      } catch (_) {
+        message =
+            'Commande acceptée. Tu peux démarrer le traitement depuis ce détail.';
+      }
+      if (!mounted) return;
+      setState(() => _order = updated);
+      IzyTelFeedback.success(context, message);
+    } catch (error) {
+      if (!mounted) return;
+      if (accepted != null) {
+        final PartnerOrderSnapshot acceptedOrder = accepted;
+        setState(() => _order = acceptedOrder);
+      }
+      IzyTelFeedback.error(context, _friendlyError(error));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
-  Future<void> _captureProof() async {
-    if (_busy) return;
-    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+  Future<void> _refuse() async {
+    final String? reason = await showModalBottomSheet<String>(
       context: context,
-      showDragHandle: true,
-      builder: (BuildContext sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            ListTile(
-              leading: const Icon(Symbols.photo_camera_rounded),
-              title: const Text('Prendre une photo'),
-              onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Symbols.photo_library_rounded),
-              title: const Text('Choisir dans la galerie'),
-              onTap: () => Navigator.of(sheetContext).pop(ImageSource.gallery),
-            ),
-          ],
-        ),
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _PartnerReasonSheet(
+        title: 'Refuser la commande',
+        subtitle:
+            '${_order.orderReference} sera renvoyée dans le circuit de réaffectation.',
+        label: 'Motif du refus',
+        hint: 'Ex. réseau indisponible ou capacité insuffisante…',
+        confirmLabel: 'Confirmer le refus',
+        confirmColor: IzyTelColors.error,
+        maxLength: 500,
       ),
     );
-    if (source == null) return;
-
+    if (reason == null || !mounted) return;
     setState(() => _busy = true);
     try {
-      final XFile? image = await _picker.pickImage(
-        source: source,
-        imageQuality: 72,
-        maxWidth: 1440,
-      );
-      if (image == null) return;
-      final List<int> bytes = await image.readAsBytes();
-      await widget.repository.saveProof(
-        orderId: _order.orderId,
-        fileName: '${_order.orderReference}_preuve.jpg',
-        bytes: bytes,
-      );
+      await widget.repository.refuse(orderId: _order.orderId, reason: reason);
       if (!mounted) return;
-      setState(() => _proofReady = true);
-      IzyTelFeedback.success(context, 'Preuve enregistrée.');
+      IzyTelFeedback.success(
+        context,
+        'Commande refusée et renvoyée pour réaffectation.',
+      );
+      Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;
       IzyTelFeedback.error(context, _friendlyError(error));
@@ -1140,16 +1143,128 @@ class _PartnerOrderDetailPageState extends State<PartnerOrderDetailPage> {
     }
   }
 
-  Future<void> _finalize() async {
+  Future<void> _putOnHold() async {
+    final String? reason = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _PartnerHoldReasonSheet(),
+    );
+    if (reason == null || !mounted) return;
+    await _run(
+      () => widget.repository.hold(orderId: _order.orderId, reason: reason),
+      successMessage: 'Commande mise en attente.',
+    );
+  }
+
+  Future<void> _markFailed() async {
+    final _PartnerFailureResult? result =
+        await showModalBottomSheet<_PartnerFailureResult>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _PartnerFailureSheet(),
+    );
+    if (result == null || !mounted) return;
+    await _run(
+      () => widget.repository.fail(
+        orderId: _order.orderId,
+        reason: result.reason,
+        observation: result.observation,
+      ),
+      successMessage: 'Échec enregistré.',
+    );
+  }
+
+  Future<void> _chooseProofSource() async {
+    if (_busy || (!_order.isInProgress && !_order.isOnHold)) return;
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _PartnerProofSourceSheet(),
+    );
+    if (source == null || !mounted) return;
+    await _captureProof(source);
+  }
+
+  Future<void> _captureProof(ImageSource source) async {
     if (_busy) return;
-    if (!_proofReady) {
-      IzyTelFeedback.show(
+    setState(() => _busy = true);
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: source,
+        preferredCameraDevice: CameraDevice.rear,
+        imageQuality: 82,
+        maxWidth: 1800,
+        maxHeight: 1800,
+        requestFullMetadata: false,
+      );
+      if (image == null) return;
+      final Uint8List bytes = await image.readAsBytes();
+      await widget.repository.saveProof(
+        orderId: _order.orderId,
+        fileName: '${_order.orderReference}_preuve.jpg',
+        bytes: bytes,
+      );
+      if (!mounted) return;
+      setState(() {
+        _proofReady = true;
+        _proofBytes = bytes;
+        _isLoadingProof = false;
+      });
+      IzyTelFeedback.success(
         context,
-        'Ajoute la preuve du transfert avant de terminer.',
-        tone: IzyTelFeedbackTone.warning,
+        source == ImageSource.camera
+            ? 'Photo prise et preuve enregistrée.'
+            : 'Preuve enregistrée.',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      IzyTelFeedback.error(context, _friendlyError(error));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _confirmSuccess() async {
+    if (!_proofReady) {
+      _showMessage(
+        'Ajoute d’abord une preuve du transfert.',
+        error: false,
       );
       return;
     }
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: const Text('Confirmer la réussite'),
+        content: Text(
+          'La commande ${_order.orderReference} sera marquée comme réussie.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: IzyTelColors.success,
+            ),
+            child: const Text('Confirmer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _finalize();
+  }
+
+  Future<void> _finalize() async {
+    if (_busy) return;
     setState(() => _busy = true);
     try {
       final PartnerFinalizationResult result =
@@ -1164,9 +1279,9 @@ class _PartnerOrderDetailPageState extends State<PartnerOrderDetailPage> {
         }
       }
       if (!mounted) return;
-      final PartnerOrderSnapshot? resolvedOrder = refreshed;
-      if (resolvedOrder != null) {
-        setState(() => _order = resolvedOrder);
+      if (refreshed != null) {
+        final PartnerOrderSnapshot refreshedOrder = refreshed;
+        setState(() => _order = refreshedOrder);
       }
       await showDialog<void>(
         context: context,
@@ -1192,239 +1307,1558 @@ class _PartnerOrderDetailPageState extends State<PartnerOrderDetailPage> {
     }
   }
 
+  void _showInfoSheet({required String title, required Widget child}) {
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext sheetContext) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+        decoration: const BoxDecoration(
+          color: IzyTelColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: IzyTelColors.outlineStrong,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              title,
+              style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+
+  int _activityCount(PartnerOrderSnapshot order) {
+    int count = 1;
+    if (order.paymentConfirmedAt != null || order.paidAt != null) count++;
+    if (order.assignedAt != null) count++;
+    if (order.processingStartedAt != null) count++;
+    if (order.lastHeldAt != null) count++;
+    if (order.lastResumedAt != null) count++;
+    if (order.completedAt != null) count++;
+    return count;
+  }
+
+  Widget? _buildBottomActions(PartnerOrderSnapshot order) {
+    if (order.isAwaitingDecision) {
+      return _PartnerSingleBottomAction(
+        isBusy: _busy,
+        label: 'Accepter',
+        icon: Symbols.check_rounded,
+        onPressed: _acceptAndStart,
+      );
+    }
+    if (order.isAccepted && order.orderStatus == 'paidReady') {
+      return _PartnerSingleBottomAction(
+        isBusy: _busy,
+        label: 'Démarrer le traitement',
+        icon: Symbols.play_arrow_rounded,
+        onPressed: () => _run(
+          () => widget.repository.startProcessing(order.orderId),
+          successMessage: 'Traitement démarré.',
+        ),
+      );
+    }
+    if (order.isOnHold) {
+      return _PartnerSingleBottomAction(
+        isBusy: _busy,
+        label: 'Reprendre le traitement',
+        icon: Symbols.play_arrow_rounded,
+        onPressed: () => _run(
+          () => widget.repository.resume(order.orderId),
+          successMessage: 'Traitement repris.',
+        ),
+      );
+    }
+    if (order.isInProgress) {
+      return _PartnerProcessingBottomActions(
+        isBusy: _busy,
+        onHold: _putOnHold,
+        onSuccess: _confirmSuccess,
+      );
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final Color statusColor = _statusColor(_order);
+    final PartnerOrderSnapshot order = _order;
+    final Widget? bottomActions = _buildBottomActions(order);
+    final double referenceScale =
+        (MediaQuery.sizeOf(context).width / 290).clamp(.95, 1.35);
+
     return Scaffold(
       backgroundColor: IzyTelColors.background,
-      appBar: AppBar(
-        title: Text(_order.orderReference),
-        backgroundColor: IzyTelColors.background,
-        surfaceTintColor: Colors.transparent,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          IzyTelSpacing.lg,
-          IzyTelSpacing.md,
-          IzyTelSpacing.lg,
-          IzyTelSpacing.xxl,
-        ),
-        children: <Widget>[
-          IzyTelSurface(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        _formatMoney(_order.amount),
-                        style: const TextStyle(
-                          color: IzyTelColors.textPrimary,
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
+      body: SafeArea(
+        child: Column(
+          children: <Widget>[
+            _PartnerReferenceDetailTopBar(
+              order: order,
+              onBack: () => Navigator.of(context).pop(),
+              onMenuSelected: (String value) {
+                if (value == 'refuse') {
+                  unawaited(_refuse());
+                } else if (value == 'failure') {
+                  unawaited(_markFailed());
+                }
+              },
+            ),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.fromLTRB(
+                  12 * referenceScale,
+                  13 * referenceScale,
+                  12 * referenceScale,
+                  bottomActions == null ? 24 : 106,
+                ),
+                children: <Widget>[
+                  _PartnerReferenceOrderSummary(order: order),
+                  SizedBox(height: 18 * referenceScale),
+                  _PartnerReferenceProgress(order: order),
+                  SizedBox(height: 18 * referenceScale),
+                  _PartnerDetailMenuCard(
+                    rows: <_PartnerDetailMenuRowData>[
+                      _PartnerDetailMenuRowData(
+                        icon: Symbols.person_rounded,
+                        label: 'Client',
+                        onTap: () => _showInfoSheet(
+                          title: 'Client',
+                          child: _PartnerInfoSheetRows(
+                            rows: <MapEntry<String, String>>[
+                              MapEntry('Nom', order.clientName),
+                              MapEntry(
+                                'WhatsApp',
+                                _partnerFormatPhone(order.clientWhatsappPhone),
+                              ),
+                              MapEntry(
+                                'Bénéficiaire',
+                                _partnerFormatPhone(order.beneficiaryPhone),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                    IzyTelStatusPill(
-                      label: _statusLabel(_order),
-                      color: statusColor,
-                    ),
+                      _PartnerDetailMenuRowData(
+                        icon: Symbols.wallet_rounded,
+                        label: 'Paiement',
+                        trailing: order.isFundedForProcessing
+                            ? _PartnerTinyStateBadge(
+                                label: order.paymentStatus == 'credit'
+                                    ? 'Crédit'
+                                    : 'Confirmé',
+                                color: order.paymentStatus == 'credit'
+                                    ? IzyTelColors.warning
+                                    : IzyTelColors.success,
+                              )
+                            : null,
+                        onTap: () => _showInfoSheet(
+                          title: 'Paiement',
+                          child: _PartnerInfoSheetRows(
+                            rows: <MapEntry<String, String>>[
+                              MapEntry('Montant', _formatMoney(order.amount)),
+                              MapEntry(
+                                'Payeur',
+                                order.paymentPayerName ?? order.clientName,
+                              ),
+                              MapEntry(
+                                'Référence',
+                                order.paymentReference ?? 'Non renseignée',
+                              ),
+                              MapEntry(
+                                'Statut',
+                                _partnerPaymentStatusLabel(order.paymentStatus),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      _PartnerDetailMenuRowData(
+                        icon: Symbols.format_list_bulleted_rounded,
+                        label: 'Détails de l’offre',
+                        onTap: () => _showInfoSheet(
+                          title: 'Détails de l’offre',
+                          child: _PartnerInfoSheetRows(
+                            rows: <MapEntry<String, String>>[
+                              MapEntry('Réseau', _networkLabel(order.network)),
+                              MapEntry(
+                                'Opération',
+                                _partnerOperationLabel(order.operationType),
+                              ),
+                              MapEntry(
+                                'Offre',
+                                order.offerLabel.isEmpty
+                                    ? 'Non renseignée'
+                                    : order.offerLabel,
+                              ),
+                              MapEntry('Montant', _formatMoney(order.amount)),
+                              MapEntry(
+                                'Bénéficiaire',
+                                _partnerFormatPhone(order.beneficiaryPhone),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      _PartnerDetailMenuRowData(
+                        icon: Symbols.image_rounded,
+                        label: 'Preuve',
+                        trailing: _PartnerProofThumbnail(
+                          bytes: _proofBytes,
+                          isLoading: _isLoadingProof,
+                        ),
+                        onTap: (order.isInProgress || order.isOnHold)
+                            ? _chooseProofSource
+                            : () {
+                                if (_proofBytes == null) {
+                                  _showMessage('Aucune preuve enregistrée.');
+                                  return;
+                                }
+                                _showInfoSheet(
+                                  title: 'Preuve de transfert',
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: Image.memory(
+                                      _proofBytes!,
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                );
+                              },
+                      ),
+                      if (order.isFailed)
+                        _PartnerDetailMenuRowData(
+                          icon: Symbols.error_rounded,
+                          label: 'Échec du traitement',
+                          trailing: const _PartnerTinyStateBadge(
+                            label: 'À analyser',
+                            color: IzyTelColors.error,
+                          ),
+                          onTap: () => _showInfoSheet(
+                            title: 'Détails de l’échec',
+                            child: _PartnerInfoSheetRows(
+                              rows: <MapEntry<String, String>>[
+                                MapEntry(
+                                  'Motif',
+                                  _partnerFailureReasonLabel(
+                                    order.failureReason,
+                                  ),
+                                ),
+                                MapEntry(
+                                  'Observation',
+                                  order.observation?.trim().isNotEmpty == true
+                                      ? order.observation!.trim()
+                                      : 'Aucune observation',
+                                ),
+                                MapEntry(
+                                  'Date',
+                                  _partnerDateTimeLabel(order.completedAt),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      _PartnerDetailMenuRowData(
+                        icon: Symbols.history_rounded,
+                        label: 'Journal d’activité',
+                        trailing: _PartnerCountBadge(
+                          value: _activityCount(order),
+                        ),
+                        onTap: () => _showInfoSheet(
+                          title: 'Journal d’activité',
+                          child: _PartnerActivitySheet(order: order),
+                        ),
+                      ),
+                      _PartnerDetailMenuRowData(
+                        icon: Symbols.chat_bubble_rounded,
+                        label: 'Demande client',
+                        onTap: () => _showInfoSheet(
+                          title: 'Demande client',
+                          child: Text(
+                            'Les demandes client sont traitées par le Manager depuis le centre de support IzyTel.',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                      ),
+                      _PartnerDetailMenuRowData(
+                        icon: Symbols.payments_rounded,
+                        label: 'Remboursement',
+                        onTap: () => _showInfoSheet(
+                          title: 'Remboursement',
+                          child: Text(
+                            'En cas d’échec, l’analyse et la décision de remboursement ou de réaffectation appartiennent au Manager.',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_busy) ...<Widget>[
+                    const SizedBox(height: 16),
+                    const LinearProgressIndicator(),
                   ],
-                ),
-                const SizedBox(height: 18),
-                _InfoLine(label: 'Réseau', value: _order.network.toUpperCase()),
-                _InfoLine(
-                  label: 'Numéro bénéficiaire',
-                  value: _order.beneficiaryPhone.isEmpty
-                      ? 'Non renseigné'
-                      : _order.beneficiaryPhone,
-                ),
-                _InfoLine(
-                  label: 'Opération',
-                  value: _order.operationType.isEmpty
-                      ? 'Recharge'
-                      : _order.operationType,
-                ),
-                if (_order.offerLabel.isNotEmpty)
-                  _InfoLine(label: 'Offre', value: _order.offerLabel),
-              ],
+                ],
+              ),
+            ),
+            ?bottomActions,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PartnerReferenceDetailTopBar extends StatelessWidget {
+  const _PartnerReferenceDetailTopBar({
+    required this.order,
+    required this.onBack,
+    required this.onMenuSelected,
+  });
+
+  final PartnerOrderSnapshot order;
+  final VoidCallback onBack;
+  final ValueChanged<String> onMenuSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<PopupMenuEntry<String>> actions = <PopupMenuEntry<String>>[];
+    if (order.isAwaitingDecision) {
+      actions.add(
+        const PopupMenuItem<String>(
+          value: 'refuse',
+          child: Text('Refuser la commande'),
+        ),
+      );
+    }
+    if (order.isInProgress) {
+      actions.add(
+        const PopupMenuItem<String>(
+          value: 'failure',
+          child: Text('Signaler un échec'),
+        ),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.fromLTRB(5, 6, 7, 6),
+      decoration: const BoxDecoration(
+        color: IzyTelColors.surface,
+        border: Border(bottom: BorderSide(color: IzyTelColors.outline)),
+      ),
+      child: Row(
+        children: <Widget>[
+          IconButton(
+            tooltip: 'Retour',
+            onPressed: onBack,
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(
+              Symbols.arrow_back_rounded,
+              size: IzyTelIconSize.action,
             ),
           ),
-          const SizedBox(height: IzyTelSpacing.lg),
-          if (_order.isAwaitingDecision) ...<Widget>[
-            FilledButton.icon(
-              onPressed: _busy
-                  ? null
-                  : () => _run(
-                        () => widget.repository.accept(_order.orderId),
-                        successMessage: 'Commande acceptée.',
-                      ),
-              icon: const Icon(Symbols.check_circle_rounded),
-              label: const Text('Accepter la commande'),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: _busy
-                  ? null
-                  : () async {
-                      final String? reason = await _askReason(
-                        title: 'Refuser la commande',
-                        hint: 'Indique le motif du refus.',
-                      );
-                      if (reason == null) return;
-                      await _run(
-                        () => widget.repository.refuse(
-                          orderId: _order.orderId,
-                          reason: reason,
-                        ),
-                        successMessage: 'Commande refusée.',
-                      );
-                      if (!context.mounted) return;
-                      Navigator.of(context).pop();
-                    },
-              icon: const Icon(Symbols.close_rounded),
-              label: const Text('Refuser'),
-            ),
-          ],
-          if (_order.isAccepted && _order.orderStatus == 'paidReady')
-            FilledButton.icon(
-              onPressed: _busy
-                  ? null
-                  : () => _run(
-                        () => widget.repository.startProcessing(_order.orderId),
-                        successMessage: 'Traitement démarré.',
-                      ),
-              icon: const Icon(Symbols.play_arrow_rounded),
-              label: const Text('Démarrer le traitement'),
-            ),
-          if (_order.isInProgress) ...<Widget>[
-            IzyTelSurface(
-              child: Row(
-                children: <Widget>[
-                  Icon(
-                    _proofReady
-                        ? Symbols.verified_rounded
-                        : Symbols.photo_camera_rounded,
-                    color: _proofReady
-                        ? IzyTelColors.success
-                        : IzyTelColors.primary,
+          Expanded(
+            child: Text(
+              'Détail commande',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontSize: IzyTelTypeScale.cardTitle,
+                    fontWeight: FontWeight.w600,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      _proofReady
-                          ? 'Preuve enregistrée'
-                          : 'Une preuve photo est obligatoire avant le succès.',
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _busy ? null : _captureProof,
-                    child: Text(_proofReady ? 'Remplacer' : 'Ajouter'),
-                  ),
-                ],
+            ),
+          ),
+          if (actions.isNotEmpty)
+            PopupMenuButton<String>(
+              key: const ValueKey<String>('cabiniste-order-detail-actions'),
+              tooltip: 'Actions de la commande',
+              onSelected: onMenuSelected,
+              itemBuilder: (_) => actions,
+              icon: const Icon(
+                Symbols.more_vert_rounded,
+                size: IzyTelIconSize.action,
               ),
-            ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: _busy ? null : _finalize,
-              icon: const Icon(Symbols.task_alt_rounded),
-              label: const Text('Marquer comme terminée'),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _busy
-                        ? null
-                        : () async {
-                            final String? reason = await _askReason(
-                              title: 'Mettre en attente',
-                              hint: 'Pourquoi la commande est-elle en attente ?',
-                            );
-                            if (reason == null) return;
-                            await _run(
-                              () => widget.repository.hold(
-                                orderId: _order.orderId,
-                                reason: reason,
-                              ),
-                              successMessage: 'Commande mise en attente.',
-                            );
-                          },
-                    icon: const Icon(Symbols.pause_rounded),
-                    label: const Text('Attente'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _busy
-                        ? null
-                        : () async {
-                            final String? note = await _askReason(
-                              title: 'Signaler un échec',
-                              hint: 'Décris brièvement le problème.',
-                            );
-                            if (note == null) return;
-                            await _run(
-                              () => widget.repository.fail(
-                                orderId: _order.orderId,
-                                reason: 'other',
-                                observation: note,
-                              ),
-                              successMessage: 'Échec enregistré.',
-                            );
-                          },
-                    icon: const Icon(Symbols.error_rounded),
-                    label: const Text('Échec'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-          if (_order.isOnHold)
-            FilledButton.icon(
-              onPressed: _busy
-                  ? null
-                  : () => _run(
-                        () => widget.repository.resume(_order.orderId),
-                        successMessage: 'Traitement repris.',
-                      ),
-              icon: const Icon(Symbols.play_arrow_rounded),
-              label: const Text('Reprendre le traitement'),
-            ),
-          if (_order.isCompleted || _order.isFailed)
-            IzyTelSurface(
-              child: Row(
-                children: <Widget>[
-                  Icon(
-                    _order.isCompleted
-                        ? Symbols.check_circle_rounded
-                        : Symbols.error_rounded,
-                    color: _order.isCompleted
-                        ? IzyTelColors.success
-                        : IzyTelColors.error,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      _order.isCompleted
-                          ? 'Cette commande est terminée.'
-                          : 'Cette commande est clôturée en échec.',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          if (_busy) ...<Widget>[
-            const SizedBox(height: 16),
-            const LinearProgressIndicator(),
-          ],
+            )
+          else
+            const SizedBox(width: 44),
         ],
       ),
     );
   }
+}
+
+class _PartnerReferenceOrderSummary extends StatelessWidget {
+  const _PartnerReferenceOrderSummary({required this.order});
+
+  final PartnerOrderSnapshot order;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color accent = _networkColor(order.network);
+    final Color statusColor = _statusColor(order);
+    final double scale =
+        (MediaQuery.sizeOf(context).width / 290).clamp(.95, 1.35);
+    return SizedBox(
+      height: 132 * scale,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(
+          12 * scale,
+          14 * scale,
+          12 * scale,
+          12 * scale,
+        ),
+        decoration: BoxDecoration(
+          color: IzyTelColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: IzyTelColors.outline),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Container(
+                  width: 27 * scale,
+                  height: 27 * scale,
+                  padding: EdgeInsets.all(2.5 * scale),
+                  decoration: BoxDecoration(
+                    color: accent.withAlpha(15),
+                    borderRadius: BorderRadius.circular(7 * scale),
+                  ),
+                  child: Image.asset(
+                    _partnerNetworkAsset(order.network),
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                SizedBox(width: 8 * scale),
+                Expanded(
+                  child: Text(
+                    _networkLabel(order.network),
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: IzyTelColors.textPrimary,
+                          fontSize: IzyTelTypeScale.label,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
+                _PartnerTinyStateBadge(
+                  label: _statusLabel(order),
+                  color: statusColor,
+                ),
+              ],
+            ),
+            Text(
+              order.offerLabel.isEmpty
+                  ? _partnerOperationLabel(order.operationType)
+                  : order.offerLabel,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontSize: IzyTelTypeScale.title3,
+                    height: 1.22,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    _partnerFormatPhone(order.beneficiaryPhone),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: IzyTelColors.textPrimary,
+                          fontSize: IzyTelTypeScale.title3,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: .15,
+                        ),
+                  ),
+                ),
+                SizedBox(width: 8 * scale),
+                Text(
+                  _formatMoney(order.amount),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: IzyTelColors.primaryStrong,
+                        fontSize: IzyTelTypeScale.title2,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ],
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                order.orderReference,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: IzyTelColors.textMuted,
+                      fontSize: IzyTelTypeScale.micro,
+                      fontWeight: FontWeight.w400,
+                    ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+enum _PartnerReferenceStepState { done, active, pending }
+
+class _PartnerReferenceProgress extends StatelessWidget {
+  const _PartnerReferenceProgress({required this.order});
+  final PartnerOrderSnapshot order;
+
+  bool get _isAssigned =>
+      order.assignedAt != null ||
+      order.isAwaitingDecision ||
+      order.isAccepted ||
+      _isProcessing ||
+      _isFinished;
+
+  bool get _isProcessing => order.isInProgress || order.isOnHold || _isFinished;
+  bool get _isFinished => order.isCompleted || order.isFailed;
+
+  _PartnerReferenceStepState _state(int index) {
+    if (index == 0) {
+      return order.isFundedForProcessing
+          ? _PartnerReferenceStepState.done
+          : _PartnerReferenceStepState.active;
+    }
+    if (index == 1) {
+      return _isAssigned
+          ? _PartnerReferenceStepState.done
+          : _PartnerReferenceStepState.pending;
+    }
+    if (index == 2) {
+      if (_isFinished) return _PartnerReferenceStepState.done;
+      if (_isProcessing) return _PartnerReferenceStepState.active;
+      return _PartnerReferenceStepState.pending;
+    }
+    return _isFinished
+        ? _PartnerReferenceStepState.done
+        : _PartnerReferenceStepState.pending;
+  }
+
+  String _dateLabel(int index) {
+    final DateTime? date = switch (index) {
+      0 => order.paymentConfirmedAt ?? order.paidAt,
+      1 => order.assignedAt,
+      2 => order.lastResumedAt ?? order.processingStartedAt,
+      _ => order.completedAt,
+    };
+    if (date == null) return '';
+    final DateTime local = date.toLocal();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${two(local.day)}/${two(local.month)} · ${two(local.hour)}:${two(local.minute)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const List<String> labels = <String>[
+      'Payée',
+      'Affectée',
+      'En traitement',
+      'Terminée',
+    ];
+    final double scale =
+        (MediaQuery.sizeOf(context).width / 290).clamp(.95, 1.35);
+    return SizedBox(
+      height: 54 * scale,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 2 * scale),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: List<Widget>.generate(labels.length, (int index) {
+            return Expanded(
+              child: _PartnerReferenceProgressStep(
+                label: labels[index],
+                date: _dateLabel(index),
+                state: _state(index),
+                showLeftLine: index > 0,
+                showRightLine: index < labels.length - 1,
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+}
+
+class _PartnerReferenceProgressStep extends StatelessWidget {
+  const _PartnerReferenceProgressStep({
+    required this.label,
+    required this.date,
+    required this.state,
+    required this.showLeftLine,
+    required this.showRightLine,
+  });
+
+  final String label;
+  final String date;
+  final _PartnerReferenceStepState state;
+  final bool showLeftLine;
+  final bool showRightLine;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color = switch (state) {
+      _PartnerReferenceStepState.done => IzyTelColors.success,
+      _PartnerReferenceStepState.active => IzyTelColors.primary,
+      _PartnerReferenceStepState.pending => IzyTelColors.outlineStrong,
+    };
+    return Column(
+      children: <Widget>[
+        SizedBox(
+          height: 31,
+          child: Stack(
+            alignment: Alignment.center,
+            children: <Widget>[
+              if (showLeftLine)
+                Positioned(
+                  left: 0,
+                  right: 15,
+                  child: Container(
+                    height: 1.5,
+                    color: state == _PartnerReferenceStepState.pending
+                        ? IzyTelColors.outline
+                        : color.withAlpha(140),
+                  ),
+                ),
+              if (showRightLine)
+                Positioned(
+                  left: 15,
+                  right: 0,
+                  child: Container(
+                    height: 1.5,
+                    color: state == _PartnerReferenceStepState.done
+                        ? IzyTelColors.success.withAlpha(140)
+                        : IzyTelColors.outline,
+                  ),
+                ),
+              Container(
+                width: 24,
+                height: 24,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: state == _PartnerReferenceStepState.pending
+                      ? Colors.white
+                      : color,
+                  shape: BoxShape.circle,
+                  border: state == _PartnerReferenceStepState.pending
+                      ? Border.all(color: IzyTelColors.outlineStrong)
+                      : null,
+                ),
+                child: Icon(
+                  state == _PartnerReferenceStepState.done
+                      ? Symbols.check_rounded
+                      : state == _PartnerReferenceStepState.active
+                          ? Symbols.hourglass_top_rounded
+                          : Symbols.person_rounded,
+                  size: IzyTelIconSize.info,
+                  color: state == _PartnerReferenceStepState.pending
+                      ? IzyTelColors.textMuted
+                      : Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 3),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            maxLines: 1,
+            softWrap: false,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: state == _PartnerReferenceStepState.pending
+                      ? IzyTelColors.textSecondary
+                      : IzyTelColors.textPrimary,
+                  fontSize: IzyTelTypeScale.micro,
+                  fontWeight: state == _PartnerReferenceStepState.active
+                      ? FontWeight.w600
+                      : FontWeight.w500,
+                ),
+          ),
+        ),
+        const SizedBox(height: 2),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            date,
+            maxLines: 1,
+            softWrap: false,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: IzyTelColors.textMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w400,
+                ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PartnerDetailMenuRowData {
+  const _PartnerDetailMenuRowData({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.trailing,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Widget? trailing;
+}
+
+class _PartnerDetailMenuCard extends StatelessWidget {
+  const _PartnerDetailMenuCard({required this.rows});
+  final List<_PartnerDetailMenuRowData> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final double scale =
+        (MediaQuery.sizeOf(context).width / 290).clamp(.95, 1.35);
+    final double rowHeight = 41 * scale;
+    return Container(
+      decoration: BoxDecoration(
+        color: IzyTelColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: IzyTelColors.outline),
+      ),
+      child: Column(
+        children: List<Widget>.generate(rows.length, (int index) {
+          final _PartnerDetailMenuRowData row = rows[index];
+          return Column(
+            children: <Widget>[
+              SizedBox(
+                height: rowHeight,
+                child: InkWell(
+                  onTap: row.onTap,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12 * scale),
+                    child: Row(
+                      children: <Widget>[
+                        Icon(
+                          row.icon,
+                          size: IzyTelIconSize.action,
+                          color: IzyTelColors.textPrimary,
+                        ),
+                        SizedBox(width: 10 * scale),
+                        Expanded(
+                          child: Text(
+                            row.label,
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelMedium
+                                ?.copyWith(
+                                  color: IzyTelColors.textPrimary,
+                                  fontSize: IzyTelTypeScale.text,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                          ),
+                        ),
+                        if (row.trailing != null) ...<Widget>[
+                          row.trailing!,
+                          SizedBox(width: 5 * scale),
+                        ],
+                        const Icon(
+                          Symbols.chevron_right_rounded,
+                          size: IzyTelIconSize.info,
+                          color: IzyTelColors.textMuted,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              if (index < rows.length - 1)
+                Divider(indent: 12 * scale, endIndent: 12 * scale),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+}
+
+class _PartnerTinyStateBadge extends StatelessWidget {
+  const _PartnerTinyStateBadge({required this.label, required this.color});
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withAlpha(18),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: color,
+              fontSize: IzyTelTypeScale.micro,
+              fontWeight: FontWeight.w600,
+            ),
+      ),
+    );
+  }
+}
+
+class _PartnerCountBadge extends StatelessWidget {
+  const _PartnerCountBadge({required this.value});
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 21,
+      height: 21,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        color: IzyTelColors.primarySoft,
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        '$value',
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: IzyTelColors.primary,
+              fontSize: IzyTelTypeScale.micro,
+              fontWeight: FontWeight.w600,
+            ),
+      ),
+    );
+  }
+}
+
+class _PartnerProofThumbnail extends StatelessWidget {
+  const _PartnerProofThumbnail({required this.bytes, required this.isLoading});
+  final Uint8List? bytes;
+  final bool isLoading;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) {
+      return const SizedBox.square(
+        dimension: 28,
+        child: Padding(
+          padding: EdgeInsets.all(7),
+          child: CircularProgressIndicator(strokeWidth: 1.5),
+        ),
+      );
+    }
+    if (bytes == null) return const SizedBox.shrink();
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(5),
+      child: Image.memory(bytes!, width: 34, height: 28, fit: BoxFit.cover),
+    );
+  }
+}
+
+class _PartnerInfoSheetRows extends StatelessWidget {
+  const _PartnerInfoSheetRows({required this.rows});
+  final List<MapEntry<String, String>> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: rows
+          .map(
+            (MapEntry<String, String> row) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  SizedBox(
+                    width: 105,
+                    child: Text(
+                      row.key,
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      row.value,
+                      textAlign: TextAlign.right,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            fontSize: IzyTelTypeScale.text,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+}
+
+class _PartnerActivitySheet extends StatelessWidget {
+  const _PartnerActivitySheet({required this.order});
+  final PartnerOrderSnapshot order;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<MapEntry<String, DateTime?>> entries =
+        <MapEntry<String, DateTime?>>[
+      MapEntry('Commande reçue', order.firebaseCreatedAt),
+      MapEntry('Paiement confirmé', order.paymentConfirmedAt ?? order.paidAt),
+      MapEntry('Commande affectée', order.assignedAt),
+      MapEntry('Traitement démarré', order.processingStartedAt),
+      MapEntry('Commande mise en attente', order.lastHeldAt),
+      MapEntry('Traitement repris', order.lastResumedAt),
+      MapEntry('Traitement terminé', order.completedAt),
+    ];
+    return Column(
+      children: entries
+          .where((MapEntry<String, DateTime?> entry) => entry.value != null)
+          .map((MapEntry<String, DateTime?> entry) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 13),
+          child: Row(
+            children: <Widget>[
+              const Icon(
+                Symbols.check_circle_rounded,
+                size: 17,
+                color: IzyTelColors.success,
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  entry.key,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        fontSize: IzyTelTypeScale.label,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ),
+              Text(
+                _partnerDateTimeLabel(entry.value),
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      fontSize: IzyTelTypeScale.micro,
+                    ),
+              ),
+            ],
+          ),
+        );
+      }).toList(growable: false),
+    );
+  }
+}
+
+class _PartnerSingleBottomAction extends StatelessWidget {
+  const _PartnerSingleBottomAction({
+    required this.isBusy,
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+  final bool isBusy;
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: const BoxDecoration(
+        color: IzyTelColors.surface,
+        border: Border(top: BorderSide(color: IzyTelColors.outline)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 50,
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: isBusy ? null : onPressed,
+            icon: isBusy
+                ? const SizedBox.square(
+                    dimension: 15,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.8,
+                      color: Colors.white,
+                    ),
+                  )
+                : Icon(icon, size: 16),
+            label: Text(label),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PartnerProcessingBottomActions extends StatelessWidget {
+  const _PartnerProcessingBottomActions({
+    required this.isBusy,
+    required this.onHold,
+    required this.onSuccess,
+  });
+  final bool isBusy;
+  final VoidCallback onHold;
+  final VoidCallback onSuccess;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: const BoxDecoration(
+        color: IzyTelColors.surface,
+        border: Border(top: BorderSide(color: IzyTelColors.outline)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              flex: 4,
+              child: SizedBox(
+                height: 50,
+                child: OutlinedButton(
+                  onPressed: isBusy ? null : onHold,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      Icon(Symbols.pause_rounded, size: IzyTelIconSize.info),
+                      SizedBox(width: 6),
+                      Expanded(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'Mettre en attente',
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(
+                              fontSize: IzyTelTypeScale.label,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 6,
+              child: SizedBox(
+                height: 50,
+                child: FilledButton(
+                  onPressed: isBusy ? null : onSuccess,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      if (isBusy)
+                        const SizedBox.square(
+                          dimension: 15,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.8,
+                            color: Colors.white,
+                          ),
+                        )
+                      else
+                        const Icon(
+                          Symbols.check_circle_rounded,
+                          size: IzyTelIconSize.info,
+                        ),
+                      const SizedBox(width: 6),
+                      const Expanded(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'Marquer comme réussie',
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(
+                              fontSize: IzyTelTypeScale.label,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PartnerSheetFrame extends StatelessWidget {
+  const _PartnerSheetFrame({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(12),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+          decoration: BoxDecoration(
+            color: IzyTelColors.surface,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: IzyTelColors.outline),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+class _PartnerSheetHeader extends StatelessWidget {
+  const _PartnerSheetHeader({required this.title});
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Center(
+          child: Container(
+            width: 42,
+            height: 4,
+            decoration: BoxDecoration(
+              color: IzyTelColors.outlineStrong,
+              borderRadius: BorderRadius.circular(99),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PartnerReasonSheet extends StatefulWidget {
+  const _PartnerReasonSheet({
+    required this.title,
+    required this.subtitle,
+    required this.label,
+    required this.hint,
+    required this.confirmLabel,
+    required this.confirmColor,
+    required this.maxLength,
+  });
+  final String title;
+  final String subtitle;
+  final String label;
+  final String hint;
+  final String confirmLabel;
+  final Color confirmColor;
+  final int maxLength;
+
+  @override
+  State<_PartnerReasonSheet> createState() => _PartnerReasonSheetState();
+}
+
+class _PartnerReasonSheetState extends State<_PartnerReasonSheet> {
+  final TextEditingController _controller = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final String value = _controller.text.trim();
+    if (value.length < 3) {
+      setState(() => _error = 'Indique un motif avant de continuer.');
+      return;
+    }
+    Navigator.of(context).pop(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _PartnerSheetFrame(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          _PartnerSheetHeader(title: widget.title),
+          const SizedBox(height: 5),
+          Text(
+            widget.subtitle,
+            style: const TextStyle(color: IzyTelColors.textSecondary),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _controller,
+            minLines: 2,
+            maxLines: 4,
+            maxLength: widget.maxLength,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: widget.label,
+              hintText: widget.hint,
+              errorText: _error,
+            ),
+            onChanged: (_) {
+              if (_error != null) setState(() => _error = null);
+            },
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _submit,
+              style: FilledButton.styleFrom(
+                backgroundColor: widget.confirmColor,
+              ),
+              child: Text(widget.confirmLabel),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PartnerHoldReasonSheet extends StatefulWidget {
+  const _PartnerHoldReasonSheet();
+
+  @override
+  State<_PartnerHoldReasonSheet> createState() =>
+      _PartnerHoldReasonSheetState();
+}
+
+class _PartnerHoldReasonSheetState extends State<_PartnerHoldReasonSheet> {
+  final TextEditingController _controller = TextEditingController();
+  String? _error;
+  static const List<String> suggestions = <String>[
+    'Réseau momentanément indisponible',
+    'Solde ou capacité à vérifier',
+    'Problème technique temporaire',
+  ];
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final String value = _controller.text.trim();
+    if (value.length < 3) {
+      setState(
+        () => _error = 'Indique pourquoi la commande est mise en attente.',
+      );
+      return;
+    }
+    Navigator.of(context).pop(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _PartnerSheetFrame(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const _PartnerSheetHeader(title: 'Mettre en attente'),
+          const SizedBox(height: 5),
+          const Text(
+            'Choisis un motif rapide ou saisis le tien.',
+            style: TextStyle(color: IzyTelColors.textSecondary),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: suggestions.map((String suggestion) {
+              return ActionChip(
+                backgroundColor: IzyTelColors.surface,
+                side: const BorderSide(color: IzyTelColors.outline),
+                label: Text(suggestion),
+                onPressed: () {
+                  _controller.text = suggestion;
+                  setState(() => _error = null);
+                },
+              );
+            }).toList(growable: false),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _controller,
+            minLines: 2,
+            maxLines: 4,
+            maxLength: 300,
+            decoration: InputDecoration(
+              labelText: 'Motif',
+              hintText: 'Ex. le réseau revient dans quelques minutes…',
+              errorText: _error,
+            ),
+            onChanged: (_) {
+              if (_error != null) setState(() => _error = null);
+            },
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _submit,
+              style: FilledButton.styleFrom(
+                backgroundColor: IzyTelColors.warningSoft,
+                foregroundColor: IzyTelColors.textPrimary,
+              ),
+              child: const Text('Mettre en attente'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PartnerFailureResult {
+  const _PartnerFailureResult({required this.reason, this.observation});
+  final String reason;
+  final String? observation;
+}
+
+class _PartnerFailureSheet extends StatefulWidget {
+  const _PartnerFailureSheet();
+
+  @override
+  State<_PartnerFailureSheet> createState() => _PartnerFailureSheetState();
+}
+
+class _PartnerFailureSheetState extends State<_PartnerFailureSheet> {
+  final TextEditingController _observationController = TextEditingController();
+  String? _selectedReason;
+  static const Map<String, String> reasons = <String, String>{
+    'incorrectNumber': 'Numéro incorrect',
+    'networkUnavailable': 'Réseau indisponible',
+    'offerUnavailable': 'Offre indisponible',
+    'insufficientBalance': 'Solde insuffisant',
+    'technicalError': 'Erreur technique',
+    'incorrectPayment': 'Paiement incorrect',
+    'other': 'Autre motif',
+  };
+
+  @override
+  void dispose() {
+    _observationController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final String? reason = _selectedReason;
+    if (reason == null) return;
+    final String observation = _observationController.text.trim();
+    Navigator.of(context).pop(
+      _PartnerFailureResult(
+        reason: reason,
+        observation: observation.isEmpty ? null : observation,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _PartnerSheetFrame(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const _PartnerSheetHeader(title: 'Signaler un échec'),
+          const SizedBox(height: 5),
+          const Text(
+            'Choisis la cause principale. Le Manager analysera ensuite la commande.',
+            style: TextStyle(color: IzyTelColors.textSecondary),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: reasons.entries.map((MapEntry<String, String> entry) {
+              return ChoiceChip(
+                label: Text(entry.value),
+                selected: _selectedReason == entry.key,
+                onSelected: (_) => setState(() => _selectedReason = entry.key),
+              );
+            }).toList(growable: false),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _observationController,
+            minLines: 2,
+            maxLines: 4,
+            maxLength: 1000,
+            decoration: const InputDecoration(
+              labelText: 'Observation (facultatif)',
+              hintText: 'Ajoute un détail utile au Manager…',
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _selectedReason == null ? null : _submit,
+              style: FilledButton.styleFrom(
+                backgroundColor: IzyTelColors.error,
+              ),
+              child: const Text('Enregistrer l’échec'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PartnerProofSourceSheet extends StatelessWidget {
+  const _PartnerProofSourceSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return _PartnerSheetFrame(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          const _PartnerSheetHeader(title: 'Ajouter une preuve'),
+          const SizedBox(height: 5),
+          const Text(
+            'Choisis une photo existante ou prends-en une maintenant.',
+            style: TextStyle(color: IzyTelColors.textSecondary),
+          ),
+          const SizedBox(height: 14),
+          ListTile(
+            leading: const Icon(Symbols.photo_camera_rounded),
+            title: const Text('Appareil photo'),
+            subtitle: const Text('Prendre une photo en temps réel'),
+            onTap: () => Navigator.of(context).pop(ImageSource.camera),
+          ),
+          ListTile(
+            leading: const Icon(Symbols.photo_library_rounded),
+            title: const Text('Galerie'),
+            subtitle: const Text('Choisir une capture déjà enregistrée'),
+            onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _partnerNetworkAsset(String network) {
+  return switch (network.trim().toLowerCase()) {
+    'orange' => 'assets/brands/operators/orange_ci.png',
+    'mtn' => 'assets/brands/operators/mtn_ci.png',
+    _ => 'assets/brands/operators/moov_africa_ci.png',
+  };
+}
+
+String _partnerFormatPhone(String value) {
+  final String digits = value.replaceAll(RegExp(r'\D'), '');
+  String local = digits;
+  if (local.startsWith('225') && local.length > 10) {
+    local = local.substring(3);
+  }
+  if (local.length == 10) {
+    return '${local.substring(0, 2)} ${local.substring(2, 4)} '
+        '${local.substring(4, 6)} ${local.substring(6, 8)} '
+        '${local.substring(8, 10)}';
+  }
+  return value.trim().isEmpty ? 'Non renseigné' : value.trim();
+}
+
+String _partnerPaymentStatusLabel(String status) {
+  return switch (status.trim().toLowerCase()) {
+    'confirmed' => 'Confirmé',
+    'credit' => 'Crédit autorisé',
+    'pending' => 'En attente',
+    'declared' => 'Déclaré',
+    'rejected' => 'Rejeté',
+    'expired' => 'Expiré',
+    _ => status.trim().isEmpty ? 'Non renseigné' : status,
+  };
+}
+
+String _partnerOperationLabel(String operationType) {
+  return switch (operationType.trim()) {
+    'internetSubscription' => 'Souscription Internet',
+    'unitTransfer' => 'Transfert d’unités',
+    'callBundle' => 'Forfait d’appels',
+    'mixedBundle' => 'Forfait mixte',
+    'other' => 'Autre service',
+    _ => operationType.trim().isEmpty ? 'Autre service' : operationType,
+  };
+}
+
+String _partnerFailureReasonLabel(String? reason) {
+  return switch (reason) {
+    'incorrectNumber' => 'Numéro incorrect',
+    'networkUnavailable' => 'Réseau indisponible',
+    'offerUnavailable' => 'Offre indisponible',
+    'insufficientBalance' => 'Solde insuffisant',
+    'technicalError' => 'Erreur technique',
+    'incorrectPayment' => 'Paiement incorrect',
+    'other' => 'Autre motif',
+    _ => 'Non renseigné',
+  };
+}
+
+String _partnerDateTimeLabel(DateTime? value) {
+  if (value == null) return 'Non renseignée';
+  final DateTime local = value.toLocal();
+  String two(int number) => number.toString().padLeft(2, '0');
+  return '${two(local.day)}/${two(local.month)}/${local.year} '
+      '${two(local.hour)}:${two(local.minute)}';
 }
 
 class _PartnerFinancePage extends StatefulWidget {
@@ -2907,41 +4341,6 @@ class _FinanceMiniStat extends StatelessWidget {
   }
 }
 
-class _InfoLine extends StatelessWidget {
-  const _InfoLine({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          SizedBox(
-            width: 128,
-            child: Text(
-              label,
-              style: const TextStyle(color: IzyTelColors.textSecondary, fontSize: 12),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: IzyTelColors.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _PartnerErrorState extends StatelessWidget {
   const _PartnerErrorState({required this.onRetry});
 
@@ -3063,6 +4462,18 @@ String _friendlyError(Object error) {
   }
   if (raw.contains('order_not_assigned') || raw.contains('order_not_owned')) {
     return 'Cette commande ne t’est plus affectée.';
+  }
+  if (raw.contains('order_not_in_progress')) {
+    return 'Cette commande n’est plus en cours de traitement.';
+  }
+  if (raw.contains('order_not_on_hold')) {
+    return 'Cette commande n’est plus en attente.';
+  }
+  if (raw.contains('invalid_hold_reason')) {
+    return 'Indique un motif de mise en attente valide.';
+  }
+  if (raw.contains('invalid_failure_reason')) {
+    return 'Choisis un motif d’échec valide.';
   }
   if (raw.contains('network_not_authorized')) {
     return 'Ce réseau n’est pas autorisé sur ton compte.';

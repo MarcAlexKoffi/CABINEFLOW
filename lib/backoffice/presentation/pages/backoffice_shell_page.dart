@@ -7,6 +7,7 @@ import 'package:cabine_flow/backoffice/domain/repositories/backoffice_finance_re
 import 'package:cabine_flow/backoffice/presentation/pages/backoffice_dashboard_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/catalog/backoffice_offers_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/finances/backoffice_finance_page.dart';
+import 'package:cabine_flow/backoffice/presentation/pages/finances/backoffice_cabiniste_finance_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/control/backoffice_control_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/clients/backoffice_refunds_page.dart';
 import 'package:cabine_flow/backoffice/presentation/pages/clients/backoffice_support_requests_page.dart';
@@ -59,7 +60,7 @@ enum BackofficeDestination {
   finances,
   waveCash,
   commissions,
-  cabinisteSettlements,
+  cabinisteFinances,
   suppliers,
   customerCredits,
   expenses,
@@ -119,8 +120,8 @@ extension _BackofficeDestinationX on BackofficeDestination {
         return 'Caisse Wave';
       case BackofficeDestination.commissions:
         return 'Commissions';
-      case BackofficeDestination.cabinisteSettlements:
-        return 'Règlements Cabinistes';
+      case BackofficeDestination.cabinisteFinances:
+        return 'Cabinistes';
       case BackofficeDestination.suppliers:
         return 'Fournisseurs';
       case BackofficeDestination.customerCredits:
@@ -178,8 +179,8 @@ extension _BackofficeDestinationX on BackofficeDestination {
         return Symbols.account_balance_rounded;
       case BackofficeDestination.commissions:
         return Symbols.savings_rounded;
-      case BackofficeDestination.cabinisteSettlements:
-        return Symbols.handshake_rounded;
+      case BackofficeDestination.cabinisteFinances:
+        return Symbols.storefront_rounded;
       case BackofficeDestination.suppliers:
         return Symbols.storefront_rounded;
       case BackofficeDestination.customerCredits:
@@ -227,7 +228,7 @@ extension _BackofficeDestinationX on BackofficeDestination {
       case BackofficeDestination.finances:
       case BackofficeDestination.waveCash:
       case BackofficeDestination.commissions:
-      case BackofficeDestination.cabinisteSettlements:
+      case BackofficeDestination.cabinisteFinances:
       case BackofficeDestination.suppliers:
       case BackofficeDestination.customerCredits:
       case BackofficeDestination.expenses:
@@ -275,7 +276,7 @@ extension _BackofficeDestinationX on BackofficeDestination {
       case BackofficeDestination.finances:
       case BackofficeDestination.waveCash:
       case BackofficeDestination.commissions:
-      case BackofficeDestination.cabinisteSettlements:
+      case BackofficeDestination.cabinisteFinances:
       case BackofficeDestination.suppliers:
       case BackofficeDestination.customerCredits:
       case BackofficeDestination.expenses:
@@ -994,8 +995,8 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
         return _financeContent(BackofficeFinanceModule.waveCash);
       case BackofficeDestination.commissions:
         return _financeContent(BackofficeFinanceModule.commissions);
-      case BackofficeDestination.cabinisteSettlements:
-        return _financeContent(BackofficeFinanceModule.cabinisteSettlements);
+      case BackofficeDestination.cabinisteFinances:
+        return const BackofficeCabinisteFinancePage();
       case BackofficeDestination.suppliers:
         return _financeContent(BackofficeFinanceModule.suppliers);
       case BackofficeDestination.customerCredits:
