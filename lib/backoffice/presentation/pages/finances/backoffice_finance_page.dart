@@ -21,6 +21,7 @@ enum BackofficeFinanceModule {
   overview,
   waveCash,
   commissions,
+  cabinisteSettlements,
   suppliers,
   customerCredits,
   expenses,
@@ -39,6 +40,8 @@ extension BackofficeFinanceModuleX on BackofficeFinanceModule {
         return 'Caisse Wave';
       case BackofficeFinanceModule.commissions:
         return 'Commissions';
+      case BackofficeFinanceModule.cabinisteSettlements:
+        return 'Règlements Cabinistes';
       case BackofficeFinanceModule.suppliers:
         return 'Fournisseurs';
       case BackofficeFinanceModule.customerCredits:
@@ -64,6 +67,8 @@ extension BackofficeFinanceModuleX on BackofficeFinanceModule {
         return 'Contrôle de la caisse Wave, du solde d’ouverture et des flux théoriques de la journée.';
       case BackofficeFinanceModule.commissions:
         return 'Suivi des commissions acquises, déjà payées et restant dues à chaque Agent.';
+      case BackofficeFinanceModule.cabinisteSettlements:
+        return 'Suivi des montants dus aux Cabinistes, règlements partiels ou complets et références de paiement.';
       case BackofficeFinanceModule.suppliers:
         return 'Registre fournisseurs, approvisionnements Agent et règlements fournisseurs.';
       case BackofficeFinanceModule.customerCredits:
@@ -89,6 +94,8 @@ extension BackofficeFinanceModuleX on BackofficeFinanceModule {
         return Symbols.account_balance_rounded;
       case BackofficeFinanceModule.commissions:
         return Symbols.savings_rounded;
+      case BackofficeFinanceModule.cabinisteSettlements:
+        return Symbols.handshake_rounded;
       case BackofficeFinanceModule.suppliers:
         return Symbols.storefront_rounded;
       case BackofficeFinanceModule.customerCredits:
@@ -138,7 +145,8 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
 
   bool get _supportsPeriodFilter =>
       widget.module != BackofficeFinanceModule.overview &&
-      widget.module != BackofficeFinanceModule.workingCapital;
+      widget.module != BackofficeFinanceModule.workingCapital &&
+      widget.module != BackofficeFinanceModule.cabinisteSettlements;
 
   @override
   void initState() {
@@ -248,6 +256,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     return switch (module) {
       BackofficeFinanceModule.waveCash => 'wave_cash',
       BackofficeFinanceModule.commissions => 'commissions',
+      BackofficeFinanceModule.cabinisteSettlements => '',
       BackofficeFinanceModule.suppliers => 'suppliers',
       BackofficeFinanceModule.customerCredits => 'customer_credits',
       BackofficeFinanceModule.expenses => 'expenses',
@@ -422,6 +431,8 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
         return _wave(snapshot);
       case BackofficeFinanceModule.commissions:
         return _commissions(snapshot);
+      case BackofficeFinanceModule.cabinisteSettlements:
+        return _cabinisteSettlements(snapshot);
       case BackofficeFinanceModule.suppliers:
         return _suppliers(snapshot);
       case BackofficeFinanceModule.customerCredits:
@@ -483,6 +494,13 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
             caption: 'Agents à payer',
             icon: Symbols.savings_rounded,
             emphasis: s.commissionDebt > 0 ? BackofficePalette.warning : BackofficePalette.success,
+          ),
+          BackofficeMetricCard(
+            label: 'Règlements Cabinistes',
+            value: formatCfa(s.cabinisteDebt),
+            caption: 'solde Cabinistes à reverser',
+            icon: Symbols.handshake_rounded,
+            emphasis: s.cabinisteDebt > 0 ? BackofficePalette.warning : BackofficePalette.success,
           ),
           BackofficeMetricCard(
             label: 'Capacité disponible',
@@ -656,6 +674,90 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
               subtitle: 'Réf. ${financeString(row['payment_reference'])}',
               trailing: _dateLabel(financeDate(row['paid_at'])),
             ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _cabinisteSettlements(BackofficeFinanceSnapshot s) {
+    final List<Map<String, dynamic>> accounts = s.cabinisteAccounts;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _metricGrid(<Widget>[
+          BackofficeMetricCard(
+            label: 'Acquis',
+            value: formatCfa(s.cabinisteEarnedTotal),
+            caption: 'montants cumulés à reverser',
+            icon: Symbols.trending_up_rounded,
+            emphasis: BackofficePalette.success,
+          ),
+          BackofficeMetricCard(
+            label: 'Payés',
+            value: formatCfa(s.cabinistePaidTotal),
+            caption: 'règlements enregistrés',
+            icon: Symbols.payments_rounded,
+          ),
+          BackofficeMetricCard(
+            label: 'À payer',
+            value: formatCfa(s.cabinisteDebt),
+            caption: '${s.cabinisteToPayCount} Cabiniste(s) à régler',
+            icon: Symbols.handshake_rounded,
+            emphasis: s.cabinisteDebt > 0
+                ? BackofficePalette.warning
+                : BackofficePalette.success,
+          ),
+          BackofficeMetricCard(
+            label: 'Cabinistes',
+            value: '${accounts.length}',
+            caption: 'comptes financiers suivis',
+            icon: Symbols.storefront_rounded,
+            emphasis: BackofficePalette.cyan,
+          ),
+        ]),
+        const SizedBox(height: 18),
+        _section(
+          title: 'Comptes Cabinistes',
+          subtitle:
+              'Le solde à payer correspond aux règlements acquis moins les paiements déjà enregistrés.',
+          child: _simpleRows(
+            accounts,
+            emptyTitle: 'Aucun règlement Cabiniste',
+            emptyMessage:
+                'Les montants apparaîtront après les premières commandes exécutées avec succès par un Cabiniste.',
+            builder: (Map<String, dynamic> row) {
+              final int balance = financeInt(row['balanceDue']);
+              final String status = financeString(row['paymentStatus']);
+              final String displayName = financeString(row['displayName']);
+              final String code = financeString(row['partnerCode']);
+              return _FinanceListTile(
+                icon: Symbols.storefront_rounded,
+                title: displayName.isEmpty ? 'Cabiniste' : displayName,
+                subtitle:
+                    '${code.isEmpty ? 'Sans code' : code} · ${financeInt(row['earnedTransactions'])} transaction(s) · acquis ${formatCfa(financeInt(row['earnedTotal']))} · payé ${formatCfa(financeInt(row['paidTotal']))}',
+                trailing: balance > 0 ? formatCfa(balance) : _cabinistePaymentStatusLabel(status),
+                action: Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: <Widget>[
+                    TextButton(
+                      onPressed: _busy
+                          ? null
+                          : () => _showCabinisteHistoryDialog(row),
+                      child: const Text('Historique'),
+                    ),
+                    if (_canManage && balance > 0)
+                      FilledButton.tonal(
+                        onPressed: _busy
+                            ? null
+                            : () => _showCabinistePayoutDialog(row, balance),
+                        child: const Text('Payer'),
+                      ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ],
@@ -931,6 +1033,15 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
             value: formatCfa(s.commissionDebt),
             caption: 'passif Agents',
             icon: Symbols.savings_rounded,
+          ),
+          BackofficeMetricCard(
+            label: 'Règlements Cabinistes',
+            value: formatCfa(s.cabinisteDebt),
+            caption: 'passif Cabinistes',
+            icon: Symbols.handshake_rounded,
+            emphasis: s.cabinisteDebt > 0
+                ? BackofficePalette.warning
+                : BackofficePalette.success,
           ),
           BackofficeMetricCard(
             label: 'Fonds net estimé',
@@ -1608,6 +1719,274 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     );
   }
 
+  Future<void> _showCabinistePayoutDialog(
+    Map<String, dynamic> row,
+    int totalBalance,
+  ) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    Map<String, dynamic> history;
+    try {
+      history = await widget.repository.fetchCabinisteFinanceHistory(
+        partnerId: financeString(row['partnerId']),
+      );
+    } catch (error) {
+      if (mounted) {
+        IzyTelFeedback.error(context, _financeError(error));
+      }
+      if (mounted) setState(() => _busy = false);
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+
+    final List<Map<String, dynamic>> periods = financeRows(history['periods'])
+        .where((Map<String, dynamic> period) => financeInt(period['balanceDue']) > 0)
+        .toList(growable: false);
+    if (periods.isEmpty) {
+      _showInputError('Aucune période Cabiniste avec un solde dû n’a été trouvée.');
+      return;
+    }
+
+    String periodId = financeString(periods.last['periodId']);
+    int periodBalance = financeInt(periods.last['balanceDue']);
+    String channel = 'wave';
+    final TextEditingController amount =
+        TextEditingController(text: periodBalance.toString());
+    final TextEditingController reference = TextEditingController();
+    final TextEditingController note = TextEditingController();
+
+    final bool? ok = await _showStatefulFormDialog(
+      title: 'Régler un Cabiniste',
+      description:
+          '${financeString(row['displayName'])} · solde total ${formatCfa(totalBalance)}',
+      builder: (StateSetter setDialogState) => <Widget>[
+        DropdownButtonFormField<String>(
+          initialValue: periodId,
+          decoration: const InputDecoration(labelText: 'Période à régler'),
+          items: periods
+              .map(
+                (Map<String, dynamic> period) => DropdownMenuItem<String>(
+                  value: financeString(period['periodId']),
+                  child: Text(
+                    '${financeString(period['periodKey'])} · ${formatCfa(financeInt(period['balanceDue']))} dû',
+                  ),
+                ),
+              )
+              .toList(growable: false),
+          onChanged: (String? value) {
+            if (value == null) return;
+            final Map<String, dynamic> selected = periods.firstWhere(
+              (Map<String, dynamic> period) =>
+                  financeString(period['periodId']) == value,
+            );
+            setDialogState(() {
+              periodId = value;
+              periodBalance = financeInt(selected['balanceDue']);
+              amount.text = periodBalance.toString();
+            });
+          },
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: amount,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: 'Montant',
+            helperText: 'Maximum pour cette période : ${formatCfa(periodBalance)}',
+          ),
+        ),
+        const SizedBox(height: 12),
+        _channelDropdown(channel, (String value) {
+          setDialogState(() => channel = value);
+        }),
+        const SizedBox(height: 12),
+        TextField(
+          controller: reference,
+          decoration: const InputDecoration(
+            labelText: 'Référence du paiement',
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: note,
+          maxLines: 2,
+          decoration: const InputDecoration(labelText: 'Note'),
+        ),
+      ],
+    );
+
+    if (ok != true) return;
+    final int? value = int.tryParse(amount.text.trim());
+    if (value == null ||
+        value <= 0 ||
+        value > periodBalance ||
+        value > totalBalance ||
+        reference.text.trim().length < 3) {
+      _showInputError(
+        'Le montant doit rester dans le solde de la période et une référence est obligatoire.',
+      );
+      return;
+    }
+
+    await _runAction(
+      () async {
+        await widget.repository.recordCabinistePayout(
+          partnerId: financeString(row['partnerId']),
+          amount: value,
+          channel: channel,
+          reference: reference.text,
+          note: note.text,
+          periodId: periodId,
+        );
+      },
+      success: 'Règlement Cabiniste enregistré.',
+    );
+  }
+
+  Future<void> _showCabinisteHistoryDialog(Map<String, dynamic> row) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    Map<String, dynamic> history;
+    try {
+      history = await widget.repository.fetchCabinisteFinanceHistory(
+        partnerId: financeString(row['partnerId']),
+        limit: 100,
+      );
+    } catch (error) {
+      if (mounted) {
+        IzyTelFeedback.error(context, _financeError(error));
+      }
+      if (mounted) setState(() => _busy = false);
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+
+    final Map<String, dynamic> account =
+        financeMap(history['account']) ?? const <String, dynamic>{};
+    final List<Map<String, dynamic>> periods = financeRows(history['periods']);
+    final List<Map<String, dynamic>> payouts = financeRows(history['payouts']);
+    final List<Map<String, dynamic>> settlements = financeRows(history['settlements']);
+
+    await showBackofficeModal<void>(
+      context: context,
+      builder: (BuildContext dialogContext) => BackofficeModalShell(
+        title: financeString(row['displayName']).isEmpty
+            ? 'Historique Cabiniste'
+            : financeString(row['displayName']),
+        subtitle:
+            '${financeString(row['partnerCode'])} · historique des montants acquis et des règlements',
+        icon: Symbols.handshake_rounded,
+        maxWidth: 900,
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            BackofficeModalSection(
+              title: 'Position actuelle',
+              icon: Symbols.account_balance_wallet_rounded,
+              child: BackofficeInfoGrid(
+                items: <BackofficeInfoItem>[
+                  BackofficeInfoItem(
+                    label: 'Acquis',
+                    value: formatCfa(financeInt(account['earnedTotal'])),
+                    icon: Symbols.trending_up_rounded,
+                  ),
+                  BackofficeInfoItem(
+                    label: 'Payé',
+                    value: formatCfa(financeInt(account['paidTotal'])),
+                    icon: Symbols.payments_rounded,
+                  ),
+                  BackofficeInfoItem(
+                    label: 'À payer',
+                    value: formatCfa(financeInt(account['balanceDue'])),
+                    icon: Symbols.handshake_rounded,
+                    emphasis: true,
+                  ),
+                  BackofficeInfoItem(
+                    label: 'Transactions',
+                    value: '${financeInt(account['earnedTransactions'])}',
+                    icon: Symbols.receipt_long_rounded,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            BackofficeModalSection(
+              title: 'Périodes',
+              subtitle: 'Acquis, payé et reste à payer par période.',
+              icon: Symbols.calendar_month_rounded,
+              child: periods.isEmpty
+                  ? const Text('Aucune période financière Cabiniste.')
+                  : Column(
+                      children: <Widget>[
+                        for (final Map<String, dynamic> period in periods)
+                          _FinanceListTile(
+                            icon: Symbols.calendar_month_rounded,
+                            title: financeString(period['periodKey']),
+                            subtitle:
+                                'Acquis ${formatCfa(financeInt(period['earned']))} · payé ${formatCfa(financeInt(period['paid']))}',
+                            trailing:
+                                'Dû ${formatCfa(financeInt(period['balanceDue']))}',
+                          ),
+                      ],
+                    ),
+            ),
+            const SizedBox(height: 14),
+            BackofficeModalSection(
+              title: 'Paiements',
+              subtitle: 'Références des règlements déjà effectués.',
+              icon: Symbols.payments_rounded,
+              child: payouts.isEmpty
+                  ? const Text('Aucun paiement enregistré.')
+                  : Column(
+                      children: <Widget>[
+                        for (final Map<String, dynamic> payout in payouts)
+                          _FinanceListTile(
+                            icon: Symbols.payments_rounded,
+                            title:
+                                '${formatCfa(financeInt(payout['amount']))} · ${_channelLabel(financeString(payout['channel']))}',
+                            subtitle:
+                                'Réf. ${financeString(payout['reference']).isEmpty ? '—' : financeString(payout['reference'])}',
+                            trailing: _dateLabel(financeDate(payout['paidAt'])),
+                          ),
+                      ],
+                    ),
+            ),
+            const SizedBox(height: 14),
+            BackofficeModalSection(
+              title: 'Commandes exécutées',
+              subtitle: 'Écritures ayant généré un montant à reverser.',
+              icon: Symbols.receipt_long_rounded,
+              child: settlements.isEmpty
+                  ? const Text('Aucune écriture de règlement.')
+                  : Column(
+                      children: <Widget>[
+                        for (final Map<String, dynamic> settlement in settlements)
+                          _FinanceListTile(
+                            icon: Symbols.receipt_long_rounded,
+                            title:
+                                '${financeString(settlement['orderReference'])} · ${formatCfa(financeInt(settlement['amount']))}',
+                            subtitle:
+                                'Période ${financeString(settlement['periodKey'])}',
+                            trailing:
+                                _dateLabel(financeDate(settlement['occurredAt'])),
+                          ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
+        actions: <Widget>[
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showCreateCreditDialog(BackofficeFinanceSnapshot s) async {
     final Set<String> creditedOrders = s.credits
         .map((Map<String, dynamic> row) => financeString(row['order_id']))
@@ -2129,7 +2508,21 @@ String _channelLabel(String value) {
     case 'wave': return 'Wave';
     case 'cash': return 'Espèces';
     case 'bank': return 'Banque';
+    case 'mobile_money': return 'Mobile Money';
     default: return 'Autre';
+  }
+}
+
+String _cabinistePaymentStatusLabel(String value) {
+  switch (value) {
+    case 'paid':
+      return 'Soldé';
+    case 'partial':
+      return 'Partiel';
+    case 'to_pay':
+      return 'À payer';
+    default:
+      return 'Aucune activité';
   }
 }
 

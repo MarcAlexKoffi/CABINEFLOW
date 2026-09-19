@@ -59,6 +59,7 @@ enum BackofficeDestination {
   finances,
   waveCash,
   commissions,
+  cabinisteSettlements,
   suppliers,
   customerCredits,
   expenses,
@@ -118,6 +119,8 @@ extension _BackofficeDestinationX on BackofficeDestination {
         return 'Caisse Wave';
       case BackofficeDestination.commissions:
         return 'Commissions';
+      case BackofficeDestination.cabinisteSettlements:
+        return 'Règlements Cabinistes';
       case BackofficeDestination.suppliers:
         return 'Fournisseurs';
       case BackofficeDestination.customerCredits:
@@ -175,6 +178,8 @@ extension _BackofficeDestinationX on BackofficeDestination {
         return Symbols.account_balance_rounded;
       case BackofficeDestination.commissions:
         return Symbols.savings_rounded;
+      case BackofficeDestination.cabinisteSettlements:
+        return Symbols.handshake_rounded;
       case BackofficeDestination.suppliers:
         return Symbols.storefront_rounded;
       case BackofficeDestination.customerCredits:
@@ -222,6 +227,7 @@ extension _BackofficeDestinationX on BackofficeDestination {
       case BackofficeDestination.finances:
       case BackofficeDestination.waveCash:
       case BackofficeDestination.commissions:
+      case BackofficeDestination.cabinisteSettlements:
       case BackofficeDestination.suppliers:
       case BackofficeDestination.customerCredits:
       case BackofficeDestination.expenses:
@@ -269,6 +275,7 @@ extension _BackofficeDestinationX on BackofficeDestination {
       case BackofficeDestination.finances:
       case BackofficeDestination.waveCash:
       case BackofficeDestination.commissions:
+      case BackofficeDestination.cabinisteSettlements:
       case BackofficeDestination.suppliers:
       case BackofficeDestination.customerCredits:
       case BackofficeDestination.expenses:
@@ -987,6 +994,8 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
         return _financeContent(BackofficeFinanceModule.waveCash);
       case BackofficeDestination.commissions:
         return _financeContent(BackofficeFinanceModule.commissions);
+      case BackofficeDestination.cabinisteSettlements:
+        return _financeContent(BackofficeFinanceModule.cabinisteSettlements);
       case BackofficeDestination.suppliers:
         return _financeContent(BackofficeFinanceModule.suppliers);
       case BackofficeDestination.customerCredits:

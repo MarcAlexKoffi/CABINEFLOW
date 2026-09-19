@@ -48,11 +48,18 @@ class SupabaseBackofficeFinanceRepository implements BackofficeFinanceRepository
   @override
   Future<BackofficeFinanceSnapshot> fetchSnapshot() async {
     final dynamic response = await _client.rpc('izytel_finance_snapshot');
+    final dynamic cabinisteResponse = await _client.rpc(
+      'izytel_admin_cabiniste_finance_snapshot',
+      params: const <String, dynamic>{'p_partner_id': null},
+    );
     final Map<String, dynamic>? map = financeMap(response);
     if (map == null) {
       throw StateError('Le snapshot financier Supabase est invalide.');
     }
-    return BackofficeFinanceSnapshot.fromJson(map);
+    final Map<String, dynamic> merged = Map<String, dynamic>.from(map)
+      ..['cabiniste_finance'] =
+          financeMap(cabinisteResponse) ?? const <String, dynamic>{};
+    return BackofficeFinanceSnapshot.fromJson(merged);
   }
 
   @override
@@ -174,6 +181,52 @@ class SupabaseBackofficeFinanceRepository implements BackofficeFinanceRepository
       },
     );
     return _stringResult(response);
+  }
+
+  @override
+  Future<Map<String, dynamic>> recordCabinistePayout({
+    required String partnerId,
+    required int amount,
+    required String channel,
+    required String reference,
+    String? note,
+    String? periodId,
+  }) async {
+    final dynamic response = await _client.rpc(
+      'izytel_admin_record_cabiniste_payout',
+      params: <String, dynamic>{
+        'p_partner_id': partnerId,
+        'p_amount': amount,
+        'p_payment_channel': channel,
+        'p_payment_reference': reference.trim(),
+        'p_note': _nullable(note),
+        'p_period_id': _nullable(periodId),
+      },
+    );
+    final Map<String, dynamic>? map = financeMap(response);
+    if (map == null) {
+      throw StateError('Le règlement Cabiniste renvoyé par Supabase est invalide.');
+    }
+    return map;
+  }
+
+  @override
+  Future<Map<String, dynamic>> fetchCabinisteFinanceHistory({
+    required String partnerId,
+    int limit = 50,
+  }) async {
+    final dynamic response = await _client.rpc(
+      'izytel_admin_cabiniste_finance_history',
+      params: <String, dynamic>{
+        'p_partner_id': partnerId,
+        'p_limit': limit.clamp(1, 200),
+      },
+    );
+    final Map<String, dynamic>? map = financeMap(response);
+    if (map == null) {
+      throw StateError('L’historique financier Cabiniste est invalide.');
+    }
+    return map;
   }
 
   @override

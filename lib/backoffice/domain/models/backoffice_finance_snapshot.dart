@@ -14,6 +14,7 @@ class BackofficeFinanceSnapshot {
     required this.commissionAccounts,
     required this.commissions,
     required this.commissionPayouts,
+    required this.cabinisteFinance,
     required this.agentCapacities,
     required this.networkMovements,
     required this.orderPayments,
@@ -38,6 +39,7 @@ class BackofficeFinanceSnapshot {
   final List<Map<String, dynamic>> commissionAccounts;
   final List<Map<String, dynamic>> commissions;
   final List<Map<String, dynamic>> commissionPayouts;
+  final Map<String, dynamic> cabinisteFinance;
   final List<Map<String, dynamic>> agentCapacities;
   final List<Map<String, dynamic>> networkMovements;
   final List<Map<String, dynamic>> orderPayments;
@@ -63,6 +65,7 @@ class BackofficeFinanceSnapshot {
       commissionAccounts: financeRows(json['commission_accounts']),
       commissions: financeRows(json['commissions']),
       commissionPayouts: financeRows(json['commission_payouts']),
+      cabinisteFinance: financeMap(json['cabiniste_finance']) ?? const <String, dynamic>{},
       agentCapacities: financeRows(json['agent_capacities']),
       networkMovements: financeRows(json['network_movements']),
       orderPayments: financeRows(json['order_payments']),
@@ -100,6 +103,20 @@ class BackofficeFinanceSnapshot {
             total +
             _positive(financeInt(row['earned_total']) - financeInt(row['paid_total'])),
       );
+
+  Map<String, dynamic> get cabinisteSummary =>
+      financeMap(cabinisteFinance['summary']) ?? const <String, dynamic>{};
+
+  List<Map<String, dynamic>> get cabinisteAccounts =>
+      financeRows(cabinisteFinance['partners']);
+
+  int get cabinisteEarnedTotal => financeInt(cabinisteSummary['earnedTotal']);
+
+  int get cabinistePaidTotal => financeInt(cabinisteSummary['paidTotal']);
+
+  int get cabinisteDebt => financeInt(cabinisteSummary['balanceDue']);
+
+  int get cabinisteToPayCount => financeInt(cabinisteSummary['toPayCount']);
 
   int get totalAvailableCapacity => agentCapacities.fold<int>(
         0,
@@ -154,7 +171,11 @@ class BackofficeFinanceSnapshot {
   int get operatingLiquidity => waveTheoreticalBalance + totalFreeCapacity;
 
   int get netWorkingCapital =>
-      operatingLiquidity + customerReceivables - supplierDebt - commissionDebt;
+      operatingLiquidity +
+      customerReceivables -
+      supplierDebt -
+      commissionDebt -
+      cabinisteDebt;
 
   int successfulOrdersAmountOn(DateTime day) {
     return _successfulNetworkMovementsOn(day).fold<int>(

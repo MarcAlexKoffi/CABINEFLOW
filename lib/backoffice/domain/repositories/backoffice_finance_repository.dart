@@ -47,6 +47,20 @@ abstract class BackofficeFinanceRepository {
     required String staffName,
   });
 
+  Future<Map<String, dynamic>> recordCabinistePayout({
+    required String partnerId,
+    required int amount,
+    required String channel,
+    required String reference,
+    String? note,
+    String? periodId,
+  });
+
+  Future<Map<String, dynamic>> fetchCabinisteFinanceHistory({
+    required String partnerId,
+    int limit = 50,
+  });
+
   /// Autorise atomiquement une commande pré-paiement comme vente à crédit
   /// dans Supabase, sans écriture opérationnelle de secours dans Firestore.
   Future<String> authorizeCreditOrder({
