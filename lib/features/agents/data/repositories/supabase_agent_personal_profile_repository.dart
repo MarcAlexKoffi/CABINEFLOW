@@ -117,6 +117,24 @@ class SupabaseAgentPersonalProfileRepository {
     );
   }
 
+  Future<String> saveAvatarOnly({
+    required String agentId,
+    required Uint8List source,
+    required String fallbackDisplayName,
+  }) async {
+    final String uid = (FirebaseAuth.instance.currentUser?.uid ?? '').trim();
+    if (uid.isEmpty || uid != agentId.trim()) {
+      throw StateError(
+        'La session Firebase ne correspond pas au profil IzyTel à modifier.',
+      );
+    }
+    return _staffRepository.uploadOwnAvatar(
+      firebaseUid: agentId,
+      source: source,
+      fallbackDisplayName: fallbackDisplayName,
+    );
+  }
+
   Future<void> saveProfile({
     required String agentId,
     required String firstName,
@@ -138,7 +156,7 @@ class SupabaseAgentPersonalProfileRepository {
     final String uid = (FirebaseAuth.instance.currentUser?.uid ?? '').trim();
     if (uid.isEmpty || uid != agentId.trim()) {
       throw StateError(
-        'La session Firebase ne correspond pas au profil Agent à modifier.',
+        'La session Firebase ne correspond pas au profil IzyTel à modifier.',
       );
     }
 

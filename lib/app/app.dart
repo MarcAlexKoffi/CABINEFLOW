@@ -40,6 +40,8 @@ import 'package:cabine_flow/features/orders/domain/repositories/orders_repositor
 import 'package:cabine_flow/features/payments/data/repositories/wave_payment_link_repository.dart';
 import 'package:cabine_flow/features/splash/presentation/pages/splash_page.dart';
 import 'package:cabine_flow/features/payments/domain/repositories/payment_link_repository.dart';
+import 'package:cabine_flow/features/partners/data/repositories/supabase_partner_order_repository.dart';
+import 'package:cabine_flow/features/partners/presentation/pages/partner_shell_page.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
@@ -187,6 +189,22 @@ class CabineFlowApp extends StatelessWidget {
 
             if (arguments is! AppUser) {
               return _createRecoveryRoute(effectiveAuthRepository);
+            }
+
+            if (arguments.role == UserRole.cabiniste) {
+              if (!SupabaseBootstrap.isInitialized) {
+                return _createRecoveryRoute(effectiveAuthRepository);
+              }
+              return MaterialPageRoute<void>(
+                settings: settings,
+                builder: (BuildContext context) {
+                  return PartnerShellPage(
+                    user: arguments,
+                    authRepository: effectiveAuthRepository,
+                    repository: SupabasePartnerOrderRepository(),
+                  );
+                },
+              );
             }
 
             if (arguments.role == UserRole.administrator &&

@@ -1,10 +1,12 @@
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
+import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show Supabase;
 
 class FirebaseAuthRepository implements AuthRepository {
   FirebaseAuthRepository({
@@ -54,8 +56,7 @@ class FirebaseAuthRepository implements AuthRepository {
       }
 
       return const AuthLoginResult.unavailable(
-        message:
-            'Connexion momentanément indisponible. Réessaie dans un instant.',
+        message: 'Connexion momentanément indisponible. Réessaie dans un instant.',
       );
     } on FirebaseException catch (error, stackTrace) {
       return _handleAccessFailure(
@@ -131,15 +132,109 @@ class FirebaseAuthRepository implements AuthRepository {
         .collection('users')
         .doc(firebaseUser.uid);
 
-    final DocumentSnapshot<Map<String, dynamic>> profileSnapshot =
-        await _readProfileSnapshot(profileReference);
+    late final DocumentSnapshot<Map<String, dynamic>> profileSnapshot;
+    try {
+      profileSnapshot = await _readProfileSnapshot(profileReference);
+    } catch (error, stackTrace) {
+      // Le compte Cabiniste vit dans Supabase et ne doit pas dépendre de la
+      // disponibilité de Firestore pour pouvoir ouvrir sa session.
+      final _PartnerAccessLookup partnerAccess =
+          await _resolvePartnerAccess(firebaseUser);
+      if (partnerAccess.result != null) return partnerAccess.result!;
+      Error.throwWithStackTrace(error, stackTrace);
+    }
 
-    if (!profileSnapshot.exists && createPendingProfileWhenMissing) {
+    final Map<String, dynamic>? data = profileSnapshot.data();
+
+    if (profileSnapshot.exists && data != null) {
+      final String email = _readString(
+        data['email'],
+        fallback: firebaseUser.email ?? '',
+      );
+
+      final String name = _readString(
+        data['name'],
+        fallback: _buildInitialName(firebaseUser, email),
+      );
+
+      final String roleValue = _readString(
+        data['role'],
+        fallback: 'pending',
+      ).toLowerCase();
+
+      final bool isActive = data['isActive'] == true;
+
+      // Les profils Staff reconnus restent prioritaires. Le lookup Supabase
+      // Cabiniste n'intervient que pour un profil pending ou un role inconnu.
+      if (roleValue == 'pending') {
+        final _PartnerAccessLookup partnerAccess =
+            await _resolvePartnerAccess(firebaseUser);
+        if (partnerAccess.result != null) return partnerAccess.result!;
+
+        return AuthLoginResult.pendingActivation(
+          profileName: name,
+          email: email,
+        );
+      }
+
+      final UserRole? role = _parseRole(roleValue);
+      if (role == null) {
+        final _PartnerAccessLookup partnerAccess =
+            await _resolvePartnerAccess(firebaseUser);
+        if (partnerAccess.result != null) return partnerAccess.result!;
+
+        if (partnerAccess.lookupFailed) {
+          return const AuthLoginResult.unavailable(
+            message:
+                'Impossible de vérifier le compte Cabiniste pour le moment.',
+          );
+        }
+
+        await _safeSignOut();
+        return const AuthLoginResult.unavailable(
+          message: 'Le rôle associé à ce compte n’est pas reconnu.',
+        );
+      }
+
+      if (!isActive) {
+        return AuthLoginResult.inactive(
+          profileName: name,
+          email: email,
+          message: 'Ce compte a été désactivé par un administrateur.',
+        );
+      }
+
+      final String phoneNumber = _readString(
+        data['phoneNumber'],
+        fallback: firebaseUser.phoneNumber ?? '',
+      );
+
+      return AuthLoginResult.authenticated(
+        AppUser(
+          id: firebaseUser.uid,
+          name: name,
+          phoneNumber: phoneNumber,
+          role: role,
+        ),
+      );
+    }
+
+    final _PartnerAccessLookup partnerAccess =
+        await _resolvePartnerAccess(firebaseUser);
+    if (partnerAccess.result != null) return partnerAccess.result!;
+
+    if (partnerAccess.lookupFailed) {
+      return const AuthLoginResult.unavailable(
+        message:
+            'Impossible de vérifier le compte Cabiniste pour le moment. Ta session reste ouverte.',
+      );
+    }
+
+    if (createPendingProfileWhenMissing) {
       final String? email = firebaseUser.email?.trim().toLowerCase();
 
       if (email == null || email.isEmpty) {
         await _safeSignOut();
-
         return const AuthLoginResult.unavailable(
           message: 'Ce compte ne possède pas d’adresse e-mail utilisable.',
         );
@@ -166,64 +261,98 @@ class FirebaseAuthRepository implements AuthRepository {
       );
     }
 
-    final Map<String, dynamic>? data = profileSnapshot.data();
-    if (!profileSnapshot.exists || data == null) {
-      return const AuthLoginResult.unavailable(
-        message: 'Le profil utilisateur est introuvable.',
+    return const AuthLoginResult.unavailable(
+      message: 'Le profil utilisateur est introuvable.',
+    );
+  }
+
+  Future<_PartnerAccessLookup> _resolvePartnerAccess(User firebaseUser) async {
+    if (!SupabaseBootstrap.isInitialized) {
+      return const _PartnerAccessLookup.lookupFailed();
+    }
+
+    try {
+      final Map<String, dynamic>? row =
+          await BackendFailurePolicy.retryIdempotent<Map<String, dynamic>?>(
+        () async {
+          // Le client Supabase utilise ce JWT Firebase via accessToken().
+          await firebaseUser.getIdToken();
+          return Supabase.instance.client
+              .from('partner_accounts')
+              .select(
+                'id, firebase_uid, display_name, phone_number, status',
+              )
+              .eq('firebase_uid', firebaseUser.uid)
+              .maybeSingle();
+        },
+        maxAttempts: 2,
+        baseDelay: const Duration(milliseconds: 250),
+        maxDelay: const Duration(seconds: 1),
       );
-    }
 
-    final String email = _readString(
-      data['email'],
-      fallback: firebaseUser.email ?? '',
-    );
+      if (row == null) {
+        return const _PartnerAccessLookup.absent();
+      }
 
-    final String name = _readString(
-      data['name'],
-      fallback: _buildInitialName(firebaseUser, email),
-    );
-
-    final String roleValue = _readString(
-      data['role'],
-      fallback: 'pending',
-    ).toLowerCase();
-
-    final bool isActive = data['isActive'] == true;
-
-    if (roleValue == 'pending') {
-      return AuthLoginResult.pendingActivation(profileName: name, email: email);
-    }
-
-    final UserRole? role = _parseRole(roleValue);
-    if (role == null) {
-      await _safeSignOut();
-
-      return const AuthLoginResult.unavailable(
-        message: 'Le rôle associé à ce compte n’est pas reconnu.',
+      final String name = _readString(
+        row['display_name'],
+        fallback: _buildInitialName(
+          firebaseUser,
+          firebaseUser.email?.trim().toLowerCase() ?? '',
+        ),
       );
-    }
-
-    if (!isActive) {
-      return AuthLoginResult.inactive(
-        profileName: name,
-        email: email,
-        message: 'Ce compte a été désactivé par un administrateur.',
+      final String phoneNumber = _readString(
+        row['phone_number'],
+        fallback: firebaseUser.phoneNumber ?? '',
       );
+      final String status = _readString(
+        row['status'],
+        fallback: 'pending',
+      ).toLowerCase();
+      final String email = firebaseUser.email?.trim().toLowerCase() ?? '';
+
+      switch (status) {
+        case 'active':
+          return _PartnerAccessLookup.resolved(
+            AuthLoginResult.authenticated(
+              AppUser(
+                id: firebaseUser.uid,
+                name: name,
+                phoneNumber: phoneNumber,
+                role: UserRole.cabiniste,
+              ),
+            ),
+          );
+        case 'pending':
+          return _PartnerAccessLookup.resolved(
+            AuthLoginResult.pendingActivation(
+              profileName: name,
+              email: email,
+              message:
+                  'Ton compte Cabiniste est en attente d’activation par IzyTel.',
+            ),
+          );
+        case 'suspended':
+        case 'closed':
+          return _PartnerAccessLookup.resolved(
+            AuthLoginResult.inactive(
+              profileName: name,
+              email: email,
+              message:
+                  'Ce compte Cabiniste est actuellement suspendu ou fermé.',
+            ),
+          );
+        default:
+          return const _PartnerAccessLookup.lookupFailed();
+      }
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'Auth.partner-access',
+        error,
+        stackTrace: stackTrace,
+      );
+      return const _PartnerAccessLookup.lookupFailed();
     }
-
-    final String phoneNumber = _readString(
-      data['phoneNumber'],
-      fallback: firebaseUser.phoneNumber ?? '',
-    );
-
-    return AuthLoginResult.authenticated(
-      AppUser(
-        id: firebaseUser.uid,
-        name: name,
-        phoneNumber: phoneNumber,
-        role: role,
-      ),
-    );
   }
 
   Future<DocumentSnapshot<Map<String, dynamic>>> _readProfileSnapshot(
@@ -269,7 +398,11 @@ class FirebaseAuthRepository implements AuthRepository {
     required bool signOutWhenPermanent,
   }) async {
     final bool transient = BackendFailurePolicy.canRetryRead(error);
-    IzyTelLog.backendError('Auth.access', error, stackTrace: stackTrace);
+    IzyTelLog.backendError(
+      'Auth.access',
+      error,
+      stackTrace: stackTrace,
+    );
 
     if (transient) {
       return const AuthLoginResult.unavailable(
@@ -375,4 +508,21 @@ class FirebaseAuthRepository implements AuthRepository {
       // Ne masque pas l’erreur qui a déclenché la déconnexion.
     }
   }
+}
+
+
+class _PartnerAccessLookup {
+  const _PartnerAccessLookup._({required this.result, required this.lookupFailed});
+
+  const _PartnerAccessLookup.absent()
+      : this._(result: null, lookupFailed: false);
+
+  const _PartnerAccessLookup.lookupFailed()
+      : this._(result: null, lookupFailed: true);
+
+  const _PartnerAccessLookup.resolved(AuthLoginResult result)
+      : this._(result: result, lookupFailed: false);
+
+  final AuthLoginResult? result;
+  final bool lookupFailed;
 }

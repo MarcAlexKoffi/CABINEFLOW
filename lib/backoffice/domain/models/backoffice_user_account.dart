@@ -4,6 +4,7 @@ enum BackofficeAccountRole {
   manager,
   operator,
   agent,
+  cabiniste,
   unknown,
 }
 
@@ -20,6 +21,8 @@ extension BackofficeAccountRoleX on BackofficeAccountRole {
         return 'Opérateur (legacy)';
       case BackofficeAccountRole.agent:
         return 'Agent';
+      case BackofficeAccountRole.cabiniste:
+        return 'Cabiniste';
       case BackofficeAccountRole.unknown:
         return 'Inconnu';
     }
@@ -39,6 +42,9 @@ extension BackofficeAccountRoleX on BackofficeAccountRole {
         return BackofficeAccountRole.operator;
       case 'agent':
         return BackofficeAccountRole.agent;
+      case 'cabiniste':
+      case 'partner':
+        return BackofficeAccountRole.cabiniste;
       default:
         return BackofficeAccountRole.unknown;
     }

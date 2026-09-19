@@ -134,17 +134,23 @@ class SupabaseStaffProfileRepository {
       }
     }
     if (path == null) {
-      final Object? raw = await _client.rpc(
-        'izytel_staff_directory_avatar_path',
-        params: <String, dynamic>{'p_staff_uid': uid},
-      );
-      path = _nullable(raw?.toString());
+      try {
+        final Object? raw = await _client.rpc(
+          'izytel_staff_directory_avatar_path',
+          params: <String, dynamic>{'p_staff_uid': uid},
+        );
+        path = _nullable(raw?.toString());
+      } on PostgrestException {
+        path = null;
+      }
     }
     if (path == null || path.isEmpty) return null;
     try {
-      return await _client.storage
+      final String signed = await _client.storage
           .from(bucketName)
           .createSignedUrl(path, expiresInSeconds);
+      final String separator = signed.contains('?') ? '&' : '?';
+      return '$signed${separator}v=${DateTime.now().millisecondsSinceEpoch}';
     } on StorageException {
       return null;
     }
@@ -248,10 +254,24 @@ class SupabaseStaffProfileRepository {
     required String fallbackDisplayName,
     required String avatarPath,
   }) {
+    final List<String> names = fallbackDisplayName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((String value) => value.isNotEmpty)
+        .toList(growable: false);
+    final String fallbackFirstName = names.isEmpty ? 'Utilisateur' : names.first;
+    final String fallbackLastName = names.length > 1
+        ? names.skip(1).join(' ')
+        : '';
+
     if (current != null) {
       return StaffProfileDraft(
-        firstName: current.firstName,
-        lastName: current.lastName,
+        firstName: current.firstName.trim().isEmpty
+            ? fallbackFirstName
+            : current.firstName,
+        lastName: current.lastName.trim().isEmpty
+            ? fallbackLastName
+            : current.lastName,
         email: current.email,
         phoneNumber: current.phoneNumber,
         secondaryPhone: current.secondaryPhone,
@@ -269,14 +289,9 @@ class SupabaseStaffProfileRepository {
       );
     }
 
-    final List<String> names = fallbackDisplayName
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((String value) => value.isNotEmpty)
-        .toList(growable: false);
     return StaffProfileDraft(
-      firstName: names.isEmpty ? 'Staff' : names.first,
-      lastName: names.length > 1 ? names.skip(1).join(' ') : '',
+      firstName: fallbackFirstName,
+      lastName: fallbackLastName,
       email: '',
       phoneNumber: '',
       secondaryPhone: '',

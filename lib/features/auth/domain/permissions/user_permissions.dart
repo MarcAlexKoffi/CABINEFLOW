@@ -122,6 +122,7 @@ extension AppUserPermissionsX on AppUser {
       case UserRole.operator:
         return UserPermissions.legacyOperator;
       case UserRole.agent:
+      case UserRole.cabiniste:
         return UserPermissions.agent;
     }
   }
@@ -142,6 +143,8 @@ extension AppUserPermissionsX on AppUser {
         return 'operator';
       case UserRole.agent:
         return 'agent';
+      case UserRole.cabiniste:
+        return 'cabiniste';
     }
   }
 
@@ -155,6 +158,7 @@ extension AppUserPermissionsX on AppUser {
         return 'manager';
       case UserRole.operator:
       case UserRole.agent:
+      case UserRole.cabiniste:
         return null;
     }
   }

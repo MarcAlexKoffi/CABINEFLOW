@@ -13,13 +13,15 @@ class AgentPersonalProfilePage extends StatefulWidget {
   const AgentPersonalProfilePage({
     super.key,
     required this.user,
-    required this.repository,
+    this.repository,
     this.personalProfileRepository,
+    this.roleLabel = 'Agent',
   });
 
   final AppUser user;
-  final AgentRepository repository;
+  final AgentRepository? repository;
   final SupabaseAgentPersonalProfileRepository? personalProfileRepository;
+  final String roleLabel;
 
   @override
   State<AgentPersonalProfilePage> createState() =>
@@ -28,6 +30,18 @@ class AgentPersonalProfilePage extends StatefulWidget {
 
 class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
   final _formKey = GlobalKey<FormState>();
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey<FormFieldState<String>> _firstNameKey =
+      GlobalKey<FormFieldState<String>>();
+  final GlobalKey<FormFieldState<String>> _lastNameKey =
+      GlobalKey<FormFieldState<String>>();
+  final GlobalKey _birthDateKey = GlobalKey();
+  final GlobalKey<FormFieldState<String>> _addressKey =
+      GlobalKey<FormFieldState<String>>();
+  final GlobalKey<FormFieldState<String>> _cityKey =
+      GlobalKey<FormFieldState<String>>();
+  final GlobalKey<FormFieldState<String>> _contact1Key =
+      GlobalKey<FormFieldState<String>>();
   final _picker = ImagePicker();
   SupabaseAgentPersonalProfileRepository? _profileRepository;
 
@@ -52,6 +66,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
   PreparedAgentMedia? _pendingIdentity;
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _showValidationErrors = false;
   String? _error;
   String? _mediaWarning;
 
@@ -83,6 +98,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
     _emergencyName.dispose();
     _emergencyPhone.dispose();
     _identityNumber.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -188,7 +204,9 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
         .toList(growable: false);
     if (parts.isNotEmpty) {
       _firstName.text = parts.first;
-      _lastName.text = parts.length > 1 ? parts.skip(1).join(' ') : 'Agent';
+      _lastName.text = parts.length > 1
+          ? parts.skip(1).join(' ')
+          : widget.roleLabel;
     }
     _contact1.text = widget.user.phoneNumber.trim();
   }
@@ -205,18 +223,28 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       );
       if (file == null) return;
       final Uint8List bytes = await file.readAsBytes();
-      final repository = _profileRepository;
+      final SupabaseAgentPersonalProfileRepository? repository =
+          _profileRepository;
       if (repository == null) {
         throw StateError(
           'Supabase doit être initialisé pour enregistrer la photo.',
         );
       }
-      final prepared = repository.prepareAvatar(
+      final String currentDisplayName = <String>[
+        _firstName.text.trim(),
+        _lastName.text.trim(),
+      ].where((String value) => value.isNotEmpty).join(' ');
+      await repository.saveAvatarOnly(
+        agentId: widget.user.id,
         source: bytes,
-        fileName: file.name,
+        fallbackDisplayName: currentDisplayName.isEmpty
+            ? widget.user.name
+            : currentDisplayName,
       );
       if (!mounted) return;
-      setState(() => _pendingAvatar = prepared);
+      _pendingAvatar = null;
+      IzyTelFeedback.success(context, 'Photo de profil mise à jour.');
+      await _load();
     } catch (error) {
       _showError('$error');
     }
@@ -334,17 +362,33 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       firstDate: firstDate,
       lastDate: lastDate,
     );
-    if (result != null && mounted) setState(() => _dateOfBirth = result);
+    if (result != null && mounted) {
+      setState(() => _dateOfBirth = result);
+    }
   }
 
   Future<void> _save() async {
-    if (_isSaving || !_formKey.currentState!.validate()) return;
-    if (_dateOfBirth == null) {
-      _showError('Indique la date de naissance.');
+    if (_isSaving) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    final bool formValid = _formKey.currentState?.validate() ?? false;
+    final bool birthDateValid = _dateOfBirth != null;
+    if (!formValid || !birthDateValid) {
+      if (mounted) {
+        setState(() => _showValidationErrors = true);
+      }
+      await _focusFirstInvalidField();
+      if (mounted) {
+        IzyTelFeedback.show(
+          context,
+          'Complète les champs obligatoires (*) indiqués en rouge.',
+          tone: IzyTelFeedbackTone.warning,
+        );
+      }
       return;
     }
     setState(() {
       _isSaving = true;
+      _showValidationErrors = false;
       _error = null;
     });
     try {
@@ -410,6 +454,31 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
     }
   }
 
+  Future<void> _focusFirstInvalidField() async {
+    await Future<void>.delayed(Duration.zero);
+    BuildContext? target;
+    if (_firstNameKey.currentState?.hasError == true) {
+      target = _firstNameKey.currentContext;
+    } else if (_lastNameKey.currentState?.hasError == true) {
+      target = _lastNameKey.currentContext;
+    } else if (_dateOfBirth == null) {
+      target = _birthDateKey.currentContext;
+    } else if (_addressKey.currentState?.hasError == true) {
+      target = _addressKey.currentContext;
+    } else if (_cityKey.currentState?.hasError == true) {
+      target = _cityKey.currentContext;
+    } else if (_contact1Key.currentState?.hasError == true) {
+      target = _contact1Key.currentContext;
+    }
+    if (target == null || !target.mounted) return;
+    await Scrollable.ensureVisible(
+      target,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+      alignment: .18,
+    );
+  }
+
   void _showError(String message) {
     if (!mounted) return;
     setState(() => _error = message);
@@ -426,12 +495,18 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       body: Form(
         key: _formKey,
         child: ListView(
+          controller: _scrollController,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
           children: <Widget>[
             _ProfileMediaHeader(
               bytes: _pendingAvatar?.bytes ?? _avatarMedia?.bytes,
               status: _verificationStatus,
               onPick: _pickAvatar,
+            ),
+            const SizedBox(height: 10),
+            const _InfoCard(
+              icon: Icons.info_outline,
+              text: 'Les champs marqués * sont obligatoires.',
             ),
             if (_error != null) ...<Widget>[
               const SizedBox(height: 12),
@@ -458,6 +533,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
               _field(
                 _firstName,
                 'Prénom(s)',
+                fieldKey: _firstNameKey,
                 locked: _isVerified,
                 minLength: 2,
                 maxLength: 80,
@@ -465,6 +541,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
               _field(
                 _lastName,
                 'Nom',
+                fieldKey: _lastNameKey,
                 locked: _isVerified,
                 minLength: 2,
                 maxLength: 80,
@@ -472,13 +549,17 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
             ),
             const SizedBox(height: 10),
             InkWell(
+              key: _birthDateKey,
               onTap: _isVerified ? null : _pickBirthDate,
               borderRadius: BorderRadius.circular(12),
               child: InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: 'Date de naissance',
-                  border: OutlineInputBorder(),
-                  suffixIcon: Icon(Icons.calendar_month_outlined),
+                decoration: InputDecoration(
+                  labelText: 'Date de naissance *',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: const Icon(Icons.calendar_month_outlined),
+                  errorText: _showValidationErrors && _dateOfBirth == null
+                      ? 'Champ obligatoire.'
+                      : null,
                 ),
                 child: Text(_dateLabel(_dateOfBirth)),
               ),
@@ -487,17 +568,25 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
             _field(
               _address,
               'Adresse / quartier',
+              fieldKey: _addressKey,
               minLength: 3,
               maxLength: 200,
             ),
             const SizedBox(height: 10),
-            _field(_city, 'Ville / commune', minLength: 2, maxLength: 100),
+            _field(
+              _city,
+              'Ville / commune',
+              fieldKey: _cityKey,
+              minLength: 2,
+              maxLength: 100,
+            ),
             const SizedBox(height: 18),
             _sectionTitle(context, 'Contacts'),
             const SizedBox(height: 8),
             _field(
               _contact1,
               'Contact principal',
+              fieldKey: _contact1Key,
               minLength: 8,
               maxLength: 30,
               keyboard: TextInputType.phone,
@@ -573,7 +662,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
             const SizedBox(height: 8),
             Text(
               '850 Ko maximum. Les images sont compressées automatiquement. '
-              'Les PDF trop lourds sont refusés. Les fichiers sont enregistrés dans l’espace privé Supabase de l’Agent.',
+              'Les PDF trop lourds sont refusés. Les fichiers sont enregistrés dans ton espace privé Supabase IzyTel.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 20),
@@ -597,6 +686,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
   Widget _field(
     TextEditingController controller,
     String label, {
+    GlobalKey<FormFieldState<String>>? fieldKey,
     bool required = true,
     bool locked = false,
     int minLength = 2,
@@ -604,18 +694,24 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
     TextInputType? keyboard,
   }) {
     return TextFormField(
+      key: fieldKey,
       controller: controller,
       readOnly: locked,
       keyboardType: keyboard,
+      autovalidateMode: _showValidationErrors
+          ? AutovalidateMode.onUserInteraction
+          : AutovalidateMode.disabled,
       decoration: InputDecoration(
-        labelText: label,
+        labelText: required ? '$label *' : label,
         border: const OutlineInputBorder(),
         filled: locked,
       ),
       validator: (value) {
         final String text = value?.trim() ?? '';
         if (required && text.length < minLength) {
-          return 'Minimum $minLength caractères.';
+          return text.isEmpty
+              ? 'Champ obligatoire.'
+              : 'Minimum $minLength caractères.';
         }
         if (!required && text.isNotEmpty && text.length < minLength) {
           return 'Minimum $minLength caractères.';

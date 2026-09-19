@@ -50,6 +50,7 @@ class SupabasePartnerOrderRepository {
         .select(
           'order_id, order_reference, network, amount, assignment_state, '
           'order_status, assigned_cabiniste_id, assigned_cabiniste_name, '
+          'beneficiary_phone, operation_type, offer_label, '
           'processing_started_at, completed_at, failure_reason, observation, '
           'last_hold_reason, updated_at',
         )
@@ -58,6 +59,26 @@ class SupabasePartnerOrderRepository {
 
     return List<PartnerOrderSnapshot>.unmodifiable(
       rows.map(_orderFromRow),
+    );
+  }
+
+  Future<List<PartnerAssignmentHistoryItem>> fetchOwnAssignmentHistory({
+    int limit = 100,
+  }) async {
+    final PartnerAccountSnapshot account = await _requireOwnAccount();
+    final List<Map<String, dynamic>> rows = await _client
+        .from('phase4_partner_assignment_history')
+        .select(
+          'id, order_id, order_reference, partner_id, partner_name, mode, '
+          'status, assigned_at, accepted_at, refused_at, refusal_reason, '
+          'completed_at, network, amount, updated_at',
+        )
+        .eq('partner_id', account.id)
+        .order('updated_at', ascending: false)
+        .limit(limit < 1 ? 1 : (limit > 200 ? 200 : limit));
+
+    return List<PartnerAssignmentHistoryItem>.unmodifiable(
+      rows.map(_historyFromRow),
     );
   }
 
@@ -135,6 +156,51 @@ class SupabasePartnerOrderRepository {
       reason: reason.trim(),
       observation: observation?.trim(),
     );
+  }
+
+
+  Future<PartnerFinanceSnapshot> fetchFinanceSnapshot() async {
+    final Object? raw = await _client.rpc('izytel_partner_finance_snapshot');
+    final Map<String, dynamic> row = _map(raw);
+    final Map<String, dynamic> account = _mapOrEmpty(row['account']);
+    final List<dynamic> payoutRows = row['payouts'] is List
+        ? row['payouts'] as List<dynamic>
+        : const <dynamic>[];
+
+    return PartnerFinanceSnapshot(
+      partnerId: _string(row['partnerId']),
+      partnerCode: _string(row['partnerCode']),
+      displayName: _string(row['displayName']),
+      status: _string(row['status']),
+      earnedTotal: _integer(account['earnedTotal']),
+      paidTotal: _integer(account['paidTotal']),
+      balanceDue: _integer(account['balanceDue']),
+      earnedTransactions: _integer(account['earnedTransactions']),
+      payouts: List<PartnerFinancePayout>.unmodifiable(
+        payoutRows.map((dynamic item) {
+          final Map<String, dynamic> payout = _mapOrEmpty(item);
+          return PartnerFinancePayout(
+            id: _string(payout['payoutId']),
+            amount: _integer(payout['amount']),
+            channel: _string(payout['channel']),
+            reference: _string(payout['reference']),
+            paidAt: _dateTime(payout['paidAt']),
+            note: _nullableString(payout['note']),
+          );
+        }),
+      ),
+    );
+  }
+
+  Future<bool> hasProof(String orderId) async {
+    final String cleanedOrderId = orderId.trim();
+    if (cleanedOrderId.isEmpty) return false;
+    final Map<String, dynamic>? row = await _client
+        .from(proofsTable)
+        .select('order_id')
+        .eq('order_id', cleanedOrderId)
+        .maybeSingle();
+    return row != null;
   }
 
   Future<void> updateOwnOperations({
@@ -308,6 +374,28 @@ class SupabasePartnerOrderRepository {
     return _orderFromRow(_map(raw));
   }
 
+  PartnerAssignmentHistoryItem _historyFromRow(Map<String, dynamic> row) {
+    return PartnerAssignmentHistoryItem(
+      id: _string(row['id']),
+      orderId: _string(row['order_id']),
+      orderReference: _string(row['order_reference']),
+      partnerId: _string(row['partner_id']),
+      partnerName: _string(row['partner_name']),
+      mode: _string(row['mode']),
+      status: _string(row['status']),
+      network: _string(row['network']),
+      amount: _integer(row['amount']),
+      assignedAt: _dateTime(row['assigned_at']) ??
+          DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      acceptedAt: _nullableDateTime(row['accepted_at']),
+      refusedAt: _nullableDateTime(row['refused_at']),
+      refusalReason: _nullableString(row['refusal_reason']),
+      completedAt: _nullableDateTime(row['completed_at']),
+      updatedAt: _dateTime(row['updated_at']) ??
+          DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    );
+  }
+
   Future<PartnerAccountSnapshot> _requireOwnAccount() async {
     final PartnerAccountSnapshot? account = await fetchOwnAccount();
     if (account == null) {
@@ -355,6 +443,9 @@ class SupabasePartnerOrderRepository {
       orderStatus: _string(row['order_status']),
       assignedPartnerId: _string(row['assigned_cabiniste_id']),
       assignedPartnerName: _string(row['assigned_cabiniste_name']),
+      beneficiaryPhone: _string(row['beneficiary_phone']),
+      operationType: _string(row['operation_type']),
+      offerLabel: _string(row['offer_label']),
       processingStartedAt: _dateTime(row['processing_started_at']),
       completedAt: _dateTime(row['completed_at']),
       failureReason: _nullableString(row['failure_reason']),
@@ -365,10 +456,22 @@ class SupabasePartnerOrderRepository {
     );
   }
 
+  Map<String, dynamic> _mapOrEmpty(Object? raw) {
+    if (raw is Map<String, dynamic>) return raw;
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    return const <String, dynamic>{};
+  }
+
   Map<String, dynamic> _map(Object? raw) {
     if (raw is Map<String, dynamic>) return raw;
     if (raw is Map) return Map<String, dynamic>.from(raw);
     throw StateError('Invalid Supabase response.');
+  }
+
+  DateTime? _nullableDateTime(Object? value) {
+    final String text = _string(value);
+    if (text.isEmpty) return null;
+    return DateTime.tryParse(text);
   }
 
   String _string(Object? value) => value?.toString().trim() ?? '';

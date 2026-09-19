@@ -26,6 +26,9 @@ class StaffPersonalProfilePage extends StatefulWidget {
 
 class _StaffPersonalProfilePageState extends State<StaffPersonalProfilePage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey<FormFieldState<String>> _firstNameKey =
+      GlobalKey<FormFieldState<String>>();
   late final SupabaseStaffProfileRepository _repository;
   final TextEditingController _firstName = TextEditingController();
   final TextEditingController _lastName = TextEditingController();
@@ -41,6 +44,7 @@ class _StaffPersonalProfilePageState extends State<StaffPersonalProfilePage> {
   DateTime? _dateOfBirth;
   bool _loading = true;
   bool _saving = false;
+  bool _showValidationErrors = false;
   Object? _error;
 
   @override
@@ -62,6 +66,7 @@ class _StaffPersonalProfilePageState extends State<StaffPersonalProfilePage> {
     _city.dispose();
     _emergencyName.dispose();
     _emergencyPhone.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -114,8 +119,25 @@ class _StaffPersonalProfilePageState extends State<StaffPersonalProfilePage> {
   }
 
   Future<void> _save() async {
-    if (_saving || !(_formKey.currentState?.validate() ?? false)) return;
-    setState(() => _saving = true);
+    if (_saving) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    final bool valid = _formKey.currentState?.validate() ?? false;
+    if (!valid) {
+      if (mounted) setState(() => _showValidationErrors = true);
+      await _focusFirstInvalidField();
+      if (mounted) {
+        IzyTelFeedback.show(
+          context,
+          'Complète les champs obligatoires (*) indiqués en rouge.',
+          tone: IzyTelFeedbackTone.warning,
+        );
+      }
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _showValidationErrors = false;
+    });
     try {
       final StaffProfile? current = _profile;
       final StaffProfile saved = await _repository.saveOwnProfile(
@@ -152,6 +174,20 @@ class _StaffPersonalProfilePageState extends State<StaffPersonalProfilePage> {
     }
   }
 
+  Future<void> _focusFirstInvalidField() async {
+    await Future<void>.delayed(Duration.zero);
+    final BuildContext? target = _firstNameKey.currentState?.hasError == true
+        ? _firstNameKey.currentContext
+        : null;
+    if (target == null || !target.mounted) return;
+    await Scrollable.ensureVisible(
+      target,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+      alignment: .18,
+    );
+  }
+
   Future<void> _pickDate() async {
     final DateTime now = DateTime.now();
     final DateTime? selected = await showDatePicker(
@@ -183,9 +219,18 @@ class _StaffPersonalProfilePageState extends State<StaffPersonalProfilePage> {
               child: Form(
                 key: _formKey,
                 child: ListView(
+                  controller: _scrollController,
                   padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
                   children: <Widget>[
                     _identityHeader(),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Les champs marqués * sont obligatoires.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: IzyTelColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: IzyTelSpacing.lg),
                     _section(
                       title: 'Identité',
@@ -195,6 +240,7 @@ class _StaffPersonalProfilePageState extends State<StaffPersonalProfilePage> {
                           _field(
                             controller: _firstName,
                             label: 'Prénom(s)',
+                            fieldKey: _firstNameKey,
                             required: true,
                           ),
                           _field(controller: _lastName, label: 'Nom'),
@@ -437,13 +483,20 @@ class _StaffPersonalProfilePageState extends State<StaffPersonalProfilePage> {
   Widget _field({
     required TextEditingController controller,
     required String label,
+    GlobalKey<FormFieldState<String>>? fieldKey,
     TextInputType? keyboardType,
     bool required = false,
   }) {
     return TextFormField(
+      key: fieldKey,
       controller: controller,
       keyboardType: keyboardType,
-      decoration: InputDecoration(labelText: label),
+      autovalidateMode: _showValidationErrors
+          ? AutovalidateMode.onUserInteraction
+          : AutovalidateMode.disabled,
+      decoration: InputDecoration(
+        labelText: required ? '$label *' : label,
+      ),
       validator: required
           ? (String? value) => (value ?? '').trim().isEmpty
                 ? 'Champ obligatoire'

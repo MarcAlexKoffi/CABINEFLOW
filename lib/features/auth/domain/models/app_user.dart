@@ -1,4 +1,4 @@
-enum UserRole { administrator, manager, supervisor, operator, agent }
+enum UserRole { administrator, manager, supervisor, operator, agent, cabiniste }
 
 class AppUser {
   const AppUser({
@@ -31,6 +31,9 @@ class AppUser {
 
       case UserRole.agent:
         return 'Agent';
+
+      case UserRole.cabiniste:
+        return 'Cabiniste';
     }
   }
 }

@@ -302,7 +302,7 @@ class _UsersHeader extends StatelessWidget {
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 760),
           child: Text(
-            'Registre des comptes IzyTel : Agents, Managers, Administrateurs et comptes en attente.',
+            'Registre des comptes IzyTel : Agents, Cabinistes, Managers, Administrateurs et comptes en attente.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
           ),
         ),
@@ -959,6 +959,7 @@ class _RolePill extends StatelessWidget {
       BackofficeAccountRole.administrator => BackofficePalette.primary,
       BackofficeAccountRole.manager => BackofficePalette.primaryStrong,
       BackofficeAccountRole.agent => BackofficePalette.success,
+      BackofficeAccountRole.cabiniste => BackofficePalette.primaryStrong,
       BackofficeAccountRole.pending => BackofficePalette.warning,
       BackofficeAccountRole.operator => BackofficePalette.muted,
       BackofficeAccountRole.unknown => BackofficePalette.danger,

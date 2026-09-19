@@ -90,6 +90,7 @@ class StaffProfile {
     'admin' => 'Administrateur',
     'manager' => 'Manager',
     'agent' => 'Agent',
+    'cabiniste' => 'Cabiniste',
     _ => role,
   };
 
