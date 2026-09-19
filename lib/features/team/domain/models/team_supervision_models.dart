@@ -153,6 +153,8 @@ class TeamPerformanceSnapshot {
 
 String teamString(Object? value) => _string(value);
 int teamInt(Object? value) => value is num ? value.toInt() : int.tryParse('$value') ?? 0;
+double teamDouble(Object? value) =>
+    value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
 Map<String, dynamic> teamMap(Object? value) => _map(value);
 List<String> teamStrings(Object? value) => _strings(value);
 
