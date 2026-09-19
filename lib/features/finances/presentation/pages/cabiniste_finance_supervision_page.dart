@@ -72,7 +72,7 @@ class _CabinisteFinanceSupervisionPageState
                 const IzyTelPageHeader(
                   title: 'Cabinistes',
                   subtitle:
-                      'Lecture Manager : gain IzyTel, montant à reverser et historique par Cabiniste.',
+                      'Comptes Cabinistes, activité, gain IzyTel, montant à reverser et historique détaillé.',
                 ),
                 const SizedBox(height: IzyTelSpacing.lg),
                 _summaryGrid(data.summary),
@@ -109,7 +109,7 @@ class _CabinisteFinanceSupervisionPageState
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'Le Manager consulte ces montants en lecture seule. Les règlements Cabinistes restent réservés à l’Administrateur.',
+                          'Les montants sont calculés commande par commande. Les règlements Cabinistes restent réservés à l’Administrateur.',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 color: IzyTelColors.textSecondary,
                                 height: 1.4,

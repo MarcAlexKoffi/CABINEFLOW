@@ -123,7 +123,7 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
       children: <Widget>[
         BackofficePageIntro(
           eyebrow: 'Équipe / Managers',
-          title: 'Managers et supervision territoriale',
+          title: 'Comptes Managers et supervision territoriale',
           description: _canManage
               ? 'Gère les Managers IzyTel, leurs coordonnées, leurs zones et les Agents rattachés à leurs périmètres.'
               : 'Consulte les Managers, leurs zones et les Agents rattachés aux périmètres supervisés.',
@@ -402,7 +402,7 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
                 alignment: Alignment.centerRight,
                 child: OutlinedButton(
                   onPressed: () => _openManager(manager),
-                  child: Text(_canManage ? 'Gérer' : 'Voir'),
+                  child: Text(_canManage ? 'Voir / gérer le compte' : 'Voir le compte'),
                 ),
               ),
             ),
@@ -446,7 +446,7 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
             alignment: Alignment.centerRight,
             child: OutlinedButton(
               onPressed: () => _openManager(manager),
-              child: Text(_canManage ? 'Gérer' : 'Voir'),
+              child: Text(_canManage ? 'Voir / gérer le compte' : 'Voir le compte'),
             ),
           ),
         ],

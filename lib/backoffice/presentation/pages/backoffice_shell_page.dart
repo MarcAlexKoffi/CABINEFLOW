@@ -52,6 +52,7 @@ enum BackofficeDestination {
   customerRequests,
   refunds,
   agents,
+  cabinisteFinances,
   managers,
   zones,
   agentIssues,
@@ -60,7 +61,6 @@ enum BackofficeDestination {
   finances,
   waveCash,
   commissions,
-  cabinisteFinances,
   suppliers,
   customerCredits,
   expenses,
@@ -105,7 +105,7 @@ extension _BackofficeDestinationX on BackofficeDestination {
       case BackofficeDestination.agents:
         return 'Agents';
       case BackofficeDestination.managers:
-        return 'Managers';
+        return 'Comptes Managers';
       case BackofficeDestination.zones:
         return 'Zones & capacités';
       case BackofficeDestination.agentIssues:
@@ -220,6 +220,7 @@ extension _BackofficeDestinationX on BackofficeDestination {
       case BackofficeDestination.managers:
       case BackofficeDestination.zones:
       case BackofficeDestination.agentIssues:
+      case BackofficeDestination.cabinisteFinances:
         return _BackofficeSection.team;
       case BackofficeDestination.users:
         return _BackofficeSection.administration;
@@ -228,7 +229,6 @@ extension _BackofficeDestinationX on BackofficeDestination {
       case BackofficeDestination.finances:
       case BackofficeDestination.waveCash:
       case BackofficeDestination.commissions:
-      case BackofficeDestination.cabinisteFinances:
       case BackofficeDestination.suppliers:
       case BackofficeDestination.customerCredits:
       case BackofficeDestination.expenses:
@@ -264,6 +264,7 @@ extension _BackofficeDestinationX on BackofficeDestination {
         return permissions.canManageRefunds;
       case BackofficeDestination.agents:
       case BackofficeDestination.zones:
+      case BackofficeDestination.cabinisteFinances:
         return permissions.canViewAgentDirectory;
       case BackofficeDestination.managers:
         return user.role == UserRole.administrator;
@@ -276,7 +277,6 @@ extension _BackofficeDestinationX on BackofficeDestination {
       case BackofficeDestination.finances:
       case BackofficeDestination.waveCash:
       case BackofficeDestination.commissions:
-      case BackofficeDestination.cabinisteFinances:
       case BackofficeDestination.suppliers:
       case BackofficeDestination.customerCredits:
       case BackofficeDestination.expenses:
@@ -996,7 +996,7 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
       case BackofficeDestination.commissions:
         return _financeContent(BackofficeFinanceModule.commissions);
       case BackofficeDestination.cabinisteFinances:
-        return const BackofficeCabinisteFinancePage();
+        return BackofficeCabinisteFinancePage(user: widget.user);
       case BackofficeDestination.suppliers:
         return _financeContent(BackofficeFinanceModule.suppliers);
       case BackofficeDestination.customerCredits:

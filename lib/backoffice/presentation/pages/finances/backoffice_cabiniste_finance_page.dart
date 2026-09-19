@@ -1,6 +1,7 @@
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
 import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_order_widgets.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
+import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/partners/data/repositories/supabase_cabiniste_finance_supervision_repository.dart';
 import 'package:cabine_flow/features/partners/domain/models/cabiniste_finance_supervision_models.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
@@ -10,9 +11,11 @@ import 'package:material_symbols_icons/symbols.dart';
 class BackofficeCabinisteFinancePage extends StatefulWidget {
   const BackofficeCabinisteFinancePage({
     super.key,
+    required this.user,
     this.repository,
   });
 
+  final AppUser user;
   final SupabaseCabinisteFinanceSupervisionRepository? repository;
 
   @override
@@ -25,6 +28,9 @@ class _BackofficeCabinisteFinancePageState
   late final SupabaseCabinisteFinanceSupervisionRepository _repository;
   late Future<CabinisteFinanceSnapshot> _future;
   bool _busy = false;
+
+  bool get _canRecordPayouts =>
+      widget.user.role == UserRole.administrator;
 
   @override
   void initState() {
@@ -54,10 +60,11 @@ class _BackofficeCabinisteFinancePageState
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               BackofficePageIntro(
-                eyebrow: 'Finances / Cabinistes',
-                title: 'Finances Cabinistes',
-                description:
-                    'Suivre ce qu’IzyTel gagne sur chaque Cabiniste, le montant à lui reverser, les règlements effectués et le solde restant dû.',
+                eyebrow: 'Équipe / Cabinistes',
+                title: 'Cabinistes',
+                description: _canRecordPayouts
+                    ? 'Consulte les comptes Cabinistes, leur activité, ce qu’IzyTel gagne et les montants à reverser.'
+                    : 'Consulte les comptes Cabinistes, leur activité, ce qu’IzyTel gagne et les montants à reverser en lecture seule.',
                 icon: Symbols.storefront_rounded,
                 trailing: OutlinedButton.icon(
                   onPressed: _busy ? null : _reload,
@@ -228,7 +235,7 @@ class _BackofficeCabinisteFinancePageState
                 icon: const Icon(Symbols.visibility_rounded),
                 label: const Text('Détail'),
               ),
-              if (partner.balanceDue > 0)
+              if (_canRecordPayouts && partner.balanceDue > 0)
                 FilledButton.icon(
                   onPressed: _busy ? null : () => _showPayout(partner),
                   icon: const Icon(Symbols.payments_rounded),

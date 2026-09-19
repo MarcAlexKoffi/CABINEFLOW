@@ -27,23 +27,23 @@ void main() {
     expect(model, contains('cabinisteMarginAmount'));
   });
 
-  test('Manager dispose de la vue Cabinistes en lecture seule', () {
-    final String financePage = source(
-      'lib/features/finances/presentation/pages/finances_page.dart',
+  test('Cabinistes sont ranges dans Equipe sur mobile Admin et Manager', () {
+    final String more = source(
+      'lib/features/more/presentation/pages/more_page.dart',
     );
     final String cabinistePage = source(
       'lib/features/finances/presentation/pages/cabiniste_finance_supervision_page.dart',
     );
 
-    expect(financePage, contains("title: 'Cabinistes'"));
-    expect(financePage, contains('_openCabinisteFinances'));
+    expect(more, contains("const _SectionLabel('Équipe')"));
+    expect(more, contains("title: 'Cabinistes'"));
+    expect(more, contains('CabinisteFinanceSupervisionPage'));
     expect(cabinistePage, contains("label: 'Gain IzyTel'"));
     expect(cabinistePage, contains("label: 'À reverser'"));
-    expect(cabinistePage, contains('lecture seule'));
     expect(cabinistePage, isNot(contains('recordPayout(')));
   });
 
-  test('Admin dispose de la vue Cabinistes et du reglement', () {
+  test('Back Office range Cabinistes dans Equipe et reserve le paiement Admin', () {
     final String shell = source(
       'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
     );
@@ -51,10 +51,11 @@ void main() {
       'lib/backoffice/presentation/pages/finances/backoffice_cabiniste_finance_page.dart',
     );
 
-    expect(shell, contains('cabinisteFinances'));
-    expect(shell, contains('BackofficeCabinisteFinancePage'));
-    expect(page, contains('Gain brut IzyTel'));
-    expect(page, contains('À reverser'));
+    expect(shell, contains('case BackofficeDestination.cabinisteFinances:'));
+    expect(shell, contains('return _BackofficeSection.team;'));
+    expect(shell, contains('BackofficeCabinisteFinancePage(user: widget.user)'));
+    expect(page, contains('_canRecordPayouts'));
+    expect(page, contains('_canRecordPayouts && partner.balanceDue > 0'));
     expect(page, contains('recordPayout('));
     expect(page, contains('Enregistrer le règlement'));
   });

@@ -724,7 +724,10 @@ class _PartnerOrdersPageState extends State<_PartnerOrdersPage> {
         ),
       ),
     );
-    if (selected != null && mounted) setState(() => _selectedTab = selected);
+    if (selected != null && mounted) {
+      final _PartnerOrdersTab resolved = _resolveUsefulTab(counts, selected);
+      setState(() => _selectedTab = resolved);
+    }
   }
 
   Widget _queueChoice(
@@ -742,8 +745,8 @@ class _PartnerOrdersPageState extends State<_PartnerOrdersPage> {
     );
   }
 
-  String _queueHeading(int count) {
-    switch (_selectedTab) {
+  String _queueHeading(_PartnerOrdersTab tab, int count) {
+    switch (tab) {
       case _PartnerOrdersTab.toAccept:
         return '$count commande${count > 1 ? 's' : ''} à traiter';
       case _PartnerOrdersTab.inProgress:
@@ -753,9 +756,29 @@ class _PartnerOrdersPageState extends State<_PartnerOrdersPage> {
     }
   }
 
-  List<PartnerOrderSnapshot> _filterOrders(List<PartnerOrderSnapshot> orders) {
+  _PartnerOrdersTab _resolveUsefulTab(
+    Map<_PartnerOrdersTab, int> counts,
+    _PartnerOrdersTab preferred,
+  ) {
+    if ((counts[preferred] ?? 0) > 0) return preferred;
+    if ((counts[_PartnerOrdersTab.toAccept] ?? 0) > 0) {
+      return _PartnerOrdersTab.toAccept;
+    }
+    if ((counts[_PartnerOrdersTab.inProgress] ?? 0) > 0) {
+      return _PartnerOrdersTab.inProgress;
+    }
+    if ((counts[_PartnerOrdersTab.completed] ?? 0) > 0) {
+      return _PartnerOrdersTab.completed;
+    }
+    return _PartnerOrdersTab.toAccept;
+  }
+
+  List<PartnerOrderSnapshot> _filterOrders(
+    List<PartnerOrderSnapshot> orders,
+    _PartnerOrdersTab tab,
+  ) {
     return orders.where((PartnerOrderSnapshot order) {
-      switch (_selectedTab) {
+      switch (tab) {
         case _PartnerOrdersTab.toAccept:
           return order.isAwaitingDecision;
         case _PartnerOrdersTab.inProgress:
@@ -782,7 +805,16 @@ class _PartnerOrdersPageState extends State<_PartnerOrdersPage> {
         _PartnerOrdersTab.completed:
             allOrders.where((PartnerOrderSnapshot o) => o.isCompleted).length,
       };
-      final List<PartnerOrderSnapshot> visible = _filterOrders(allOrders);
+      final _PartnerOrdersTab effectiveTab =
+          _resolveUsefulTab(counts, _selectedTab);
+      if (effectiveTab != _selectedTab) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || _selectedTab == effectiveTab) return;
+          setState(() => _selectedTab = effectiveTab);
+        });
+      }
+      final List<PartnerOrderSnapshot> visible =
+          _filterOrders(allOrders, effectiveTab);
       final String displayName = _profile?.displayName.trim().isNotEmpty == true
           ? _profile!.displayName
           : (_account?.displayName ?? widget.user.name);
@@ -808,7 +840,7 @@ class _PartnerOrdersPageState extends State<_PartnerOrdersPage> {
               children: <Widget>[
                 Expanded(
                   child: Text(
-                    _queueHeading(visible.length),
+                    _queueHeading(effectiveTab, visible.length),
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontSize: IzyTelTypeScale.title2,
                       height: 1.18,
@@ -827,7 +859,7 @@ class _PartnerOrdersPageState extends State<_PartnerOrdersPage> {
             ),
             const SizedBox(height: 12),
             if (visible.isEmpty)
-              _PartnerOrdersEmptyState(tab: _selectedTab)
+              _PartnerOrdersEmptyState(tab: effectiveTab)
             else
               ...List<Widget>.generate(visible.length, (int index) {
                 final PartnerOrderSnapshot order = visible[index];
@@ -835,13 +867,13 @@ class _PartnerOrdersPageState extends State<_PartnerOrdersPage> {
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _PartnerOrderCard(
                     order: order,
-                    queuePosition: _selectedTab == _PartnerOrdersTab.toAccept
+                    queuePosition: effectiveTab == _PartnerOrdersTab.toAccept
                         ? index + 1
                         : null,
-                    onAccept: _selectedTab == _PartnerOrdersTab.toAccept
+                    onAccept: effectiveTab == _PartnerOrdersTab.toAccept
                         ? () => _acceptOrder(order)
                         : null,
-                    onRefuse: _selectedTab == _PartnerOrdersTab.toAccept
+                    onRefuse: effectiveTab == _PartnerOrdersTab.toAccept
                         ? () => _refuseOrder(order)
                         : null,
                     onTap: () async {

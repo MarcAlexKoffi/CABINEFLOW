@@ -14,6 +14,8 @@ import 'package:cabine_flow/features/auth/presentation/widgets/manager_profile_a
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:cabine_flow/features/control/data/repositories/supabase_control_repository.dart';
 import 'package:cabine_flow/features/control/presentation/pages/manager_pilotage_page.dart';
+import 'package:cabine_flow/features/finances/presentation/pages/cabiniste_finance_supervision_page.dart';
+import 'package:cabine_flow/features/managers/presentation/pages/manager_accounts_page.dart';
 import 'package:cabine_flow/features/more/presentation/pages/admin_activity_journal_page.dart';
 import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
 import 'package:cabine_flow/features/offers/presentation/pages/offer_management_page.dart';
@@ -174,7 +176,7 @@ class MorePage extends StatelessWidget {
                             ),
                             IzyTelAccountAction(
                               icon: Symbols.groups_rounded,
-                              label: 'Agents et zones',
+                              label: 'Agents',
                               onTap: () {
                                 Navigator.of(context).push<void>(
                                   MaterialPageRoute<void>(
@@ -184,6 +186,29 @@ class MorePage extends StatelessWidget {
                                         repository: agentRepository,
                                       );
                                     },
+                                  ),
+                                );
+                              },
+                            ),
+                            IzyTelAccountAction(
+                              icon: Symbols.storefront_rounded,
+                              label: 'Cabinistes',
+                              onTap: () {
+                                Navigator.of(context).push<void>(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) =>
+                                        const CabinisteFinanceSupervisionPage(),
+                                  ),
+                                );
+                              },
+                            ),
+                            IzyTelAccountAction(
+                              icon: Symbols.supervisor_account_rounded,
+                              label: 'Managers',
+                              onTap: () {
+                                Navigator.of(context).push<void>(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => const ManagerAccountsPage(),
                                   ),
                                 );
                               },
@@ -305,9 +330,9 @@ class MorePage extends StatelessWidget {
                     children: [
                       IzyTelMenuRow(
                         icon: Symbols.groups_rounded,
-                        title: 'Agents et zones',
+                        title: 'Agents',
                         subtitle:
-                            'Disponibilité, capacités, réseaux, zones et incidents agents.',
+                            'Disponibilité, capacités, réseaux, zones et profils Agents.',
                         iconColor: IzyTelColors.moov,
                         onTap: () {
                           Navigator.of(context).push<void>(
@@ -318,6 +343,37 @@ class MorePage extends StatelessWidget {
                                   repository: agentRepository,
                                 );
                               },
+                            ),
+                          );
+                        },
+                      ),
+                      const Divider(height: 1),
+                      IzyTelMenuRow(
+                        icon: Symbols.storefront_rounded,
+                        title: 'Cabinistes',
+                        subtitle:
+                            'Comptes Cabinistes, activité, gain IzyTel et montants à reverser.',
+                        iconColor: IzyTelColors.orange,
+                        onTap: () {
+                          Navigator.of(context).push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  const CabinisteFinanceSupervisionPage(),
+                            ),
+                          );
+                        },
+                      ),
+                      const Divider(height: 1),
+                      IzyTelMenuRow(
+                        icon: Symbols.supervisor_account_rounded,
+                        title: 'Managers',
+                        subtitle:
+                            'Consulter les comptes Managers et leurs informations.',
+                        iconColor: IzyTelColors.primary,
+                        onTap: () {
+                          Navigator.of(context).push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const ManagerAccountsPage(),
                             ),
                           );
                         },
@@ -511,6 +567,14 @@ class MorePage extends StatelessWidget {
       );
     }
 
+    void openCabinistes() {
+      Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => const CabinisteFinanceSupervisionPage(),
+        ),
+      );
+    }
+
     void openMyProfile() {
       Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
@@ -579,6 +643,12 @@ class MorePage extends StatelessWidget {
                             icon: Symbols.groups_rounded,
                             label: 'Agents',
                             onTap: openAgents,
+                          ),
+                        if (permissions.canViewAgentDirectory)
+                          IzyTelAccountAction(
+                            icon: Symbols.storefront_rounded,
+                            label: 'Cabinistes',
+                            onTap: openCabinistes,
                           ),
                         if (permissions.canResolveAgentIssues)
                           IzyTelAccountAction(
@@ -668,6 +738,17 @@ class MorePage extends StatelessWidget {
                             'Superviser disponibilité, réseaux, zones et capacités.',
                         iconColor: IzyTelColors.moov,
                         onTap: openAgents,
+                      ),
+                    if (permissions.canViewAgentDirectory)
+                      const Divider(height: 1),
+                    if (permissions.canViewAgentDirectory)
+                      IzyTelMenuRow(
+                        icon: Symbols.storefront_rounded,
+                        title: 'Cabinistes',
+                        subtitle:
+                            'Consulter les Cabinistes, leur activité et les montants financiers associés.',
+                        iconColor: IzyTelColors.orange,
+                        onTap: openCabinistes,
                       ),
                     if (permissions.canViewAgentDirectory &&
                         permissions.canResolveAgentIssues)

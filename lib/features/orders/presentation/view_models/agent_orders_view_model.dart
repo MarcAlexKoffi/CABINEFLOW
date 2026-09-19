@@ -111,6 +111,26 @@ class AgentOrdersViewModel extends ChangeNotifier {
   int get failedCount => failedOrders.length;
   int get refusedHistoryCount => refusedHistoryOrders.length;
 
+  bool _hasOrdersForTab(AgentOrdersTab tab) {
+    return switch (tab) {
+      AgentOrdersTab.toAccept => toAcceptCount > 0,
+      AgentOrdersTab.inProgress => inProgressCount > 0,
+      AgentOrdersTab.completed => completedCount > 0,
+    };
+  }
+
+  AgentOrdersTab _resolveUsefulTab(AgentOrdersTab preferred) {
+    if (_hasOrdersForTab(preferred)) return preferred;
+    if (toAcceptCount > 0) return AgentOrdersTab.toAccept;
+    if (inProgressCount > 0) return AgentOrdersTab.inProgress;
+    if (completedCount > 0) return AgentOrdersTab.completed;
+    return AgentOrdersTab.toAccept;
+  }
+
+  void _syncSelectedTabToAvailableQueue() {
+    _selectedTab = _resolveUsefulTab(_selectedTab);
+  }
+
   QueueOrder? orderById(String orderId) {
     for (final QueueOrder order in _orders) {
       if (order.id == orderId) return order;
@@ -151,6 +171,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
             _orders = orders
                 .where((QueueOrder order) => order.assignedAgentId == agentId)
                 .toList(growable: false);
+            _syncSelectedTabToAvailableQueue();
             _isLoading = false;
             _errorMessage = null;
             _errorIsQueueLoad = false;
@@ -250,8 +271,9 @@ class AgentOrdersViewModel extends ChangeNotifier {
   }
 
   void selectTab(AgentOrdersTab tab) {
-    if (_selectedTab == tab) return;
-    _selectedTab = tab;
+    final AgentOrdersTab resolved = _resolveUsefulTab(tab);
+    if (_selectedTab == resolved) return;
+    _selectedTab = resolved;
     notifyListeners();
   }
 
@@ -320,6 +342,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
           (QueueOrder item) => item.id != refused.id,
         ),
       ];
+      _syncSelectedTabToAvailableQueue();
       return true;
     } catch (error, stackTrace) {
       _logActionError('refuse', error, stackTrace);
@@ -526,6 +549,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
     _orders = _orders
         .map((QueueOrder order) => order.id == updated.id ? updated : order)
         .toList(growable: false);
+    _syncSelectedTabToAvailableQueue();
   }
 
   bool _isCompleted(QueueOrderStatus status) {
