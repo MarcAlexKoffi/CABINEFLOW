@@ -14,8 +14,11 @@ import 'package:cabine_flow/features/auth/presentation/widgets/manager_profile_a
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:cabine_flow/features/control/data/repositories/supabase_control_repository.dart';
 import 'package:cabine_flow/features/control/presentation/pages/manager_pilotage_page.dart';
+import 'package:cabine_flow/features/finances/data/repositories/manager_read_only_finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/presentation/pages/cabiniste_finance_supervision_page.dart';
+import 'package:cabine_flow/features/finances/presentation/pages/supplier_finance_page.dart';
 import 'package:cabine_flow/features/managers/presentation/pages/manager_accounts_page.dart';
+import 'package:cabine_flow/features/team/presentation/pages/team_performance_page.dart';
 import 'package:cabine_flow/features/more/presentation/pages/admin_activity_journal_page.dart';
 import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
 import 'package:cabine_flow/features/offers/presentation/pages/offer_management_page.dart';
@@ -197,7 +200,7 @@ class MorePage extends StatelessWidget {
                                 Navigator.of(context).push<void>(
                                   MaterialPageRoute<void>(
                                     builder: (_) =>
-                                        const CabinisteFinanceSupervisionPage(),
+                                        CabinisteFinanceSupervisionPage(viewer: user),
                                   ),
                                 );
                               },
@@ -208,7 +211,7 @@ class MorePage extends StatelessWidget {
                               onTap: () {
                                 Navigator.of(context).push<void>(
                                   MaterialPageRoute<void>(
-                                    builder: (_) => const ManagerAccountsPage(),
+                                    builder: (_) => ManagerAccountsPage(viewer: user),
                                   ),
                                 );
                               },
@@ -358,7 +361,7 @@ class MorePage extends StatelessWidget {
                           Navigator.of(context).push<void>(
                             MaterialPageRoute<void>(
                               builder: (_) =>
-                                  const CabinisteFinanceSupervisionPage(),
+                                  CabinisteFinanceSupervisionPage(viewer: user),
                             ),
                           );
                         },
@@ -373,7 +376,22 @@ class MorePage extends StatelessWidget {
                         onTap: () {
                           Navigator.of(context).push<void>(
                             MaterialPageRoute<void>(
-                              builder: (_) => const ManagerAccountsPage(),
+                              builder: (_) => ManagerAccountsPage(viewer: user),
+                            ),
+                          );
+                        },
+                      ),
+                      const Divider(height: 1),
+                      IzyTelMenuRow(
+                        icon: Symbols.analytics_rounded,
+                        title: 'Performance équipe',
+                        subtitle:
+                            'Vue globale des volumes, gains IzyTel, commissions Agents et règlements Cabinistes.',
+                        iconColor: IzyTelColors.success,
+                        onTap: () {
+                          Navigator.of(context).push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (_) => TeamPerformancePage(user: user),
                             ),
                           );
                         },
@@ -570,7 +588,35 @@ class MorePage extends StatelessWidget {
     void openCabinistes() {
       Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
-          builder: (_) => const CabinisteFinanceSupervisionPage(),
+          builder: (_) => CabinisteFinanceSupervisionPage(viewer: user),
+        ),
+      );
+    }
+
+    void openPerformance() {
+      Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => TeamPerformancePage(user: user),
+        ),
+      );
+    }
+
+    void openSuppliers() {
+      if (!SupabaseBootstrap.isInitialized) {
+        IzyTelFeedback.show(
+          context,
+          'La gestion des fournisseurs de zone nécessite Supabase.',
+          tone: IzyTelFeedbackTone.warning,
+        );
+        return;
+      }
+      Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => SupplierFinancePage(
+            user: user,
+            repository: ManagerReadOnlyFinanceOperationsRepository(),
+            agentRepository: agentRepository,
+          ),
         ),
       );
     }
@@ -657,6 +703,11 @@ class MorePage extends StatelessWidget {
                             onTap: openIssues,
                           ),
                         IzyTelAccountAction(
+                          icon: Symbols.analytics_rounded,
+                          label: 'Performance de ma zone',
+                          onTap: openPerformance,
+                        ),
+                        IzyTelAccountAction(
                           icon: Symbols.monitoring_rounded,
                           label: 'Pilotage opérationnel',
                           onTap: openPilotage,
@@ -712,12 +763,27 @@ class MorePage extends StatelessWidget {
             const SizedBox(height: 6),
             IzyTelSurface(
               padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: IzyTelMenuRow(
-                icon: Symbols.monitoring_rounded,
-                title: 'Pilotage opérationnel',
-                subtitle: 'Suivre les commandes, incidents et performances de tes zones sans exposer les finances sensibles.',
-                iconColor: IzyTelColors.primary,
-                onTap: openPilotage,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  IzyTelMenuRow(
+                    icon: Symbols.analytics_rounded,
+                    title: 'Performance de ma zone',
+                    subtitle:
+                        'Volume généré, gain IzyTel observé, commissions Agents et situation Cabinistes de tes zones.',
+                    iconColor: IzyTelColors.success,
+                    onTap: openPerformance,
+                  ),
+                  const Divider(height: 1),
+                  IzyTelMenuRow(
+                    icon: Symbols.monitoring_rounded,
+                    title: 'Pilotage opérationnel',
+                    subtitle:
+                        'Suivre les commandes et incidents opérationnels de tes zones.',
+                    iconColor: IzyTelColors.primary,
+                    onTap: openPilotage,
+                  ),
+                ],
               ),
             ),
             if (permissions.canViewAgentDirectory ||
@@ -746,9 +812,20 @@ class MorePage extends StatelessWidget {
                         icon: Symbols.storefront_rounded,
                         title: 'Cabinistes',
                         subtitle:
-                            'Consulter les Cabinistes, leur activité et les montants financiers associés.',
+                            'Consulter uniquement les Cabinistes de tes zones, leur activité et leurs montants.',
                         iconColor: IzyTelColors.orange,
                         onTap: openCabinistes,
+                      ),
+                    if (permissions.canViewAgentDirectory)
+                      const Divider(height: 1),
+                    if (permissions.canViewAgentDirectory)
+                      IzyTelMenuRow(
+                        icon: Symbols.inventory_2_rounded,
+                        title: 'Fournisseurs de ma zone',
+                        subtitle:
+                            'Gérer tes fournisseurs et recharger les Agents de tes zones. Les règlements restent Admin.',
+                        iconColor: IzyTelColors.primary,
+                        onTap: openSuppliers,
                       ),
                     if (permissions.canViewAgentDirectory &&
                         permissions.canResolveAgentIssues)

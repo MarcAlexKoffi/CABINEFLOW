@@ -8,6 +8,7 @@ import 'package:cabine_flow/features/auth/data/repositories/supabase_staff_profi
 import 'package:cabine_flow/features/auth/domain/models/staff_profile.dart';
 import 'package:cabine_flow/features/auth/presentation/widgets/staff_profile_avatar.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/team/presentation/pages/team_member_detail_page.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -617,6 +618,24 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
               ),
             ),
             actions: <Widget>[
+              OutlinedButton.icon(
+                onPressed: saving
+                    ? null
+                    : () {
+                        Navigator.of(dialogContext).push<void>(
+                          MaterialPageRoute<void>(
+                            builder: (_) => TeamMemberDetailPage(
+                              viewer: widget.user,
+                              actorType: 'manager',
+                              actorId: manager.firebaseUid,
+                              fallbackName: manager.displayName,
+                            ),
+                          ),
+                        );
+                      },
+                icon: const Icon(Symbols.monitoring_rounded),
+                label: const Text('Identité, zone et gains'),
+              ),
               TextButton(
                 onPressed: saving ? null : () => Navigator.pop(dialogContext),
                 child: const Text('Annuler'),

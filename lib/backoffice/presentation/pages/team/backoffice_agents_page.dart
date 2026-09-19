@@ -8,6 +8,7 @@ import 'package:cabine_flow/features/auth/domain/models/staff_profile.dart';
 import 'package:cabine_flow/features/auth/presentation/widgets/staff_profile_avatar.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
+import 'package:cabine_flow/features/team/presentation/pages/team_member_detail_page.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -472,6 +473,24 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
               ),
             ),
             actions: <Widget>[
+              OutlinedButton.icon(
+                onPressed: saving
+                    ? null
+                    : () {
+                        Navigator.of(dialogContext).push<void>(
+                          MaterialPageRoute<void>(
+                            builder: (_) => TeamMemberDetailPage(
+                              viewer: widget.user,
+                              actorType: 'agent',
+                              actorId: agent.userId,
+                              fallbackName: agent.name,
+                            ),
+                          ),
+                        );
+                      },
+                icon: const Icon(Symbols.manage_accounts_rounded),
+                label: const Text('Identité, gains et activité'),
+              ),
               TextButton(onPressed: saving ? null : () => Navigator.pop(dialogContext), child: const Text('Annuler')),
               FilledButton(
                 onPressed: saving ? null : () async {

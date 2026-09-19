@@ -31,7 +31,10 @@ class SupplierFinancePage extends StatefulWidget {
 class _SupplierFinancePageState extends State<SupplierFinancePage> {
   bool _busy = false;
 
-  bool get _canManage => widget.user.permissions.canManageFinanceSettings;
+  bool get _canManageSuppliers =>
+      widget.user.permissions.canManageFinanceSettings || widget.user.isManager;
+
+  bool get _canPaySuppliers => widget.user.permissions.canManageFinanceSettings;
 
   Future<void> _addSupplier() async {
     final TextEditingController name = TextEditingController();
@@ -550,15 +553,15 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
     return Scaffold(
       backgroundColor: IzyTelColors.background,
       appBar: AppBar(
-        title: const Text(
-          'Fournisseurs',
+        title: Text(
+          widget.user.isManager ? 'Fournisseurs de ma zone' : 'Fournisseurs',
           style: TextStyle(
             fontSize: IzyTelTypeScale.title3,
             fontWeight: FontWeight.w800,
           ),
         ),
         actions: <Widget>[
-          if (_canManage)
+          if (_canManageSuppliers)
             IconButton(
               onPressed: _busy ? null : _addSupplier,
               tooltip: 'Ajouter',
@@ -598,7 +601,7 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                         return FinanceEmptyState(
                           icon: Symbols.inventory_2_rounded,
                           title: 'Aucun fournisseur',
-                          message: _canManage
+                          message: _canManageSuppliers
                               ? 'Ajoute ton premier fournisseur pour enregistrer les recharges réseaux.'
                               : 'Aucun fournisseur n’est encore disponible dans le registre Supabase.',
                         );
@@ -663,7 +666,7 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                                         ],
                                       ),
                                     ),
-                                    if (_canManage)
+                                    if (_canManageSuppliers)
                                       PopupMenuButton<String>(
                                         enabled: !_busy,
                                         onSelected: (String action) =>
@@ -765,9 +768,9 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                                   ],
                                 ),
                                 const SizedBox(height: 12),
-                                if (_canManage)
+                                if (_canManageSuppliers) ...<Widget>[
                                   Row(
-                                    children: [
+                                    children: <Widget>[
                                       Expanded(
                                         child: OutlinedButton.icon(
                                           onPressed: !_busy && supplier.isActive
@@ -776,25 +779,50 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                                           icon: const Icon(
                                             Symbols.add_card_rounded,
                                           ),
-                                          label: const Text('Recharge'),
+                                          label: const Text('Recharger un Agent'),
                                         ),
                                       ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: FilledButton.icon(
-                                          onPressed:
-                                              !_busy &&
-                                                  (account?.balance ?? 0) > 0
-                                              ? () => _pay(supplier, account)
-                                              : null,
-                                          icon: const Icon(
-                                            Symbols.payments_rounded,
+                                      if (_canPaySuppliers) ...<Widget>[
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: FilledButton.icon(
+                                            onPressed:
+                                                !_busy &&
+                                                    (account?.balance ?? 0) > 0
+                                                ? () => _pay(supplier, account)
+                                                : null,
+                                            icon: const Icon(
+                                              Symbols.payments_rounded,
+                                            ),
+                                            label: const Text('Régler'),
                                           ),
-                                          label: const Text('Régler'),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  if (widget.user.isManager) ...<Widget>[
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 9,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: IzyTelColors.surfaceMuted,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Text(
+                                        'Tu peux gérer ce fournisseur et recharger uniquement les Agents de tes zones. Le règlement financier du fournisseur reste réservé à l’Administrateur.',
+                                        style: TextStyle(
+                                          color: IzyTelColors.textSecondary,
+                                          fontSize: 11,
+                                          height: 1.35,
                                         ),
                                       ),
-                                    ],
-                                  )
+                                    ),
+                                  ],
+                                ]
                                 else
                                   Container(
                                     width: double.infinity,
@@ -807,7 +835,7 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: const Text(
-                                      'Le Manager consulte les mouvements ; les opérations fournisseur restent réservées à l’Administrateur.',
+                                      'Ce compte peut consulter les mouvements, mais ne peut pas gérer les fournisseurs.',
                                       style: TextStyle(
                                         color: IzyTelColors.textSecondary,
                                         fontSize: 11,

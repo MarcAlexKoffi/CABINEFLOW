@@ -4,6 +4,7 @@ import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/partners/data/repositories/supabase_cabiniste_finance_supervision_repository.dart';
 import 'package:cabine_flow/features/partners/domain/models/cabiniste_finance_supervision_models.dart';
+import 'package:cabine_flow/features/team/presentation/pages/team_member_detail_page.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -321,6 +322,23 @@ class _BackofficeCabinisteFinancePageState
                               ],
                             ),
                           ),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.of(dialogContext).push<void>(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => TeamMemberDetailPage(
+                                    viewer: widget.user,
+                                    actorType: 'cabiniste',
+                                    actorId: partner.partnerId,
+                                    fallbackName: partner.displayName,
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Symbols.manage_accounts_rounded),
+                            label: const Text('Identité & activité'),
+                          ),
+                          const SizedBox(width: 8),
                           IconButton(
                             onPressed: () => Navigator.of(dialogContext).pop(),
                             icon: const Icon(Symbols.close_rounded),

@@ -58,6 +58,7 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
           agent: agent,
           zones: _viewModel.zones,
           repository: widget.repository,
+          viewer: widget.user,
           readOnly: !widget.user.permissions.canManageAgents,
         ),
       ),
@@ -380,7 +381,27 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
           listenable: _viewModel,
           builder: (_, _) {
             final bool canManageAgents = widget.user.permissions.canManageAgents;
-            final List<AgentDirectoryEntry> agents = _viewModel.filteredAgents;
+            final List<AgentDirectoryEntry> visibleAgents = widget.user.isManager
+                ? _viewModel.agents
+                    .where((AgentDirectoryEntry agent) => agent.profile != null)
+                    .toList(growable: false)
+                : _viewModel.agents;
+            final Set<String> visibleIds = visibleAgents
+                .map((AgentDirectoryEntry agent) => agent.userId)
+                .toSet();
+            final List<AgentDirectoryEntry> agents = _viewModel.filteredAgents
+                .where((AgentDirectoryEntry agent) => visibleIds.contains(agent.userId))
+                .toList(growable: false);
+            final int availableCount = visibleAgents
+                .where(
+                  (AgentDirectoryEntry agent) =>
+                      agent.isActive &&
+                      agent.availability == AgentAvailability.available,
+                )
+                .length;
+            final int suspendedCount = visibleAgents
+                .where((AgentDirectoryEntry agent) => !agent.isActive)
+                .length;
             final int activeFilters = <Object?>[
               _viewModel.availabilityFilter,
               _viewModel.networkFilter,
@@ -396,10 +417,16 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                 children: [
                   IzyTelPageHeader(
-                    title: canManageAgents ? 'Agents & zones' : 'Agents',
+                    title: canManageAgents
+                        ? 'Agents & zones'
+                        : widget.user.isManager
+                            ? 'Agents de ma zone'
+                            : 'Agents',
                     subtitle: canManageAgents
                         ? 'Pilote la disponibilité, les réseaux et les capacités de l’équipe.'
-                        : 'Supervise la disponibilité, les réseaux, les zones et les capacités de l’équipe.',
+                        : widget.user.isManager
+                            ? 'Consulte les profils de tes Agents et ajuste uniquement leurs capacités réseau.'
+                            : 'Supervise la disponibilité, les réseaux, les zones et les capacités de l’équipe.',
                     actions: [IzyTelAvatar(name: widget.user.name, size: 42)],
                   ),
                   const SizedBox(height: IzyTelSpacing.lg),
@@ -407,7 +434,7 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                     children: [
                       Expanded(
                         child: _MetricCard(
-                          value: '${_viewModel.agents.length}',
+                          value: '${visibleAgents.length}',
                           label: 'Agents',
                           color: IzyTelColors.primary,
                           softColor: IzyTelColors.primarySoft,
@@ -417,7 +444,7 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: _MetricCard(
-                          value: '${_viewModel.availableCount}',
+                          value: '$availableCount',
                           label: 'Disponibles',
                           color: IzyTelColors.success,
                           softColor: IzyTelColors.successSoft,
@@ -427,7 +454,7 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: _MetricCard(
-                          value: '${_viewModel.suspendedCount}',
+                          value: '$suspendedCount',
                           label: 'Suspendus',
                           color: IzyTelColors.error,
                           softColor: IzyTelColors.errorSoft,
@@ -514,13 +541,13 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                         : null,
                   ),
                   const SizedBox(height: 8),
-                  if (_viewModel.isLoading && _viewModel.agents.isEmpty)
+                  if (_viewModel.isLoading && visibleAgents.isEmpty)
                     const SizedBox(
                       height: 280,
                       child: Center(child: CircularProgressIndicator()),
                     )
                   else if (_viewModel.errorMessage != null &&
-                      _viewModel.agents.isEmpty)
+                      visibleAgents.isEmpty)
                     _MessageCard(
                       icon: Symbols.cloud_off_rounded,
                       title: 'Agents indisponibles',

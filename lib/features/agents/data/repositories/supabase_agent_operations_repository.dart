@@ -171,6 +171,27 @@ class SupabaseAgentOperationsRepository {
     return _profileFromRpc(raw, fallbackAgentId: agent.userId);
   }
 
+  Future<void> adjustManagerCapacity({
+    required String agentId,
+    required AgentNetwork network,
+    required int targetCapacity,
+    String? reason,
+  }) async {
+    final String uid = (FirebaseAuth.instance.currentUser?.uid ?? '').trim();
+    if (uid.isEmpty) {
+      throw StateError('Aucune session Manager active.');
+    }
+    await _client.rpc(
+      'izytel_manager_adjust_agent_capacity',
+      params: <String, dynamic>{
+        'p_agent_id': agentId.trim(),
+        'p_network': network.name,
+        'p_target_capacity': targetCapacity,
+        'p_reason': reason?.trim().isEmpty ?? true ? null : reason!.trim(),
+      },
+    );
+  }
+
   Future<AgentProfile> provisionAgent({
     required StaffAccountSummary account,
   }) async {

@@ -733,6 +733,26 @@ class FirestoreAgentRepository implements AgentRepository {
   }
 
   @override
+  Future<void> adjustManagedAgentCapacity({
+    required String agentId,
+    required AgentNetwork network,
+    required int targetCapacity,
+    String? reason,
+  }) async {
+    if (!SupabaseBootstrap.isInitialized) {
+      throw StateError(
+        'La gestion Manager des capacités nécessite Supabase.',
+      );
+    }
+    await SupabaseAgentOperationsRepository().adjustManagerCapacity(
+      agentId: agentId,
+      network: network,
+      targetCapacity: targetCapacity,
+      reason: reason,
+    );
+  }
+
+  @override
   Future<String> createZone({
     required String name,
     required String city,

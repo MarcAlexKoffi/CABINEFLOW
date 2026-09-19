@@ -1,9 +1,11 @@
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
+import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/partners/data/repositories/supabase_cabiniste_finance_supervision_repository.dart';
 import 'package:cabine_flow/features/partners/domain/models/cabiniste_finance_supervision_models.dart';
 import 'package:cabine_flow/features/finances/presentation/widgets/financial_ui.dart';
+import 'package:cabine_flow/features/team/presentation/pages/team_member_detail_page.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -11,9 +13,11 @@ import 'package:material_symbols_icons/symbols.dart';
 class CabinisteFinanceSupervisionPage extends StatefulWidget {
   const CabinisteFinanceSupervisionPage({
     super.key,
+    required this.viewer,
     this.repository,
   });
 
+  final AppUser viewer;
   final SupabaseCabinisteFinanceSupervisionRepository? repository;
 
   @override
@@ -36,7 +40,9 @@ class _CabinisteFinanceSupervisionPageState
 
   Future<void> _reload() async {
     final Future<CabinisteFinanceSnapshot> next = _repository.fetchSnapshot();
-    setState(() => _future = next);
+    setState(() {
+      _future = next;
+    });
     await next;
   }
 
@@ -183,6 +189,7 @@ class _CabinisteFinanceSupervisionPageState
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => _CabinisteFinanceDetailPage(
+          viewer: widget.viewer,
           partner: partner,
           repository: _repository,
         ),
@@ -289,10 +296,12 @@ class _MiniValue extends StatelessWidget {
 
 class _CabinisteFinanceDetailPage extends StatefulWidget {
   const _CabinisteFinanceDetailPage({
+    required this.viewer,
     required this.partner,
     required this.repository,
   });
 
+  final AppUser viewer;
   final CabinisteFinancePartner partner;
   final SupabaseCabinisteFinanceSupervisionRepository repository;
 
@@ -314,7 +323,9 @@ class _CabinisteFinanceDetailPageState
   Future<void> _reload() async {
     final Future<CabinisteFinanceHistory> next =
         widget.repository.fetchHistory(widget.partner.partnerId);
-    setState(() => _future = next);
+    setState(() {
+      _future = next;
+    });
     await next;
   }
 
@@ -348,6 +359,27 @@ class _CabinisteFinanceDetailPageState
                 IzyTelPageHeader(
                   title: data.partner.displayName,
                   subtitle: data.partner.partnerCode,
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      await Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => TeamMemberDetailPage(
+                            viewer: widget.viewer,
+                            actorType: 'cabiniste',
+                            actorId: widget.partner.partnerId,
+                            fallbackName: data.partner.displayName,
+                          ),
+                        ),
+                      );
+                      if (mounted) await _reload();
+                    },
+                    icon: const Icon(Symbols.manage_accounts_rounded),
+                    label: const Text('Identité et activité détaillée'),
+                  ),
                 ),
                 const SizedBox(height: IzyTelSpacing.lg),
                 Row(

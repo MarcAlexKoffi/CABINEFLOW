@@ -41,6 +41,9 @@ import 'package:cabine_flow/features/refunds/data/repositories/operational_refun
 import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
 import 'package:cabine_flow/features/refunds/presentation/pages/refund_management_page.dart';
+import 'package:cabine_flow/features/team/data/repositories/supabase_team_supervision_repository.dart';
+import 'package:cabine_flow/features/team/domain/models/team_supervision_models.dart';
+import 'package:cabine_flow/features/team/presentation/pages/team_performance_page.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
@@ -72,6 +75,8 @@ class _FinancesPageState extends State<FinancesPage> {
   late final NetworkFinanceRepository _networkFinanceRepository;
   late final FinanceOperationsRepository _financeOperationsRepository;
   late final CommissionRepository _commissionRepository;
+  SupabaseTeamSupervisionRepository? _teamRepository;
+  Future<TeamPerformanceSnapshot>? _teamPerformanceFuture;
 
   OrderHistoryRepository? get _historyRepository {
     final OrdersRepository repository = widget.ordersRepository;
@@ -104,6 +109,10 @@ class _FinancesPageState extends State<FinancesPage> {
       _commissionRepository = SupabaseBootstrap.isInitialized
           ? ManagerReadOnlyCommissionRepository()
           : widget.commissionRepository;
+      if (SupabaseBootstrap.isInitialized) {
+        _teamRepository = SupabaseTeamSupervisionRepository();
+        _teamPerformanceFuture = _teamRepository!.fetchPerformance();
+      }
       return;
     }
 
@@ -351,286 +360,318 @@ class _FinancesPageState extends State<FinancesPage> {
     );
   }
 
+  void _openTeamPerformance() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => TeamPerformancePage(
+          user: widget.user,
+          repository: _teamRepository,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _refreshManagerFinance() async {
+    if (_teamRepository != null) {
+      _teamPerformanceFuture = _teamRepository!.fetchPerformance();
+    }
+    setState(() {});
+    await _teamPerformanceFuture;
+  }
+
   Widget _buildManagerOperationalFinance(BuildContext context) {
+    final Future<TeamPerformanceSnapshot>? performanceFuture =
+        _teamPerformanceFuture;
+    if (!SupabaseBootstrap.isInitialized || performanceFuture == null) {
+      return const _ManagerFinanceErrorState(
+        message: 'La supervision financière de zone nécessite Supabase.',
+      );
+    }
+
     return SafeArea(
       bottom: false,
-      child: StreamBuilder<List<QueueOrder>>(
-        stream: _ordersStream,
-        builder: (BuildContext context, AsyncSnapshot<List<QueueOrder>> orderSnapshot) {
+      child: FutureBuilder<TeamPerformanceSnapshot>(
+        future: performanceFuture,
+        builder: (
+          BuildContext context,
+          AsyncSnapshot<TeamPerformanceSnapshot> performanceSnapshot,
+        ) {
           return StreamBuilder<List<CommissionAccount>>(
             stream: _commissionRepository.watchAccounts(),
-            builder: (BuildContext context, AsyncSnapshot<List<CommissionAccount>> commissionSnapshot) {
+            builder: (
+              BuildContext context,
+              AsyncSnapshot<List<CommissionAccount>> commissionSnapshot,
+            ) {
               return StreamBuilder<List<SupplierAccount>>(
                 stream: _financeOperationsRepository.watchSupplierAccounts(),
-                builder: (BuildContext context, AsyncSnapshot<List<SupplierAccount>> supplierAccountSnapshot) {
+                builder: (
+                  BuildContext context,
+                  AsyncSnapshot<List<SupplierAccount>> supplierAccountSnapshot,
+                ) {
                   return StreamBuilder<List<SupplierRecharge>>(
                     stream: _financeOperationsRepository.watchSupplierRecharges(),
-                    builder: (BuildContext context, AsyncSnapshot<List<SupplierRecharge>> rechargeSnapshot) {
-                      return StreamBuilder<List<NetworkTransaction>>(
-                        stream: _networkFinanceRepository.watchTransactions(),
-                        builder: (BuildContext context, AsyncSnapshot<List<NetworkTransaction>> networkSnapshot) {
-                          final Object? firstError =
-                              commissionSnapshot.error ??
-                              supplierAccountSnapshot.error ??
-                              rechargeSnapshot.error ??
-                              networkSnapshot.error;
-                          final bool waiting =
-                              (!commissionSnapshot.hasData &&
-                                  commissionSnapshot.connectionState == ConnectionState.waiting) ||
-                              (!supplierAccountSnapshot.hasData &&
-                                  supplierAccountSnapshot.connectionState == ConnectionState.waiting) ||
-                              (!rechargeSnapshot.hasData &&
-                                  rechargeSnapshot.connectionState == ConnectionState.waiting) ||
-                              (!networkSnapshot.hasData &&
-                                  networkSnapshot.connectionState == ConnectionState.waiting);
+                    builder: (
+                      BuildContext context,
+                      AsyncSnapshot<List<SupplierRecharge>> rechargeSnapshot,
+                    ) {
+                      final Object? firstError =
+                          performanceSnapshot.error ??
+                          commissionSnapshot.error ??
+                          supplierAccountSnapshot.error ??
+                          rechargeSnapshot.error;
+                      final bool waiting =
+                          (!performanceSnapshot.hasData &&
+                              performanceSnapshot.connectionState ==
+                                  ConnectionState.waiting) ||
+                          (!commissionSnapshot.hasData &&
+                              commissionSnapshot.connectionState ==
+                                  ConnectionState.waiting) ||
+                          (!supplierAccountSnapshot.hasData &&
+                              supplierAccountSnapshot.connectionState ==
+                                  ConnectionState.waiting) ||
+                          (!rechargeSnapshot.hasData &&
+                              rechargeSnapshot.connectionState ==
+                                  ConnectionState.waiting);
 
-                          if (firstError != null &&
-                              !commissionSnapshot.hasData &&
-                              !supplierAccountSnapshot.hasData &&
-                              !rechargeSnapshot.hasData &&
-                              !networkSnapshot.hasData) {
-                            return _ManagerFinanceErrorState(
-                              message: _managerFinanceError(firstError),
-                            );
-                          }
-                          if (waiting) {
-                            return const Center(child: CircularProgressIndicator());
-                          }
+                      if (firstError != null &&
+                          !performanceSnapshot.hasData &&
+                          !commissionSnapshot.hasData &&
+                          !supplierAccountSnapshot.hasData &&
+                          !rechargeSnapshot.hasData) {
+                        return _ManagerFinanceErrorState(
+                          message: _managerFinanceError(firstError),
+                        );
+                      }
+                      if (waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
 
-                          final List<QueueOrder> orders =
-                              orderSnapshot.data ?? const <QueueOrder>[];
-                          final List<CommissionAccount> commissionAccounts =
-                              commissionSnapshot.data ?? const <CommissionAccount>[];
-                          final List<SupplierAccount> supplierAccounts =
-                              supplierAccountSnapshot.data ?? const <SupplierAccount>[];
-                          final List<SupplierRecharge> recharges =
-                              rechargeSnapshot.data ?? const <SupplierRecharge>[];
-                          final List<NetworkTransaction> movements =
-                              networkSnapshot.data ?? const <NetworkTransaction>[];
+                      final TeamPerformanceSnapshot performance =
+                          performanceSnapshot.data ??
+                          const TeamPerformanceSnapshot.empty();
+                      final List<CommissionAccount> commissionAccounts =
+                          commissionSnapshot.data ??
+                          const <CommissionAccount>[];
+                      final List<SupplierAccount> supplierAccounts =
+                          supplierAccountSnapshot.data ??
+                          const <SupplierAccount>[];
+                      final List<SupplierRecharge> recharges =
+                          rechargeSnapshot.data ?? const <SupplierRecharge>[];
 
-                          final int confirmedToday = _confirmedAmountToday(orders);
-                          final int commissionBalance = commissionAccounts.fold<int>(
+                      final int zoneProcessed =
+                          teamInt(performance.summary['processedAmount']);
+                      final int zoneIzytelGain =
+                          teamInt(performance.summary['izytelGrossGain']);
+                      final int commissionBalance = commissionAccounts.fold<int>(
+                        0,
+                        (int total, CommissionAccount account) =>
+                            total + account.balance,
+                      );
+                      final int supplierDebt = supplierAccounts.fold<int>(
+                        0,
+                        (int total, SupplierAccount account) =>
+                            total + account.balance,
+                      );
+                      final int receivedToday = recharges
+                          .where(
+                            (SupplierRecharge item) =>
+                                _isToday(item.createdAt),
+                          )
+                          .fold<int>(
                             0,
-                            (int total, CommissionAccount account) =>
-                                total + account.balance,
+                            (int total, SupplierRecharge item) =>
+                                total + item.receivedAmount,
                           );
-                          final int supplierDebt = supplierAccounts.fold<int>(
-                            0,
-                            (int total, SupplierAccount account) =>
-                                total + account.balance,
-                          );
-                          final int receivedToday = recharges
-                              .where((SupplierRecharge item) => _isToday(item.createdAt))
-                              .fold<int>(
-                                0,
-                                (int total, SupplierRecharge item) =>
-                                    total + item.receivedAmount,
-                              );
-                          final List<NetworkTransaction> todayMovements = movements
-                              .where((NetworkTransaction item) => _isToday(item.createdAt))
-                              .toList(growable: false);
-                          final int networkIncomingToday = todayMovements
-                              .where((NetworkTransaction item) => item.isIncoming)
-                              .fold<int>(
-                                0,
-                                (int total, NetworkTransaction item) =>
-                                    total + item.amount,
-                              );
-                          final int networkOutgoingToday = todayMovements
-                              .where((NetworkTransaction item) => item.isOutgoing)
-                              .fold<int>(
-                                0,
-                                (int total, NetworkTransaction item) =>
-                                    total + item.amount,
-                              );
 
-                          return RefreshIndicator(
-                            onRefresh: () async => setState(() {}),
-                            color: IzyTelColors.primary,
-                            child: ListView(
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
-                              children: <Widget>[
-                                IzyTelPageHeader(
-                                  title: 'Finances opérationnelles',
-                                  subtitle:
-                                      'Supervision Manager en lecture seule depuis Supabase.',
-                                  actions: <Widget>[
-                                    IzyTelAvatar(
-                                      name: widget.user.name,
-                                      size: 42,
-                                    ),
+                      return RefreshIndicator(
+                        onRefresh: _refreshManagerFinance,
+                        color: IzyTelColors.primary,
+                        child: ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
+                          children: <Widget>[
+                            IzyTelPageHeader(
+                              title: 'Finances de ma zone',
+                              subtitle:
+                                  'Vue bornée aux Agents, Cabinistes et fournisseurs de tes zones.',
+                              actions: <Widget>[
+                                IzyTelAvatar(
+                                  name: widget.user.name,
+                                  size: 42,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: IzyTelSpacing.lg),
+                            Container(
+                              padding: const EdgeInsets.all(IzyTelSpacing.lg),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: <Color>[
+                                    IzyTelColors.primary,
+                                    IzyTelColors.primaryStrong,
                                   ],
                                 ),
-                                const SizedBox(height: IzyTelSpacing.lg),
-                                Container(
-                                  padding: const EdgeInsets.all(IzyTelSpacing.lg),
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                      colors: <Color>[
-                                        IzyTelColors.primary,
-                                        IzyTelColors.primaryStrong,
-                                      ],
-                                    ),
-                                    borderRadius: BorderRadius.circular(
-                                      IzyTelRadii.largeCard,
-                                    ),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: <Widget>[
-                                      Text(
-                                        'Encaissements confirmés aujourd’hui',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium
-                                            ?.copyWith(
-                                              color: Colors.white.withAlpha(220),
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 5),
-                                      Text(
-                                        formatCfaFull(confirmedToday),
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .headlineMedium
-                                            ?.copyWith(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Lecture opérationnelle uniquement · aucune écriture financière Admin n’est exposée.',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: Colors.white.withAlpha(195),
-                                            ),
-                                      ),
-                                    ],
-                                  ),
+                                borderRadius: BorderRadius.circular(
+                                  IzyTelRadii.largeCard,
                                 ),
-                                const SizedBox(height: IzyTelSpacing.lg),
-                                Row(
-                                  children: <Widget>[
-                                    Expanded(
-                                      child: FinancialMetricCard(
-                                        label: 'Commissions à payer',
-                                        value: formatCfa(commissionBalance),
-                                        icon: Symbols.account_balance_wallet_rounded,
-                                        accent: IzyTelColors.warning,
-                                        caption:
-                                            '${commissionAccounts.where((CommissionAccount item) => item.balance > 0).length} agent(s)',
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: FinancialMetricCard(
-                                        label: 'Dette fournisseurs',
-                                        value: formatCfa(supplierDebt),
-                                        icon: Symbols.inventory_2_rounded,
-                                        accent: IzyTelColors.orange,
-                                        caption:
-                                            '${supplierAccounts.where((SupplierAccount item) => item.balance > 0).length} compte(s)',
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  children: <Widget>[
-                                    Expanded(
-                                      child: FinancialMetricCard(
-                                        label: 'Recharges reçues',
-                                        value: formatCfa(receivedToday),
-                                        icon: Symbols.add_card_rounded,
-                                        accent: IzyTelColors.success,
-                                        caption: 'Aujourd’hui',
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: FinancialMetricCard(
-                                        label: 'Flux réseaux',
-                                        value: formatCfa(networkIncomingToday),
-                                        icon: Symbols.swap_vert_rounded,
-                                        accent: IzyTelColors.primary,
-                                        caption:
-                                            '- ${formatCfa(networkOutgoingToday)} sortants',
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: IzyTelSpacing.xl),
-                                const IzyTelSectionHeader(
-                                  title: 'Supervision détaillée',
-                                ),
-                                const SizedBox(height: 8),
-                                FinanceActionTile(
-                                  icon: Symbols.payments_rounded,
-                                  title: 'Commissions',
-                                  subtitle:
-                                      'Consulter les soldes et performances sans effectuer de versement.',
-                                  accent: IzyTelColors.warning,
-                                  badge: 'Lecture seule',
-                                  onTap: _openCommissions,
-                                ),
-                                const SizedBox(height: 8),
-                                FinanceActionTile(
-                                  icon: Symbols.inventory_2_rounded,
-                                  title: 'Fournisseurs',
-                                  subtitle:
-                                      'Consulter le registre, les recharges, règlements et soldes fournisseurs.',
-                                  accent: IzyTelColors.orange,
-                                  badge: 'Lecture seule',
-                                  onTap: _openSuppliers,
-                                ),
-                                const SizedBox(height: 8),
-                                FinanceActionTile(
-                                  icon: Symbols.swap_vert_rounded,
-                                  title: 'Mouvements',
-                                  subtitle:
-                                      'Consulter les paiements, commissions et mouvements réseau disponibles.',
-                                  accent: IzyTelColors.primary,
-                                  badge: 'Supabase',
-                                  onTap: _openMovements,
-                                ),
-                                const SizedBox(height: IzyTelSpacing.md),
-                                IzyTelSurface(
-                                  padding: const EdgeInsets.all(IzyTelSpacing.md),
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: <Widget>[
-                                      const Icon(
-                                        Symbols.lock_rounded,
-                                        color: IzyTelColors.textSecondary,
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(
-                                          'Caisse Wave, crédits clients, dépenses, clôture, paiements fournisseurs et versements de commissions restent réservés à l’Administrateur.',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.copyWith(
-                                                color: IzyTelColors.textSecondary,
-                                                height: 1.4,
-                                              ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    'Gain IzyTel observé de ma zone',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: Colors.white.withAlpha(220),
+                                          fontWeight: FontWeight.w600,
                                         ),
-                                      ),
-                                    ],
+                                  ),
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    formatCfaFull(zoneIzytelGain),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineMedium
+                                        ?.copyWith(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Volume économique observé : ${formatCfa(zoneProcessed)}. Les anciennes commandes non encore consolidées peuvent ne pas être incluses dans ce total.',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          color: Colors.white.withAlpha(195),
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: IzyTelSpacing.lg),
+                            Row(
+                              children: <Widget>[
+                                Expanded(
+                                  child: FinancialMetricCard(
+                                    label: 'Commissions Agents dues',
+                                    value: formatCfa(commissionBalance),
+                                    icon: Symbols.account_balance_wallet_rounded,
+                                    accent: IzyTelColors.warning,
+                                    caption:
+                                        '${commissionAccounts.where((CommissionAccount item) => item.balance > 0).length} Agent(s)',
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: FinancialMetricCard(
+                                    label: 'Dette fournisseurs',
+                                    value: formatCfa(supplierDebt),
+                                    icon: Symbols.inventory_2_rounded,
+                                    accent: IzyTelColors.orange,
+                                    caption:
+                                        '${supplierAccounts.where((SupplierAccount item) => item.balance > 0).length} compte(s)',
                                   ),
                                 ),
                               ],
                             ),
-                          );
-                        },
+                            const SizedBox(height: 10),
+                            Row(
+                              children: <Widget>[
+                                Expanded(
+                                  child: FinancialMetricCard(
+                                    label: 'Recharges reçues',
+                                    value: formatCfa(receivedToday),
+                                    icon: Symbols.add_card_rounded,
+                                    accent: IzyTelColors.success,
+                                    caption: 'Aujourd’hui · fournisseurs de zone',
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: FinancialMetricCard(
+                                    label: 'Cabinistes à reverser',
+                                    value: formatCfa(
+                                      teamInt(
+                                        performance.summary[
+                                            'cabinisteSettlementDue'],
+                                      ),
+                                    ),
+                                    icon: Symbols.storefront_rounded,
+                                    accent: IzyTelColors.primary,
+                                    caption: 'Zones supervisées',
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: IzyTelSpacing.xl),
+                            const IzyTelSectionHeader(
+                              title: 'Supervision détaillée',
+                            ),
+                            const SizedBox(height: 8),
+                            FinanceActionTile(
+                              icon: Symbols.analytics_rounded,
+                              title: 'Performance de ma zone',
+                              subtitle:
+                                  'Voir le volume, les gains IzyTel, les performances Agents et la situation Cabinistes.',
+                              accent: IzyTelColors.success,
+                              badge: 'Zone',
+                              onTap: _openTeamPerformance,
+                            ),
+                            const SizedBox(height: 8),
+                            FinanceActionTile(
+                              icon: Symbols.payments_rounded,
+                              title: 'Commissions Agents',
+                              subtitle:
+                                  'Consulter les commissions des Agents de tes zones sans effectuer de versement.',
+                              accent: IzyTelColors.warning,
+                              badge: 'Lecture',
+                              onTap: _openCommissions,
+                            ),
+                            const SizedBox(height: 8),
+                            FinanceActionTile(
+                              icon: Symbols.inventory_2_rounded,
+                              title: 'Fournisseurs de ma zone',
+                              subtitle:
+                                  'Créer et gérer tes fournisseurs puis recharger les Agents de tes zones.',
+                              accent: IzyTelColors.orange,
+                              badge: 'Gestion zone',
+                              onTap: _openSuppliers,
+                            ),
+                            const SizedBox(height: IzyTelSpacing.md),
+                            IzyTelSurface(
+                              padding: const EdgeInsets.all(IzyTelSpacing.md),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  const Icon(
+                                    Symbols.lock_rounded,
+                                    color: IzyTelColors.textSecondary,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'Les règlements fournisseurs, paiements de commissions, caisse Wave, crédits clients, dépenses et clôture restent réservés à l’Administrateur.',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: IzyTelColors.textSecondary,
+                                            height: 1.4,
+                                          ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       );
                     },
                   );

@@ -333,6 +333,40 @@ class FakeAgentRepository implements AgentRepository {
   }
 
   @override
+  Future<void> adjustManagedAgentCapacity({
+    required String agentId,
+    required AgentNetwork network,
+    required int targetCapacity,
+    String? reason,
+  }) async {
+    _agents = _agents.map((entry) {
+      if (entry.userId != agentId || entry.profile == null) return entry;
+      final AgentProfile profile = entry.profile!;
+      return AgentDirectoryEntry(
+        userId: entry.userId,
+        name: entry.name,
+        email: entry.email,
+        phoneNumber: entry.phoneNumber,
+        isActive: entry.isActive,
+        profile: profile.copyWith(
+          orangeCapacity: network == AgentNetwork.orange
+              ? targetCapacity
+              : profile.orangeCapacity,
+          mtnCapacity: network == AgentNetwork.mtn
+              ? targetCapacity
+              : profile.mtnCapacity,
+          moovCapacity: network == AgentNetwork.moov
+              ? targetCapacity
+              : profile.moovCapacity,
+          lastCapacityUpdateAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      );
+    }).toList(growable: false);
+    _notify();
+  }
+
+  @override
   Future<String> createZone({
     required String name,
     required String city,

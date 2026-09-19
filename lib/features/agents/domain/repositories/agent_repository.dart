@@ -38,6 +38,15 @@ abstract class AgentRepository {
     required AgentOperationalUpdate update,
   });
 
+  /// Ajustement de capacité d'un Agent par son Manager de zone.
+  /// Le backend Supabase vérifie strictement le périmètre territorial.
+  Future<void> adjustManagedAgentCapacity({
+    required String agentId,
+    required AgentNetwork network,
+    required int targetCapacity,
+    String? reason,
+  });
+
   Future<String> createZone({
     required String name,
     required String city,

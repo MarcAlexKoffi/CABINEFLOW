@@ -3,6 +3,9 @@ import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/agents/presentation/view_models/agent_detail_view_model.dart';
 import 'package:cabine_flow/features/agents/presentation/widgets/agent_directory_avatar.dart';
+import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
+import 'package:cabine_flow/features/team/presentation/pages/team_member_detail_page.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -14,12 +17,14 @@ class AgentDetailPage extends StatefulWidget {
     required this.agent,
     required this.zones,
     required this.repository,
+    required this.viewer,
     this.readOnly = false,
   });
 
   final AgentDirectoryEntry agent;
   final List<AgentZone> zones;
   final AgentRepository repository;
+  final AppUser viewer;
   final bool readOnly;
 
   @override
@@ -33,6 +38,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
   late final TextEditingController _dailyLimitController;
   late final TextEditingController _maxTransactionsController;
   late final Map<AgentNetwork, TextEditingController> _capacityControllers;
+  bool _savingManagerCapacities = false;
 
   @override
   void initState() {
@@ -244,14 +250,70 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
   }
 
   void _openDetailedProfile() {
-    Navigator.of(context).push(
+    Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => AdminAgentProfileActivityPage(
-          agentId: widget.agent.userId,
-          agentName: widget.agent.name,
-        ),
+        builder: (_) => widget.viewer.isManager
+            ? TeamMemberDetailPage(
+                viewer: widget.viewer,
+                actorType: 'agent',
+                actorId: widget.agent.userId,
+                fallbackName: widget.agent.name,
+              )
+            : AdminAgentProfileActivityPage(
+                agentId: widget.agent.userId,
+                agentName: widget.agent.name,
+              ),
       ),
     );
+  }
+
+  bool get _canEditCapacities => !widget.readOnly || widget.viewer.isManager;
+
+  Future<void> _saveManagerCapacities() async {
+    if (!widget.viewer.isManager || _savingManagerCapacities) return;
+    final AgentProfile? profile = widget.agent.profile;
+    if (profile == null) {
+      IzyTelFeedback.error(context, 'Profil opérationnel Agent indisponible.');
+      return;
+    }
+
+    final Map<AgentNetwork, int> next = <AgentNetwork, int>{};
+    for (final AgentNetwork network in AgentNetwork.values) {
+      final int? value = int.tryParse(
+        _capacityControllers[network]!.text.trim(),
+      );
+      if (value == null || value < 0 || value > 100000000) {
+        IzyTelFeedback.show(
+          context,
+          'Vérifie la capacité ${network.label}.',
+          tone: IzyTelFeedbackTone.warning,
+        );
+        return;
+      }
+      next[network] = value;
+    }
+
+    setState(() => _savingManagerCapacities = true);
+    try {
+      for (final AgentNetwork network in AgentNetwork.values) {
+        final int value = next[network]!;
+        if (value == profile.capacityFor(network)) continue;
+        await widget.repository.adjustManagedAgentCapacity(
+          agentId: widget.agent.userId,
+          network: network,
+          targetCapacity: value,
+          reason: 'Ajustement capacité par Manager',
+        );
+      }
+      if (!mounted) return;
+      IzyTelFeedback.success(context, 'Capacités Agent enregistrées.');
+      Navigator.of(context).pop();
+    } catch (error) {
+      if (!mounted) return;
+      IzyTelFeedback.error(context, error.toString());
+    } finally {
+      if (mounted) setState(() => _savingManagerCapacities = false);
+    }
   }
 
   @override
@@ -274,17 +336,15 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                   agent: widget.agent,
                   isActive: _viewModel.isActive,
                 ),
-                if (!widget.readOnly) ...[
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _openDetailedProfile,
-                      icon: const Icon(Symbols.manage_accounts_rounded),
-                      label: const Text('Identité et activité détaillée'),
-                    ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _openDetailedProfile,
+                    icon: const Icon(Symbols.manage_accounts_rounded),
+                    label: const Text('Identité et activité détaillée'),
                   ),
-                ],
+                ),
                 const SizedBox(height: 16),
                 _SectionCard(
                   title: 'Identité',
@@ -409,7 +469,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                           padding: const EdgeInsets.only(bottom: 10),
                           child: TextField(
                             controller: _capacityControllers[network],
-                            readOnly: widget.readOnly,
+                            readOnly: !_canEditCapacities,
                             keyboardType: TextInputType.number,
                             style: const TextStyle(
                               color: IzyTelColors.textPrimary,
@@ -551,6 +611,23 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                       foregroundColor: _viewModel.isActive
                           ? IzyTelColors.error
                           : IzyTelColors.success,
+                    ),
+                  ),
+                ],
+                if (widget.readOnly && widget.viewer.isManager) ...[
+                  const SizedBox(height: 18),
+                  FilledButton.icon(
+                    onPressed: _savingManagerCapacities ? null : _saveManagerCapacities,
+                    icon: const Icon(Symbols.account_balance_wallet_rounded),
+                    label: const Text('Enregistrer les capacités Agent'),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Le Manager peut ajuster les capacités réseau de ses Agents, mais pas leur identité, leurs zones, leurs quotas ni leurs réseaux autorisés.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: IzyTelColors.textSecondary,
+                      fontSize: 12,
                     ),
                   ),
                 ],
