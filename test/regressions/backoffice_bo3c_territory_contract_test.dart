@@ -9,7 +9,7 @@ void main() {
         'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
       ).readAsStringSync();
       expect(shell, contains('BackofficeDestination.managers'));
-      expect(shell, contains("return 'Managers';"));
+      expect(shell, contains("return 'Comptes Managers';"));
       expect(shell, contains('Symbols.supervisor_account_rounded'));
       expect(shell, contains('BackofficeManagersPage('));
       expect(shell, contains('territoryRepository: _territoryRepository'));

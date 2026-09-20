@@ -8,6 +8,7 @@ import 'package:cabine_flow/features/orders/domain/repositories/orders_repositor
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/features/payments/presentation/view_models/payments_view_model.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_operator_brand.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -129,7 +130,11 @@ class _BackofficePaymentsPageState extends State<BackofficePaymentsPage> {
     final String message = success
         ? 'Paiement ${order.reference} confirmé. La commande est prête pour le traitement.'
         : (_viewModel.errorMessage ?? 'Impossible de confirmer ce paiement.');
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    IzyTelFeedback.show(
+      context,
+      message,
+      tone: success ? IzyTelFeedbackTone.success : IzyTelFeedbackTone.error,
+    );
   }
 
   String _filterLabel(PaymentOrderFilter filter) {

@@ -41,10 +41,12 @@ void main() {
       const MethodChannel('com.izytel/session_preferences'),
       (MethodCall methodCall) async => null,
     );
+
     // Gabarit volontairement plus exigeant que le téléphone de test principal.
     // Il sert de garde-fou contre les RenderFlex overflowed sur petits écrans.
     tester.view.physicalSize = const Size(320, 568);
     tester.view.devicePixelRatio = 1;
+
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
   }
@@ -53,6 +55,7 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
+
     await tester.pumpWidget(const CabineFlowApp());
     await tester.pump();
 
@@ -73,6 +76,7 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
+
     final FakeOrdersRepository ordersRepository = FakeOrdersRepository(
       isTest: true,
     );
@@ -94,6 +98,7 @@ void main() {
         ),
       ),
     );
+
     await tester.pumpAndSettle();
 
     expect(find.text('Commandes'), findsOneWidget);
@@ -107,6 +112,7 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
+
     final FakeOrdersRepository ordersRepository = FakeOrdersRepository(
       isTest: true,
     );
@@ -129,6 +135,7 @@ void main() {
         ),
       ),
     );
+
     await tester.pumpAndSettle();
 
     expect(find.text('Historique des commandes'), findsOneWidget);
@@ -148,6 +155,7 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
+
     final FakeOrdersRepository ordersRepository = FakeOrdersRepository(
       isTest: true,
     );
@@ -162,14 +170,17 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
-        home: PaymentsPage(
-          user: admin,
-          ordersRepository: ordersRepository,
-          onPaymentConfirmed: () {},
-          onOpenOrders: () {},
+        home: Scaffold(
+          body: PaymentsPage(
+            user: admin,
+            ordersRepository: ordersRepository,
+            onPaymentConfirmed: () {},
+            onOpenOrders: () {},
+          ),
         ),
       ),
     );
+
     await tester.pumpAndSettle();
 
     expect(find.text('Paiements'), findsOneWidget);
@@ -182,6 +193,7 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
+
     final FakeOrdersRepository ordersRepository = FakeOrdersRepository(
       isTest: true,
     );
@@ -205,10 +217,13 @@ void main() {
         ),
       ),
     );
+
     await tester.pumpAndSettle();
 
     expect(find.text('Finances'), findsOneWidget);
+
     final Finder financesScrollable = find.byType(Scrollable).first;
+
     for (final String label in <String>[
       'Gestion financière',
       'Remboursements',
@@ -221,8 +236,10 @@ void main() {
         180,
         scrollable: financesScrollable,
       );
+
       expect(find.text(label), findsOneWidget);
     }
+
     expect(tester.takeException(), isNull);
   });
 
@@ -230,9 +247,11 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
+
     final FakeOrdersRepository ordersRepository = FakeOrdersRepository(
       isTest: true,
     );
+
     final FakeRefundRepository refundRepository = FakeRefundRepository();
     addTearDown(refundRepository.dispose);
 
@@ -251,6 +270,7 @@ void main() {
         ),
       ),
     );
+
     await tester.pumpAndSettle();
 
     expect(find.text('Rapprochements'), findsOneWidget);
@@ -262,14 +282,17 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
+
     final FakeOrdersRepository ordersRepository = FakeOrdersRepository(
       isTest: true,
     );
+
     final FakeRefundRepository refundRepository = FakeRefundRepository();
     final FakeNetworkFinanceRepository networkFinanceRepository =
         FakeNetworkFinanceRepository();
     final FakeFinanceOperationsRepository financeRepository =
         FakeFinanceOperationsRepository();
+
     addTearDown(refundRepository.dispose);
     addTearDown(networkFinanceRepository.dispose);
     addTearDown(financeRepository.dispose);
@@ -286,6 +309,7 @@ void main() {
         ),
       ),
     );
+
     await tester.pumpAndSettle();
 
     expect(find.text('Mouvements'), findsOneWidget);
@@ -298,10 +322,13 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
+
     final FakeOrdersRepository ordersRepository = FakeOrdersRepository(
       isTest: true,
     );
+
     final QueueOrder order = (await ordersRepository.fetchPaidQueue()).first;
+
     await ordersRepository.assignToAgent(
       orderId: order.id,
       agentId: 'AGENT-001',
@@ -325,6 +352,7 @@ void main() {
         ),
       ),
     );
+
     await tester.pumpAndSettle();
 
     expect(find.text('PRIORITÉ 1'), findsOneWidget);
@@ -336,15 +364,20 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
+
     final FakeSupportRequestRepository supportRepository =
         FakeSupportRequestRepository();
     addTearDown(supportRepository.dispose);
+
     final FakeRefundRepository refundRepository = FakeRefundRepository();
     addTearDown(refundRepository.dispose);
+
     final FakeOrdersRepository ordersRepository = FakeOrdersRepository(
       isTest: true,
     );
+
     final QueueOrder order = (await ordersRepository.fetchPaidQueue()).first;
+
     await supportRepository.create(
       orderId: order.id,
       orderReference: order.reference,
@@ -368,6 +401,7 @@ void main() {
         ),
       ),
     );
+
     await tester.pumpAndSettle();
 
     expect(find.text('Centre d’assistance'), findsOneWidget);
@@ -379,6 +413,7 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
+
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
@@ -393,6 +428,7 @@ void main() {
         ),
       ),
     );
+
     await tester.pumpAndSettle();
 
     expect(find.text('Agents & zones'), findsOneWidget);
@@ -405,6 +441,7 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
+
     final FakeAdminOfferRepository repository = FakeAdminOfferRepository(
       initialOffers: <AdminOffer>[
         const AdminOffer(
@@ -424,6 +461,7 @@ void main() {
         ),
       ],
     );
+
     addTearDown(repository.dispose);
 
     await tester.pumpWidget(
@@ -440,14 +478,17 @@ void main() {
         ),
       ),
     );
+
     await tester.pumpAndSettle();
 
     expect(find.text('Offres'), findsOneWidget);
+
     await tester.scrollUntilVisible(
       find.text('Internet Orange 4 Go'),
       180,
       scrollable: find.byType(Scrollable).first,
     );
+
     expect(find.text('Internet Orange 4 Go'), findsOneWidget);
     expect(find.text('1 000 F'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -457,8 +498,10 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
+
     final FakeAdminOfferRepository offerRepository = FakeAdminOfferRepository();
     addTearDown(offerRepository.dispose);
+
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
@@ -476,15 +519,18 @@ void main() {
         ),
       ),
     );
+
     await tester.pumpAndSettle();
 
     expect(find.text('Administration'), findsOneWidget);
     expect(find.text('Demandes clients'), findsOneWidget);
+
     await tester.scrollUntilVisible(
       find.text('Journal d’activité'),
       180,
       scrollable: find.byType(Scrollable).first,
     );
+
     expect(find.text('Journal d’activité'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -493,9 +539,11 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
+
     final FakeSupportRequestRepository supportRepository =
         FakeSupportRequestRepository();
     addTearDown(supportRepository.dispose);
+
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
@@ -511,6 +559,7 @@ void main() {
         ),
       ),
     );
+
     await tester.pumpAndSettle();
 
     expect(find.text('Journal d’activité'), findsOneWidget);
@@ -522,6 +571,7 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
+
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
@@ -540,6 +590,7 @@ void main() {
         ),
       ),
     );
+
     await tester.pumpAndSettle();
 
     expect(find.text('Profil'), findsOneWidget);
@@ -556,8 +607,10 @@ void main() {
         220,
         scrollable: find.byType(Scrollable).first,
       );
+
       expect(find.text(label), findsOneWidget);
     }
+
     expect(tester.takeException(), isNull);
   });
 
@@ -565,6 +618,7 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
+
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
@@ -579,6 +633,7 @@ void main() {
         ),
       ),
     );
+
     await tester.pumpAndSettle();
 
     expect(find.text('Mes performances'), findsWidgets);
@@ -590,6 +645,7 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
+
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
@@ -604,6 +660,7 @@ void main() {
         ),
       ),
     );
+
     await tester.pumpAndSettle();
 
     expect(find.text('Mes commissions'), findsOneWidget);
@@ -615,6 +672,7 @@ void main() {
     WidgetTester tester,
   ) async {
     await useCompactPhone(tester);
+
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
@@ -624,6 +682,7 @@ void main() {
         ),
       ),
     );
+
     await tester.pumpAndSettle();
 
     expect(find.text('Mes signalements'), findsOneWidget);

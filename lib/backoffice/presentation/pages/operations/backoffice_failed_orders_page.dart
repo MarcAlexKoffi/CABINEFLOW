@@ -9,6 +9,7 @@ import 'package:cabine_flow/features/orders/domain/repositories/order_history_re
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:flutter/material.dart';
@@ -173,6 +174,33 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
   int get _refundedCount => _periodOrders.where((QueueOrder order) => order.status == QueueOrderStatus.refunded).length;
   int get _failedAmount => _periodOrders.where((QueueOrder order) => order.status == QueueOrderStatus.failed).fold<int>(0, (int sum, QueueOrder order) => sum + order.amount);
 
+  Future<QueueOrder?> _freshOrderForTreatment(QueueOrder order) async {
+    try {
+      final QueueOrder fresh = await widget.historyRepository.fetchOrderById(
+        orderId: order.id,
+      );
+      if (fresh.status != QueueOrderStatus.failed) {
+        if (mounted) {
+          IzyTelFeedback.show(
+            context,
+            'Cette commande a déjà évolué. Aucun remboursement ni réaffectation supplémentaire ne sera lancé.',
+            tone: IzyTelFeedbackTone.warning,
+          );
+        }
+        return null;
+      }
+      return fresh;
+    } catch (error) {
+      if (mounted) {
+        IzyTelFeedback.error(
+          context,
+          'Impossible de relire la commande avant le traitement financier : ${error.toString()}',
+        );
+      }
+      return null;
+    }
+  }
+
   Future<void> _prepareReassignment(QueueOrder order) async {
     if (_processing.contains(order.id)) return;
     final bool? confirmed = await showDialog<bool>(
@@ -196,45 +224,54 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
     );
     if (confirmed != true || !mounted) return;
 
-    setState(() => _processing.add(order.id));
+    final QueueOrder? fresh = await _freshOrderForTreatment(order);
+    if (fresh == null || !mounted) return;
+
+    setState(() => _processing.add(fresh.id));
     try {
-      final QueueOrder reopened = await widget.ordersRepository.prepareFailedOrderForReassignment(orderId: order.id);
+      final QueueOrder reopened = await widget.ordersRepository.prepareFailedOrderForReassignment(orderId: fresh.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${order.reference} est prête pour une nouvelle affectation.')),
+      IzyTelFeedback.success(
+        context,
+        '${fresh.reference} est prête pour une nouvelle affectation.',
       );
       widget.onOpenAssignments(reopened);
     } catch (error) {
       if (!mounted) return;
       final String raw = error.toString().replaceFirst('Bad state: ', '');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(raw.isEmpty ? 'Impossible de préparer la réaffectation.' : raw)),
+      IzyTelFeedback.error(
+        context,
+        raw.isEmpty ? 'Impossible de préparer la réaffectation.' : raw,
       );
     } finally {
-      if (mounted) setState(() => _processing.remove(order.id));
+      if (mounted) setState(() => _processing.remove(fresh.id));
     }
   }
 
   Future<void> _chooseTreatment(QueueOrder order) async {
-    final RefundCase? existing = _refundFor(order);
-    if (existing != null && existing.status != RefundStatus.rejected) {
+    final RefundCase? knownRefund = _refundFor(order);
+    if (knownRefund != null && knownRefund.status != RefundStatus.rejected) {
       widget.onOpenRefunds(order.reference);
       return;
     }
 
-    final bool canReassign = order.status == QueueOrderStatus.failed &&
-        order.isFundedForProcessing &&
+    final QueueOrder? fresh = await _freshOrderForTreatment(order);
+    if (fresh == null || !mounted) return;
+    final RefundCase? existing = _refundFor(fresh);
+
+    final bool canReassign = fresh.status == QueueOrderStatus.failed &&
+        fresh.isFundedForProcessing &&
         (existing == null || existing.status == RefundStatus.rejected);
-    final bool canRefund = order.status == QueueOrderStatus.failed &&
-        order.paymentStatus == OrderPaymentStatus.confirmed &&
+    final bool canRefund = fresh.status == QueueOrderStatus.failed &&
+        fresh.paymentStatus == OrderPaymentStatus.confirmed &&
         existing == null;
 
     if (canReassign && !canRefund) {
-      await _prepareReassignment(order);
+      await _prepareReassignment(fresh);
       return;
     }
     if (!canReassign && canRefund) {
-      await _createRefund(order);
+      await _createRefund(fresh);
       return;
     }
     if (!canReassign && !canRefund) return;
@@ -242,7 +279,7 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
     final String? choice = await showDialog<String>(
       context: context,
       builder: (BuildContext dialogContext) => AlertDialog(
-        title: Text('Traiter ${order.reference}'),
+        title: Text('Traiter ${fresh.reference}'),
         content: const Text(
           'Choisissez la suite adaptée après vos vérifications. Une réaffectation remet la commande en circulation ; un remboursement ouvre un dossier financier distinct.',
         ),
@@ -266,66 +303,61 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
     );
     if (!mounted) return;
     if (choice == 'reassign') {
-      await _prepareReassignment(order);
+      await _prepareReassignment(fresh);
     } else if (choice == 'refund') {
-      await _createRefund(order);
+      await _createRefund(fresh);
     }
   }
 
   Future<void> _createRefund(QueueOrder order) async {
-    if (order.paymentStatus != OrderPaymentStatus.confirmed) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Cette commande n’a pas de paiement Wave confirmé à rembourser.',
-          ),
-        ),
+    final QueueOrder? fresh = await _freshOrderForTreatment(order);
+    if (fresh == null || !mounted) return;
+    if (fresh.paymentStatus != OrderPaymentStatus.confirmed) {
+      IzyTelFeedback.show(
+        context,
+        'Cette commande n’a pas de paiement Wave confirmé à rembourser.',
+        tone: IzyTelFeedbackTone.warning,
       );
       return;
     }
-    if (_refundFor(order) != null) {
-      widget.onOpenRefunds(order.reference);
+    if (_refundFor(fresh) != null) {
+      widget.onOpenRefunds(fresh.reference);
       return;
     }
 
-    final RefundCreationDraft? draft = await _refundDraft(order);
-    if (draft == null || _processing.contains(order.id)) return;
-    setState(() => _processing.add(order.id));
+    final RefundCreationDraft? draft = await _refundDraft(fresh);
+    if (draft == null || _processing.contains(fresh.id)) return;
+    setState(() => _processing.add(fresh.id));
     try {
       await widget.refundRepository.create(
         request: RefundCreationRequest(
-          orderId: order.id,
-          orderReference: order.reference,
+          orderId: fresh.id,
+          orderReference: fresh.reference,
           origin: RefundOrigin.failedOrder,
-          customerAuthUid: order.customerAuthUid,
-          clientName: order.clientName,
-          clientWhatsappPhone: order.clientWhatsappPhone,
-          originalAmount: order.amount,
+          customerAuthUid: fresh.customerAuthUid,
+          clientName: fresh.clientName,
+          clientWhatsappPhone: fresh.clientWhatsappPhone,
+          originalAmount: fresh.amount,
           amount: draft.amount,
           reason: draft.reason,
           reasonNote: draft.reasonNote,
           paymentChannel: 'wave',
-          originalPaymentReference: _initialPaymentReference(order),
+          originalPaymentReference: _initialPaymentReference(fresh),
         ),
         staffId: widget.user.id,
         staffName: widget.user.name,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Dossier de remboursement créé pour ${order.reference}.',
-          ),
-        ),
+      IzyTelFeedback.success(
+        context,
+        'Dossier de remboursement créé pour ${fresh.reference}.',
       );
-      widget.onOpenRefunds(order.reference);
+      widget.onOpenRefunds(fresh.reference);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      IzyTelFeedback.error(context, error.toString());
     } finally {
-      if (mounted) setState(() => _processing.remove(order.id));
+      if (mounted) setState(() => _processing.remove(fresh.id));
     }
   }
 

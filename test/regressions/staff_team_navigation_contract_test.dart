@@ -31,10 +31,12 @@ void main() {
     expect(managers, contains("title: 'Comptes Managers'"));
     expect(managers, contains("actorType: 'manager'"));
     expect(managers, contains('TeamMemberDetailPage'));
-    expect(detail, contains("title: 'Identité et coordonnées'"));
+    expect(detail, contains("title: 'Coordonnées'"));
+    expect(detail, contains("title: 'Identité et vérification'"));
     expect(detail, contains("'Téléphone secondaire'"));
     expect(detail, contains("'Contact d’urgence'"));
-    expect(detail, contains("title: 'Performance de la zone'"));
+    expect(detail, contains("title: 'Performance du mois'"));
+    expect(detail, contains("title: 'Rémunération Manager'"));
   });
 
   test('Back Office rend Cabinistes adjacent a Agents et Managers dans Equipe', () {

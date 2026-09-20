@@ -77,6 +77,7 @@ void main() {
     expect(catalog, contains('backgroundColor: CustomerAppColors.primary'));
     expect(home, contains('backgroundColor: CustomerAppColors.primary'));
     expect(buttons, contains('backgroundColor: CustomerAppColors.primary'));
-    expect(buttons, contains('backgroundColor: CustomerAppColors.primaryDeep'));
+    expect(buttons, contains('backgroundColor ?? CustomerAppColors.primaryDeep'));
+    expect(buttons, contains('backgroundColor: resolvedBackground'));
   });
 }

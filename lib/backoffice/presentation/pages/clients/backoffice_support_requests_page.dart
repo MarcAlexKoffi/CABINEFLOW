@@ -14,6 +14,7 @@ import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -50,7 +51,7 @@ class _BackofficeSupportRequestsPageState
   late final SupabaseBackofficeCasePaginationRepository _pageRepository;
   late Future<BackofficeSupportPageData> _pageFuture;
   Timer? _searchDebounce;
-  _SupportScope _scope = _SupportScope.newRequests;
+  _SupportScope _scope = _SupportScope.all;
   String _query = '';
   bool _submitting = false;
   IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
@@ -605,6 +606,9 @@ class _BackofficeSupportRequestsPageState
   }
 
   Future<void> _takeInCharge(SupportRequest request) async {
+    if (_scope != _SupportScope.all) {
+      setState(() => _scope = _SupportScope.all);
+    }
     await _runAction(
       () => widget.repository.takeInCharge(
         requestId: request.id,
@@ -1248,8 +1252,6 @@ class _BackofficeSupportRequestsPageState
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    IzyTelFeedback.show(context, message);
   }
 }

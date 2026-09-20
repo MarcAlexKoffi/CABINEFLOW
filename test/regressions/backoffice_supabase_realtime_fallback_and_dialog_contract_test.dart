@@ -33,17 +33,18 @@ void main() {
       final String refunds = read(
         'lib/backoffice/presentation/pages/clients/backoffice_refunds_page.dart',
       );
-      expect(support, contains('void _reloadStreams()'));
-      expect(support, contains('_stream = widget.repository.watchAllRequests();'));
-      expect(refunds, contains('void _reloadStream()'));
-      expect(refunds, contains('_stream = widget.repository.watchAll();'));
+      expect(support, contains('void _reload({bool resetPage = false})'));
+      expect(support, contains('setState(() => _pageFuture = _fetchPage())'));
+      expect(refunds, contains('void _reload({bool resetPage = false})'));
+      expect(refunds, contains('setState(() => _pageFuture = _fetchPage())'));
     });
 
     test('le detail utilisateur est scrollable et ne peut plus deborder en hauteur', () {
       final String users = read(
         'lib/backoffice/presentation/pages/backoffice_users_page.dart',
       );
-      expect(users, contains('scrollable: true,'));
+      expect(users, contains('BackofficeModalShell('));
+      expect(users, contains('SingleChildScrollView('));
       expect(users, contains("label: 'Dernière activité'"));
     });
   });

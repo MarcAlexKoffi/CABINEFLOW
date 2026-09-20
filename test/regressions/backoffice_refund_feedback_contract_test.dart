@@ -48,9 +48,9 @@ void main() {
       ).readAsStringSync();
 
       expect(source, contains("tooltip: 'Effacer la recherche'"));
-      expect(source, contains(r"'$visibleCount affiché"));
-      expect(source, contains(r'sur $scopeTotal dans cette vue'));
-      expect(source, contains('int _scopeCount(List<RefundCase> all)'));
+      expect(source, contains(r"'${data.total} résultat"));
+      expect(source, contains('après recherche et filtres'));
+      expect(source, contains('BackofficePaginationBar'));
     });
 
     test('Support et remboursements sont operationnels Supabase et non Firestore', () {

@@ -22,7 +22,9 @@ void main() {
     expect(shell, contains('MorePage('));
     expect(more, contains("title: 'Administration'"));
     expect(more, contains("title: 'Offres'"));
-    expect(more, contains("title: 'Agents et zones'"));
+    expect(more, contains("title: 'Agents'"));
+    expect(more, contains("title: 'Cabinistes'"));
+    expect(more, contains("title: 'Managers'"));
     expect(more, contains("title: 'Signalements agents'"));
     expect(permissions, contains('static const UserPermissions administrator'));
     expect(permissions, contains('canManageAgents: true'));

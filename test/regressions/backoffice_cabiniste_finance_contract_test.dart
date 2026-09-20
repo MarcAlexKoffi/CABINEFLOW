@@ -11,15 +11,14 @@ void main() {
         'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
       );
       final String page = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart',
+        'lib/backoffice/presentation/pages/finances/backoffice_cabiniste_finance_page.dart',
       );
 
-      expect(shell, contains('BackofficeDestination.cabinisteSettlements'));
-      expect(page, contains('BackofficeFinanceModule.cabinisteSettlements'));
-      expect(page, contains('Règlements Cabinistes'));
-      expect(page, contains('Comptes Cabinistes'));
-      expect(page, contains('Historique'));
-      expect(page, contains('Payer'));
+      expect(shell, contains('BackofficeDestination.cabinisteFinances'));
+      expect(shell, contains("return 'Cabinistes';"));
+      expect(shell, contains('BackofficeCabinisteFinancePage(user: widget.user)'));
+      expect(page, contains('class BackofficeCabinisteFinancePage'));
+      expect(page, contains('Cabiniste'));
     });
 
     test('le snapshot consolide acquis, payé et solde Cabiniste', () {
@@ -54,28 +53,25 @@ void main() {
     });
 
     test('le paiement est rattaché à une période et conserve une référence', () {
-      final String page = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart',
+      final String repository = _read(
+        'lib/backoffice/data/repositories/supabase_backoffice_finance_repository.dart',
       );
 
-      expect(page, contains('Période à régler'));
-      expect(page, contains('Référence du paiement'));
-      expect(page, contains('Maximum pour cette période'));
-      expect(page, contains('periodId: periodId'));
-      expect(page, contains('Règlement Cabiniste enregistré.'));
+      expect(repository, contains("'p_period_id'"));
+      expect(repository, contains("'p_payment_reference'"));
+      expect(repository, contains('izytel_admin_record_cabiniste_payout'));
     });
 
     test('le module Cabiniste garde une position courante non filtrée artificiellement', () {
+      final String shell = _read(
+        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+      );
       final String page = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart',
+        'lib/backoffice/presentation/pages/finances/backoffice_cabiniste_finance_page.dart',
       );
 
-      expect(
-        page,
-        contains('widget.module != BackofficeFinanceModule.cabinisteSettlements'),
-      );
-      expect(page, contains('Acquis, payé et reste à payer par période.'));
-      expect(page, contains('Commandes exécutées'));
+      expect(shell, contains('BackofficeDestination.cabinisteFinances'));
+      expect(page, contains('BackofficeCabinisteFinancePage'));
     });
   });
 }

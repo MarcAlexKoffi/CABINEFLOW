@@ -28,6 +28,7 @@ import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/auth/presentation/widgets/staff_profile_avatar.dart';
+import 'package:cabine_flow/features/control/domain/models/control_snapshot.dart';
 import 'package:cabine_flow/features/control/domain/repositories/control_repository.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
@@ -812,6 +813,30 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
     });
   }
 
+  void _openActivityModule(ControlActivityEvent event) {
+    final BackofficeDestination? destination = switch (event.domain.trim().toLowerCase()) {
+      'orders' => BackofficeDestination.orders,
+      'payments' => BackofficeDestination.payments,
+      'assignments' => BackofficeDestination.assignments,
+      'support' => BackofficeDestination.customerRequests,
+      'agents' => BackofficeDestination.agentIssues,
+      'refunds' => BackofficeDestination.refunds,
+      _ => null,
+    };
+    if (destination == null || !destination.visibleFor(widget.user)) return;
+
+    final String reference = event.reference.trim();
+    if (reference.isNotEmpty && destination == BackofficeDestination.customerRequests) {
+      _openSupportForReference(reference);
+      return;
+    }
+    if (reference.isNotEmpty && destination == BackofficeDestination.refunds) {
+      _openRefundsForReference(reference);
+      return;
+    }
+    _selectDestination(destination);
+  }
+
   Future<void> _confirmLogout() async {
     final bool? confirmed = await showDialog<bool>(
       context: context,
@@ -1032,6 +1057,7 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
       user: widget.user,
       repository: repository,
       module: module,
+      onOpenActivityModule: _openActivityModule,
     );
   }
 

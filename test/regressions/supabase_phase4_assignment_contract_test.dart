@@ -192,7 +192,8 @@ void main() {
     );
     expect(hybrid, contains('watchAgentRefusedOrders'));
     expect(supabase, contains(".eq('status', 'refused')"));
-    expect(historyPage, contains("_tabBox('Refus'"));
+    expect(historyPage, contains("'Refus',"));
+    expect(historyPage, contains('_tabBox('));
   });
 
   test('la file staff est reveillee par Firestore pre-sync et Supabase canonique', () {

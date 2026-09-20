@@ -37,9 +37,11 @@ void main() {
     expect(page, contains('if (widget.user.isManager) { return _buildManagerOperationalFinance(context); }'));
     expect(page, contains('ManagerReadOnlyFinanceOperationsRepository()'));
     expect(page, contains('ManagerReadOnlyCommissionRepository()'));
-    expect(page, contains("title: 'Finances opérationnelles'"));
-    expect(page, contains("badge: 'Lecture seule'"));
-    expect(page, contains('Caisse Wave, crédits clients, dépenses, clôture'));
+    expect(page, contains("title: 'Finances de ma zone'"));
+    expect(page, contains("badge: 'Lecture'"));
+    expect(page, contains("badge: 'Gestion zone'"));
+    expect(page, contains('caisse Wave, crédits clients, dépenses et clôture'));
+    expect(page, contains('restent réservés à l’Administrateur'));
     expect(page, contains('createOperationalRefundRepository()'));
     expect(page, isNot(contains('FirestoreRefundRepository()')));
   });
@@ -52,9 +54,11 @@ void main() {
       read('lib/features/commissions/presentation/pages/agent_performance_page.dart'),
     );
 
-    expect(suppliers, contains('widget.user.permissions.canManageFinanceSettings'));
-    expect(suppliers, contains("'Lecture seule'"));
-    expect(suppliers, contains('if (_canManage)'));
+    expect(suppliers, contains('bool get _canManageSuppliers'));
+    expect(suppliers, contains('widget.user.permissions.canManageFinanceSettings || widget.user.isManager'));
+    expect(suppliers, contains('bool get _canPaySuppliers'));
+    expect(suppliers, contains('if (_canPaySuppliers)'));
+    expect(suppliers, contains('Le règlement financier du fournisseur reste réservé'));
     expect(performance, contains('widget.user.permissions.canManageFinanceSettings'));
   });
 

@@ -12,6 +12,7 @@ import 'package:cabine_flow/features/orders/domain/repositories/orders_repositor
 import 'package:cabine_flow/features/orders/presentation/view_models/agent_assignment_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_operator_brand.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -178,8 +179,9 @@ class _BackofficeAssignmentsPageState extends State<BackofficeAssignmentsPage> {
       },
     );
     if (assigned == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${order.reference} affectée avec succès.')),
+      IzyTelFeedback.success(
+        context,
+        '${order.reference} affectée avec succès.',
       );
       await _refresh();
     }
@@ -610,8 +612,9 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
       Navigator.of(context).pop(true);
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(_viewModel.errorMessage ?? 'Impossible d’affecter cette commande.')),
+    IzyTelFeedback.error(
+      context,
+      _viewModel.errorMessage ?? 'Impossible d’affecter cette commande.',
     );
   }
 

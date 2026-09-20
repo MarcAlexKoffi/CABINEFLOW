@@ -46,7 +46,8 @@ class _BackofficeControlPageState extends State<BackofficeControlPage> {
   @override
   void didUpdateWidget(covariant BackofficeControlPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.module != widget.module || oldWidget.repository != widget.repository) {
+    if (oldWidget.module != widget.module ||
+        oldWidget.repository != widget.repository) {
       _future = widget.repository.fetchSnapshot();
     }
   }
@@ -60,7 +61,8 @@ class _BackofficeControlPageState extends State<BackofficeControlPage> {
     return FutureBuilder<ControlSnapshot>(
       future: _future,
       builder: (BuildContext context, AsyncSnapshot<ControlSnapshot> async) {
-        if (async.connectionState == ConnectionState.waiting && !async.hasData) {
+        if (async.connectionState == ConnectionState.waiting &&
+            !async.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
         if (async.hasError || !async.hasData) {
@@ -70,19 +72,22 @@ class _BackofficeControlPageState extends State<BackofficeControlPage> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-              _ScopeBanner(snapshot: snapshot, onRefresh: _reload),
-              const SizedBox(height: 18),
-              switch (widget.module) {
-                BackofficeControlModule.activity => _ActivityView(
-                    repository: widget.repository,
-                    onOpenModule: widget.onOpenActivityModule,
-                  ),
-                BackofficeControlModule.audit => _AuditView(
-                    snapshot: snapshot,
-                    repository: widget.repository,
-                  ),
-                BackofficeControlModule.statistics => _StatisticsView(snapshot: snapshot),
-              },
+            _ScopeBanner(snapshot: snapshot, onRefresh: _reload),
+            const SizedBox(height: 18),
+            switch (widget.module) {
+              BackofficeControlModule.activity => _ActivityView(
+                snapshot: snapshot,
+                repository: widget.repository,
+                onOpenModule: widget.onOpenActivityModule,
+              ),
+              BackofficeControlModule.audit => _AuditView(
+                snapshot: snapshot,
+                repository: widget.repository,
+              ),
+              BackofficeControlModule.statistics => _StatisticsView(
+                snapshot: snapshot,
+              ),
+            },
           ],
         );
       },
@@ -119,9 +124,9 @@ class _ScopeBanner extends StatelessWidget {
                   ? 'Périmètre Manager : uniquement les zones et Agents supervisés.'
                   : 'Périmètre Administrateur : vue globale IzyTel.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: BackofficePalette.ink,
-                  ),
+                fontWeight: FontWeight.w700,
+                color: BackofficePalette.ink,
+              ),
             ),
           ),
           IconButton(
@@ -135,35 +140,43 @@ class _ScopeBanner extends StatelessWidget {
   }
 }
 
-enum _ActivityDomainFilter { all, orders, payments, assignments, support, agents }
+enum _ActivityDomainFilter {
+  all,
+  orders,
+  payments,
+  assignments,
+  support,
+  agents,
+}
 
 extension on _ActivityDomainFilter {
   String get label => switch (this) {
-        _ActivityDomainFilter.all => 'Tous les domaines',
-        _ActivityDomainFilter.orders => 'Commandes',
-        _ActivityDomainFilter.payments => 'Paiements',
-        _ActivityDomainFilter.assignments => 'Affectations',
-        _ActivityDomainFilter.support => 'Support clients',
-        _ActivityDomainFilter.agents => 'Agents',
-      };
+    _ActivityDomainFilter.all => 'Tous les domaines',
+    _ActivityDomainFilter.orders => 'Commandes',
+    _ActivityDomainFilter.payments => 'Paiements',
+    _ActivityDomainFilter.assignments => 'Affectations',
+    _ActivityDomainFilter.support => 'Support clients',
+    _ActivityDomainFilter.agents => 'Agents',
+  };
 
   String? get rpcValue => switch (this) {
-        _ActivityDomainFilter.all => null,
-        _ActivityDomainFilter.orders => 'orders',
-        _ActivityDomainFilter.payments => 'payments',
-        _ActivityDomainFilter.assignments => 'assignments',
-        _ActivityDomainFilter.support => 'support',
-        _ActivityDomainFilter.agents => 'agents',
-      };
+    _ActivityDomainFilter.all => null,
+    _ActivityDomainFilter.orders => 'orders',
+    _ActivityDomainFilter.payments => 'payments',
+    _ActivityDomainFilter.assignments => 'assignments',
+    _ActivityDomainFilter.support => 'support',
+    _ActivityDomainFilter.agents => 'agents',
+  };
 }
-
 
 class _ActivityView extends StatefulWidget {
   const _ActivityView({
+    required this.snapshot,
     required this.repository,
     this.onOpenModule,
   });
 
+  final ControlSnapshot snapshot;
   final ControlRepository repository;
   final ValueChanged<ControlActivityEvent>? onOpenModule;
 
@@ -175,23 +188,31 @@ class _ActivityViewState extends State<_ActivityView> {
   String _query = '';
   _ActivityDomainFilter _domain = _ActivityDomainFilter.all;
   IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
-  late Future<ControlActivityPageData> _pageFuture;
   Timer? _searchDebounce;
+  List<ControlActivityEvent> _items = const <ControlActivityEvent>[];
+  int _total = 0;
   int _page = 1;
   int _pageSize = 25;
+  bool _loading = false;
+  String? _error;
+  int _requestSerial = 0;
 
   @override
   void initState() {
     super.initState();
-    _pageFuture = _fetchPage();
+    _items = widget.snapshot.activity.take(_pageSize).toList(growable: false);
+    _total = widget.snapshot.activity.length;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_loadPage());
+    });
   }
 
   @override
   void didUpdateWidget(covariant _ActivityView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.repository != widget.repository) {
-      _page = 1;
-      _pageFuture = _fetchPage();
+    if (oldWidget.repository != widget.repository ||
+        oldWidget.snapshot != widget.snapshot) {
+      unawaited(_loadPage(resetPage: true));
     }
   }
 
@@ -201,154 +222,167 @@ class _ActivityViewState extends State<_ActivityView> {
     super.dispose();
   }
 
-  Future<ControlActivityPageData> _fetchPage() {
-    final DateTimeRange? range = _period.resolvedRange();
-    return widget.repository.fetchActivityPage(
-      start: range?.start,
-      end: range?.end,
-      domain: _domain.rpcValue,
-      query: _query,
-      offset: (_page - 1) * _pageSize,
-      limit: _pageSize,
-    );
-  }
-
-  void _reload({bool resetPage = false}) {
+  Future<void> _loadPage({bool resetPage = false}) async {
     if (resetPage) _page = 1;
-    setState(() => _pageFuture = _fetchPage());
-  }
+    final int requestSerial = ++_requestSerial;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
 
-  void _setPeriod(IzyTelPeriodFilterValue value) {
-    _period = value;
-    _reload(resetPage: true);
+    final DateTimeRange? range = _period.preset == IzyTelPeriodPreset.all
+        ? null
+        : _period.resolvedRange();
+    try {
+      final ControlActivityPageData page = await widget.repository
+          .fetchActivityPage(
+            start: range?.start,
+            end: range?.end,
+            domain: _domain.rpcValue,
+            query: _query,
+            offset: (_page - 1) * _pageSize,
+            limit: _pageSize,
+          );
+      if (!mounted || requestSerial != _requestSerial) return;
+      setState(() {
+        _items = page.items;
+        _total = page.total;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted || requestSerial != _requestSerial) return;
+      setState(() {
+        _loading = false;
+        _error = 'Impossible de charger cette page du journal.';
+      });
+    }
   }
 
   void _onSearchChanged(String value) {
-    _query = value;
+    setState(() => _query = value);
     _searchDebounce?.cancel();
     _searchDebounce = Timer(const Duration(milliseconds: 350), () {
-      if (mounted) _reload(resetPage: true);
+      if (mounted) unawaited(_loadPage(resetPage: true));
     });
   }
 
   void _setDomain(_ActivityDomainFilter value) {
-    if (_domain == value) return;
-    _domain = value;
-    _reload(resetPage: true);
+    setState(() => _domain = value);
+    unawaited(_loadPage(resetPage: true));
+  }
+
+  Future<void> _setPeriod(IzyTelPeriodFilterValue value) async {
+    setState(() => _period = value);
+    await _loadPage(resetPage: true);
   }
 
   @override
   Widget build(BuildContext context) {
     final bool compact = MediaQuery.sizeOf(context).width < 760;
-    return FutureBuilder<ControlActivityPageData>(
-      future: _pageFuture,
-      builder: (BuildContext context, AsyncSnapshot<ControlActivityPageData> async) {
-        final ControlActivityPageData? data = async.data;
-        final List<ControlActivityEvent> events = data?.items ?? const <ControlActivityEvent>[];
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            _SectionHeading(
-              title: 'Journal d’activité',
-              subtitle: data == null
-                  ? 'Chargement du journal…'
-                  : '${events.length} événement${events.length > 1 ? 's' : ''} sur ${data.total}. Les filtres et la recherche sont appliqués avant la pagination serveur.',
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _SectionHeading(
+          title: 'Journal d’activité',
+          subtitle:
+              '${_items.length} événement${_items.length > 1 ? 's' : ''} affiché${_items.length > 1 ? 's' : ''} sur $_total. Cliquez sur une ligne pour consulter le détail.',
+        ),
+        const SizedBox(height: 12),
+        IzyTelPeriodFilterBar(
+          value: _period,
+          onChanged: _setPeriod,
+          compact: compact,
+          calendarHelpText: 'Rechercher une ancienne activité',
+        ),
+        if (_loading) ...<Widget>[
+          const SizedBox(height: 10),
+          const LinearProgressIndicator(minHeight: 2),
+        ],
+        if (_error != null) ...<Widget>[
+          const SizedBox(height: 10),
+          Text(
+            _error!,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: BackofficePalette.danger,
+              fontWeight: FontWeight.w700,
             ),
-            const SizedBox(height: 12),
-            IzyTelPeriodFilterBar(
-              value: _period,
-              onChanged: _setPeriod,
-              compact: compact,
-              calendarHelpText: 'Rechercher une ancienne activité',
-            ),
-            const SizedBox(height: 12),
-            if (compact)
-              Column(
-                children: <Widget>[
-                  _ActivitySearchField(onChanged: _onSearchChanged),
-                  const SizedBox(height: 10),
-                  _ActivityDomainField(value: _domain, onChanged: _setDomain),
-                ],
-              )
-            else
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    flex: 3,
-                    child: _ActivitySearchField(onChanged: _onSearchChanged),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    flex: 2,
-                    child: _ActivityDomainField(value: _domain, onChanged: _setDomain),
-                  ),
-                ],
+          ),
+        ],
+        const SizedBox(height: 12),
+        if (compact)
+          Column(
+            children: <Widget>[
+              _ActivitySearchField(onChanged: _onSearchChanged),
+              const SizedBox(height: 10),
+              _ActivityDomainField(value: _domain, onChanged: _setDomain),
+            ],
+          )
+        else
+          Row(
+            children: <Widget>[
+              Expanded(
+                flex: 3,
+                child: _ActivitySearchField(onChanged: _onSearchChanged),
               ),
-            const SizedBox(height: 12),
-            if (async.connectionState == ConnectionState.waiting && !async.hasData)
-              const SizedBox(
-                height: 180,
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (async.hasError)
-              _EmptyCard(
-                icon: Symbols.cloud_off_rounded,
-                title: 'Journal indisponible',
-                subtitle: 'Impossible de charger cette page du journal.',
-                action: OutlinedButton.icon(
-                  onPressed: () => _reload(),
-                  icon: const Icon(Symbols.refresh_rounded),
-                  label: const Text('Réessayer'),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: _ActivityDomainField(
+                  value: _domain,
+                  onChanged: _setDomain,
                 ),
-              )
-            else if (events.isEmpty)
-              const _EmptyCard(
-                icon: Symbols.search_off_rounded,
-                title: 'Aucune activité correspondante',
-                subtitle: 'Modifiez la période, la recherche ou le domaine sélectionné.',
-              )
-            else
-              ...events.map(
-                (ControlActivityEvent event) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _EventCard(
-                    event: event,
-                    onTap: () => _showActivityDetail(
-                      context,
-                      event,
-                      onOpenModule: widget.onOpenModule,
-                    ),
-                  ),
-                ),
-              ),
-            if (data != null && data.total > 0) ...<Widget>[
-              const SizedBox(height: 6),
-              BackofficePaginationBar(
-                page: _page,
-                pageSize: _pageSize,
-                total: data.total,
-                loading: async.connectionState == ConnectionState.waiting,
-                onPrevious: _page > 1
-                    ? () {
-                        _page -= 1;
-                        _reload();
-                      }
-                    : null,
-                onNext: _page * _pageSize < data.total
-                    ? () {
-                        _page += 1;
-                        _reload();
-                      }
-                    : null,
-                onPageSizeChanged: (int value) {
-                  _pageSize = value;
-                  _reload(resetPage: true);
-                },
               ),
             ],
-          ],
-        );
-      },
+          ),
+        const SizedBox(height: 12),
+        if (_items.isEmpty && !_loading)
+          const _EmptyCard(
+            icon: Symbols.search_off_rounded,
+            title: 'Aucune activité correspondante',
+            subtitle:
+                'Modifiez la recherche, la période ou le domaine sélectionné.',
+          )
+        else
+          ..._items.map(
+            (ControlActivityEvent event) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _EventCard(
+                event: event,
+                onTap: () => _showActivityDetail(
+                  context,
+                  event,
+                  onOpenModule: widget.onOpenModule,
+                ),
+              ),
+            ),
+          ),
+        if (_total > 0) ...<Widget>[
+          const SizedBox(height: 4),
+          BackofficePaginationBar(
+            page: _page,
+            pageSize: _pageSize,
+            total: _total,
+            loading: _loading,
+            onPrevious: _page > 1
+                ? () {
+                    _page -= 1;
+                    unawaited(_loadPage());
+                  }
+                : null,
+            onNext: _page * _pageSize < _total
+                ? () {
+                    _page += 1;
+                    unawaited(_loadPage());
+                  }
+                : null,
+            onPageSizeChanged: (int value) {
+              _pageSize = value;
+              unawaited(_loadPage(resetPage: true));
+            },
+          ),
+        ],
+      ],
     );
   }
 }
@@ -383,10 +417,11 @@ class _ActivityDomainField extends StatelessWidget {
       decoration: const InputDecoration(labelText: 'Domaine'),
       items: _ActivityDomainFilter.values
           .map(
-            (_ActivityDomainFilter item) => DropdownMenuItem<_ActivityDomainFilter>(
-              value: item,
-              child: Text(item.label),
-            ),
+            (_ActivityDomainFilter item) =>
+                DropdownMenuItem<_ActivityDomainFilter>(
+                  value: item,
+                  child: Text(item.label),
+                ),
           )
           .toList(growable: false),
       onChanged: (_ActivityDomainFilter? item) {
@@ -407,15 +442,23 @@ class _AuditView extends StatefulWidget {
 
 class _AuditViewState extends State<_AuditView> {
   IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
-  late Future<ControlAuditPageData> _pageFuture;
+  List<ControlAuditEvent> _items = const <ControlAuditEvent>[];
+  int _total = 0;
   int _page = 1;
   int _pageSize = 25;
+  bool _loading = false;
+  String? _error;
+  int _requestSerial = 0;
 
   @override
   void initState() {
     super.initState();
+    _items = widget.snapshot.audit.take(_pageSize).toList(growable: false);
+    _total = widget.snapshot.audit.length;
     if (widget.snapshot.auditAllowed) {
-      _pageFuture = _fetchPage();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_loadPage());
+      });
     }
   }
 
@@ -423,124 +466,135 @@ class _AuditViewState extends State<_AuditView> {
   void didUpdateWidget(covariant _AuditView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.snapshot.auditAllowed &&
-        (!oldWidget.snapshot.auditAllowed || oldWidget.repository != widget.repository)) {
-      _page = 1;
-      _pageFuture = _fetchPage();
+        (oldWidget.repository != widget.repository ||
+            oldWidget.snapshot != widget.snapshot)) {
+      unawaited(_loadPage(resetPage: true));
     }
   }
 
-  Future<ControlAuditPageData> _fetchPage() {
-    final DateTimeRange? range = _period.resolvedRange();
-    return widget.repository.fetchAuditPage(
-      start: range?.start,
-      end: range?.end,
-      offset: (_page - 1) * _pageSize,
-      limit: _pageSize,
-    );
-  }
-
-  void _reload({bool resetPage = false}) {
+  Future<void> _loadPage({bool resetPage = false}) async {
+    if (!widget.snapshot.auditAllowed) return;
     if (resetPage) _page = 1;
-    setState(() => _pageFuture = _fetchPage());
+    final int requestSerial = ++_requestSerial;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    final DateTimeRange? range = _period.preset == IzyTelPeriodPreset.all
+        ? null
+        : _period.resolvedRange();
+    try {
+      final ControlAuditPageData page = await widget.repository.fetchAuditPage(
+        start: range?.start,
+        end: range?.end,
+        offset: (_page - 1) * _pageSize,
+        limit: _pageSize,
+      );
+      if (!mounted || requestSerial != _requestSerial) return;
+      setState(() {
+        _items = page.items;
+        _total = page.total;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted || requestSerial != _requestSerial) return;
+      setState(() {
+        _loading = false;
+        _error = 'Impossible de charger cette page de l’audit.';
+      });
+    }
   }
 
-  void _setPeriod(IzyTelPeriodFilterValue value) {
-    _period = value;
-    _reload(resetPage: true);
+  Future<void> _setPeriod(IzyTelPeriodFilterValue value) async {
+    setState(() => _period = value);
+    await _loadPage(resetPage: true);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.snapshot.auditAllowed) {
+    final ControlSnapshot snapshot = widget.snapshot;
+    if (!snapshot.auditAllowed) {
       return const _EmptyCard(
         icon: Symbols.lock_rounded,
         title: 'Audit réservé à l’Administrateur',
-        subtitle: 'Les Managers disposent du journal opérationnel et des statistiques de leur périmètre, sans accès à l’audit sensible.',
+        subtitle:
+            'Les Managers disposent du journal opérationnel et des statistiques de leur périmètre, sans accès à l’audit sensible.',
       );
     }
-
-    return FutureBuilder<ControlAuditPageData>(
-      future: _pageFuture,
-      builder: (BuildContext context, AsyncSnapshot<ControlAuditPageData> async) {
-        final ControlAuditPageData? data = async.data;
-        final List<ControlAuditEvent> events = data?.items ?? const <ControlAuditEvent>[];
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            _SectionHeading(
-              title: 'Audit / historique',
-              subtitle: data == null
-                  ? 'Chargement de l’audit…'
-                  : '${events.length} action${events.length > 1 ? 's' : ''} sur ${data.total}. La période est appliquée avant la pagination serveur.',
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _SectionHeading(
+          title: 'Audit / historique',
+          subtitle:
+              '${_items.length} action${_items.length > 1 ? 's' : ''} affichée${_items.length > 1 ? 's' : ''} sur $_total. Cliquez sur une action pour inspecter les données auditées.',
+        ),
+        const SizedBox(height: 12),
+        IzyTelPeriodFilterBar(
+          value: _period,
+          onChanged: _setPeriod,
+          compact: MediaQuery.sizeOf(context).width < 760,
+          calendarHelpText: 'Rechercher un ancien événement d’audit',
+        ),
+        if (_loading) ...<Widget>[
+          const SizedBox(height: 10),
+          const LinearProgressIndicator(minHeight: 2),
+        ],
+        if (_error != null) ...<Widget>[
+          const SizedBox(height: 10),
+          Text(
+            _error!,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: BackofficePalette.danger,
+              fontWeight: FontWeight.w700,
             ),
-            const SizedBox(height: 12),
-            IzyTelPeriodFilterBar(
-              value: _period,
-              onChanged: _setPeriod,
-              compact: MediaQuery.sizeOf(context).width < 760,
-              calendarHelpText: 'Rechercher un ancien événement d’audit',
+          ),
+        ],
+        const SizedBox(height: 12),
+        if (_items.isEmpty && !_loading)
+          const _EmptyCard(
+            icon: Symbols.search_off_rounded,
+            title: 'Aucun audit sur cette période',
+            subtitle:
+                'Choisissez une autre période ou revenez à l’historique complet.',
+          )
+        else
+          ..._items.map(
+            (ControlAuditEvent event) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _AuditEventCard(
+                event: event,
+                onTap: () => _showAuditDetail(context, event),
+              ),
             ),
-            const SizedBox(height: 12),
-            if (async.connectionState == ConnectionState.waiting && !async.hasData)
-              const SizedBox(
-                height: 180,
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (async.hasError)
-              _EmptyCard(
-                icon: Symbols.cloud_off_rounded,
-                title: 'Audit indisponible',
-                subtitle: 'Impossible de charger cette page de l’audit.',
-                action: OutlinedButton.icon(
-                  onPressed: () => _reload(),
-                  icon: const Icon(Symbols.refresh_rounded),
-                  label: const Text('Réessayer'),
-                ),
-              )
-            else if (events.isEmpty)
-              const _EmptyCard(
-                icon: Symbols.search_off_rounded,
-                title: 'Aucun audit sur cette période',
-                subtitle: 'Choisissez une autre période ou revenez à l’historique complet.',
-              )
-            else
-              ...events.map(
-                (ControlAuditEvent event) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _AuditEventCard(
-                    event: event,
-                    onTap: () => _showAuditDetail(context, event),
-                  ),
-                ),
-              ),
-            if (data != null && data.total > 0) ...<Widget>[
-              const SizedBox(height: 6),
-              BackofficePaginationBar(
-                page: _page,
-                pageSize: _pageSize,
-                total: data.total,
-                loading: async.connectionState == ConnectionState.waiting,
-                onPrevious: _page > 1
-                    ? () {
-                        _page -= 1;
-                        _reload();
-                      }
-                    : null,
-                onNext: _page * _pageSize < data.total
-                    ? () {
-                        _page += 1;
-                        _reload();
-                      }
-                    : null,
-                onPageSizeChanged: (int value) {
-                  _pageSize = value;
-                  _reload(resetPage: true);
-                },
-              ),
-            ],
-          ],
-        );
-      },
+          ),
+        if (_total > 0) ...<Widget>[
+          const SizedBox(height: 4),
+          BackofficePaginationBar(
+            page: _page,
+            pageSize: _pageSize,
+            total: _total,
+            loading: _loading,
+            onPrevious: _page > 1
+                ? () {
+                    _page -= 1;
+                    unawaited(_loadPage());
+                  }
+                : null,
+            onNext: _page * _pageSize < _total
+                ? () {
+                    _page += 1;
+                    unawaited(_loadPage());
+                  }
+                : null,
+            onPageSizeChanged: (int value) {
+              _pageSize = value;
+              unawaited(_loadPage(resetPage: true));
+            },
+          ),
+        ],
+      ],
     );
   }
 }
@@ -567,7 +621,10 @@ class _AuditEventCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              const Icon(Symbols.fact_check_rounded, color: BackofficePalette.primary),
+              const Icon(
+                Symbols.fact_check_rounded,
+                color: BackofficePalette.primary,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -575,23 +632,32 @@ class _AuditEventCard extends StatelessWidget {
                   children: <Widget>[
                     Text(
                       '${event.domain.toUpperCase()} · ${event.action}',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${event.entityType} · ${event.entityId.isEmpty ? '—' : event.entityId}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: BackofficePalette.muted),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: BackofficePalette.muted,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${_dateLabel(event.occurredAt)}${event.actorName.isEmpty ? '' : ' · ${event.actorName}'}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: BackofficePalette.muted),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: BackofficePalette.muted,
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(Symbols.chevron_right_rounded, color: BackofficePalette.faint),
+              const Icon(
+                Symbols.chevron_right_rounded,
+                color: BackofficePalette.faint,
+              ),
             ],
           ),
         ),
@@ -606,9 +672,13 @@ Future<void> _showActivityDetail(
   ValueChanged<ControlActivityEvent>? onOpenModule,
 }) {
   final Color tone = _severityTone(event.severity);
-  final MobileNetwork? network = _network(event.details['network']?.toString() ?? '');
+  final MobileNetwork? network = _network(
+    event.details['network']?.toString() ?? '',
+  );
   final List<BackofficeInfoItem> details = event.details.entries
-      .where((MapEntry<String, dynamic> entry) => _valueLabel(entry.value) != '—')
+      .where(
+        (MapEntry<String, dynamic> entry) => _valueLabel(entry.value) != '—',
+      )
       .map(
         (MapEntry<String, dynamic> entry) => BackofficeInfoItem(
           label: _detailLabel(entry.key),
@@ -625,11 +695,16 @@ Future<void> _showActivityDetail(
     context: context,
     builder: (BuildContext dialogContext) => BackofficeModalShell(
       title: event.title,
-      subtitle: event.reference.isEmpty ? 'Événement opérationnel' : 'Référence ${event.reference}',
+      subtitle: event.reference.isEmpty
+          ? 'Événement opérationnel'
+          : 'Référence ${event.reference}',
       icon: Symbols.history_rounded,
       iconColor: tone,
       chips: <Widget>[
-        _ControlDetailChip(label: _domainLabel(event.domain), tone: BackofficePalette.primary),
+        _ControlDetailChip(
+          label: _domainLabel(event.domain),
+          tone: BackofficePalette.primary,
+        ),
         _ControlDetailChip(label: _severityLabel(event.severity), tone: tone),
       ],
       maxWidth: 820,
@@ -646,12 +721,17 @@ Future<void> _showActivityDetail(
                       color: tone.withValues(alpha: .10),
                       borderRadius: BorderRadius.circular(15),
                     ),
-                    child: Icon(Symbols.timeline_rounded, color: tone, size: 27),
+                    child: Icon(
+                      Symbols.timeline_rounded,
+                      color: tone,
+                      size: 27,
+                    ),
                   )
                 : IzyTelOperatorLogo(network: network, size: 52),
             eyebrow: _domainLabel(event.domain),
             value: event.reference.isEmpty ? event.title : event.reference,
-            caption: '${_dateLabel(event.occurredAt)}${event.actorName.isEmpty ? '' : ' · ${event.actorName}'}',
+            caption:
+                '${_dateLabel(event.occurredAt)}${event.actorName.isEmpty ? '' : ' · ${event.actorName}'}',
           ),
           const SizedBox(height: 14),
           BackofficeModalSection(
@@ -659,10 +739,24 @@ Future<void> _showActivityDetail(
             icon: Symbols.info_rounded,
             child: BackofficeInfoGrid(
               items: <BackofficeInfoItem>[
-                BackofficeInfoItem(label: 'Type', value: _eventKindLabel(event.eventKind)),
-                BackofficeInfoItem(label: 'Domaine', value: _domainLabel(event.domain)),
-                BackofficeInfoItem(label: 'Date / heure', value: _dateLabel(event.occurredAt)),
-                BackofficeInfoItem(label: 'Intervenant', value: event.actorName.isEmpty ? 'Système IzyTel' : event.actorName),
+                BackofficeInfoItem(
+                  label: 'Type',
+                  value: _eventKindLabel(event.eventKind),
+                ),
+                BackofficeInfoItem(
+                  label: 'Domaine',
+                  value: _domainLabel(event.domain),
+                ),
+                BackofficeInfoItem(
+                  label: 'Date / heure',
+                  value: _dateLabel(event.occurredAt),
+                ),
+                BackofficeInfoItem(
+                  label: 'Intervenant',
+                  value: event.actorName.isEmpty
+                      ? 'Système IzyTel'
+                      : event.actorName,
+                ),
               ],
             ),
           ),
@@ -723,11 +817,16 @@ Future<void> _showAuditDetail(BuildContext context, ControlAuditEvent event) {
                 color: BackofficePalette.primarySoft,
                 borderRadius: BorderRadius.circular(15),
               ),
-              child: const Icon(Symbols.shield_rounded, color: BackofficePalette.primary, size: 27),
+              child: const Icon(
+                Symbols.shield_rounded,
+                color: BackofficePalette.primary,
+                size: 27,
+              ),
             ),
             eyebrow: event.domain,
             value: event.entityId.isEmpty ? event.action : event.entityId,
-            caption: '${_dateLabel(event.occurredAt)}${event.actorName.isEmpty ? '' : ' · ${event.actorName}'}',
+            caption:
+                '${_dateLabel(event.occurredAt)}${event.actorName.isEmpty ? '' : ' · ${event.actorName}'}',
           ),
           const SizedBox(height: 14),
           BackofficeModalSection(
@@ -735,10 +834,25 @@ Future<void> _showAuditDetail(BuildContext context, ControlAuditEvent event) {
             icon: Symbols.manage_history_rounded,
             child: BackofficeInfoGrid(
               items: <BackofficeInfoItem>[
-                BackofficeInfoItem(label: 'Action', value: _eventKindLabel(event.action)),
-                BackofficeInfoItem(label: 'Entité', value: event.entityType.isEmpty ? '—' : event.entityType),
-                BackofficeInfoItem(label: 'Identifiant', value: event.entityId.isEmpty ? '—' : event.entityId, selectable: true),
-                BackofficeInfoItem(label: 'Intervenant', value: event.actorName.isEmpty ? 'Système IzyTel' : event.actorName),
+                BackofficeInfoItem(
+                  label: 'Action',
+                  value: _eventKindLabel(event.action),
+                ),
+                BackofficeInfoItem(
+                  label: 'Entité',
+                  value: event.entityType.isEmpty ? '—' : event.entityType,
+                ),
+                BackofficeInfoItem(
+                  label: 'Identifiant',
+                  value: event.entityId.isEmpty ? '—' : event.entityId,
+                  selectable: true,
+                ),
+                BackofficeInfoItem(
+                  label: 'Intervenant',
+                  value: event.actorName.isEmpty
+                      ? 'Système IzyTel'
+                      : event.actorName,
+                ),
               ],
             ),
           ),
@@ -775,9 +889,9 @@ class _ControlDetailChip extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: tone,
-              fontWeight: FontWeight.w800,
-            ),
+          color: tone,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }
@@ -797,10 +911,14 @@ class _StatisticsViewState extends State<_StatisticsView> {
   ControlSnapshot get snapshot => widget.snapshot;
 
   List<ControlDailyTrend> get _trend {
-    final List<ControlDailyTrend> sorted = snapshot.dailyTrend
-        .where((ControlDailyTrend item) => item.date != null)
-        .toList(growable: true)
-      ..sort((ControlDailyTrend a, ControlDailyTrend b) => a.date!.compareTo(b.date!));
+    final List<ControlDailyTrend> sorted =
+        snapshot.dailyTrend
+            .where((ControlDailyTrend item) => item.date != null)
+            .toList(growable: true)
+          ..sort(
+            (ControlDailyTrend a, ControlDailyTrend b) =>
+                a.date!.compareTo(b.date!),
+          );
     if (sorted.length <= _days) return sorted;
     return sorted.sublist(sorted.length - _days);
   }
@@ -808,39 +926,87 @@ class _StatisticsViewState extends State<_StatisticsView> {
   @override
   Widget build(BuildContext context) {
     final List<_MetricData> metrics = <_MetricData>[
-      _MetricData('Commandes aujourd’hui', snapshot.stat('today_orders').toString(), Symbols.receipt_long_rounded),
-      _MetricData('Terminées aujourd’hui', snapshot.stat('today_completed').toString(), Symbols.check_circle_rounded),
-      _MetricData('Échecs aujourd’hui', snapshot.stat('today_failed').toString(), Symbols.error_rounded),
-      _MetricData('Actives', snapshot.stat('active_orders').toString(), Symbols.pending_actions_rounded),
-      _MetricData('Commandes sur 30 j', snapshot.stat('orders_30d').toString(), Symbols.calendar_month_rounded),
-      _MetricData('Terminées sur 30 j', snapshot.stat('completed_30d').toString(), Symbols.done_all_rounded),
-      _MetricData('Temps moyen', '${snapshot.statDouble('avg_processing_minutes_30d').toStringAsFixed(1)} min', Symbols.schedule_rounded),
-      _MetricData('Signalements ouverts', snapshot.stat('agent_issues_open').toString(), Symbols.report_problem_rounded),
+      _MetricData(
+        'Commandes aujourd’hui',
+        snapshot.stat('today_orders').toString(),
+        Symbols.receipt_long_rounded,
+      ),
+      _MetricData(
+        'Terminées aujourd’hui',
+        snapshot.stat('today_completed').toString(),
+        Symbols.check_circle_rounded,
+      ),
+      _MetricData(
+        'Échecs aujourd’hui',
+        snapshot.stat('today_failed').toString(),
+        Symbols.error_rounded,
+      ),
+      _MetricData(
+        'Actives',
+        snapshot.stat('active_orders').toString(),
+        Symbols.pending_actions_rounded,
+      ),
+      _MetricData(
+        'Commandes sur 30 j',
+        snapshot.stat('orders_30d').toString(),
+        Symbols.calendar_month_rounded,
+      ),
+      _MetricData(
+        'Terminées sur 30 j',
+        snapshot.stat('completed_30d').toString(),
+        Symbols.done_all_rounded,
+      ),
+      _MetricData(
+        'Temps moyen',
+        '${snapshot.statDouble('avg_processing_minutes_30d').toStringAsFixed(1)} min',
+        Symbols.schedule_rounded,
+      ),
+      _MetricData(
+        'Signalements ouverts',
+        snapshot.stat('agent_issues_open').toString(),
+        Symbols.report_problem_rounded,
+      ),
     ];
 
     if (snapshot.scopeType == 'manager_territory') {
       metrics.addAll(<_MetricData>[
-        _MetricData('Zones supervisées', snapshot.stat('manager_zones').toString(), Symbols.map_rounded),
-        _MetricData('Agents supervisés', snapshot.stat('manager_agents').toString(), Symbols.groups_rounded),
+        _MetricData(
+          'Zones supervisées',
+          snapshot.stat('manager_zones').toString(),
+          Symbols.map_rounded,
+        ),
+        _MetricData(
+          'Agents supervisés',
+          snapshot.stat('manager_agents').toString(),
+          Symbols.groups_rounded,
+        ),
       ]);
     }
 
     final List<ControlDailyTrend> trend = _trend;
-    final List<String> trendLabels = trend.map((ControlDailyTrend item) => _shortDate(item.date)).toList(growable: false);
+    final List<String> trendLabels = trend
+        .map((ControlDailyTrend item) => _shortDate(item.date))
+        .toList(growable: false);
     final List<BackofficeLineSeries> trendSeries = <BackofficeLineSeries>[
       BackofficeLineSeries(
         label: 'Commandes',
-        values: trend.map((ControlDailyTrend item) => item.orders.toDouble()).toList(growable: false),
+        values: trend
+            .map((ControlDailyTrend item) => item.orders.toDouble())
+            .toList(growable: false),
         color: BackofficePalette.primary,
       ),
       BackofficeLineSeries(
         label: 'Terminées',
-        values: trend.map((ControlDailyTrend item) => item.completed.toDouble()).toList(growable: false),
+        values: trend
+            .map((ControlDailyTrend item) => item.completed.toDouble())
+            .toList(growable: false),
         color: BackofficePalette.success,
       ),
       BackofficeLineSeries(
         label: 'Échecs',
-        values: trend.map((ControlDailyTrend item) => item.failed.toDouble()).toList(growable: false),
+        values: trend
+            .map((ControlDailyTrend item) => item.failed.toDouble())
+            .toList(growable: false),
         color: BackofficePalette.danger,
       ),
     ];
@@ -873,32 +1039,46 @@ class _StatisticsViewState extends State<_StatisticsView> {
       ),
     ];
 
-    final List<BackofficeBarDatum> agentCompleted = snapshot.agentPerformance
-        .map(
-          (ControlAgentPerformance item) => BackofficeBarDatum(
-            label: item.agentName,
-            value: item.completed.toDouble(),
-            displayValue: '${item.completed}/${item.orders}',
-            secondaryLabel: '${item.failed} échec${item.failed > 1 ? 's' : ''} • ${formatCfaFull(item.completedAmount)}',
-            color: BackofficePalette.primary,
-          ),
-        )
-        .toList(growable: false)
-      ..sort((BackofficeBarDatum a, BackofficeBarDatum b) => b.value.compareTo(a.value));
+    final List<BackofficeBarDatum> agentCompleted =
+        snapshot.agentPerformance
+            .map(
+              (ControlAgentPerformance item) => BackofficeBarDatum(
+                label: item.agentName,
+                value: item.completed.toDouble(),
+                displayValue: '${item.completed}/${item.orders}',
+                secondaryLabel:
+                    '${item.failed} échec${item.failed > 1 ? 's' : ''} • ${formatCfaFull(item.completedAmount)}',
+                color: BackofficePalette.primary,
+              ),
+            )
+            .toList(growable: false)
+          ..sort(
+            (BackofficeBarDatum a, BackofficeBarDatum b) =>
+                b.value.compareTo(a.value),
+          );
 
-    final List<BackofficeBarDatum> agentTime = snapshot.agentPerformance
-        .where((ControlAgentPerformance item) => item.averageProcessingMinutes > 0)
-        .map(
-          (ControlAgentPerformance item) => BackofficeBarDatum(
-            label: item.agentName,
-            value: item.averageProcessingMinutes,
-            displayValue: '${item.averageProcessingMinutes.toStringAsFixed(1)} min',
-            secondaryLabel: '${item.completed} commande${item.completed > 1 ? 's' : ''} terminée${item.completed > 1 ? 's' : ''}',
-            color: BackofficePalette.cyan,
-          ),
-        )
-        .toList(growable: false)
-      ..sort((BackofficeBarDatum a, BackofficeBarDatum b) => a.value.compareTo(b.value));
+    final List<BackofficeBarDatum> agentTime =
+        snapshot.agentPerformance
+            .where(
+              (ControlAgentPerformance item) =>
+                  item.averageProcessingMinutes > 0,
+            )
+            .map(
+              (ControlAgentPerformance item) => BackofficeBarDatum(
+                label: item.agentName,
+                value: item.averageProcessingMinutes,
+                displayValue:
+                    '${item.averageProcessingMinutes.toStringAsFixed(1)} min',
+                secondaryLabel:
+                    '${item.completed} commande${item.completed > 1 ? 's' : ''} terminée${item.completed > 1 ? 's' : ''}',
+                color: BackofficePalette.cyan,
+              ),
+            )
+            .toList(growable: false)
+          ..sort(
+            (BackofficeBarDatum a, BackofficeBarDatum b) =>
+                a.value.compareTo(b.value),
+          );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -907,7 +1087,8 @@ class _StatisticsViewState extends State<_StatisticsView> {
           builder: (BuildContext context, BoxConstraints constraints) {
             const Widget heading = _SectionHeading(
               title: 'Statistiques opérationnelles',
-              subtitle: 'Indicateurs canoniques Supabase et lecture visuelle de l’activité.',
+              subtitle:
+                  'Indicateurs canoniques Supabase et lecture visuelle de l’activité.',
             );
             final Widget selector = _PeriodSelector(
               days: _days,
@@ -936,13 +1117,23 @@ class _StatisticsViewState extends State<_StatisticsView> {
         const SizedBox(height: 14),
         LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
-            final int columns = constraints.maxWidth >= 1100 ? 4 : constraints.maxWidth >= 700 ? 3 : 2;
-            final double width = (constraints.maxWidth - ((columns - 1) * 12)) / columns;
+            final int columns = constraints.maxWidth >= 1100
+                ? 4
+                : constraints.maxWidth >= 700
+                ? 3
+                : 2;
+            final double width =
+                (constraints.maxWidth - ((columns - 1) * 12)) / columns;
             return Wrap(
               spacing: 12,
               runSpacing: 12,
               children: metrics
-                  .map((_MetricData metric) => SizedBox(width: width, child: _MetricCard(metric: metric)))
+                  .map(
+                    (_MetricData metric) => SizedBox(
+                      width: width,
+                      child: _MetricCard(metric: metric),
+                    ),
+                  )
                   .toList(growable: false),
             );
           },
@@ -950,7 +1141,8 @@ class _StatisticsViewState extends State<_StatisticsView> {
         const SizedBox(height: 18),
         _AnalyticsPanel(
           title: 'Évolution de l’activité',
-          subtitle: 'Commandes créées, terminées et échouées sur les $_days derniers jours.',
+          subtitle:
+              'Commandes créées, terminées et échouées sur les $_days derniers jours.',
           icon: Symbols.monitoring_rounded,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -959,13 +1151,26 @@ class _StatisticsViewState extends State<_StatisticsView> {
                 spacing: 14,
                 runSpacing: 8,
                 children: const <Widget>[
-                  _SeriesLegend(label: 'Commandes', color: BackofficePalette.primary),
-                  _SeriesLegend(label: 'Terminées', color: BackofficePalette.success),
-                  _SeriesLegend(label: 'Échecs', color: BackofficePalette.danger),
+                  _SeriesLegend(
+                    label: 'Commandes',
+                    color: BackofficePalette.primary,
+                  ),
+                  _SeriesLegend(
+                    label: 'Terminées',
+                    color: BackofficePalette.success,
+                  ),
+                  _SeriesLegend(
+                    label: 'Échecs',
+                    color: BackofficePalette.danger,
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
-              BackofficeLineChart(labels: trendLabels, series: trendSeries, height: 300),
+              BackofficeLineChart(
+                labels: trendLabels,
+                series: trendSeries,
+                height: 300,
+              ),
             ],
           ),
         ),
@@ -984,7 +1189,8 @@ class _StatisticsViewState extends State<_StatisticsView> {
             );
             final Widget statuses = _AnalyticsPanel(
               title: 'État des commandes',
-              subtitle: 'Lecture immédiate des terminées, échecs et commandes actives.',
+              subtitle:
+                  'Lecture immédiate des terminées, échecs et commandes actives.',
               icon: Symbols.donut_large_rounded,
               child: LayoutBuilder(
                 builder: (BuildContext context, BoxConstraints constraints) {
@@ -993,10 +1199,13 @@ class _StatisticsViewState extends State<_StatisticsView> {
                     child: BackofficeDonutChart(
                       data: statusData,
                       centerLabel: 'commandes',
-                      centerValue: '${statusData.fold<double>(0, (double sum, BackofficeDonutDatum item) => sum + item.value).round()}',
+                      centerValue:
+                          '${statusData.fold<double>(0, (double sum, BackofficeDonutDatum item) => sum + item.value).round()}',
                     ),
                   );
-                  final Widget legend = BackofficeChartLegend(items: statusData);
+                  final Widget legend = BackofficeChartLegend(
+                    items: statusData,
+                  );
                   if (constraints.maxWidth < 470) {
                     return Column(
                       children: <Widget>[
@@ -1041,9 +1250,13 @@ class _StatisticsViewState extends State<_StatisticsView> {
             final bool stacked = constraints.maxWidth < 920;
             final Widget volume = _AnalyticsPanel(
               title: 'Performance des Agents',
-              subtitle: 'Commandes terminées sur 30 jours, sans score arbitraire.',
+              subtitle:
+                  'Commandes terminées sur 30 jours, sans score arbitraire.',
               icon: Symbols.groups_rounded,
-              child: BackofficeHorizontalBarChart(data: agentCompleted, maxRows: 8),
+              child: BackofficeHorizontalBarChart(
+                data: agentCompleted,
+                maxRows: 8,
+              ),
             );
             final Widget speed = _AnalyticsPanel(
               title: 'Temps moyen de traitement',
@@ -1053,11 +1266,7 @@ class _StatisticsViewState extends State<_StatisticsView> {
             );
             if (stacked) {
               return Column(
-                children: <Widget>[
-                  volume,
-                  const SizedBox(height: 18),
-                  speed,
-                ],
+                children: <Widget>[volume, const SizedBox(height: 18), speed],
               );
             }
             return Row(
@@ -1074,7 +1283,8 @@ class _StatisticsViewState extends State<_StatisticsView> {
           const SizedBox(height: 18),
           _AnalyticsPanel(
             title: 'Exposition financière Administrateur',
-            subtitle: 'Données sensibles : ce bloc n’est jamais envoyé aux Managers.',
+            subtitle:
+                'Données sensibles : ce bloc n’est jamais envoyé aux Managers.',
             icon: Symbols.account_balance_rounded,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1082,18 +1292,44 @@ class _StatisticsViewState extends State<_StatisticsView> {
                 LayoutBuilder(
                   builder: (BuildContext context, BoxConstraints constraints) {
                     final List<_MetricData> finance = <_MetricData>[
-                      _MetricData('Créances clients', formatCfaFull(snapshot.finance('customer_receivables')), Symbols.request_quote_rounded),
-                      _MetricData('Dette fournisseurs', formatCfaFull(snapshot.finance('supplier_debt')), Symbols.storefront_rounded),
-                      _MetricData('Commissions dues', formatCfaFull(snapshot.finance('commission_debt')), Symbols.savings_rounded),
-                      _MetricData('Remboursé sur 30 j', formatCfaFull(snapshot.finance('refund_amount_30d')), Symbols.currency_exchange_rounded),
+                      _MetricData(
+                        'Créances clients',
+                        formatCfaFull(snapshot.finance('customer_receivables')),
+                        Symbols.request_quote_rounded,
+                      ),
+                      _MetricData(
+                        'Dette fournisseurs',
+                        formatCfaFull(snapshot.finance('supplier_debt')),
+                        Symbols.storefront_rounded,
+                      ),
+                      _MetricData(
+                        'Commissions dues',
+                        formatCfaFull(snapshot.finance('commission_debt')),
+                        Symbols.savings_rounded,
+                      ),
+                      _MetricData(
+                        'Remboursé sur 30 j',
+                        formatCfaFull(snapshot.finance('refund_amount_30d')),
+                        Symbols.currency_exchange_rounded,
+                      ),
                     ];
-                    final int columns = constraints.maxWidth >= 900 ? 4 : constraints.maxWidth >= 520 ? 2 : 1;
-                    final double width = (constraints.maxWidth - ((columns - 1) * 12)) / columns;
+                    final int columns = constraints.maxWidth >= 900
+                        ? 4
+                        : constraints.maxWidth >= 520
+                        ? 2
+                        : 1;
+                    final double width =
+                        (constraints.maxWidth - ((columns - 1) * 12)) / columns;
                     return Wrap(
                       spacing: 12,
                       runSpacing: 12,
                       children: finance
-                          .map((_MetricData metric) => SizedBox(width: width, child: _MetricCard(metric: metric)))
+                          .map(
+                            (_MetricData metric) => SizedBox(
+                              width: width,
+                              child: _MetricCard(metric: metric),
+                            ),
+                          )
                           .toList(growable: false),
                     );
                   },
@@ -1104,26 +1340,36 @@ class _StatisticsViewState extends State<_StatisticsView> {
                   data: <BackofficeBarDatum>[
                     BackofficeBarDatum(
                       label: 'Créances clients',
-                      value: snapshot.finance('customer_receivables').toDouble(),
-                      displayValue: formatCfaFull(snapshot.finance('customer_receivables')),
+                      value: snapshot
+                          .finance('customer_receivables')
+                          .toDouble(),
+                      displayValue: formatCfaFull(
+                        snapshot.finance('customer_receivables'),
+                      ),
                       color: BackofficePalette.warning,
                     ),
                     BackofficeBarDatum(
                       label: 'Dette fournisseurs',
                       value: snapshot.finance('supplier_debt').toDouble(),
-                      displayValue: formatCfaFull(snapshot.finance('supplier_debt')),
+                      displayValue: formatCfaFull(
+                        snapshot.finance('supplier_debt'),
+                      ),
                       color: BackofficePalette.primaryStrong,
                     ),
                     BackofficeBarDatum(
                       label: 'Commissions dues',
                       value: snapshot.finance('commission_debt').toDouble(),
-                      displayValue: formatCfaFull(snapshot.finance('commission_debt')),
+                      displayValue: formatCfaFull(
+                        snapshot.finance('commission_debt'),
+                      ),
                       color: BackofficePalette.cyan,
                     ),
                     BackofficeBarDatum(
                       label: 'Remboursements 30 j',
                       value: snapshot.finance('refund_amount_30d').toDouble(),
-                      displayValue: formatCfaFull(snapshot.finance('refund_amount_30d')),
+                      displayValue: formatCfaFull(
+                        snapshot.finance('refund_amount_30d'),
+                      ),
                       color: BackofficePalette.danger,
                     ),
                   ],
@@ -1155,8 +1401,16 @@ class _PeriodSelector extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          _PeriodButton(label: '7 jours', selected: days == 7, onTap: () => onChanged(7)),
-          _PeriodButton(label: '30 jours', selected: days == 30, onTap: () => onChanged(30)),
+          _PeriodButton(
+            label: '7 jours',
+            selected: days == 7,
+            onTap: () => onChanged(7),
+          ),
+          _PeriodButton(
+            label: '30 jours',
+            selected: days == 30,
+            onTap: () => onChanged(30),
+          ),
         ],
       ),
     );
@@ -1164,7 +1418,11 @@ class _PeriodSelector extends StatelessWidget {
 }
 
 class _PeriodButton extends StatelessWidget {
-  const _PeriodButton({required this.label, required this.selected, required this.onTap});
+  const _PeriodButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   final String label;
   final bool selected;
@@ -1182,15 +1440,23 @@ class _PeriodButton extends StatelessWidget {
           color: selected ? Colors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(9),
           boxShadow: selected
-              ? const <BoxShadow>[BoxShadow(color: Color(0x120F172A), blurRadius: 8, offset: Offset(0, 2))]
+              ? const <BoxShadow>[
+                  BoxShadow(
+                    color: Color(0x120F172A),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ]
               : const <BoxShadow>[],
         ),
         child: Text(
           label,
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: selected ? BackofficePalette.primaryStrong : BackofficePalette.muted,
-                fontWeight: FontWeight.w800,
-              ),
+            color: selected
+                ? BackofficePalette.primaryStrong
+                : BackofficePalette.muted,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
     );
@@ -1242,9 +1508,20 @@ class _AnalyticsPanel extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                     const SizedBox(height: 2),
-                    Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: BackofficePalette.muted, height: 1.4)),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: BackofficePalette.muted,
+                        height: 1.4,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1268,9 +1545,19 @@ class _SeriesLegend extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
         const SizedBox(width: 6),
-        Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: BackofficePalette.muted, fontWeight: FontWeight.w700)),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: BackofficePalette.muted,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ],
     );
   }
@@ -1284,7 +1571,10 @@ class _NetworkChartContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final int total = metrics.fold<int>(0, (int sum, ControlNetworkMetric item) => sum + item.orders);
+    final int total = metrics.fold<int>(
+      0,
+      (int sum, ControlNetworkMetric item) => sum + item.orders,
+    );
     final Widget donut = Align(
       alignment: Alignment.center,
       child: BackofficeDonutChart(
@@ -1294,63 +1584,69 @@ class _NetworkChartContent extends StatelessWidget {
       ),
     );
     final Widget legend = Column(
-      children: metrics.map((ControlNetworkMetric item) {
-        final MobileNetwork? network = _network(item.network);
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Row(
-            children: <Widget>[
-              if (network != null)
-                IzyTelOperatorLogo(network: network, size: 34, borderRadius: 10)
-              else
-                Container(
-                  width: 34,
-                  height: 34,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: BackofficePalette.primarySoft,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Symbols.cell_tower_rounded,
-                    size: 18,
-                    color: BackofficePalette.primary,
-                  ),
-                ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      _networkLabel(item.network),
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w900),
+      children: metrics
+          .map((ControlNetworkMetric item) {
+            final MobileNetwork? network = _network(item.network);
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: <Widget>[
+                  if (network != null)
+                    IzyTelOperatorLogo(
+                      network: network,
+                      size: 34,
+                      borderRadius: 10,
+                    )
+                  else
+                    Container(
+                      width: 34,
+                      height: 34,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: BackofficePalette.primarySoft,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Symbols.cell_tower_rounded,
+                        size: 18,
+                        color: BackofficePalette.primary,
+                      ),
                     ),
-                    Text(
-                      '${item.completed} terminées • ${item.failed} échecs',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(color: BackofficePalette.muted),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          _networkLabel(item.network),
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                        Text(
+                          '${item.completed} terminées • ${item.failed} échecs',
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(color: BackofficePalette.muted),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  Text(
+                    '${item.orders}',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
               ),
-              Text(
-                '${item.orders}',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
-              ),
-            ],
-          ),
-        );
-      }).toList(growable: false),
+            );
+          })
+          .toList(growable: false),
     );
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         if (constraints.maxWidth < 470) {
           return Column(
-            children: <Widget>[
-              donut,
-              const SizedBox(height: 12),
-              legend,
-            ],
+            children: <Widget>[donut, const SizedBox(height: 12), legend],
           );
         }
         return Row(
@@ -1376,9 +1672,19 @@ class _SectionHeading extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(title, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+        Text(
+          title,
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+        ),
         const SizedBox(height: 3),
-        Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: BackofficePalette.muted)),
+        Text(
+          subtitle,
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: BackofficePalette.muted),
+        ),
       ],
     );
   }
@@ -1424,23 +1730,32 @@ class _EventCard extends StatelessWidget {
                   children: <Widget>[
                     Text(
                       event.title,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${_domainLabel(event.domain)}${event.reference.isEmpty ? '' : ' · ${event.reference}'}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: BackofficePalette.muted),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: BackofficePalette.muted,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${_dateLabel(event.occurredAt)}${event.actorName.isEmpty ? '' : ' · ${event.actorName}'}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: BackofficePalette.muted),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: BackofficePalette.muted,
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(Symbols.chevron_right_rounded, color: BackofficePalette.faint),
+              const Icon(
+                Symbols.chevron_right_rounded,
+                color: BackofficePalette.faint,
+              ),
             ],
           ),
         ),
@@ -1450,32 +1765,32 @@ class _EventCard extends StatelessWidget {
 }
 
 Color _severityTone(String raw) => switch (raw.trim().toLowerCase()) {
-      'error' => BackofficePalette.danger,
-      'warning' => BackofficePalette.warning,
-      'success' => BackofficePalette.success,
-      _ => BackofficePalette.primary,
-    };
+  'error' => BackofficePalette.danger,
+  'warning' => BackofficePalette.warning,
+  'success' => BackofficePalette.success,
+  _ => BackofficePalette.primary,
+};
 
 String _severityLabel(String raw) => switch (raw.trim().toLowerCase()) {
-      'error' => 'Erreur',
-      'warning' => 'À surveiller',
-      'success' => 'Succès',
-      _ => 'Information',
-    };
+  'error' => 'Erreur',
+  'warning' => 'À surveiller',
+  'success' => 'Succès',
+  _ => 'Information',
+};
 
 String _domainLabel(String raw) => switch (raw.trim().toLowerCase()) {
-      'orders' => 'Commandes',
-      'payments' => 'Paiements',
-      'assignments' => 'Affectations',
-      'support' => 'Demandes clients',
-      'agents' => 'Agents',
-      'refunds' => 'Remboursements',
-      'finance' => 'Finances',
-      'catalog' => 'Catalogue',
-      'territory' => 'Territoires',
-      'staff' => 'Équipe',
-      _ => raw.trim().isEmpty ? 'IzyTel' : raw.trim(),
-    };
+  'orders' => 'Commandes',
+  'payments' => 'Paiements',
+  'assignments' => 'Affectations',
+  'support' => 'Demandes clients',
+  'agents' => 'Agents',
+  'refunds' => 'Remboursements',
+  'finance' => 'Finances',
+  'catalog' => 'Catalogue',
+  'territory' => 'Territoires',
+  'staff' => 'Équipe',
+  _ => raw.trim().isEmpty ? 'IzyTel' : raw.trim(),
+};
 
 String _eventKindLabel(String raw) {
   final String normalized = raw.trim().replaceAll('_', ' ');
@@ -1514,12 +1829,17 @@ String _valueLabel(Object? value) {
   if (value is Map) {
     if (value.isEmpty) return '—';
     return value.entries
-        .map((MapEntry<dynamic, dynamic> entry) =>
-            '${_detailLabel(entry.key.toString())}: ${_valueLabel(entry.value)}')
+        .map(
+          (MapEntry<dynamic, dynamic> entry) =>
+              '${_detailLabel(entry.key.toString())}: ${_valueLabel(entry.value)}',
+        )
         .join('\n');
   }
   if (value is Iterable) {
-    final List<String> values = value.map(_valueLabel).where((String item) => item != '—').toList(growable: false);
+    final List<String> values = value
+        .map(_valueLabel)
+        .where((String item) => item != '—')
+        .toList(growable: false);
     return values.isEmpty ? '—' : values.join(', ');
   }
   final String text = value.toString().trim();
@@ -1554,54 +1874,91 @@ class _MetricCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: BackofficePalette.line), borderRadius: BorderRadius.circular(15)),
-      child: Row(children: <Widget>[
-        Container(
-          width: 42,
-          height: 42,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(color: BackofficePalette.primarySoft, borderRadius: BorderRadius.circular(12)),
-          child: Icon(metric.icon, color: BackofficePalette.primary),
-        ),
-        const SizedBox(width: 11),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-          Text(metric.value, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-          const SizedBox(height: 2),
-          Text(metric.label, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: BackofficePalette.muted)),
-        ])),
-      ]),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: BackofficePalette.line),
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 42,
+            height: 42,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: BackofficePalette.primarySoft,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(metric.icon, color: BackofficePalette.primary),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  metric.value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  metric.label,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: BackofficePalette.muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
-
 
 class _EmptyCard extends StatelessWidget {
   const _EmptyCard({
     required this.icon,
     required this.title,
     required this.subtitle,
-    this.action,
   });
   final IconData icon;
   final String title;
   final String subtitle;
-  final Widget? action;
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(30),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: BackofficePalette.line), borderRadius: BorderRadius.circular(18)),
-      child: Column(children: <Widget>[
-        Icon(icon, size: 42, color: BackofficePalette.primary),
-        const SizedBox(height: 12),
-        Text(title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-        const SizedBox(height: 5),
-        Text(subtitle, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: BackofficePalette.muted)),
-        if (action != null) ...<Widget>[
-          const SizedBox(height: 14),
-          action!,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: BackofficePalette.line),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        children: <Widget>[
+          Icon(icon, size: 42, color: BackofficePalette.primary),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: BackofficePalette.muted),
+          ),
         ],
-      ]),
+      ),
     );
   }
 }
@@ -1616,22 +1973,48 @@ class _ControlError extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Container(
           padding: const EdgeInsets.all(30),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: BackofficePalette.line), borderRadius: BorderRadius.circular(18)),
-          child: Column(mainAxisSize: MainAxisSize.min, children: <Widget>[
-            const Icon(Symbols.cloud_off_rounded, size: 42, color: BackofficePalette.primary),
-            const SizedBox(height: 12),
-            Text('Contrôle / Pilotage indisponible', textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 5),
-            Text('Le snapshot Supabase ne peut pas être chargé pour le moment. Actualise après avoir vérifié la session.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: BackofficePalette.muted)),
-            const SizedBox(height: 14),
-            FilledButton.icon(onPressed: onRetry, icon: const Icon(Symbols.refresh_rounded), label: const Text('Réessayer')),
-          ]),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: BackofficePalette.line),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const Icon(
+                Symbols.cloud_off_rounded,
+                size: 42,
+                color: BackofficePalette.primary,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Contrôle / Pilotage indisponible',
+                textAlign: TextAlign.center,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'Le snapshot Supabase ne peut pas être chargé pour le moment. Actualise après avoir vérifié la session.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: BackofficePalette.muted,
+                ),
+              ),
+              const SizedBox(height: 14),
+              FilledButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Symbols.refresh_rounded),
+                label: const Text('Réessayer'),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
-
 
 MobileNetwork? _network(String raw) {
   return switch (raw.trim().toLowerCase()) {
@@ -1642,9 +2025,11 @@ MobileNetwork? _network(String raw) {
   };
 }
 
-String _networkLabel(String raw) => _network(raw)?.brandLabel ?? (raw.trim().isEmpty ? 'Autre' : raw.trim());
+String _networkLabel(String raw) =>
+    _network(raw)?.brandLabel ?? (raw.trim().isEmpty ? 'Autre' : raw.trim());
 
-Color _networkColor(String raw) => _network(raw)?.brandColor ?? BackofficePalette.primary;
+Color _networkColor(String raw) =>
+    _network(raw)?.brandColor ?? BackofficePalette.primary;
 
 String _shortDate(DateTime? value) {
   if (value == null) return '—';

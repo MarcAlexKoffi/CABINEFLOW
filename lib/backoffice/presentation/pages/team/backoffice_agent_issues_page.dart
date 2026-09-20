@@ -11,6 +11,7 @@ import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -1058,23 +1059,18 @@ class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
         note: note,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            status == 'in_progress'
-                ? 'Signalement pris en charge.'
-                : status == 'resolved'
-                    ? 'Signalement résolu et historisé.'
-                    : 'Signalement classé sans suite.',
-          ),
-        ),
+      IzyTelFeedback.success(
+        context,
+        status == 'in_progress'
+            ? 'Signalement pris en charge.'
+            : status == 'resolved'
+                ? 'Signalement résolu et historisé.'
+                : 'Signalement classé sans suite.',
       );
       _reload(resetPage: true);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_friendlyError(error))),
-      );
+      IzyTelFeedback.error(context, _friendlyError(error));
     } finally {
       if (mounted) {
         setState(() => _busyIssueIds.remove(issue.id));

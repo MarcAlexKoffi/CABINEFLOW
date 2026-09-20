@@ -13,6 +13,7 @@ import 'package:cabine_flow/features/refunds/domain/repositories/refund_reposito
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -910,9 +911,7 @@ class _BackofficeRefundsPageState extends State<BackofficeRefundsPage> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    IzyTelFeedback.show(context, message);
   }
 
   Future<String?> _textDialog({required String title, required String hint, required String actionLabel}) async {

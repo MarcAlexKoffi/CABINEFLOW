@@ -10,9 +10,11 @@ void main() {
       ).readAsStringSync();
 
       expect(shell, contains('Notifications opérationnelles'));
-      expect(shell, contains('watchPaymentTrackingOrders()'));
-      expect(shell, contains('watchPaidQueue()'));
-      expect(shell, contains('watchOrderHistory()'));
+      expect(shell, contains('historyRepository.watchOrderHistory().listen('));
+      expect(shell, contains('_paymentNotificationOrders = orders;'));
+      expect(shell, contains('_assignmentNotificationOrders = orders;'));
+      expect(shell, isNot(contains('watchPaymentTrackingOrders()')));
+      expect(shell, isNot(contains('watchPaidQueue()')));
       expect(shell, contains('_BackofficeNotificationButton'));
       expect(shell, contains('Symbols.notifications_rounded'));
     });
@@ -54,12 +56,10 @@ void main() {
         'lib/backoffice/presentation/widgets/backoffice_order_widgets.dart',
       ).readAsStringSync();
 
-      expect(
-        widgets,
-        contains('padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13)'),
-      );
-      expect(widgets, contains('width: 34'));
-      expect(widgets, contains('fontSize: 21'));
+      expect(widgets, contains('class BackofficeMetricCard'));
+      expect(widgets, contains('padding: const EdgeInsets.all(16)'));
+      expect(widgets, contains('width: 38'));
+      expect(widgets, contains('fontSize: 25'));
 
       final List<String> pages = <String>[
         'backoffice_orders_page.dart',

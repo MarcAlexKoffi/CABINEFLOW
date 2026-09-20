@@ -39,7 +39,10 @@ void main() {
       final String source = File(
         'lib/backoffice/presentation/pages/clients/backoffice_support_requests_page.dart',
       ).readAsStringSync();
-      expect(source, contains('watchAllRequests()'));
+      expect(source, contains('fetchSupportPage'));
+      expect(source, contains('SupabaseBackofficeCasePaginationRepository'));
+      expect(source, contains('BackofficePaginationBar'));
+      expect(source, isNot(contains('watchAllRequests()')));
       expect(source, contains('takeInCharge('));
       expect(source, contains('repository.resolve('));
       expect(source, contains('markCustomerNotified('));
@@ -51,7 +54,10 @@ void main() {
       final String source = File(
         'lib/backoffice/presentation/pages/clients/backoffice_refunds_page.dart',
       ).readAsStringSync();
-      expect(source, contains('watchAll()'));
+      expect(source, contains('fetchRefundPage'));
+      expect(source, contains('SupabaseBackofficeCasePaginationRepository'));
+      expect(source, contains('BackofficePaginationBar'));
+      expect(source, isNot(contains('watchAll()')));
       expect(source, contains('repository.approve('));
       expect(source, contains('repository.markRefunded('));
       expect(source, contains('repository.markCustomerNotified('));
@@ -88,8 +94,10 @@ void main() {
       final String source = File(
         'lib/backoffice/presentation/pages/team/backoffice_agent_issues_page.dart',
       ).readAsStringSync();
-      expect(source, contains('watchAllAgentIssues()'));
-      expect(source, contains('updateIssueStatus('));
+      expect(source, contains('fetchAgentIssuePage'));
+      expect(source, contains('BackofficePaginationBar'));
+      expect(source, contains('_centerRepository.transitionIssue('));
+      expect(source, isNot(contains('watchAllAgentIssues()')));
       expect(source, contains("'in_progress'"));
       expect(source, contains("'resolved'"));
       expect(source, contains("'cancelled'"));
