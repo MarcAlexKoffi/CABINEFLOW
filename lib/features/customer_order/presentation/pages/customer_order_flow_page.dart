@@ -349,6 +349,8 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
               onBack: _requestBack,
               onChooseOffer: _startOfferOrder,
               onStartOrder: _startOrder,
+              onStartDirectTransfer: () =>
+                  _startServiceOrder(CustomerService.unitTransfer),
               onOpenHome: _openHome,
               onOpenHistory: _openHistory,
               onOpenHelp: _openHelp,

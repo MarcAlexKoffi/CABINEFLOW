@@ -162,9 +162,9 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                 SizedBox(height: desktop ? 62 : 42),
                 _SectionHeader(
                   eyebrow: 'COMMENCER',
-                  title: 'Choisissez simplement votre besoin',
+                  title: 'Commandez directement ou choisissez une offre',
                   subtitle:
-                      'Un parcours court, sans compte obligatoire, pensé d’abord pour le téléphone.',
+                      'Le transfert d’unités reste disponible sans choisir d’offre. Pour Internet et les appels, vous pouvez parcourir le catalogue IzyTel.',
                 ),
                 const SizedBox(height: 18),
                 _ServiceGrid(desktop: desktop, onSelect: widget.onStartService),
@@ -788,19 +788,22 @@ class _ServiceGrid extends StatelessWidget {
         service: CustomerService.unitTransfer,
         icon: Icons.swap_horiz_rounded,
         title: 'Transfert d’unités',
-        description: 'Envoyez rapidement des unités vers un numéro mobile.',
+        description: 'Saisissez librement le montant à envoyer, sans choisir de forfait.',
+        badge: 'Sans offre',
       ),
       const _ServiceSpec(
         service: CustomerService.internetSubscription,
         icon: Icons.wifi_rounded,
         title: 'Internet',
         description: 'Choisissez un forfait data parmi les offres disponibles.',
+        badge: 'Catalogue',
       ),
       const _ServiceSpec(
         service: CustomerService.calls,
         icon: Icons.call_rounded,
         title: 'Appels',
         description: 'Souscrivez facilement à vos forfaits voix et mixtes.',
+        badge: 'Catalogue',
       ),
     ];
 
@@ -841,11 +844,13 @@ class _ServiceSpec {
     required this.icon,
     required this.title,
     required this.description,
+    required this.badge,
   });
   final CustomerService service;
   final IconData icon;
   final String title;
   final String description;
+  final String badge;
 }
 
 class _ServiceHomeCard extends StatelessWidget {
@@ -874,7 +879,35 @@ class _ServiceHomeCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(spec.title, style: Theme.of(context).textTheme.titleLarge),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        spec.title,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: CustomerAppColors.primaryContainer,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        spec.badge,
+                        style: const TextStyle(
+                          color: CustomerAppColors.primary,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 5),
                 Text(
                   spec.description,

@@ -17,6 +17,7 @@ class CustomerCatalogPage extends StatefulWidget {
     required this.onBack,
     required this.onChooseOffer,
     required this.onStartOrder,
+    required this.onStartDirectTransfer,
     required this.onOpenHome,
     required this.onOpenHistory,
     required this.onOpenHelp,
@@ -26,6 +27,7 @@ class CustomerCatalogPage extends StatefulWidget {
   final VoidCallback onBack;
   final ValueChanged<CustomerOffer> onChooseOffer;
   final VoidCallback onStartOrder;
+  final VoidCallback onStartDirectTransfer;
   final VoidCallback onOpenHome;
   final VoidCallback onOpenHistory;
   final VoidCallback onOpenHelp;
@@ -166,8 +168,13 @@ class _CustomerCatalogPageState extends State<CustomerCatalogPage> {
                       ),
                       const SizedBox(height: 7),
                       Text(
-                        'Filtrez par type ou par réseau, puis poursuivez votre commande en quelques étapes.',
+                        'Choisissez un forfait du catalogue ou lancez un transfert direct sans sélectionner d’offre.',
                         style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 18),
+                      _DirectTransferBanner(
+                        onPressed: widget.onStartDirectTransfer,
+                        compact: !desktop,
                       ),
                       const SizedBox(height: 22),
                       _Filters(
@@ -203,6 +210,91 @@ class _CustomerCatalogPageState extends State<CustomerCatalogPage> {
               );
             },
       ),
+    );
+  }
+}
+
+
+class _DirectTransferBanner extends StatelessWidget {
+  const _DirectTransferBanner({
+    required this.onPressed,
+    required this.compact,
+  });
+
+  final VoidCallback onPressed;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget copy = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: CustomerAppColors.primaryContainer,
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: const Icon(
+                Icons.swap_horiz_rounded,
+                color: CustomerAppColors.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'Transfert direct',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: CustomerAppColors.primaryDeep,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Saisissez le montant à envoyer. Aucun forfait du catalogue n’est requis.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    return IzyTelCard(
+      showShadow: false,
+      padding: const EdgeInsets.all(16),
+      child: compact
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                copy,
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  onPressed: onPressed,
+                  icon: const Icon(Icons.arrow_forward_rounded),
+                  label: const Text('Commencer sans offre'),
+                ),
+              ],
+            )
+          : Row(
+              children: <Widget>[
+                Expanded(child: copy),
+                const SizedBox(width: 20),
+                FilledButton.icon(
+                  onPressed: onPressed,
+                  icon: const Icon(Icons.arrow_forward_rounded),
+                  label: const Text('Commencer sans offre'),
+                ),
+              ],
+            ),
     );
   }
 }

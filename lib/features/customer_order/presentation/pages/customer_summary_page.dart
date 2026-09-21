@@ -46,13 +46,16 @@ class _CustomerSummaryPageState extends State<CustomerSummaryPage> {
   Widget build(BuildContext context) {
     final CustomerOrderDraft draft = widget.viewModel.draft;
     final bool orderCreated = widget.viewModel.hasCreatedOrder;
+    final bool isDirectTransfer =
+        draft.service == CustomerService.unitTransfer;
 
     return CustomerFlowScaffold(
       currentStep: 6,
       totalSteps: CustomerOrderViewModel.totalSteps,
-      title: 'Tout est correct ?',
-      subtitle:
-          'Vérifiez une dernière fois les informations avant de passer au paiement.',
+      title: 'Vérifiez votre commande',
+      subtitle: isDirectTransfer
+          ? 'Confirmez le réseau, le bénéficiaire et le montant du transfert avant le paiement.'
+          : 'Confirmez l’offre, le bénéficiaire et le montant avant le paiement.',
       onTopBack: orderCreated || widget.viewModel.isSubmitting
           ? null
           : widget.onBack ?? widget.viewModel.goBack,
@@ -121,6 +124,8 @@ class _OrderSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final network = draft.network!;
+    final bool isDirectTransfer =
+        draft.service == CustomerService.unitTransfer;
 
     return IzyTelCard(
       padding: const EdgeInsets.all(20),
@@ -149,14 +154,42 @@ class _OrderSummaryCard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 14),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 6,
+              ),
+              decoration: BoxDecoration(
+                color: CustomerAppColors.primaryContainer,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                isDirectTransfer ? 'Transfert direct • Sans offre' : 'Offre IzyTel',
+                style: const TextStyle(
+                  color: CustomerAppColors.primary,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+          if (isDirectTransfer) ...<Widget>[
+            const SizedBox(height: 10),
+            const Text(
+              'Aucune offre du catalogue n’est requise pour ce transfert.',
+              style: TextStyle(
+                color: CustomerAppColors.onSurfaceVariant,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+          ],
           const SizedBox(height: 18),
           const Divider(height: 1),
           const SizedBox(height: 4),
-          _SummaryRow(label: 'Client', value: draft.identity!.name),
-          _SummaryRow(
-            label: 'WhatsApp',
-            value: draft.identity!.whatsappNumber.displayValue,
-          ),
           _SummaryRow(label: 'Service', value: draft.service!.label),
           _SummaryRow(label: 'Réseau', value: network.customerLabel),
           _SummaryRow(
@@ -175,10 +208,10 @@ class _OrderSummaryCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'À payer',
-                    style: TextStyle(
+                    isDirectTransfer ? 'Montant du transfert' : 'À payer',
+                    style: const TextStyle(
                       color: CustomerAppColors.onSurface,
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
