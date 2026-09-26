@@ -26,13 +26,16 @@ import 'package:cabine_flow/features/customer_order/presentation/pages/customer_
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_service_page.dart';
 import 'package:cabine_flow/features/customer_order/presentation/pages/customer_summary_page.dart';
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
+import 'package:cabine_flow/features/messaging/data/repositories/operational_customer_messaging_repository.dart';
+import 'package:cabine_flow/features/messaging/domain/repositories/customer_messaging_repository.dart';
+import 'package:cabine_flow/features/messaging/presentation/pages/customer_messaging_page.dart';
 import 'package:cabine_flow/features/support/data/repositories/operational_support_request_repository.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:cabine_flow/features/support/presentation/pages/customer_help_page.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
-enum _CustomerSurface { home, order, catalog, history, help, recovery }
+enum _CustomerSurface { home, order, catalog, history, help, messaging, recovery }
 
 class CustomerOrderFlowPage extends StatefulWidget {
   const CustomerOrderFlowPage({super.key, this.offerRepository});
@@ -47,6 +50,7 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
   late final CustomerOrderViewModel _viewModel;
   late final CustomerOfferRepository _offerRepository;
   late final SupportRequestRepository _supportRequestRepository;
+  late final CustomerMessagingRepository _messagingRepository;
   late final CustomerWebHistoryController _webHistory;
 
   final CustomerOrderRepository _orderRepository =
@@ -71,6 +75,7 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
                   : FirestoreCustomerOfferRepository()
             : const FakeCustomerOfferRepository());
     _supportRequestRepository = createOperationalSupportRequestRepository();
+    _messagingRepository = createOperationalCustomerMessagingRepository();
     _viewModel = CustomerOrderViewModel(
       orderRepository: _orderRepository,
       sessionStore: _sessionStore,
@@ -173,6 +178,8 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
   void _openHistory() => _navigateTo(_CustomerSurface.history);
 
   void _openHelp() => _navigateTo(_CustomerSurface.help);
+
+  void _openMessaging() => _navigateTo(_CustomerSurface.messaging);
 
   void _openRecovery() {
     _viewModel.clearRecoveryError();
@@ -334,9 +341,20 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
               key: const ValueKey<String>('customer-help'),
               onBack: _requestBack,
               onOpenRecovery: _openRecovery,
+              onOpenMessaging: _openMessaging,
               onOpenHome: _openHome,
               onOpenOffers: _openCatalog,
               onOpenHistory: _openHistory,
+            ),
+            _CustomerSurface.messaging => CustomerMessagingPage(
+              key: const ValueKey<String>('customer-messaging'),
+              repository: _messagingRepository,
+              orders: _viewModel.customerOrders,
+              onBack: _requestBack,
+              onOpenHome: _openHome,
+              onOpenOffers: _openCatalog,
+              onOpenHistory: _openHistory,
+              onOpenHelp: _openHelp,
             ),
             _CustomerSurface.history => CustomerOrderHistoryPage(
               key: const ValueKey<String>('customer-history'),

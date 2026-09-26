@@ -11,6 +11,7 @@ class CustomerHelpPage extends StatelessWidget {
     super.key,
     required this.onBack,
     required this.onOpenRecovery,
+    required this.onOpenMessaging,
     required this.onOpenHome,
     required this.onOpenOffers,
     required this.onOpenHistory,
@@ -18,6 +19,7 @@ class CustomerHelpPage extends StatelessWidget {
 
   final VoidCallback onBack;
   final VoidCallback onOpenRecovery;
+  final VoidCallback onOpenMessaging;
   final VoidCallback onOpenHome;
   final VoidCallback onOpenOffers;
   final VoidCallback onOpenHistory;
@@ -119,19 +121,18 @@ class CustomerHelpPage extends StatelessWidget {
               if (desktop)
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                  children: <Widget>[
                     Expanded(
                       child: _HelpCard(
-                        leading: Image.asset(
-                          'assets/images/whatsapp_logo.png',
-                          width: 30,
-                          height: 30,
+                        leading: const Icon(
+                          Icons.forum_rounded,
+                          color: CustomerAppColors.primary,
                         ),
-                        iconBackground: CustomerAppColors.successContainer,
-                        title: 'Contacter sur WhatsApp',
+                        iconBackground: CustomerAppColors.primaryContainer,
+                        title: 'Messagerie IzyTel',
                         description:
-                            'Échangez directement avec le service client IzyTel au ${CustomerSupportWhatsApp.displayPhone}.',
-                        onTap: () => _launchWhatsApp(context),
+                            'Écrivez à IzyTel depuis l’application. Votre demande est prise en charge par un Manager.',
+                        onTap: onOpenMessaging,
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -144,24 +145,38 @@ class CustomerHelpPage extends StatelessWidget {
                         iconBackground: CustomerAppColors.primaryContainer,
                         title: 'Retrouver ma commande',
                         description:
-                            'Retrouvez une commande créée sur un autre téléphone avec sa référence et votre WhatsApp.',
+                            'Retrouvez une commande créée sur un autre téléphone avec sa référence et son code de récupération.',
                         onTap: onOpenRecovery,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: _HelpCard(
+                        leading: Image.asset(
+                          'assets/images/whatsapp_logo.png',
+                          width: 30,
+                          height: 30,
+                        ),
+                        iconBackground: CustomerAppColors.successContainer,
+                        title: 'WhatsApp (support externe)',
+                        description:
+                            'Canal complémentaire pour joindre le service client au ${CustomerSupportWhatsApp.displayPhone}.',
+                        onTap: () => _launchWhatsApp(context),
                       ),
                     ),
                   ],
                 )
-              else ...[
+              else ...<Widget>[
                 _HelpCard(
-                  leading: Image.asset(
-                    'assets/images/whatsapp_logo.png',
-                    width: 30,
-                    height: 30,
+                  leading: const Icon(
+                    Icons.forum_rounded,
+                    color: CustomerAppColors.primary,
                   ),
-                  iconBackground: CustomerAppColors.successContainer,
-                  title: 'Contacter sur WhatsApp',
+                  iconBackground: CustomerAppColors.primaryContainer,
+                  title: 'Messagerie IzyTel',
                   description:
-                      'Échangez directement avec le service client IzyTel au ${CustomerSupportWhatsApp.displayPhone}.',
-                  onTap: () => _launchWhatsApp(context),
+                      'Écrivez à IzyTel depuis l’application. Votre demande est prise en charge par un Manager.',
+                  onTap: onOpenMessaging,
                 ),
                 const SizedBox(height: 12),
                 _HelpCard(
@@ -172,8 +187,21 @@ class CustomerHelpPage extends StatelessWidget {
                   iconBackground: CustomerAppColors.primaryContainer,
                   title: 'Retrouver ma commande',
                   description:
-                      'Retrouvez une commande créée sur un autre téléphone avec sa référence et votre WhatsApp.',
+                      'Retrouvez une commande créée sur un autre téléphone avec sa référence et son code de récupération.',
                   onTap: onOpenRecovery,
+                ),
+                const SizedBox(height: 12),
+                _HelpCard(
+                  leading: Image.asset(
+                    'assets/images/whatsapp_logo.png',
+                    width: 30,
+                    height: 30,
+                  ),
+                  iconBackground: CustomerAppColors.successContainer,
+                  title: 'WhatsApp (support externe)',
+                  description:
+                      'Canal complémentaire pour joindre le service client au ${CustomerSupportWhatsApp.displayPhone}.',
+                  onTap: () => _launchWhatsApp(context),
                 ),
               ],
               const SizedBox(height: 24),

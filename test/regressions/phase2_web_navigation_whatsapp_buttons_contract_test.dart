@@ -59,8 +59,9 @@ void main() {
     expect(logo.existsSync(), isTrue);
     expect(logo.lengthSync(), greaterThan(1000));
     expect(help, contains('assets/images/whatsapp_logo.png'));
-    expect(home, contains('assets/images/whatsapp_logo.png'));
     expect(supportButton, contains('assets/images/whatsapp_logo.png'));
+    expect(home, contains('messagerie IzyTel'));
+    expect(home, contains('WhatsApp reste disponible en complément'));
   });
 
   test('les appels a action principaux du catalogue sont bleus IzyTel', () {

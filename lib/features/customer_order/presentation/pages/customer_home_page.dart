@@ -1398,13 +1398,13 @@ class _SupportSection extends StatelessWidget {
     return IzyTelCard(
       child: Row(
         children: [
-          CircleAvatar(
+          const CircleAvatar(
             radius: 25,
-            backgroundColor: CustomerAppColors.successContainer,
-            child: Image.asset(
-              'assets/images/whatsapp_logo.png',
-              width: 28,
-              height: 28,
+            backgroundColor: CustomerAppColors.primaryContainer,
+            child: Icon(
+              Icons.forum_rounded,
+              color: CustomerAppColors.primary,
+              size: 27,
             ),
           ),
           const SizedBox(width: 14),
@@ -1418,7 +1418,7 @@ class _SupportSection extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Une question sur une commande ou un paiement ? Notre support WhatsApp est accessible ici.',
+                  'Une question sur une commande ou un paiement ? Écrivez d’abord dans la messagerie IzyTel ; WhatsApp reste disponible en complément.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
