@@ -12,6 +12,37 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Phase 10B - récupération autre appareil', () {
+    test('la recuperation V2 reference + code ouvre le suivi', () async {
+      final FakeCustomerOrderRepository repository =
+          FakeCustomerOrderRepository(now: () => DateTime(2026, 9, 21, 10));
+      final CustomerOrderReceipt created = await repository.createOrder(
+        draft: CustomerOrderDraft(
+          identity: CustomerIdentity(
+            name: 'Koffi',
+            whatsappNumber: WhatsappPhoneNumber.parse('07 00 00 00 10'),
+          ),
+          service: CustomerService.unitTransfer,
+          network: MobileNetwork.orange,
+          amount: 1000,
+          beneficiaryNumber: BeneficiaryPhoneNumber.parse('05 00 00 00 10'),
+        ),
+      );
+      final CustomerOrderViewModel viewModel = CustomerOrderViewModel(
+        orderRepository: repository,
+      );
+
+      final bool recovered = await viewModel.recoverOrderByCode(
+        reference: created.reference,
+        recoveryCodeInput: created.recoveryCode!,
+      );
+
+      expect(recovered, isTrue);
+      expect(viewModel.currentStep, 8);
+      expect(viewModel.receipt?.id, created.id);
+      expect(viewModel.recoveryErrorMessage, isNull);
+      viewModel.dispose();
+    });
+
     test(
       'une récupération réussie ouvre directement le suivi en étape 8',
       () async {

@@ -4,7 +4,6 @@ import 'package:cabine_flow/features/customer_order/domain/models/customer_order
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_order_labels.dart';
-import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_support_button.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:cabine_flow/features/support/presentation/widgets/customer_support_request_button.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_cards.dart';
@@ -57,21 +56,41 @@ class CustomerConfirmationPage extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _StatusHeader(receipt: receipt),
-                          const SizedBox(height: 30),
-                          _ReferenceCard(receipt: receipt),
+                          const Text(
+                            'Suivi de commande',
+                            style: TextStyle(
+                              color: CustomerAppColors.onSurface,
+                              fontSize: 30,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.8,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Consultez l’état réel de votre commande en temps réel.',
+                            style: TextStyle(
+                              color: CustomerAppColors.onSurfaceVariant,
+                              fontSize: 15,
+                              height: 1.45,
+                            ),
+                          ),
                           const SizedBox(height: 24),
                           _TransactionDetailsCard(receipt: receipt),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 20),
                           _TrackingCard(
                             receipt: receipt,
                             errorMessage: viewModel.trackingErrorMessage,
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 20),
+                          _StatusHeader(receipt: receipt),
+                          const SizedBox(height: 20),
                           _SupportCard(
                             receipt: receipt,
+                            onOpenHelp: onOpenHelp,
                             supportRequestRepository: supportRequestRepository,
                           ),
+                          const SizedBox(height: 20),
+                          _ReferenceCard(receipt: receipt),
                         ],
                       ),
                     ),
@@ -226,7 +245,7 @@ class _StatusHeader extends StatelessWidget {
       case QueueOrderStatus.paidReady:
         return 'Votre paiement a été confirmé. La commande attend sa prise en charge.';
       case QueueOrderStatus.inProgress:
-        return 'Un opérateur traite actuellement votre commande.';
+        return 'Votre commande est actuellement en cours de traitement par IzyTel.';
       case QueueOrderStatus.onHold:
         return 'Le traitement est temporairement suspendu. Vous serez informé de la suite.';
       case QueueOrderStatus.awaitingCustomerConfirmation:
@@ -235,10 +254,10 @@ class _StatusHeader extends StatelessWidget {
         return 'Votre commande a été entièrement traitée.';
       case QueueOrderStatus.failed:
         return receipt.failureMessage ??
-            'La transaction n’a pas pu être réalisée. Un opérateur examinera la situation.';
+            'La transaction n’a pas pu être réalisée. IzyTel examinera la situation.';
       case QueueOrderStatus.expired:
         return receipt.hasPaymentToReviewAfterExpiration
-            ? 'Votre paiement a été déclaré après l’expiration. Un opérateur doit maintenant l’examiner manuellement.'
+            ? 'Votre paiement a été déclaré après l’expiration. IzyTel doit maintenant l’examiner.'
             : 'Le délai de paiement de six heures est dépassé. Aucun paiement confirmé n’a été retrouvé.';
       case QueueOrderStatus.cancelled:
         return 'Cette commande a été annulée.';
@@ -249,51 +268,95 @@ class _StatusHeader extends StatelessWidget {
     }
   }
 
+  DateTime get _latestAt =>
+      receipt.completedAt ??
+      receipt.processingStartedAt ??
+      receipt.paymentConfirmedAt ??
+      receipt.paymentDeclaredAt ??
+      receipt.createdAt;
+
+  String get _latestAtLabel {
+    final DateTime local = _latestAt.toLocal();
+    const List<String> months = <String>[
+      'janv.',
+      'févr.',
+      'mars',
+      'avr.',
+      'mai',
+      'juin',
+      'juil.',
+      'août',
+      'sept.',
+      'oct.',
+      'nov.',
+      'déc.',
+    ];
+    final String hour = local.hour.toString().padLeft(2, '0');
+    final String minute = local.minute.toString().padLeft(2, '0');
+    return '${local.day} ${months[local.month - 1]} ${local.year} à $hour:$minute';
+  }
+
   @override
   Widget build(BuildContext context) {
     final Color color = _color;
 
-    return Column(
-      children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: color.withAlpha(50),
-                blurRadius: 18,
-                offset: const Offset(0, 7),
-              ),
-            ],
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: color.withAlpha(18),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withAlpha(55)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: color.withAlpha(28),
+              shape: BoxShape.circle,
+            ),
+            child: SizedBox(
+              width: 54,
+              height: 54,
+              child: Icon(_icon, color: color, size: 30),
+            ),
           ),
-          child: SizedBox(
-            width: 76,
-            height: 76,
-            child: Icon(_icon, color: Colors.white, size: 40),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Dernière mise à jour · $_title',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  _message,
+                  style: const TextStyle(
+                    color: CustomerAppColors.onSurfaceVariant,
+                    fontSize: 13,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _latestAtLabel,
+                  style: const TextStyle(
+                    color: CustomerAppColors.onSurfaceVariant,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 22),
-        Text(
-          _title,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: CustomerAppColors.onSurface,
-            fontSize: 28,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 7),
-        Text(
-          _message,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: CustomerAppColors.onSurfaceVariant,
-            fontSize: 15,
-            height: 1.45,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -305,28 +368,30 @@ class _ReferenceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String? recoveryCode = receipt.recoveryCode?.trim();
+
     return _WhiteCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        children: <Widget>[
           const Text(
             'RÉFÉRENCE DE COMMANDE',
             style: TextStyle(
               color: CustomerAppColors.onSurfaceVariant,
               fontSize: 11,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               letterSpacing: 0.8,
             ),
           ),
           const SizedBox(height: 6),
           Row(
-            children: [
+            children: <Widget>[
               Expanded(
                 child: SelectableText(
                   receipt.reference,
                   style: const TextStyle(
-                    color: CustomerAppColors.primary,
-                    fontSize: 18,
+                    color: CustomerAppColors.onSurface,
+                    fontSize: 17,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -338,16 +403,68 @@ class _ReferenceCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          const Text(
-            'Conservez cette référence pour toute demande concernant '
-            'cette commande.',
-            style: TextStyle(
-              color: CustomerAppColors.onSurfaceVariant,
-              fontSize: 13,
-              height: 1.45,
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: CustomerAppColors.surfaceContainerHigh),
+          const SizedBox(height: 14),
+          if (recoveryCode != null && recoveryCode.isNotEmpty) ...<Widget>[
+            const Text(
+              'CODE DE RÉCUPÉRATION',
+              style: TextStyle(
+                color: CustomerAppColors.onSurfaceVariant,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.8,
+              ),
             ),
-          ),
+            const SizedBox(height: 6),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: SelectableText(
+                    recoveryCode,
+                    style: const TextStyle(
+                      color: CustomerAppColors.primary,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                IzyTelCopyButton(
+                  value: recoveryCode,
+                  tooltip: 'Copier le code de récupération',
+                  successMessage: 'Code de récupération copié',
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Conservez la référence et ce code. Ils permettent de retrouver cette commande depuis un autre appareil.',
+              style: TextStyle(
+                color: CustomerAppColors.onSurfaceVariant,
+                fontSize: 12,
+                height: 1.45,
+              ),
+            ),
+          ] else ...<Widget>[
+            const Text(
+              'Commande historique',
+              style: TextStyle(
+                color: CustomerAppColors.onSurface,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Cette commande a été créée avant l’introduction du code de récupération. Elle reste disponible sur les appareils où elle est déjà mémorisée.',
+              style: TextStyle(
+                color: CustomerAppColors.onSurfaceVariant,
+                fontSize: 12,
+                height: 1.45,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -423,10 +540,12 @@ class _TransactionDetailsCard extends StatelessWidget {
 class _SupportCard extends StatelessWidget {
   const _SupportCard({
     required this.receipt,
+    required this.onOpenHelp,
     required this.supportRequestRepository,
   });
 
   final CustomerOrderReceipt receipt;
+  final VoidCallback onOpenHelp;
   final SupportRequestRepository supportRequestRepository;
 
   @override
@@ -457,7 +576,7 @@ class _SupportCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           const Text(
-            'Contactez le service client IzyTel. La référence de cette commande sera ajoutée automatiquement au message WhatsApp.',
+            'Si vous rencontrez un problème ou si le service n’est pas encore disponible, IzyTel peut examiner la situation.',
             style: TextStyle(
               color: CustomerAppColors.onSurfaceVariant,
               fontSize: 13,
@@ -465,10 +584,10 @@ class _SupportCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          CustomerSupportButton(
-            orderReference: receipt.reference,
-            style: CustomerSupportButtonStyle.outlined,
-            fullWidth: true,
+          FilledButton.icon(
+            onPressed: onOpenHelp,
+            icon: const Icon(Icons.support_agent_rounded),
+            label: const Text('Contacter IzyTel'),
           ),
           const SizedBox(height: 10),
           CustomerSupportRequestButton(
@@ -643,7 +762,7 @@ class _TrackingCard extends StatelessWidget {
         return 'Traitement non abouti';
       case QueueOrderStatus.expired:
         return receipt.hasPaymentToReviewAfterExpiration
-            ? 'Décision de l’opérateur'
+            ? 'Analyse IzyTel'
             : 'Commande expirée';
       case QueueOrderStatus.cancelled:
         return 'Commande annulée';
@@ -667,7 +786,7 @@ class _TrackingCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
-            'Votre commande avance',
+            'Suivi de la commande',
             style: TextStyle(
               color: CustomerAppColors.onSurface,
               fontSize: 19,
@@ -686,27 +805,21 @@ class _TrackingCard extends StatelessWidget {
           ],
           const SizedBox(height: 22),
           _TrackingStep(
-            title: _creditAuthorized ? 'Vente à crédit' : 'Paiement déclaré',
-            subtitle: _creditAuthorized
-                ? 'Crédit autorisé par l’administrateur.'
-                : _formatDate(receipt.paymentDeclaredAt),
-            state: _creditAuthorized || receipt.isPaymentDeclared
-                ? _TrackingStepState.done
-                : _TrackingStepState.pending,
+            title: 'Commande créée',
+            subtitle: _formatDate(receipt.createdAt),
+            state: _TrackingStepState.done,
           ),
           _TrackingStep(
-            title: _creditAuthorized
-                ? 'Validation du crédit'
-                : 'Vérification du paiement',
+            title: _creditAuthorized ? 'Crédit validé' : 'Paiement confirmé',
             subtitle: _creditAuthorized
-                ? 'La commande peut être traitée avant l’encaissement.'
+                ? 'Le traitement est autorisé par IzyTel.'
                 : (_paymentConfirmed
                       ? _formatDate(receipt.paymentConfirmedAt)
-                      : 'L’opérateur vérifie la transaction dans Wave.'),
+                      : 'En attente de confirmation du paiement.'),
             state: _verificationState,
           ),
           _TrackingStep(
-            title: 'Traitement de la commande',
+            title: 'En traitement',
             subtitle: receipt.status == QueueOrderStatus.onHold
                 ? 'Le traitement est temporairement en attente.'
                 : _formatDate(receipt.processingStartedAt),

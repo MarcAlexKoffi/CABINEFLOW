@@ -43,21 +43,28 @@ void main() {
       expect(payment, isNot(contains('Confirmer ma déclaration')));
     });
 
-    test('Retrouver ma commande utilise réseau, service et bénéficiaire', () {
+    test('Retrouver ma commande utilise reference et code de recuperation', () {
       final String page = File(
         'lib/features/customer_order/presentation/pages/customer_order_recovery_page.dart',
       ).readAsStringSync();
       final String repository = File(
         'lib/features/customer_order/data/repositories/firestore_customer_order_repository.dart',
       ).readAsStringSync();
+      final String recoveryRepository = File(
+        'lib/features/customer_order/data/repositories/supabase_customer_order_recovery_repository.dart',
+      ).readAsStringSync();
 
-      expect(page, contains("_FieldLabel(text: 'Réseau')"));
-      expect(page, contains("_FieldLabel(text: 'Type de commande')"));
-      expect(page, contains("_FieldLabel(text: 'Numéro bénéficiaire')"));
-      expect(page, contains('recoverOrderByDetails'));
-      expect(page, isNot(contains('Référence de commande')));
-      expect(repository, contains('findCustomerOrder'));
-      expect(repository, contains(".where('customerAuthUid', isEqualTo: customer.uid)"));
+      expect(page, contains("_FieldLabel(text: 'Référence de commande')"));
+      expect(page, contains("_FieldLabel(text: 'Code de récupération')"));
+      expect(page, contains('recoverOrderByCode'));
+      expect(page, isNot(contains("_FieldLabel(text: 'Type de commande')")));
+      expect(page, isNot(contains("_FieldLabel(text: 'Numéro bénéficiaire')")));
+      expect(repository, contains('recoverOrderByCode'));
+      expect(repository, contains('SupabaseCustomerOrderRecoveryRepository'));
+      expect(
+        recoveryRepository,
+        contains('izytel_wc2_recover_customer_order'),
+      );
     });
 
     test('les surfaces principales acceptent le geste tirer pour actualiser', () {

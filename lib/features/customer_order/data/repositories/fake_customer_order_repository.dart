@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cabine_flow/features/customer_order/domain/models/beneficiary_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/customer_order_recovery_key.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/payment_declaration.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone_number.dart';
@@ -43,6 +44,7 @@ class FakeCustomerOrderRepository implements CustomerOrderRepository {
       expiresAt: now.add(const Duration(hours: 6)),
       status: QueueOrderStatus.awaitingPayment,
       paymentStatus: OrderPaymentStatus.notDeclared,
+      recoveryCode: CustomerOrderRecoveryKey.generateCode(),
     );
 
     _orders[receipt.id] = receipt;
@@ -153,6 +155,33 @@ class FakeCustomerOrderRepository implements CustomerOrderRepository {
       if (order.reference.toUpperCase() == normalizedReference &&
           order.draft.identity?.whatsappNumber.normalized ==
               whatsapp.normalized) {
+        return order;
+      }
+    }
+
+    throw StateError('Commande introuvable ou informations incorrectes.');
+  }
+
+  @override
+  Future<CustomerOrderReceipt> recoverOrderByCode({
+    required String reference,
+    required String recoveryCodeInput,
+  }) async {
+    final String normalizedReference =
+        CustomerOrderRecoveryKey.normalizeReference(reference);
+    final String normalizedCode =
+        CustomerOrderRecoveryKey.normalizeCode(recoveryCodeInput);
+
+    if (CustomerOrderRecoveryKey.validateReference(normalizedReference) != null ||
+        CustomerOrderRecoveryKey.validateCode(normalizedCode) != null) {
+      throw StateError('Commande introuvable ou informations incorrectes.');
+    }
+
+    for (final CustomerOrderReceipt order in _orders.values) {
+      if (CustomerOrderRecoveryKey.normalizeReference(order.reference) ==
+              normalizedReference &&
+          CustomerOrderRecoveryKey.normalizeCode(order.recoveryCode ?? '') ==
+              normalizedCode) {
         return order;
       }
     }

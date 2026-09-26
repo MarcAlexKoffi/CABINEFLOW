@@ -325,6 +325,10 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
               viewModel: _viewModel,
               onBack: _requestBack,
               onRecovered: _showRecoveredOrder,
+              onOpenHome: _openHome,
+              onOpenOffers: _openCatalog,
+              onOpenHistory: _openHistory,
+              onOpenHelp: _openHelp,
             ),
             _CustomerSurface.help => CustomerHelpPage(
               key: const ValueKey<String>('customer-help'),

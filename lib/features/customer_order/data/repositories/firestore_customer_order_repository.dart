@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
 import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
+import 'package:cabine_flow/features/customer_order/data/repositories/supabase_customer_order_recovery_repository.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/supabase_customer_order_status_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/beneficiary_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_identity.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/customer_offer.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_recovery_key.dart';
@@ -27,12 +29,15 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
        _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance;
 
   static const Duration paymentValidity = Duration(hours: 6);
+  static final DateTime _wc2RecoveryCutover = DateTime.utc(2026, 9, 22);
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _firebaseAuth;
   Future<User>? _anonymousCustomerFuture;
   final Set<String> _recoveredOrderIds = <String>{};
   final Set<String> _recoveryKeysEnsuredForOrderIds = <String>{};
+  final Map<String, String> _recoveryCodesByOrderId = <String, String>{};
+  final Map<String, String> _supabaseRecoveredCodesByOrderId = <String, String>{};
 
   CollectionReference<Map<String, dynamic>> get _ordersCollection {
     return _firestore.collection('orders');
@@ -62,6 +67,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
       date: now,
       documentId: document.id,
     );
+    final String recoveryCode = CustomerOrderRecoveryKey.generateCode();
 
     final DocumentReference<Map<String, dynamic>> eventRef = _eventsCollection
         .doc();
@@ -100,8 +106,10 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
       expiresAt: expiresAt,
       status: QueueOrderStatus.awaitingPayment,
       paymentStatus: OrderPaymentStatus.notDeclared,
+      recoveryCode: recoveryCode,
     );
-    await _ensureRecoveryKeySafely(createdOrder);
+    _recoveryCodesByOrderId[createdOrder.id] = recoveryCode;
+    await _registerSupabaseRecoverySafely(createdOrder);
     return createdOrder;
   }
 
@@ -118,7 +126,8 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
     final OrderEventType eventType = OrderEventType.paymentDeclared;
     final DateTime declaredAt = DateTime.now();
 
-    return _firestore.runTransaction<CustomerOrderReceipt>((
+    final CustomerOrderReceipt updatedOrder =
+        await _firestore.runTransaction<CustomerOrderReceipt>((
       Transaction transaction,
     ) async {
       final DocumentSnapshot<Map<String, dynamic>> snapshot = await transaction
@@ -204,6 +213,8 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
             : order.expiredAt,
       );
     });
+    await _registerSupabaseRecoverySafely(updatedOrder);
+    return updatedOrder;
   }
 
   @override
@@ -298,6 +309,51 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
   }
 
   @override
+  Future<CustomerOrderReceipt> recoverOrderByCode({
+    required String reference,
+    required String recoveryCodeInput,
+  }) async {
+    await _ensureAnonymousCustomer();
+    if (!SupabaseBootstrap.isInitialized) {
+      throw StateError('Le service de recuperation est temporairement indisponible.');
+    }
+
+    final String normalizedReference =
+        CustomerOrderRecoveryKey.normalizeReference(reference);
+    final String normalizedCode = CustomerOrderRecoveryKey.normalizeCode(
+      recoveryCodeInput,
+    );
+
+    if (CustomerOrderRecoveryKey.validateReference(normalizedReference) !=
+            null ||
+        CustomerOrderRecoveryKey.validateCode(normalizedCode) != null) {
+      throw StateError('Commande introuvable ou informations incorrectes.');
+    }
+
+    final Map<String, dynamic>? row =
+        await SupabaseCustomerOrderRecoveryRepository().recover(
+          reference: normalizedReference,
+          recoveryCode: normalizedCode,
+        );
+    if (row == null) {
+      throw StateError('Commande introuvable ou informations incorrectes.');
+    }
+
+    final CustomerOrderReceipt? receipt = _receiptFromSupabaseRecoveryRow(
+      row,
+      recoveryCode: normalizedCode,
+    );
+    if (receipt == null) {
+      throw StateError('Commande introuvable ou informations incorrectes.');
+    }
+
+    _recoveredOrderIds.add(receipt.id);
+    _recoveryCodesByOrderId[receipt.id] = normalizedCode;
+    _supabaseRecoveredCodesByOrderId[receipt.id] = normalizedCode;
+    return receipt;
+  }
+
+  @override
   Future<CustomerOrderReceipt> findCustomerOrder({
     required MobileNetwork network,
     required CustomerService service,
@@ -328,6 +384,26 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
   Stream<CustomerOrderReceipt> watchOrder({
     required CustomerOrderReceipt order,
   }) {
+    final String? recoveredCode = _supabaseRecoveredCodesByOrderId[order.id];
+    if (recoveredCode == null && order.recoveryCode != null) {
+      unawaited(_registerSupabaseRecoverySafely(order));
+    }
+    if (recoveredCode != null && SupabaseBootstrap.isInitialized) {
+      return SupabaseCustomerOrderRecoveryRepository()
+          .watch(reference: order.reference, recoveryCode: recoveredCode)
+          .map((Map<String, dynamic> row) {
+            final CustomerOrderReceipt? recovered =
+                _receiptFromSupabaseRecoveryRow(
+                  row,
+                  recoveryCode: recoveredCode,
+                );
+            if (recovered == null) {
+              throw StateError('La commande suivie est introuvable.');
+            }
+            return recovered;
+          });
+    }
+
     if (!SupabaseBootstrap.isInitialized) {
       return _ordersCollection.doc(order.id).snapshots().asyncMap((
         DocumentSnapshot<Map<String, dynamic>> snapshot,
@@ -510,15 +586,56 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
     }
   }
 
+  Future<void> _registerSupabaseRecoverySafely(
+    CustomerOrderReceipt order,
+  ) async {
+    final String? recoveryCode = order.recoveryCode?.trim();
+    if (!SupabaseBootstrap.isInitialized ||
+        recoveryCode == null ||
+        recoveryCode.isEmpty) {
+      return;
+    }
+
+    Object? lastError;
+    StackTrace? lastStackTrace;
+    for (int attempt = 0; attempt < 3; attempt++) {
+      try {
+        await SupabaseCustomerOrderRecoveryRepository().register(
+          order: order,
+          recoveryCode: recoveryCode,
+        );
+        return;
+      } catch (error, stackTrace) {
+        lastError = error;
+        lastStackTrace = stackTrace;
+        if (!BackendFailurePolicy.canRetryRead(error) || attempt == 2) break;
+        await Future<void>.delayed(
+          BackendFailurePolicy.retryDelay(
+            baseDelay: const Duration(milliseconds: 500),
+            consecutiveFailures: attempt,
+          ),
+        );
+      }
+    }
+
+    IzyTelLog.backendError(
+      'CustomerOrder.recovery-register',
+      lastError ?? StateError('Enregistrement du code impossible.'),
+      stackTrace: lastStackTrace,
+    );
+  }
+
   Future<void> _ensureRecoveryKeySafely(CustomerOrderReceipt order) async {
-    if (_recoveryKeysEnsuredForOrderIds.contains(order.id)) {
+    // Compatibilite Phase 10B uniquement. A partir de WC2, aucune nouvelle
+    // commande ne cree de secret de recuperation reference + WhatsApp dans
+    // Firestore. Les nouvelles commandes utilisent le registre Supabase.
+    if (!order.createdAt.toUtc().isBefore(_wc2RecoveryCutover) ||
+        _recoveryKeysEnsuredForOrderIds.contains(order.id)) {
       return;
     }
 
     final CustomerIdentity? identity = order.draft.identity;
-    if (identity == null) {
-      return;
-    }
+    if (identity == null) return;
 
     final String recoveryKey = CustomerOrderRecoveryKey.build(
       reference: order.reference,
@@ -528,8 +645,8 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
         _recoveryKeysCollection.doc(recoveryKey);
 
     try {
-      final DocumentSnapshot<Map<String, dynamic>> existing = await recoveryRef
-          .get();
+      final DocumentSnapshot<Map<String, dynamic>> existing =
+          await recoveryRef.get();
       if (!existing.exists) {
         await recoveryRef.set(<String, dynamic>{
           'schemaVersion': 1,
@@ -541,11 +658,8 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
       }
       _recoveryKeysEnsuredForOrderIds.add(order.id);
     } on Object catch (error, stackTrace) {
-      // L'index de récupération est un mécanisme de confort. Une panne de cet
-      // artefact ne doit jamais empêcher la création ou le suivi normal de la
-      // commande par son propriétaire d'origine.
       IzyTelLog.backendError(
-        'CustomerOrder.recovery-key',
+        'CustomerOrder.legacy-recovery-key',
         error,
         stackTrace: stackTrace,
       );
@@ -569,7 +683,8 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
     final DocumentReference<Map<String, dynamic>> document = _ordersCollection
         .doc(order.id);
 
-    return _firestore.runTransaction<CustomerOrderReceipt>((
+    final CustomerOrderReceipt synchronizedOrder =
+        await _firestore.runTransaction<CustomerOrderReceipt>((
       Transaction transaction,
     ) async {
       final DocumentSnapshot<Map<String, dynamic>> snapshot = await transaction
@@ -613,6 +728,8 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
         expiredAt: transactionTime,
       );
     });
+    await _registerSupabaseRecoverySafely(synchronizedOrder);
+    return synchronizedOrder;
   }
 
   Future<User> _ensureAnonymousCustomer() {
@@ -736,8 +853,15 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
     required CustomerOrderReceipt fallbackOrder,
     required Map<String, dynamic> data,
   }) {
-    return _receiptFromDocument(id: fallbackOrder.id, data: data) ??
-        fallbackOrder;
+    final CustomerOrderReceipt? parsed = _receiptFromDocument(
+      id: fallbackOrder.id,
+      data: data,
+    );
+    if (parsed == null) return fallbackOrder;
+    if (parsed.recoveryCode == null && fallbackOrder.recoveryCode != null) {
+      return parsed.copyWith(recoveryCode: fallbackOrder.recoveryCode);
+    }
+    return parsed;
   }
 
   CustomerOrderReceipt? _receiptFromDocument({
@@ -794,6 +918,89 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
         completedAt: _readDate(data['completedAt']),
         status: _readOrderStatus(data['status']),
         paymentStatus: _readPaymentStatus(data['paymentStatus']),
+        recoveryCode: _recoveryCodesByOrderId[id],
+        failureMessage: observation ?? failureReason,
+      );
+    } on Object {
+      return null;
+    }
+  }
+
+  CustomerOrderReceipt? _receiptFromSupabaseRecoveryRow(
+    Map<String, dynamic> data, {
+    required String recoveryCode,
+  }) {
+    try {
+      final String orderId = _readString(data['order_id'])!;
+      final String reference = _readString(data['order_reference'])!;
+      final CustomerService service = CustomerService.values.firstWhere(
+        (CustomerService item) => item.name == data['service'],
+      );
+      final MobileNetwork network = MobileNetwork.values.firstWhere(
+        (MobileNetwork item) => item.name == data['network'],
+      );
+      final BeneficiaryPhoneNumber beneficiaryNumber =
+          BeneficiaryPhoneNumber.parse(
+            _readString(data['beneficiary_phone'])!,
+          );
+      final String offerLabel =
+          _readString(data['offer_label']) ?? service.label;
+      final int amount = _readInt(data['amount']);
+      final String? offerId = _readNullableString(data['offer_id']);
+      final bool isCustomOffer = data['is_custom_offer'] == true;
+      final CustomerOffer? recoveredOffer =
+          service == CustomerService.unitTransfer ||
+              isCustomOffer ||
+              offerId == null
+          ? null
+          : CustomerOffer(
+              id: offerId,
+              network: network,
+              type: service == CustomerService.internetSubscription
+                  ? CustomerOfferType.internet
+                  : CustomerOfferType.calls,
+              title: offerLabel,
+              catalogLabel: offerLabel,
+              amount: amount,
+              details: const <String>[],
+            );
+      final DateTime createdAt =
+          _readDate(data['created_at']) ?? DateTime.now();
+      final DateTime expiresAt =
+          _readDate(data['expires_at']) ?? createdAt.add(paymentValidity);
+      final String? failureReason = _readNullableString(data['failure_reason']);
+      final String? observation = _readNullableString(data['observation']);
+
+      final CustomerOrderDraft draft = CustomerOrderDraft(
+        service: service,
+        network: network,
+        offer: recoveredOffer,
+        customOfferLabel: service == CustomerService.unitTransfer
+            ? null
+            : isCustomOffer
+            ? offerLabel
+            : null,
+        amount: amount,
+        beneficiaryNumber: beneficiaryNumber,
+      );
+
+      return CustomerOrderReceipt(
+        id: orderId,
+        reference: reference,
+        draft: draft,
+        createdAt: createdAt,
+        expiresAt: expiresAt,
+        paymentDeclaredAt: _readDate(data['payment_declared_at']),
+        paymentConfirmedAt: _readDate(data['payment_confirmed_at']),
+        processingStartedAt: _readDate(data['processing_started_at']),
+        completedAt: _readDate(data['completed_at']),
+        expiredAt: _readDate(data['expired_at']) ??
+            (_readOrderStatus(data['order_status']) == QueueOrderStatus.expired
+                ? _readDate(data['updated_at']) ?? expiresAt
+                : null),
+        status: _readOrderStatus(data['order_status']),
+        paymentStatus: _readPaymentStatus(data['payment_status']),
+        recoveryCode: recoveryCode,
         failureMessage: observation ?? failureReason,
       );
     } on Object {
@@ -865,6 +1072,10 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
 
     if (value is DateTime) {
       return value;
+    }
+
+    if (value is String && value.trim().isNotEmpty) {
+      return DateTime.tryParse(value.trim())?.toLocal();
     }
 
     return null;

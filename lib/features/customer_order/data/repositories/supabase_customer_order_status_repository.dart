@@ -17,14 +17,12 @@ class SupabaseCustomerOrderStatusRepository {
   Future<Map<String, dynamic>?> fetchStatus({
     required String orderId,
     required String reference,
-    required String whatsapp,
   }) async {
     final Object? raw = await _client.rpc(
-      'phase3_customer_order_status',
+      'izytel_wc2_customer_order_status',
       params: <String, dynamic>{
         'p_order_id': orderId.trim(),
         'p_reference': reference.trim(),
-        'p_whatsapp': whatsapp.trim(),
       },
     );
     if (raw == null) return null;
@@ -34,12 +32,9 @@ class SupabaseCustomerOrderStatusRepository {
   }
 
   Future<CustomerOrderReceipt> overlay(CustomerOrderReceipt receipt) async {
-    final String whatsapp = receipt.draft.identity?.whatsappNumber.normalized ?? '';
-    if (whatsapp.isEmpty) return receipt;
     final Map<String, dynamic>? row = await fetchStatus(
       orderId: receipt.id,
       reference: receipt.reference,
-      whatsapp: whatsapp,
     );
     if (row == null) return receipt;
     return overlayRow(receipt, row);

@@ -21,6 +21,11 @@ abstract class CustomerOrderRepository {
     required String whatsappInput,
   });
 
+  Future<CustomerOrderReceipt> recoverOrderByCode({
+    required String reference,
+    required String recoveryCodeInput,
+  });
+
   Future<CustomerOrderReceipt> findCustomerOrder({
     required MobileNetwork network,
     required CustomerService service,

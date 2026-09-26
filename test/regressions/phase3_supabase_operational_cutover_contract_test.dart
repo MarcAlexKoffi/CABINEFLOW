@@ -61,7 +61,8 @@ void main() {
     );
     expect(customer, contains('_overlayOperationalStatus'));
     expect(customer, contains('SupabaseCustomerOrderStatusRepository.pollInterval'));
-    expect(status, contains('phase3_customer_order_status'));
+    expect(status, contains('izytel_wc2_customer_order_status'));
+    expect(status, isNot(contains('p_whatsapp')));
     expect(status, contains("row['order_status']"));
     expect(status, contains("row['processing_started_at']"));
     expect(status, contains("row['completed_at']"));

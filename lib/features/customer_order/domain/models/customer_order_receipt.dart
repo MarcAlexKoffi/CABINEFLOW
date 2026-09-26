@@ -11,6 +11,7 @@ class CustomerOrderReceipt {
     required this.expiresAt,
     required this.status,
     required this.paymentStatus,
+    this.recoveryCode,
     this.paymentDeclaredAt,
     this.paymentDeclaration,
     this.paymentConfirmedAt,
@@ -35,6 +36,7 @@ class CustomerOrderReceipt {
 
   final QueueOrderStatus status;
   final OrderPaymentStatus paymentStatus;
+  final String? recoveryCode;
   final String? failureMessage;
 
   bool get isPaymentDeclared {
@@ -63,6 +65,7 @@ class CustomerOrderReceipt {
     DateTime? expiredAt,
     DateTime? processingStartedAt,
     DateTime? completedAt,
+    String? recoveryCode,
     String? failureMessage,
     bool clearFailureMessage = false,
   }) {
@@ -80,6 +83,7 @@ class CustomerOrderReceipt {
       completedAt: completedAt ?? this.completedAt,
       status: status ?? this.status,
       paymentStatus: paymentStatus ?? this.paymentStatus,
+      recoveryCode: recoveryCode ?? this.recoveryCode,
       failureMessage: clearFailureMessage
           ? null
           : failureMessage ?? this.failureMessage,

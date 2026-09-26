@@ -252,10 +252,20 @@ class CustomerOrderViewModel extends ChangeNotifier {
 
   Future<void> _restoreRecoveredSession(CustomerOrderSession session) async {
     try {
-      final CustomerOrderReceipt order = await _orderRepository.recoverOrder(
-        reference: session.reference,
-        whatsappInput: session.whatsappPhone,
-      );
+      final CustomerOrderReceipt order;
+      if (session.hasRecoveryCode) {
+        order = await _orderRepository.recoverOrderByCode(
+          reference: session.reference,
+          recoveryCodeInput: session.recoveryCode!,
+        );
+      } else {
+        // Compatibilite avec les sessions Phase 10B historiques deja
+        // memorisees avant l'introduction du code de recuperation.
+        order = await _orderRepository.recoverOrder(
+          reference: session.reference,
+          whatsappInput: session.whatsappPhone!,
+        );
+      }
       if (_receipt != null) {
         return;
       }
@@ -264,7 +274,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
       notifyListeners();
     } on Object {
       // Une restauration automatique silencieuse ne doit pas afficher une
-      // erreur au démarrage. Le client peut toujours ouvrir l'écran 10B.
+      // erreur au demarrage. Le client peut toujours ouvrir l'ecran public.
     }
   }
 
@@ -308,6 +318,42 @@ class CustomerOrderViewModel extends ChangeNotifier {
 
     if (rememberLocally) {
       unawaited(_rememberOrder(order));
+    }
+  }
+
+  Future<bool> recoverOrderByCode({
+    required String reference,
+    required String recoveryCodeInput,
+  }) async {
+    if (_isRecoveringOrder) {
+      return false;
+    }
+
+    _isRecoveringOrder = true;
+    _recoveryErrorMessage = null;
+    notifyListeners();
+
+    try {
+      final CustomerOrderReceipt recoveredOrder = await _orderRepository
+          .recoverOrderByCode(
+            reference: reference,
+            recoveryCodeInput: recoveryCodeInput,
+          );
+      _applyRecoveredOrder(recoveredOrder, rememberLocally: true);
+      _replaceOrderInHistory(recoveredOrder);
+      return true;
+    } on Object catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'CustomerOrder.recover-by-code',
+        error,
+        stackTrace: stackTrace,
+      );
+      _recoveryErrorMessage =
+          'Commande introuvable ou code incorrect. Vérifiez la référence et le code de récupération.';
+      return false;
+    } finally {
+      _isRecoveringOrder = false;
+      notifyListeners();
     }
   }
 
@@ -884,7 +930,8 @@ class CustomerOrderViewModel extends ChangeNotifier {
     final CustomerOrderSession session = CustomerOrderSession(
       orderId: order.id,
       reference: order.reference,
-      whatsappPhone: order.draft.identity!.whatsappNumber.normalized,
+      recoveryCode: order.recoveryCode,
+      whatsappPhone: order.draft.identity?.whatsappNumber.normalized,
     );
 
     _savedSession = session;

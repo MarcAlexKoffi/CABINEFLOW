@@ -35,5 +35,25 @@ void main() {
         'CF-20260827-AB12CD_+2250712345678',
       );
     });
+
+    test('genere et valide le code de recuperation V2', () {
+      final String code = CustomerOrderRecoveryKey.generateCode();
+
+      expect(CustomerOrderRecoveryKey.validateCode(code), isNull);
+      expect(
+        RegExp(r'^IZY-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$').hasMatch(code),
+        isTrue,
+      );
+    });
+
+    test('construit une cle V2 reference + code', () {
+      expect(
+        CustomerOrderRecoveryKey.buildWithCode(
+          reference: 'cf-20260827-ab12cd',
+          recoveryCode: 'izy-abcd-782k',
+        ),
+        'CF-20260827-AB12CD_IZY-ABCD-782K',
+      );
+    });
   });
 }

@@ -152,19 +152,26 @@ class _CustomerOrderHistoryPageState extends State<CustomerOrderHistoryPage> {
           ),
           children: [
             Text(
-              'Historique des commandes',
-              style: Theme.of(context).textTheme.headlineMedium,
+              'Historique',
+              style: Theme.of(context).textTheme.displaySmall,
             ),
             const SizedBox(height: 6),
             const Text(
-              'Retrouvez vos commandes passées et en cours, avec leur statut actuel.',
+              'Retrouvez toutes vos commandes et leur statut en un seul endroit.',
               style: TextStyle(
                 color: CustomerAppColors.onSurfaceVariant,
                 fontSize: 15,
                 height: 1.45,
               ),
             ),
-            const SizedBox(height: 26),
+            const SizedBox(height: 24),
+            _StatusTabs(
+              selected: _statusFilter,
+              onSelected: (_HistoryStatusFilter value) {
+                setState(() => _statusFilter = value);
+              },
+            ),
+            const SizedBox(height: 18),
             Row(
               children: [
                 Expanded(
@@ -257,6 +264,64 @@ class _CustomerOrderHistoryPageState extends State<CustomerOrderHistoryPage> {
   }
 }
 
+class _StatusTabs extends StatelessWidget {
+  const _StatusTabs({required this.selected, required this.onSelected});
+
+  final _HistoryStatusFilter selected;
+  final ValueChanged<_HistoryStatusFilter> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: CustomerAppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: CustomerAppColors.surfaceContainerHigh),
+      ),
+      child: Row(
+        children: _HistoryStatusFilter.values.map((filter) {
+          final bool active = filter == selected;
+          return Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Material(
+                color: active
+                    ? CustomerAppColors.primary
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(14),
+                child: InkWell(
+                  onTap: () => onSelected(filter),
+                  borderRadius: BorderRadius.circular(14),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 12,
+                    ),
+                    child: Text(
+                      filter.label,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: active
+                            ? Colors.white
+                            : CustomerAppColors.onSurface,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(growable: false),
+      ),
+    );
+  }
+}
+
 class _OrderHistoryCard extends StatelessWidget {
   const _OrderHistoryCard({required this.order, required this.onTap});
 
@@ -267,20 +332,22 @@ class _OrderHistoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final MobileNetwork network = order.draft.network!;
     final _StatusPresentation status = _StatusPresentation.from(order);
+    final String title =
+        order.draft.selectedOfferLabel ?? order.draft.service!.label;
 
     return Material(
       color: CustomerAppColors.surfaceContainerLowest,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(18),
       elevation: 0,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         child: Container(
           padding: const EdgeInsets.all(17),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(color: CustomerAppColors.surfaceContainerHigh),
-            boxShadow: const [
+            boxShadow: const <BoxShadow>[
               BoxShadow(
                 color: Color(0x0A000000),
                 blurRadius: 16,
@@ -289,120 +356,129 @@ class _OrderHistoryCard extends StatelessWidget {
             ],
           ),
           child: Column(
-            children: [
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                children: <Widget>[
                   _NetworkBadge(network: network),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+                      children: <Widget>[
                         Text(
-                          order.draft.selectedOfferLabel ??
-                              order.draft.service!.label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: CustomerAppColors.onSurface,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          '${network.customerLabel} · ${order.draft.beneficiaryNumber!.displayValue}',
+                          title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
+                            color: CustomerAppColors.onSurface,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          order.draft.beneficiaryNumber!.displayValue,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
                             color: CustomerAppColors.onSurfaceVariant,
-                            fontSize: 12,
-                            height: 1.35,
+                            fontSize: 13,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '${formatCfa(order.draft.amount!)} CFA',
-                        style: const TextStyle(
-                          color: CustomerAppColors.onSurface,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        _formatDate(order.createdAt),
-                        style: const TextStyle(
-                          color: CustomerAppColors.onSurfaceVariant,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
+                  const SizedBox(width: 8),
+                  _StatusBadge(status: status),
                 ],
-              ),
-              const SizedBox(height: 14),
-              const Divider(
-                height: 1,
-                color: CustomerAppColors.surfaceContainerHigh,
               ),
               const SizedBox(height: 13),
               Row(
-                children: [
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: <Widget>[
                   Expanded(
                     child: Text(
-                      'Réf. ${order.reference}',
-                      maxLines: 1,
+                      'Réf. #${order.reference}  ·  ${_formatDate(order.createdAt)}',
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: CustomerAppColors.onSurfaceVariant,
                         fontSize: 11,
-                        fontWeight: FontWeight.w500,
+                        height: 1.35,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: status.backgroundColor,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          status.icon,
-                          size: 13,
-                          color: status.foregroundColor,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          status.label,
-                          style: TextStyle(
-                            color: status.foregroundColor,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
+                  const SizedBox(width: 12),
+                  Text(
+                    formatCfaFull(order.draft.amount!),
+                    style: const TextStyle(
+                      color: CustomerAppColors.primary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const <Widget>[
+                    Text(
+                      'Voir le suivi',
+                      style: TextStyle(
+                        color: CustomerAppColors.primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(width: 2),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: CustomerAppColors.primary,
+                      size: 20,
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.status});
+
+  final _StatusPresentation status;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: status.backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(status.icon, size: 13, color: status.foregroundColor),
+          const SizedBox(width: 4),
+          Text(
+            status.label,
+            style: TextStyle(
+              color: status.foregroundColor,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -703,7 +779,7 @@ extension on _HistoryStatusFilter {
       case _HistoryStatusFilter.completed:
         return 'Terminées';
       case _HistoryStatusFilter.attention:
-        return 'À examiner';
+        return 'Incidents';
     }
   }
 
