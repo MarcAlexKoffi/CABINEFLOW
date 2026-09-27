@@ -67,8 +67,8 @@ class _CustomerLocationConsentDialogState
         ? 'Autoriser la localisation ?'
         : 'Localiser cette demande ?';
     final String description = isFirstVisit
-        ? 'Avec votre accord, IzyTel utilise votre position pour rattacher automatiquement vos demandes à la zone opérationnelle la plus proche. Si vous l’autorisez maintenant, nous ne vous le redemanderons pas au paiement pendant ce parcours.'
-        : 'Vous n’avez pas encore partagé votre position. Vous pouvez l’autoriser maintenant pour rattacher cette demande à la zone opérationnelle la plus proche, ou continuer sans localisation.';
+        ? 'Activez votre position pour rattacher automatiquement votre demande à la zone la plus proche et accélérer sa prise en charge.'
+        : 'Partagez votre position pour rattacher cette demande à la zone la plus proche, ou continuez sans localisation.';
     final String secondaryLabel =
         isFirstVisit ? 'Plus tard' : 'Continuer sans localisation';
 
@@ -77,7 +77,7 @@ class _CustomerLocationConsentDialogState
       backgroundColor: Colors.transparent,
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: 440,
+          maxWidth: 420,
           maxHeight: MediaQuery.sizeOf(context).height - 48,
         ),
         child: Container(
@@ -98,8 +98,8 @@ class _CustomerLocationConsentDialogState
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-              Container(
-                padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+                Container(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
@@ -114,11 +114,11 @@ class _CustomerLocationConsentDialogState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Container(
-                      width: 52,
-                      height: 52,
+                      width: 46,
+                      height: 46,
                       decoration: BoxDecoration(
                         color: CustomerAppColors.onPrimary.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(17),
+                        borderRadius: BorderRadius.circular(15),
                         border: Border.all(
                           color: CustomerAppColors.onPrimary.withValues(
                             alpha: 0.2,
@@ -129,7 +129,7 @@ class _CustomerLocationConsentDialogState
                       child: const Icon(
                         Icons.my_location_rounded,
                         color: CustomerAppColors.onPrimary,
-                        size: 27,
+                        size: 24,
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -137,32 +137,11 @@ class _CustomerLocationConsentDialogState
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 9,
-                              vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: CustomerAppColors.onPrimary.withValues(
-                                alpha: 0.13,
-                              ),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: const Text(
-                              'IzyTel • Localisation',
-                              style: TextStyle(
-                                color: CustomerAppColors.onPrimary,
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
                           Text(
                             title,
                             style: const TextStyle(
                               color: CustomerAppColors.onPrimary,
-                              fontSize: 21,
+                              fontSize: 20,
                               height: 1.2,
                               fontWeight: FontWeight.w800,
                             ),
@@ -172,9 +151,9 @@ class _CustomerLocationConsentDialogState
                     ),
                   ],
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
+                ),
+                Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
@@ -186,9 +165,9 @@ class _CustomerLocationConsentDialogState
                         height: 1.5,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     Container(
-                      padding: const EdgeInsets.all(13),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: CustomerAppColors.primarySoft,
                         borderRadius: BorderRadius.circular(14),
@@ -209,7 +188,7 @@ class _CustomerLocationConsentDialogState
                           SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Votre position est facultative. Le QR code reste uniquement une source d’acquisition et ne détermine jamais votre zone réelle.',
+                              'La localisation est facultative. Le QR code reste uniquement une source d’acquisition et ne détermine jamais votre zone réelle.',
                               style: TextStyle(
                                 color: CustomerAppColors.onSurfaceVariant,
                                 fontSize: 11.5,
@@ -221,7 +200,7 @@ class _CustomerLocationConsentDialogState
                         ],
                       ),
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 14),
                     FilledButton.icon(
                       onPressed: _isRequesting ? null : _requestLocation,
                       style: FilledButton.styleFrom(
@@ -270,7 +249,7 @@ class _CustomerLocationConsentDialogState
                     ),
                   ],
                 ),
-              ),
+                ),
               ],
             ),
           ),

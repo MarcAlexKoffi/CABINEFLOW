@@ -8,6 +8,7 @@ void main() {
     late String summary;
     late String locationDialog;
     late String locationWeb;
+    late String locationConsentStoreWeb;
     late String viewModel;
     late String migration;
 
@@ -24,6 +25,9 @@ void main() {
       locationWeb = File(
         'lib/features/customer_order/data/geolocation/customer_geolocation_web.dart',
       ).readAsStringSync();
+      locationConsentStoreWeb = File(
+        'lib/features/customer_order/data/local/customer_location_consent_store_web.dart',
+      ).readAsStringSync();
       viewModel = File(
         'lib/features/customer_order/presentation/view_models/customer_order_view_model.dart',
       ).readAsStringSync();
@@ -32,7 +36,7 @@ void main() {
       ).readAsStringSync();
     });
 
-    test('une popup premium propose la localisation a la premiere visite', () {
+    test('une popup premium propose la localisation sans consentement memorise', () {
       expect(flow, contains('_initialLocationPromptShown'));
       expect(flow, contains('CustomerLocationPromptMoment.firstVisit'));
       expect(flow, contains('_showInitialLocationPrompt'));
@@ -40,6 +44,26 @@ void main() {
       expect(locationDialog, contains("'Autoriser ma position'"));
       expect(locationDialog, contains("'Plus tard'"));
       expect(locationDialog, contains('barrierDismissible: false'));
+    });
+
+    test('un consentement accorde est memorise entre les visites', () {
+      expect(flow, contains('_locationConsentStore.hasGrantedConsent'));
+      expect(flow, contains('_locationConsentStore.markGrantedConsent()'));
+      expect(flow, contains('_geolocationService.requestCurrentLocation()'));
+      expect(summary, contains('_locationConsentStore.hasGrantedConsent'));
+      expect(summary, contains('_locationConsentStore.markGrantedConsent()'));
+      expect(locationConsentStoreWeb, contains('html.window.localStorage'));
+      expect(
+        locationConsentStoreWeb,
+        contains("'izytel.customer.location.granted.v1'"),
+      );
+    });
+
+    test('un refus navigateur invalide le consentement memorise', () {
+      expect(flow, contains('CustomerLocationStatus.denied'));
+      expect(flow, contains('_locationConsentStore.clearGrantedConsent()'));
+      expect(summary, contains('CustomerLocationStatus.denied'));
+      expect(summary, contains('_locationConsentStore.clearGrantedConsent()'));
     });
 
     test('le recapitulatif ne montre plus aucun bloc permanent de permission', () {
@@ -64,11 +88,15 @@ void main() {
       expect(locationDialog, contains("'Continuer sans localisation'"));
     });
 
-    test('le navigateur ne demande la position qu apres action client', () {
+    test('sans consentement memorise la demande reste declenchee par le client', () {
       expect(locationWeb, contains('getCurrentPosition'));
-      expect(locationDialog, contains('onPressed: _isRequesting ? null : _requestLocation'));
+      expect(
+        locationDialog,
+        contains('onPressed: _isRequesting ? null : _requestLocation'),
+      );
       expect(flow, isNot(contains('getCurrentPosition')));
       expect(summary, isNot(contains('getCurrentPosition')));
+      expect(flow, contains('showCustomerLocationConsentDialog'));
     });
 
     test('acceptation refus et indisponibilite restent dans le contexte', () {

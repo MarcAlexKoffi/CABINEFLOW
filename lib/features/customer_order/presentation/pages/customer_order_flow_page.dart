@@ -4,6 +4,7 @@ import 'package:cabine_flow/core/navigation/customer_web_history.dart';
 import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
 import 'package:cabine_flow/features/customer_order/data/acquisition/customer_acquisition_source.dart';
 import 'package:cabine_flow/features/customer_order/data/geolocation/customer_geolocation.dart';
+import 'package:cabine_flow/features/customer_order/data/local/customer_location_consent_store.dart';
 import 'package:cabine_flow/features/customer_order/data/local/customer_order_session_store.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/fake_customer_offer_repository.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/firestore_customer_offer_repository.dart';
@@ -14,6 +15,7 @@ import 'package:cabine_flow/features/customer_order/domain/models/customer_offer
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_context.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
+import 'package:cabine_flow/features/customer_order/domain/repositories/customer_location_consent_store.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_offer_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_session_store.dart';
@@ -60,6 +62,7 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
   late final CustomerMessagingRepository _messagingRepository;
   late final CustomerWebHistoryController _webHistory;
   late final CustomerGeolocationService _geolocationService;
+  late final CustomerLocationConsentStore _locationConsentStore;
 
   late final CustomerOrderRepository _orderRepository;
   final CustomerOrderSessionStore _sessionStore =
@@ -85,6 +88,7 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
     _supportRequestRepository = createOperationalSupportRequestRepository();
     _messagingRepository = createOperationalCustomerMessagingRepository();
     _geolocationService = createCustomerGeolocationService();
+    _locationConsentStore = createCustomerLocationConsentStore();
     _orderRepository = FirestoreCustomerOrderRepository();
     final String? acquisitionSourceCode = resolveCustomerAcquisitionSourceCode();
     _viewModel = CustomerOrderViewModel(
@@ -128,6 +132,31 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
     }
 
     _initialLocationPromptShown = true;
+
+    if (_locationConsentStore.hasGrantedConsent) {
+      final CustomerLocationCapture silentCapture =
+          await _geolocationService.requestCurrentLocation();
+
+      if (!mounted) {
+        return;
+      }
+
+      if (silentCapture.isGranted) {
+        await _viewModel.applyOrderContext(
+          silentCapture.applyTo(_viewModel.orderContext),
+        );
+        return;
+      }
+
+      if (silentCapture.status == CustomerLocationStatus.denied) {
+        _locationConsentStore.clearGrantedConsent();
+      } else {
+        // A temporary browser/GPS failure must not make the consent popup
+        // reappear for a customer who already granted location access.
+        return;
+      }
+    }
+
     final CustomerLocationCapture? capture =
         await showCustomerLocationConsentDialog(
           context: context,
@@ -137,6 +166,10 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
 
     if (!mounted || capture == null) {
       return;
+    }
+
+    if (capture.isGranted) {
+      _locationConsentStore.markGrantedConsent();
     }
 
     await _viewModel.applyOrderContext(
@@ -487,6 +520,8 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
           key: const ValueKey<int>(6),
           viewModel: _viewModel,
           onBack: _requestBack,
+          geolocationService: _geolocationService,
+          locationConsentStore: _locationConsentStore,
         );
       case 7:
         return CustomerPaymentPage(

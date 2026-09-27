@@ -4,6 +4,7 @@ import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
 import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/supabase_customer_order_recovery_repository.dart';
+import 'package:cabine_flow/features/customer_order/data/repositories/supabase_customer_order_history_repository.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/supabase_customer_order_status_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/beneficiary_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_identity.dart';
@@ -385,9 +386,6 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
     required CustomerOrderReceipt order,
   }) {
     final String? recoveredCode = _supabaseRecoveredCodesByOrderId[order.id];
-    if (recoveredCode == null && order.recoveryCode != null) {
-      unawaited(_registerSupabaseRecoverySafely(order));
-    }
     if (recoveredCode != null && SupabaseBootstrap.isInitialized) {
       return SupabaseCustomerOrderRecoveryRepository()
           .watch(reference: order.reference, recoveryCode: recoveredCode)
@@ -402,6 +400,14 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
             }
             return recovered;
           });
+    }
+
+    // Une commande provenant uniquement de l'historique Supabase peut etre
+    // une commande recuperee sur un autre appareil. Dans ce cas Firestore ne
+    // doit pas etre requis pour le suivi : la RPC de statut verifie l'acces
+    // accorde au client cote Supabase.
+    if (SupabaseBootstrap.isInitialized && order.draft.identity == null) {
+      return SupabaseCustomerOrderStatusRepository().watch(order);
     }
 
     if (!SupabaseBootstrap.isInitialized) {
@@ -490,27 +496,103 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
       return;
     }
 
+    final SupabaseCustomerOrderHistoryRepository historyRepository =
+        SupabaseCustomerOrderHistoryRepository();
     late final StreamController<List<CustomerOrderReceipt>> controller;
     StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? firestoreSub;
-    Timer? refreshTimer;
-    List<CustomerOrderReceipt> latest = const <CustomerOrderReceipt>[];
-    bool refreshing = false;
+    Timer? supabaseRefreshTimer;
+    List<CustomerOrderReceipt> firestoreOrders =
+        const <CustomerOrderReceipt>[];
+    List<CustomerOrderReceipt> supabaseOrders =
+        const <CustomerOrderReceipt>[];
+    bool hasFirestoreSnapshot = false;
+    bool hasSupabaseSnapshot = false;
+    bool refreshingSupabase = false;
+    Object? firestoreError;
+    StackTrace? firestoreStackTrace;
+    Object? supabaseError;
+    StackTrace? supabaseStackTrace;
 
-    Future<void> refresh() async {
-      if (refreshing || controller.isClosed || latest.isEmpty) return;
-      refreshing = true;
-      try {
-        final List<CustomerOrderReceipt> overlaid = await Future.wait(
-          latest.map(_overlayOperationalStatus),
+    void emitMerged() {
+      if (controller.isClosed) return;
+
+      final Map<String, CustomerOrderReceipt> mergedById =
+          <String, CustomerOrderReceipt>{
+            for (final CustomerOrderReceipt order in firestoreOrders)
+              order.id: order,
+          };
+
+      for (final CustomerOrderReceipt canonicalOrder in supabaseOrders) {
+        final CustomerOrderReceipt? localOrder =
+            mergedById[canonicalOrder.id];
+        mergedById[canonicalOrder.id] = localOrder == null
+            ? canonicalOrder
+            : _mergeCustomerHistoryReceipt(localOrder, canonicalOrder);
+      }
+
+      final List<CustomerOrderReceipt> merged = mergedById.values.toList()
+        ..sort(
+          (CustomerOrderReceipt first, CustomerOrderReceipt second) =>
+              second.createdAt.compareTo(first.createdAt),
         );
-        overlaid.sort((CustomerOrderReceipt a, CustomerOrderReceipt b) =>
-            b.createdAt.compareTo(a.createdAt));
-        latest = List<CustomerOrderReceipt>.unmodifiable(overlaid);
-        if (!controller.isClosed) controller.add(latest);
+      controller.add(List<CustomerOrderReceipt>.unmodifiable(merged));
+    }
+
+    void emitErrorIfNoSourceIsAvailable() {
+      if (controller.isClosed || hasFirestoreSnapshot || hasSupabaseSnapshot) {
+        return;
+      }
+      if (firestoreError == null || supabaseError == null) {
+        return;
+      }
+
+      controller.addError(
+        supabaseError!,
+        supabaseStackTrace ?? firestoreStackTrace ?? StackTrace.current,
+      );
+    }
+
+    Future<void> refreshSupabaseHistory() async {
+      if (refreshingSupabase || controller.isClosed) return;
+      refreshingSupabase = true;
+      try {
+        final List<Map<String, dynamic>> rows = await historyRepository.fetch();
+        final List<CustomerOrderReceipt> parsed = <CustomerOrderReceipt>[];
+
+        for (final Map<String, dynamic> row in rows) {
+          final String? orderId = _readNullableString(row['order_id']);
+          if (orderId == null) continue;
+          final String? knownRecoveryCode =
+              _supabaseRecoveredCodesByOrderId[orderId] ??
+              _recoveryCodesByOrderId[orderId];
+          final CustomerOrderReceipt? receipt =
+              _receiptFromSupabaseRecoveryRow(
+                row,
+                recoveryCode: knownRecoveryCode,
+              );
+          if (receipt != null) parsed.add(receipt);
+        }
+
+        parsed.sort(
+          (CustomerOrderReceipt first, CustomerOrderReceipt second) =>
+              second.createdAt.compareTo(first.createdAt),
+        );
+        supabaseOrders = List<CustomerOrderReceipt>.unmodifiable(parsed);
+        hasSupabaseSnapshot = true;
+        supabaseError = null;
+        supabaseStackTrace = null;
+        emitMerged();
       } catch (error, stackTrace) {
-        if (!controller.isClosed) controller.addError(error, stackTrace);
+        supabaseError = error;
+        supabaseStackTrace = stackTrace;
+        IzyTelLog.backendError(
+          'CustomerOrder.supabase-history',
+          error,
+          stackTrace: stackTrace,
+        );
+        emitErrorIfNoSourceIsAvailable();
       } finally {
-        refreshing = false;
+        refreshingSupabase = false;
       }
     }
 
@@ -519,29 +601,73 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
         firestoreSub = firestoreStream.listen(
           (QuerySnapshot<Map<String, dynamic>> snapshot) async {
             try {
-              latest = await _receiptsFromCustomerSnapshot(snapshot);
-              if (latest.isEmpty && !controller.isClosed) {
-                controller.add(latest);
-              } else {
-                await refresh();
-              }
+              firestoreOrders = await _receiptsFromCustomerSnapshot(snapshot);
+              hasFirestoreSnapshot = true;
+              firestoreError = null;
+              firestoreStackTrace = null;
+              emitMerged();
             } catch (error, stackTrace) {
-              if (!controller.isClosed) controller.addError(error, stackTrace);
+              firestoreError = error;
+              firestoreStackTrace = stackTrace;
+              IzyTelLog.backendError(
+                'CustomerOrder.firestore-history',
+                error,
+                stackTrace: stackTrace,
+              );
+              emitErrorIfNoSourceIsAvailable();
             }
           },
-          onError: controller.addError,
+          onError: (Object error, StackTrace stackTrace) {
+            firestoreError = error;
+            firestoreStackTrace = stackTrace;
+            IzyTelLog.backendError(
+              'CustomerOrder.firestore-history',
+              error,
+              stackTrace: stackTrace,
+            );
+            emitErrorIfNoSourceIsAvailable();
+          },
         );
-        refreshTimer = Timer.periodic(
-          SupabaseCustomerOrderStatusRepository.pollInterval,
-          (_) => unawaited(refresh()),
+
+        unawaited(refreshSupabaseHistory());
+        supabaseRefreshTimer = Timer.periodic(
+          SupabaseCustomerOrderHistoryRepository.pollInterval,
+          (_) => unawaited(refreshSupabaseHistory()),
         );
       },
       onCancel: () async {
-        refreshTimer?.cancel();
+        supabaseRefreshTimer?.cancel();
         await firestoreSub?.cancel();
       },
     );
     yield* controller.stream;
+  }
+
+  CustomerOrderReceipt _mergeCustomerHistoryReceipt(
+    CustomerOrderReceipt localOrder,
+    CustomerOrderReceipt canonicalOrder,
+  ) {
+    return CustomerOrderReceipt(
+      id: canonicalOrder.id,
+      reference: canonicalOrder.reference,
+      draft: localOrder.draft,
+      createdAt: canonicalOrder.createdAt,
+      expiresAt: canonicalOrder.expiresAt,
+      paymentDeclaredAt:
+          canonicalOrder.paymentDeclaredAt ?? localOrder.paymentDeclaredAt,
+      paymentDeclaration: localOrder.paymentDeclaration,
+      paymentConfirmedAt:
+          canonicalOrder.paymentConfirmedAt ?? localOrder.paymentConfirmedAt,
+      expiredAt: canonicalOrder.expiredAt ?? localOrder.expiredAt,
+      processingStartedAt:
+          canonicalOrder.processingStartedAt ?? localOrder.processingStartedAt,
+      completedAt: canonicalOrder.completedAt ?? localOrder.completedAt,
+      status: canonicalOrder.status,
+      paymentStatus: canonicalOrder.paymentStatus,
+      recoveryCode: localOrder.recoveryCode ?? canonicalOrder.recoveryCode,
+      failureMessage:
+          canonicalOrder.failureMessage ?? localOrder.failureMessage,
+    );
   }
 
   Future<List<CustomerOrderReceipt>> _receiptsFromCustomerSnapshot(
@@ -884,6 +1010,28 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
       final String offerLabel =
           _readString(data['offerLabel']) ?? service.label;
       final int amount = _readInt(data['amount']);
+      final String? offerId = _readNullableString(data['offerId']);
+      final bool isCustomOffer = data['isCustomOffer'] == true;
+      final String? operationType = _readNullableString(data['operationType']);
+      final CustomerOffer? restoredOffer =
+          service == CustomerService.unitTransfer ||
+              isCustomOffer ||
+              offerId == null
+          ? null
+          : CustomerOffer(
+              id: offerId,
+              network: network,
+              type: service == CustomerService.internetSubscription
+                  ? CustomerOfferType.internet
+                  : CustomerOfferType.calls,
+              title: offerLabel,
+              catalogLabel: offerLabel,
+              amount: amount,
+              details: const <String>[],
+              badgeLabel: operationType == OrderOperationType.mixedBundle.name
+                  ? 'Mixte'
+                  : null,
+            );
       final DateTime createdAt = _readDate(data['createdAt']) ?? DateTime.now();
       final DateTime expiresAt =
           _readDate(data['expiresAt']) ?? createdAt.add(paymentValidity);
@@ -897,9 +1045,12 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
         ),
         service: service,
         network: network,
+        offer: restoredOffer,
         customOfferLabel: service == CustomerService.unitTransfer
             ? null
-            : offerLabel,
+            : isCustomOffer
+            ? offerLabel
+            : null,
         amount: amount,
         beneficiaryNumber: beneficiaryNumber,
       );
@@ -928,7 +1079,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
 
   CustomerOrderReceipt? _receiptFromSupabaseRecoveryRow(
     Map<String, dynamic> data, {
-    required String recoveryCode,
+    String? recoveryCode,
   }) {
     try {
       final String orderId = _readString(data['order_id'])!;
@@ -963,6 +1114,11 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
               catalogLabel: offerLabel,
               amount: amount,
               details: const <String>[],
+              badgeLabel:
+                  _readNullableString(data['operation_type']) ==
+                      OrderOperationType.mixedBundle.name
+                  ? 'Mixte'
+                  : null,
             );
       final DateTime createdAt =
           _readDate(data['created_at']) ?? DateTime.now();
@@ -970,8 +1126,24 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
           _readDate(data['expires_at']) ?? createdAt.add(paymentValidity);
       final String? failureReason = _readNullableString(data['failure_reason']);
       final String? observation = _readNullableString(data['observation']);
+      CustomerIdentity? identity;
+      final String? clientName = _readNullableString(data['client_name']);
+      final String? clientWhatsapp = _readNullableString(
+        data['client_whatsapp_phone'],
+      );
+      if (clientName != null && clientWhatsapp != null) {
+        try {
+          identity = CustomerIdentity(
+            name: clientName,
+            whatsappNumber: WhatsappPhoneNumber.parse(clientWhatsapp),
+          );
+        } on FormatException {
+          identity = null;
+        }
+      }
 
       final CustomerOrderDraft draft = CustomerOrderDraft(
+        identity: identity,
         service: service,
         network: network,
         offer: recoveredOffer,

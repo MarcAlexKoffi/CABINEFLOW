@@ -1,7 +1,11 @@
 import 'package:cabine_flow/core/theme/customer_app_colors.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
+import 'package:cabine_flow/features/customer_order/data/geolocation/customer_geolocation.dart';
+import 'package:cabine_flow/features/customer_order/data/local/customer_location_consent_store.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/customer_order_context.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
+import 'package:cabine_flow/features/customer_order/domain/repositories/customer_location_consent_store.dart';
 import 'package:cabine_flow/features/customer_order/domain/services/customer_geolocation_service.dart';
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_flow_scaffold.dart';
@@ -19,18 +23,31 @@ class CustomerSummaryPage extends StatefulWidget {
     required this.viewModel,
     this.onBack,
     this.geolocationService,
+    this.locationConsentStore,
   });
 
   final CustomerOrderViewModel viewModel;
   final VoidCallback? onBack;
   final CustomerGeolocationService? geolocationService;
+  final CustomerLocationConsentStore? locationConsentStore;
 
   @override
   State<CustomerSummaryPage> createState() => _CustomerSummaryPageState();
 }
 
 class _CustomerSummaryPageState extends State<CustomerSummaryPage> {
+  late final CustomerGeolocationService _geolocationService;
+  late final CustomerLocationConsentStore _locationConsentStore;
   bool _beneficiaryConfirmed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _geolocationService =
+        widget.geolocationService ?? createCustomerGeolocationService();
+    _locationConsentStore =
+        widget.locationConsentStore ?? createCustomerLocationConsentStore();
+  }
 
   Future<void> _continue() async {
     if (!widget.viewModel.hasCreatedOrder) {
@@ -59,11 +76,35 @@ class _CustomerSummaryPageState extends State<CustomerSummaryPage> {
       return true;
     }
 
+    if (_locationConsentStore.hasGrantedConsent) {
+      final CustomerLocationCapture silentCapture =
+          await _geolocationService.requestCurrentLocation();
+
+      if (!mounted) {
+        return false;
+      }
+
+      if (silentCapture.isGranted) {
+        await widget.viewModel.applyOrderContext(
+          silentCapture.applyTo(widget.viewModel.orderContext),
+        );
+        return mounted;
+      }
+
+      if (silentCapture.status == CustomerLocationStatus.denied) {
+        _locationConsentStore.clearGrantedConsent();
+      } else {
+        // Consent is already known. A temporary location failure must not
+        // force the customer through the explanatory popup again.
+        return true;
+      }
+    }
+
     final CustomerLocationCapture? capture =
         await showCustomerLocationConsentDialog(
           context: context,
           moment: CustomerLocationPromptMoment.beforePayment,
-          geolocationService: widget.geolocationService,
+          geolocationService: _geolocationService,
         );
 
     if (!mounted) {
@@ -71,6 +112,9 @@ class _CustomerSummaryPageState extends State<CustomerSummaryPage> {
     }
 
     if (capture != null) {
+      if (capture.isGranted) {
+        _locationConsentStore.markGrantedConsent();
+      }
       await widget.viewModel.applyOrderContext(
         capture.applyTo(widget.viewModel.orderContext),
       );

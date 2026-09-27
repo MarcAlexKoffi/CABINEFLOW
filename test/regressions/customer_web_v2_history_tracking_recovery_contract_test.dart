@@ -94,6 +94,53 @@ void main() {
       expect(cutover, contains('No Firestore Rules deployment is required'));
     });
 
+    test('historique client est canonique Supabase avec fallback Firestore', () {
+      final String historyRepository = File(
+        'lib/features/customer_order/data/repositories/supabase_customer_order_history_repository.dart',
+      ).readAsStringSync();
+      final String orderRepository = File(
+        'lib/features/customer_order/data/repositories/firestore_customer_order_repository.dart',
+      ).readAsStringSync();
+      final String migration = File(
+        'supabase/migrations/20260927104201_wc2_customer_history_and_recovery_access_tracking.sql',
+      ).readAsStringSync();
+
+      expect(
+        historyRepository,
+        contains('izytel_wc2_customer_order_history'),
+      );
+      expect(
+        orderRepository,
+        contains('SupabaseCustomerOrderHistoryRepository'),
+      );
+      expect(orderRepository, contains('_mergeCustomerHistoryReceipt'));
+      expect(
+        orderRepository,
+        contains("'CustomerOrder.supabase-history'"),
+      );
+      expect(
+        orderRepository,
+        isNot(contains('unawaited(_registerSupabaseRecoverySafely(order));')),
+      );
+      expect(orderRepository, contains("data['offerId']"));
+      expect(orderRepository, contains("data['isCustomOffer']"));
+      expect(orderRepository, contains("data['operationType']"));
+      expect(orderRepository, contains('offer: restoredOffer'));
+
+      expect(migration, contains('customer_order_recovery_access'));
+      expect(migration, contains('r.owner_firebase_uid = v_uid'));
+      expect(migration, contains('a.customer_firebase_uid = v_uid'));
+      expect(migration, contains('izytel_wc2_customer_order_status'));
+      expect(
+        migration,
+        contains('grant execute on function public.izytel_wc2_customer_order_history()'),
+      );
+      expect(
+        migration,
+        contains('to authenticated, service_role'),
+      );
+    });
+
     test('le parcours direct reste explicitement protege', () {
       final String flow = File(
         'lib/features/customer_order/presentation/pages/customer_order_flow_page.dart',

@@ -538,7 +538,7 @@ class _HistoryEmpty extends StatelessWidget {
           : Icons.receipt_long_outlined,
       title: hasSearchOrFilter
           ? 'Aucune commande correspondante'
-          : 'Aucune commande enregistrée',
+          : 'Aucune commande pour le moment',
       message: hasSearchOrFilter
           ? 'Modifiez votre recherche ou retirez les filtres appliqués.'
           : 'Vos commandes apparaîtront ici après leur création.',

@@ -249,7 +249,17 @@ class CustomerOrderViewModel extends ChangeNotifier {
   }
 
   void resumeOrder(CustomerOrderReceipt order) {
-    _applyResumedOrder(order, rememberLocally: true);
+    if (order.draft.identity == null) {
+      // Une entree provenant uniquement de l'historique Supabase ne contient
+      // pas les donnees d'identite du client. Elle reste consultable en suivi,
+      // mais ne doit pas rouvrir le formulaire de paiement qui exige l'identite.
+      _applyRecoveredOrder(
+        order,
+        rememberLocally: order.recoveryCode != null,
+      );
+    } else {
+      _applyResumedOrder(order, rememberLocally: true);
+    }
     notifyListeners();
   }
 
@@ -271,7 +281,11 @@ class CustomerOrderViewModel extends ChangeNotifier {
             order.recoveryCode == null && session.hasRecoveryCode
             ? order.copyWith(recoveryCode: session.recoveryCode)
             : order;
-        _applyResumedOrder(resumable, rememberLocally: false);
+        if (resumable.draft.identity == null) {
+          _applyRecoveredOrder(resumable, rememberLocally: false);
+        } else {
+          _applyResumedOrder(resumable, rememberLocally: false);
+        }
         return;
       }
     }
