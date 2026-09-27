@@ -1,0 +1,83 @@
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  String read(String path) => File(path).readAsStringSync();
+  String compact(String value) => value.replaceAll(RegExp(r'\s+'), ' ');
+
+  test('M4 Manager lit les finances via des dépôts Supabase dédiés', () {
+    final String financeRepo = read(
+      'lib/features/finances/data/repositories/manager_read_only_finance_operations_repository.dart',
+    );
+    final String commissionRepo = read(
+      'lib/features/commissions/data/repositories/manager_read_only_commission_repository.dart',
+    );
+
+    expect(financeRepo, contains('SupabasePhase5FinanceRepository'));
+    expect(financeRepo, contains('SupabaseSupplierRegistryRepository'));
+    expect(financeRepo, contains('watchSupplierAccounts'));
+    expect(financeRepo, contains('watchSupplierRecharges'));
+    expect(financeRepo, contains('watchSupplierPayments'));
+    expect(financeRepo, contains('Cette opération financière reste réservée'));
+    expect(financeRepo, isNot(contains('FirebaseFirestore')));
+
+    expect(commissionRepo, contains('SupabasePhase5FinanceRepository'));
+    expect(commissionRepo, contains('watchCommissionAccounts'));
+    expect(commissionRepo, contains('watchCommissionPayouts'));
+    expect(commissionRepo, contains('Le versement des commissions reste réservé'));
+    expect(commissionRepo, isNot(contains('FirestoreCommissionRepository')));
+  });
+
+  test('FinancesPage sépare strictement Manager et Admin', () {
+    final String page = compact(
+      read('lib/features/finances/presentation/pages/finances_page.dart'),
+    );
+
+    expect(page, contains('if (widget.user.isManager) { return _buildManagerOperationalFinance(context); }'));
+    expect(page, contains('ManagerReadOnlyFinanceOperationsRepository()'));
+    expect(page, contains('ManagerReadOnlyCommissionRepository()'));
+    expect(page, contains("title: 'Finances de ma zone'"));
+    expect(page, contains("badge: 'Lecture'"));
+    expect(page, contains("badge: 'Gestion zone'"));
+    expect(page, contains('caisse Wave, crédits clients, dépenses et clôture'));
+    expect(page, contains('restent réservés à l’Administrateur'));
+    expect(page, contains('createOperationalRefundRepository()'));
+    expect(page, isNot(contains('FirestoreRefundRepository()')));
+  });
+
+  test('écrans Fournisseurs et Commissions neutralisent les écritures Manager', () {
+    final String suppliers = compact(
+      read('lib/features/finances/presentation/pages/supplier_finance_page.dart'),
+    );
+    final String performance = compact(
+      read('lib/features/commissions/presentation/pages/agent_performance_page.dart'),
+    );
+
+    expect(suppliers, contains('bool get _canManageSuppliers'));
+    expect(suppliers, contains('widget.user.permissions.canManageFinanceSettings || widget.user.isManager'));
+    expect(suppliers, contains('bool get _canPaySuppliers'));
+    expect(suppliers, contains('if (_canPaySuppliers)'));
+    expect(suppliers, contains('Le règlement financier du fournisseur reste réservé'));
+    expect(performance, contains('widget.user.permissions.canManageFinanceSettings'));
+  });
+
+  test('Espace Manager garde le pilotage mais n expose plus les finances', () {
+    final String more = compact(
+      read('lib/features/more/presentation/pages/more_page.dart'),
+    );
+    final String shell = compact(
+      read('lib/features/navigation/presentation/pages/main_shell_page.dart'),
+    );
+    final int start = more.indexOf('Widget _buildManager');
+    final int end = more.indexOf('void _historyUnavailable', start);
+    final String managerBlock = more.substring(start, end);
+
+    expect(managerBlock, contains("title: 'Pilotage opérationnel'"));
+    expect(managerBlock, contains('ManagerPilotagePage('));
+    expect(managerBlock, isNot(contains("title: 'Finances opérationnelles'")));
+    expect(managerBlock, isNot(contains('FinancesPage(')));
+    expect(shell, contains('widget.user.isManager ? AgentManagementPage('));
+    expect(shell, contains('commissionRepository: widget.commissionRepository'));
+  });
+}

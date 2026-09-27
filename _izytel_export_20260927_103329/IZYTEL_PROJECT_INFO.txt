@@ -1,0 +1,22 @@
+﻿IZYTEL - PACKAGE DE DIAGNOSTIC
+Generation : 09/27/2026 10:33:33
+
+Projet source :
+C:\Users\koffi\Documents\PROJETS FLUTTER\cabine_flow
+
+Objectif actuel :
+- Corriger l'historique des commandes cote client
+- Corriger les conflits de recuperation de commande
+- Verifier le flux Supabase / Flutter
+- Raccourcir la popup de localisation
+- Preserver tous les flux deja valides
+- Ne pas effectuer de refactoring collateral
+
+Commande Flutter :
+Flutter 3.44.8 ÔÇó channel stable ÔÇó https://github.com/flutter/flutter.git
+Framework ÔÇó revision 058e0af2c2 (9 weeks ago) ÔÇó 2026-07-23 10:56:21 -0700
+Engine ÔÇó hash 13ffd72b2f9a5ca4db2a74ea52d5353ec2e8f939 (revision 0cd610717b) (2 months ago) ÔÇó 2026-07-23 16:11:34.000Z
+Tools ÔÇó Dart 3.12.2 ÔÇó DevTools 2.57.0
+
+--- FLUTTER ANALYZE ---
+

@@ -1,0 +1,238 @@
+import 'dart:async';
+
+import 'package:cabine_flow/app/app_routes.dart';
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/migrations/legacy_catalog_backfill_service.dart';
+import 'package:cabine_flow/features/agents/data/repositories/fake_agent_repository.dart';
+import 'package:cabine_flow/features/agents/data/repositories/firestore_agent_repository.dart';
+import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
+import 'package:cabine_flow/core/services/wave_payment_link_builder.dart';
+import 'package:cabine_flow/core/theme/app_theme.dart';
+import 'package:cabine_flow/features/auth/data/repositories/fake_auth_repository.dart';
+import 'package:cabine_flow/features/auth/data/repositories/firebase_auth_repository.dart';
+import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
+import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
+import 'package:cabine_flow/features/auth/presentation/pages/login_page.dart';
+import 'package:cabine_flow/features/auth/presentation/pages/pending_account_page.dart';
+import 'package:cabine_flow/features/dashboard/data/repositories/fake_dashboard_repository.dart';
+import 'package:cabine_flow/features/commissions/data/repositories/fake_commission_repository.dart';
+import 'package:cabine_flow/features/commissions/data/repositories/firestore_commission_repository.dart';
+import 'package:cabine_flow/features/commissions/data/repositories/hybrid_commission_repository.dart';
+import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
+import 'package:cabine_flow/features/dashboard/data/repositories/firestore_dashboard_repository.dart';
+import 'package:cabine_flow/features/dashboard/data/repositories/hybrid_dashboard_repository.dart';
+import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_repository.dart';
+import 'package:cabine_flow/features/navigation/presentation/pages/main_shell_page.dart';
+import 'package:cabine_flow/features/offers/data/repositories/fake_admin_offer_repository.dart';
+import 'package:cabine_flow/features/offers/data/repositories/firestore_admin_offer_repository.dart';
+import 'package:cabine_flow/features/offers/data/repositories/supabase_admin_offer_repository.dart';
+import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
+import 'package:cabine_flow/features/orders/data/repositories/fake_offer_catalog_repository.dart';
+import 'package:cabine_flow/features/orders/data/repositories/firestore_offer_catalog_repository.dart';
+import 'package:cabine_flow/features/orders/data/repositories/supabase_offer_catalog_repository.dart';
+import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
+import 'package:cabine_flow/features/orders/data/repositories/firestore_orders_repository.dart';
+import 'package:cabine_flow/features/orders/data/repositories/hybrid_orders_repository.dart';
+import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/offer_catalog_repository.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/features/payments/data/repositories/wave_payment_link_repository.dart';
+import 'package:cabine_flow/features/splash/presentation/pages/splash_page.dart';
+import 'package:cabine_flow/features/payments/domain/repositories/payment_link_repository.dart';
+import 'package:cabine_flow/features/partners/data/repositories/supabase_partner_order_repository.dart';
+import 'package:cabine_flow/features/partners/presentation/pages/partner_shell_page.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
+
+class CabineFlowApp extends StatelessWidget {
+  const CabineFlowApp({
+    super.key,
+    this.authRepository,
+    this.dashboardRepository,
+    this.ordersRepository,
+    this.offerCatalogRepository,
+    this.adminOfferRepository,
+    this.paymentLinkRepository,
+    this.agentRepository,
+    this.commissionRepository,
+  });
+
+  final AuthRepository? authRepository;
+  final DashboardRepository? dashboardRepository;
+  final OrdersRepository? ordersRepository;
+  final OfferCatalogRepository? offerCatalogRepository;
+  final AdminOfferRepository? adminOfferRepository;
+  final PaymentLinkRepository? paymentLinkRepository;
+  final AgentRepository? agentRepository;
+  final CommissionRepository? commissionRepository;
+
+  Route<dynamic> _createRecoveryRoute(AuthRepository authRepository) {
+    // Une ouverture depuis une notification peut restaurer un nom de route
+    // Android sans les arguments Flutter attendus. Ne jamais laisser
+    // l'utilisateur sur une page morte : on repasse par le Splash qui restaure
+    // la session, puis le payload FCM en attente est consomme par MainShell.
+    IzyTelLog.debug('[Navigation][route-recovery]');
+    return MaterialPageRoute<void>(
+      settings: const RouteSettings(name: AppRoutes.splash),
+      builder: (BuildContext context) {
+        return SplashPage(authRepository: authRepository);
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isFirebaseInitialized = Firebase.apps.isNotEmpty;
+
+    final AuthRepository effectiveAuthRepository =
+        authRepository ??
+        (isFirebaseInitialized
+            ? FirebaseAuthRepository()
+            : FakeAuthRepository());
+
+    final DashboardRepository effectiveDashboardRepository =
+        dashboardRepository ??
+        (isFirebaseInitialized
+            ? SupabaseBootstrap.isInitialized
+                  ? HybridDashboardRepository()
+                  : FirestoreDashboardRepository()
+            : const FakeDashboardRepository());
+
+    final OrdersRepository effectiveOrdersRepository =
+        ordersRepository ??
+        (isFirebaseInitialized
+            ? SupabaseBootstrap.isInitialized
+                  ? HybridOrdersRepository()
+                  : FirestoreOrdersRepository()
+            : FakeOrdersRepository());
+
+    final OfferCatalogRepository effectiveOfferCatalogRepository =
+        offerCatalogRepository ??
+        (isFirebaseInitialized
+            ? SupabaseBootstrap.isInitialized
+                  ? SupabaseOfferCatalogRepository()
+                  : FirestoreOfferCatalogRepository()
+            : const FakeOfferCatalogRepository());
+
+    final AdminOfferRepository effectiveAdminOfferRepository =
+        adminOfferRepository ??
+        (isFirebaseInitialized
+            ? SupabaseBootstrap.isInitialized
+                  ? SupabaseAdminOfferRepository()
+                  : FirestoreAdminOfferRepository()
+            : FakeAdminOfferRepository());
+
+    final PaymentLinkRepository effectivePaymentLinkRepository =
+        paymentLinkRepository ??
+        const WavePaymentLinkRepository(linkBuilder: WavePaymentLinkBuilder());
+
+    final AgentRepository effectiveAgentRepository =
+        agentRepository ??
+        (isFirebaseInitialized
+            ? FirestoreAgentRepository()
+            : FakeAgentRepository());
+
+    final CommissionRepository effectiveCommissionRepository =
+        commissionRepository ??
+        (isFirebaseInitialized
+            ? SupabaseBootstrap.isInitialized
+                  ? HybridCommissionRepository()
+                  : FirestoreCommissionRepository()
+            : FakeCommissionRepository());
+
+    return MaterialApp(
+      title: 'IzyTel',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.light,
+      initialRoute: AppRoutes.splash,
+      onGenerateRoute: (RouteSettings settings) {
+        switch (settings.name) {
+          case AppRoutes.splash:
+            return MaterialPageRoute<void>(
+              settings: settings,
+              builder: (BuildContext context) {
+                return SplashPage(authRepository: effectiveAuthRepository);
+              },
+            );
+
+          case AppRoutes.login:
+            return MaterialPageRoute<void>(
+              settings: settings,
+              builder: (BuildContext context) {
+                return LoginPage(authRepository: effectiveAuthRepository);
+              },
+            );
+
+          case AppRoutes.pendingAccount:
+            final Object? arguments = settings.arguments;
+
+            if (arguments is! AuthLoginResult ||
+                !arguments.requiresAccessScreen) {
+              return _createRecoveryRoute(effectiveAuthRepository);
+            }
+
+            return MaterialPageRoute<void>(
+              settings: settings,
+              builder: (BuildContext context) {
+                return PendingAccountPage(
+                  authRepository: effectiveAuthRepository,
+                  initialResult: arguments,
+                );
+              },
+            );
+
+          case AppRoutes.dashboard:
+            final Object? arguments = settings.arguments;
+
+            if (arguments is! AppUser) {
+              return _createRecoveryRoute(effectiveAuthRepository);
+            }
+
+            if (arguments.role == UserRole.cabiniste) {
+              if (!SupabaseBootstrap.isInitialized) {
+                return _createRecoveryRoute(effectiveAuthRepository);
+              }
+              return MaterialPageRoute<void>(
+                settings: settings,
+                builder: (BuildContext context) {
+                  return PartnerShellPage(
+                    user: arguments,
+                    authRepository: effectiveAuthRepository,
+                    repository: SupabasePartnerOrderRepository(),
+                  );
+                },
+              );
+            }
+
+            if (arguments.role == UserRole.administrator &&
+                SupabaseBootstrap.isInitialized) {
+              unawaited(LegacyCatalogBackfillService().runIfNeeded());
+            }
+
+            return MaterialPageRoute<void>(
+              settings: settings,
+              builder: (BuildContext context) {
+                return MainShellPage(
+                  user: arguments,
+                  authRepository: effectiveAuthRepository,
+                  dashboardRepository: effectiveDashboardRepository,
+                  ordersRepository: effectiveOrdersRepository,
+                  offerCatalogRepository: effectiveOfferCatalogRepository,
+                  adminOfferRepository: effectiveAdminOfferRepository,
+                  paymentLinkRepository: effectivePaymentLinkRepository,
+                  agentRepository: effectiveAgentRepository,
+                  commissionRepository: effectiveCommissionRepository,
+                );
+              },
+            );
+
+          default:
+            return _createRecoveryRoute(effectiveAuthRepository);
+        }
+      },
+    );
+  }
+}

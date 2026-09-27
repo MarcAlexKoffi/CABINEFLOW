@@ -1,0 +1,66 @@
+import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
+
+abstract class AgentRepository {
+  Stream<List<AgentDirectoryEntry>> watchAgents();
+
+  Stream<AgentProfile?> watchAgentProfile(String agentId);
+
+  Stream<AgentPersonalProfile?> watchPersonalProfile(String agentId);
+
+  Future<void> saveOwnPersonalProfile({
+    required String agentId,
+    required AgentPersonalProfileDraft draft,
+    AgentProfileFileUpload? avatar,
+    AgentProfileFileUpload? identityDocument,
+  });
+
+  Future<String?> resolvePersonalFileUrl(String storagePath);
+
+  Stream<List<AgentZone>> watchZones();
+
+  Stream<List<AgentIssue>> watchAgentIssues(String agentId);
+
+  Stream<List<AgentIssue>> watchAllAgentIssues();
+
+  Future<List<StaffAccountSummary>> loadPendingAccounts();
+
+  Future<void> activatePendingAccountAsAgent({
+    required StaffAccountSummary account,
+  });
+
+  Future<void> saveAgentAdmin({
+    required AgentDirectoryEntry agent,
+    required AgentAdminUpdate update,
+  });
+
+  Future<void> updateOwnOperations({
+    required String agentId,
+    required AgentOperationalUpdate update,
+  });
+
+  /// Ajustement de capacité d'un Agent par son Manager de zone.
+  /// Le backend Supabase vérifie strictement le périmètre territorial.
+  Future<void> adjustManagedAgentCapacity({
+    required String agentId,
+    required AgentNetwork network,
+    required int targetCapacity,
+    String? reason,
+  });
+
+  Future<String> createZone({
+    required String name,
+    required String city,
+    required String region,
+  });
+
+  Future<void> createIssue({
+    required String agentId,
+    required AgentIssueDraft issue,
+  });
+
+  Future<void> updateIssueStatus({
+    required String issueId,
+    required String status,
+    String? resolvedBy,
+  });
+}
