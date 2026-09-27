@@ -44,6 +44,7 @@ class SupabaseCustomerOrderRecoveryRepository {
         'p_payload': <String, dynamic>{
           'order_id': order.id.trim(),
           'order_reference': normalizedReference,
+          'client_name': draft.identity?.name.trim() ?? 'Client',
           'service': draft.service!.name,
           'network': draft.network!.name,
           'operation_type': _operationTypeValue(draft),

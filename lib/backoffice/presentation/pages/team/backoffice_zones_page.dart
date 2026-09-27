@@ -384,6 +384,8 @@ class _BackofficeZonesPageState extends State<BackofficeZonesPage> {
                     Text(zone.name, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
                     const SizedBox(height: 2),
                     Text(<String>[zone.city, zone.region].where((String value) => value.trim().isNotEmpty).join(' • ')),
+                    const SizedBox(height: 2),
+                    Text('${zone.coverageRadiusKm.toStringAsFixed(0)} km de couverture${zone.isCentralFallback ? ' • Centre de repli' : ''}', style: Theme.of(context).textTheme.bodySmall),
                   ],
                 ),
               ),
@@ -641,8 +643,10 @@ class _BackofficeZonesPageState extends State<BackofficeZonesPage> {
     final TextEditingController region = TextEditingController(text: zone?.region ?? '');
     final TextEditingController latitude = TextEditingController(text: zone?.latitude?.toStringAsFixed(6) ?? '');
     final TextEditingController longitude = TextEditingController(text: zone?.longitude?.toStringAsFixed(6) ?? '');
+    final TextEditingController coverageRadius = TextEditingController(text: (zone?.coverageRadiusKm ?? 50).toStringAsFixed(0));
     String selectedManagerId = zone?.managerId ?? '';
     bool active = zone?.isActive ?? true;
+    bool centralFallback = zone?.isCentralFallback ?? false;
     bool saving = false;
     double? lat = zone?.latitude;
     double? lng = zone?.longitude;
@@ -715,8 +719,27 @@ class _BackofficeZonesPageState extends State<BackofficeZonesPage> {
                         label: const Text('Retirer la position'),
                       ),
                     ], breakpoint: 760),
+                    const SizedBox(height: 12),
+                    _adaptiveFields(<Widget>[
+                      TextField(
+                        controller: coverageRadius,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: 'Rayon de couverture (km)',
+                          helperText: 'Une position hors de ce rayon ne sera pas rattachée à cette zone.',
+                          floatingLabelBehavior: FloatingLabelBehavior.always,
+                        ),
+                      ),
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Centre de repli national'),
+                        subtitle: const Text('À utiliser uniquement quand aucune zone territoriale ne couvre la position.'),
+                        value: centralFallback,
+                        onChanged: (bool value) => setDialogState(() => centralFallback = value),
+                      ),
+                    ], breakpoint: 760),
                     const SizedBox(height: 10),
-                    Text('Clique sur la carte pour positionner précisément la zone.', style: Theme.of(context).textTheme.bodySmall),
+                    Text('Clique sur la carte pour positionner précisément le centre de la zone.', style: Theme.of(context).textTheme.bodySmall),
                     const SizedBox(height: 8),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(14),
@@ -785,6 +808,7 @@ class _BackofficeZonesPageState extends State<BackofficeZonesPage> {
                         final String cleanName = name.text.trim();
                         final double? parsedLat = latitude.text.trim().isEmpty ? null : double.tryParse(latitude.text.trim().replaceAll(',', '.'));
                         final double? parsedLng = longitude.text.trim().isEmpty ? null : double.tryParse(longitude.text.trim().replaceAll(',', '.'));
+                        final double? parsedRadius = double.tryParse(coverageRadius.text.trim().replaceAll(',', '.'));
                         if (cleanName.length < 2) {
                           IzyTelFeedback.error(dialogContext, 'Renseigne le nom de la zone.');
                           return;
@@ -797,6 +821,14 @@ class _BackofficeZonesPageState extends State<BackofficeZonesPage> {
                           IzyTelFeedback.error(dialogContext, 'Les coordonnées saisies sont invalides.');
                           return;
                         }
+                        if (parsedRadius == null || parsedRadius <= 0 || parsedRadius > 250) {
+                          IzyTelFeedback.error(dialogContext, 'Le rayon de couverture doit être compris entre 0 et 250 km.');
+                          return;
+                        }
+                        if (centralFallback && city.text.trim().toLowerCase() != 'abidjan') {
+                          IzyTelFeedback.error(dialogContext, 'Le centre de repli national doit être une zone d’Abidjan.');
+                          return;
+                        }
                         setDialogState(() => saving = true);
                         final TerritoryZoneDraft draft = TerritoryZoneDraft(
                           name: cleanName,
@@ -805,6 +837,8 @@ class _BackofficeZonesPageState extends State<BackofficeZonesPage> {
                           latitude: parsedLat,
                           longitude: parsedLng,
                           managerId: selectedManagerId.isEmpty ? null : selectedManagerId,
+                          coverageRadiusKm: parsedRadius,
+                          isCentralFallback: centralFallback,
                           isActive: active,
                         );
                         try {
@@ -836,6 +870,7 @@ class _BackofficeZonesPageState extends State<BackofficeZonesPage> {
     region.dispose();
     latitude.dispose();
     longitude.dispose();
+    coverageRadius.dispose();
   }
 
   Widget _zoneAuditHistory(String zoneId) {

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:cabine_flow/backoffice/data/repositories/supabase_backoffice_case_pagination_repository.dart';
-import 'package:cabine_flow/backoffice/presentation/services/backoffice_whatsapp_service.dart';
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
 import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_order_widgets.dart';
 import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_pagination.dart';
@@ -10,6 +9,7 @@ import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
+import 'package:cabine_flow/features/messaging/data/services/customer_messaging_delivery_service.dart';
 import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
@@ -145,7 +145,7 @@ class _BackofficeSupportRequestsPageState
               eyebrow: 'Clients / Assistance',
               title: 'Centre des demandes clients',
               description: widget.user.permissions.canProcessSupportRequests
-                  ? 'Traite chaque demande jusqu’à son issue réelle : résolution simple ou remboursement lié, avec notification WhatsApp vérifiable.'
+                  ? 'Traite chaque demande jusqu’à son issue réelle : résolution simple ou remboursement lié, avec notification dans la messagerie IzyTel.'
                   : 'Supervise les demandes clients, leurs remboursements liés et leur avancement en lecture seule.',
               icon: Symbols.support_agent_rounded,
             ),
@@ -455,7 +455,7 @@ class _BackofficeSupportRequestsPageState
                     refund != null
                         ? 'Remboursement • ${refund.status.label}'
                         : request.customerWasNotified
-                        ? 'Client notifié sur WhatsApp'
+                        ? 'Client notifié dans la messagerie IzyTel'
                         : 'Aucun remboursement lié',
                   ),
                 ),
@@ -590,7 +590,7 @@ class _BackofficeSupportRequestsPageState
         if (!request.customerWasNotified) {
           return FilledButton(
             onPressed: _submitting ? null : () => _notifyCustomer(request),
-            child: const Text('WhatsApp'),
+            child: const Text('Messagerie'),
           );
         }
         return OutlinedButton(
@@ -634,7 +634,7 @@ class _BackofficeSupportRequestsPageState
         resolutionNote: note,
       ),
       successMessage:
-          'La demande est résolue. Vous pouvez maintenant notifier le client sur WhatsApp.',
+          'La demande est résolue. Vous pouvez maintenant notifier le client dans la messagerie IzyTel.',
     );
   }
 
@@ -660,7 +660,7 @@ class _BackofficeSupportRequestsPageState
           supportRequestDescription: request.description,
           customerAuthUid: request.customerAuthUid,
           clientName: order.clientName,
-          clientWhatsappPhone: order.clientWhatsappPhone,
+          clientWhatsappPhone: '',
           originalAmount: order.amount,
           amount: draft.amount,
           reason: draft.reason,
@@ -697,29 +697,26 @@ class _BackofficeSupportRequestsPageState
     final String message = resolution.isEmpty
         ? 'Bonjour ${order.clientName}, votre demande concernant la commande ${request.orderReference} a été traitée par IzyTel.'
         : 'Bonjour ${order.clientName}, votre demande concernant la commande ${request.orderReference} a été traitée par IzyTel. Réponse : $resolution';
-    final bool opened = await BackofficeWhatsAppService.openMessage(
-      phone: order.clientWhatsappPhone,
-      message: message,
-    );
-    if (!mounted) return;
-    if (!opened) {
-      _showMessage('Impossible d’ouvrir WhatsApp pour ce client.');
+
+    try {
+      await CustomerMessagingDeliveryService().notifyOrder(
+        orderId: order.id,
+        orderReference: order.reference,
+        message: message,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage('Impossible d’envoyer le message au client : $error');
       return;
     }
-    final bool confirmed = await _confirm(
-      title: 'Message WhatsApp réellement envoyé ?',
-      message:
-          'IzyTel ne marquera le client comme notifié qu’après votre confirmation.',
-      confirmLabel: 'Oui, envoyé',
-    );
-    if (!confirmed) return;
+
     await _runAction(
       () => widget.repository.markCustomerNotified(
         requestId: request.id,
         staffId: widget.user.id,
         staffName: widget.user.name,
       ),
-      successMessage: 'Notification WhatsApp tracée dans le dossier.',
+      successMessage: 'Notification envoyée dans la messagerie IzyTel.',
     );
   }
 
@@ -1052,8 +1049,7 @@ class _BackofficeSupportRequestsPageState
                 if (order != null) ...<Widget>[
                   const Divider(height: 28),
                   _detail('Client', order.clientName),
-                  _detail('WhatsApp', order.clientWhatsappPhone),
-                  _detail('Montant commande', formatCfa(order.amount)),
+                                    _detail('Montant commande', formatCfa(order.amount)),
                   _detail('Paiement', _paymentStatusLabel(order.paymentStatus)),
                 ],
                 if (request.resolutionNote != null)
@@ -1136,7 +1132,7 @@ class _BackofficeSupportRequestsPageState
                 _notifyCustomer(request);
               },
               icon: const Icon(Symbols.chat_rounded),
-              label: const Text('Notifier sur WhatsApp'),
+              label: const Text('Notifier dans la messagerie'),
             ),
           if (canManage &&
               request.status == SupportRequestStatus.resolved &&

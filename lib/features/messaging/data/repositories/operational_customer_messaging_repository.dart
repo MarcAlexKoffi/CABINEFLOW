@@ -39,6 +39,10 @@ class _UnavailableCustomerMessagingRepository
   Future<CustomerConversation> createConversation({
     String? orderId,
     String? orderReference,
+    String? customerName,
+    String? locationStatus,
+    double? latitude,
+    double? longitude,
     required String message,
   }) => Future<CustomerConversation>.error(_error);
 

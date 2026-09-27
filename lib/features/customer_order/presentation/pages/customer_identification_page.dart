@@ -2,15 +2,12 @@ import 'package:cabine_flow/core/theme/customer_app_colors.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_identity.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
-import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_flow_scaffold.dart';
-import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_support_button.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_cards.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_inputs.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 class CustomerIdentificationPage extends StatefulWidget {
   const CustomerIdentificationPage({
@@ -18,6 +15,7 @@ class CustomerIdentificationPage extends StatefulWidget {
     required this.viewModel,
     required this.onOpenHistory,
     required this.onOpenRecovery,
+    required this.onOpenMessaging,
     required this.onResumeOrder,
     required this.onBackToHome,
   });
@@ -25,6 +23,7 @@ class CustomerIdentificationPage extends StatefulWidget {
   final CustomerOrderViewModel viewModel;
   final VoidCallback onOpenHistory;
   final VoidCallback onOpenRecovery;
+  final VoidCallback onOpenMessaging;
   final ValueChanged<CustomerOrderReceipt> onResumeOrder;
   final VoidCallback onBackToHome;
 
@@ -39,7 +38,6 @@ class _CustomerIdentificationPageState
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   late final TextEditingController _nameController;
-  late final TextEditingController _whatsappController;
 
   @override
   void initState() {
@@ -48,16 +46,11 @@ class _CustomerIdentificationPageState
     final CustomerIdentity? identity = widget.viewModel.draft.identity;
 
     _nameController = TextEditingController(text: identity?.name ?? '');
-
-    _whatsappController = TextEditingController(
-      text: identity?.whatsappNumber.displayValue ?? '',
-    );
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    _whatsappController.dispose();
     super.dispose();
   }
 
@@ -88,10 +81,7 @@ class _CustomerIdentificationPageState
       return;
     }
 
-    widget.viewModel.saveIdentity(
-      name: _nameController.text,
-      whatsappInput: _whatsappController.text,
-    );
+    widget.viewModel.saveIdentity(name: _nameController.text);
   }
 
   @override
@@ -103,13 +93,14 @@ class _CustomerIdentificationPageState
       totalSteps: CustomerOrderViewModel.totalSteps,
       title: 'Vos informations',
       subtitle:
-          'Un nom et votre numéro WhatsApp suffisent. Aucun compte classique à créer.',
+          'Indiquez simplement un nom ou un surnom pour identifier vos commandes.',
       onTopBack: widget.onBackToHome,
       onBottomBack: widget.onBackToHome,
       onContinue: _continue,
       footer: _IdentificationFooter(
         onOpenHistory: widget.onOpenHistory,
         onOpenRecovery: widget.onOpenRecovery,
+        onOpenMessaging: widget.onOpenMessaging,
         hasHistory: widget.viewModel.customerOrders.isNotEmpty,
       ),
       content: Column(
@@ -136,30 +127,13 @@ class _CustomerIdentificationPageState
                   const _FieldLabel(text: 'Nom ou surnom'),
                   IzyTelTextInput(
                     controller: _nameController,
-                    textInputAction: TextInputAction.next,
+                    textInputAction: TextInputAction.done,
                     textCapitalization: TextCapitalization.words,
                     autofillHints: const [AutofillHints.name],
-                    hintText: 'Ex. Jean Dupont',
+                    hintText: 'Signo Serge',
                     prefixIcon: Icons.person_outline_rounded,
                     validator: _validateName,
-                  ),
-                  const SizedBox(height: 22),
-                  const _FieldLabel(text: 'Numéro WhatsApp'),
-                  IzyTelTextInput(
-                    controller: _whatsappController,
-                    keyboardType: TextInputType.phone,
-                    textInputAction: TextInputAction.done,
-                    autofillHints: const [AutofillHints.telephoneNumber],
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ()-]')),
-                      LengthLimitingTextInputFormatter(24),
-                    ],
-                    hintText: '+225 07 00 00 00 00',
-                    prefixIcon: Icons.phone_outlined,
-                    validator: WhatsappPhoneNumber.validate,
-                    onFieldSubmitted: (_) {
-                      _continue();
-                    },
+                    onFieldSubmitted: (_) => _continue(),
                   ),
                 ],
               ),
@@ -337,11 +311,13 @@ class _IdentificationFooter extends StatelessWidget {
   const _IdentificationFooter({
     required this.onOpenHistory,
     required this.onOpenRecovery,
+    required this.onOpenMessaging,
     required this.hasHistory,
   });
 
   final VoidCallback onOpenHistory;
   final VoidCallback onOpenRecovery;
+  final VoidCallback onOpenMessaging;
   final bool hasHistory;
 
   @override
@@ -360,8 +336,10 @@ class _IdentificationFooter extends StatelessWidget {
           label: const Text('Retrouver une commande'),
         ),
         const SizedBox(height: 2),
-        const CustomerSupportButton(
-          label: 'Besoin d’aide ? Contacter le service client',
+        TextButton.icon(
+          onPressed: onOpenMessaging,
+          icon: const Icon(Icons.forum_outlined),
+          label: const Text('Besoin d’aide ? Ouvrir la messagerie IzyTel'),
         ),
         const SizedBox(height: 10),
         const _NoAccountMessage(),

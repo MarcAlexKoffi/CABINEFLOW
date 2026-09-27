@@ -6,6 +6,7 @@ import 'package:cabine_flow/features/customer_order/domain/models/customer_ident
 import 'package:cabine_flow/features/customer_order/domain/models/customer_offer.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_context.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/frequent_beneficiary_contact.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_session.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/payment_declaration.dart';
@@ -77,16 +78,13 @@ class CustomerOrderViewModel extends ChangeNotifier {
   String? get historyErrorMessage => _historyErrorMessage;
   bool get isRecoveringOrder => _isRecoveringOrder;
   String? get recoveryErrorMessage => _recoveryErrorMessage;
-  static const int beneficiarySuggestionMinimumOrders = 2;
-
-  List<BeneficiaryPhoneNumber> get suggestedBeneficiaryNumbers {
-    final CustomerIdentity? identity = _draft.identity;
-    final MobileNetwork? network = _draft.network;
-    if (identity == null || network == null) {
-      return const <BeneficiaryPhoneNumber>[];
+  List<FrequentBeneficiaryContact> get suggestedBeneficiaryContacts {
+    if (_draft.identity == null) {
+      return const <FrequentBeneficiaryContact>[];
     }
 
     final Map<String, int> counts = <String, int>{};
+    final Map<String, String> names = <String, String>{};
     final Map<String, BeneficiaryPhoneNumber> numbers =
         <String, BeneficiaryPhoneNumber>{};
     final Map<String, DateTime> lastUsedAt = <String, DateTime>{};
@@ -96,15 +94,17 @@ class CustomerOrderViewModel extends ChangeNotifier {
       final BeneficiaryPhoneNumber? beneficiary = order.draft.beneficiaryNumber;
       if (orderIdentity == null ||
           beneficiary == null ||
-          order.draft.network != network ||
-          orderIdentity.whatsappNumber.normalized !=
-              identity.whatsappNumber.normalized ||
           !_countsForBeneficiarySuggestion(order)) {
         continue;
       }
 
-      final String key = beneficiary.normalized;
+      final String cleanedName = orderIdentity.name
+          .trim()
+          .replaceAll(RegExp(r'\s+'), ' ');
+      if (cleanedName.length < 2) continue;
+      final String key = '${cleanedName.toLowerCase()}|${beneficiary.normalized}';
       counts[key] = (counts[key] ?? 0) + 1;
+      names[key] = cleanedName;
       numbers[key] = beneficiary;
       final DateTime? previousDate = lastUsedAt[key];
       if (previousDate == null || order.createdAt.isAfter(previousDate)) {
@@ -112,23 +112,33 @@ class CustomerOrderViewModel extends ChangeNotifier {
       }
     }
 
-    final List<String> eligible = counts.keys
-        .where(
-          (String key) => counts[key]! >= beneficiarySuggestionMinimumOrders,
-        )
-        .toList(growable: false);
-    eligible.sort((String first, String second) {
+    final List<String> keys = counts.keys.toList(growable: false);
+    keys.sort((String first, String second) {
       final int byCount = counts[second]!.compareTo(counts[first]!);
-      if (byCount != 0) {
-        return byCount;
-      }
+      if (byCount != 0) return byCount;
       return lastUsedAt[second]!.compareTo(lastUsedAt[first]!);
     });
 
-    return List<BeneficiaryPhoneNumber>.unmodifiable(
-      eligible.map((String key) => numbers[key]!).take(3),
+    return List<FrequentBeneficiaryContact>.unmodifiable(
+      keys.take(6).map(
+        (String key) => FrequentBeneficiaryContact(
+          name: names[key]!,
+          phoneNumber: numbers[key]!,
+          usageCount: counts[key]!,
+          lastUsedAt: lastUsedAt[key]!,
+        ),
+      ),
     );
   }
+
+  /// Compatibilite avec les anciens tests/ecrans. Le nouvel ecran utilise les
+  /// contacts frequents (nom + numero), pas une simple liste de numeros.
+  List<BeneficiaryPhoneNumber> get suggestedBeneficiaryNumbers =>
+      List<BeneficiaryPhoneNumber>.unmodifiable(
+        suggestedBeneficiaryContacts.map(
+          (FrequentBeneficiaryContact contact) => contact.phoneNumber,
+        ),
+      );
 
   bool _countsForBeneficiarySuggestion(CustomerOrderReceipt order) {
     if (order.status == QueueOrderStatus.cancelled ||
@@ -429,7 +439,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
       // Toujours rester volontairement neutre : ne jamais révéler si la
       // référence existe avec un autre numéro WhatsApp.
       _recoveryErrorMessage =
-          'Commande introuvable ou informations incorrectes. Vérifiez la référence et le numéro WhatsApp saisis.';
+          'Commande introuvable ou informations incorrectes. Vérifiez la référence et les informations de récupération saisies.';
       return false;
     } finally {
       _isRecoveringOrder = false;
@@ -508,19 +518,23 @@ class CustomerOrderViewModel extends ChangeNotifier {
     }
   }
 
-  void saveIdentity({required String name, required String whatsappInput}) {
-    final WhatsappPhoneNumber whatsappNumber = WhatsappPhoneNumber.parse(
-      whatsappInput,
-    );
-    final String? previousWhatsapp = _draft.identity?.whatsappNumber.normalized;
-    final bool identityChanged =
-        previousWhatsapp != null &&
-        previousWhatsapp != whatsappNumber.normalized;
+  void saveIdentity({required String name, String? whatsappInput}) {
+    // `whatsappInput` reste accepte uniquement pour les anciens tests et les
+    // sessions historiques. Le parcours client actif ne le demande plus.
+    WhatsappPhoneNumber? legacyWhatsapp;
+    final String legacyInput = whatsappInput?.trim() ?? '';
+    if (legacyInput.isNotEmpty) {
+      legacyWhatsapp = WhatsappPhoneNumber.parse(legacyInput);
+    }
+
+    final String normalizedName = name.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final bool identityChanged = _draft.identity != null &&
+        _draft.identity!.name.trim().toLowerCase() != normalizedName.toLowerCase();
 
     _draft = _draft.copyWith(
       identity: CustomerIdentity(
-        name: name.trim(),
-        whatsappNumber: whatsappNumber,
+        name: normalizedName,
+        whatsappNumber: legacyWhatsapp,
       ),
       clearBeneficiaryNumber: identityChanged,
     );
@@ -735,6 +749,22 @@ class CustomerOrderViewModel extends ChangeNotifier {
     }
 
     _currentStep = 5;
+    notifyListeners();
+  }
+
+  void selectSuggestedBeneficiaryContact({
+    required FrequentBeneficiaryContact contact,
+    bool isPortabilityConfirmed = false,
+  }) {
+    final BeneficiaryPhoneNumber beneficiary = contact.phoneNumber;
+    if (!isPortabilityConfirmed &&
+        _draft.network != null &&
+        beneficiary.expectedNetwork != null &&
+        beneficiary.expectedNetwork != _draft.network) {
+      throw const FormatException('PORTABILITY_REQUIRED');
+    }
+
+    _draft = _draft.copyWith(beneficiaryNumber: beneficiary);
     notifyListeners();
   }
 
@@ -1009,7 +1039,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
       orderId: order.id,
       reference: order.reference,
       recoveryCode: order.recoveryCode,
-      whatsappPhone: order.draft.identity?.whatsappNumber.normalized,
+      whatsappPhone: order.draft.identity?.whatsappNumber?.normalized,
     );
 
     _savedSession = session;

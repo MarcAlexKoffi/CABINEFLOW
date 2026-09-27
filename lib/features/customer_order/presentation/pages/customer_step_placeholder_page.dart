@@ -68,10 +68,6 @@ class CustomerStepPlaceholderPage extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             _DraftLine(label: 'Nom', value: identity?.name ?? '—'),
-            _DraftLine(
-              label: 'WhatsApp',
-              value: identity?.whatsappNumber.displayValue ?? '—',
-            ),
             _DraftLine(label: 'Service', value: service?.label ?? '—'),
             _DraftLine(label: 'Réseau', value: _networkLabel(network)),
             _DraftLine(label: 'Offre', value: selectedProduct),

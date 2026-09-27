@@ -46,7 +46,7 @@ void main() {
   test('les écrans opérationnels historiques utilisent la palette claire IzyTel', () {
     const List<String> paths = <String>[
       'lib/features/orders/presentation/pages/create_order_page.dart',
-      'lib/features/orders/presentation/pages/customer_confirmation_page.dart',
+      'lib/features/orders/presentation/pages/orders_page.dart',
       'lib/features/orders/presentation/pages/order_processing_page.dart',
       'lib/features/orders/presentation/widgets/order_display_helpers.dart',
       'lib/features/payments/presentation/pages/send_wave_link_page.dart',

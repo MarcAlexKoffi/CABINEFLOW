@@ -51,6 +51,8 @@ class CustomerConversation {
     required this.updatedAt,
     this.orderId,
     this.orderReference,
+    this.customerName = 'Client',
+    this.zoneId,
     this.assignedManagerUid,
     this.assignedManagerName,
   });
@@ -59,6 +61,8 @@ class CustomerConversation {
   final String customerAuthUid;
   final String? orderId;
   final String? orderReference;
+  final String customerName;
+  final String? zoneId;
   final CustomerConversationStatus status;
   final String? assignedManagerUid;
   final String? assignedManagerName;
@@ -87,6 +91,8 @@ class CustomerConversation {
       customerAuthUid: customerAuthUid,
       orderId: orderId,
       orderReference: orderReference,
+      customerName: customerName,
+      zoneId: zoneId,
       status: status ?? this.status,
       assignedManagerUid: assignedManagerUid ?? this.assignedManagerUid,
       assignedManagerName: assignedManagerName ?? this.assignedManagerName,

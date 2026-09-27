@@ -5,15 +5,18 @@ import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone
 class CustomerProfile {
   const CustomerProfile({
     required this.name,
-    required this.whatsappPhone,
     required this.defaultBeneficiaryPhone,
+    this.whatsappPhone,
   });
 
   final String name;
-  final WhatsappPhoneNumber whatsappPhone;
+  @Deprecated('Compatibilite historique uniquement.')
+  final WhatsappPhoneNumber? whatsappPhone;
   final BeneficiaryPhoneNumber defaultBeneficiaryPhone;
 
   bool matchesIdentity(CustomerIdentity identity) {
-    return whatsappPhone.normalized == identity.whatsappNumber.normalized;
+    final WhatsappPhoneNumber? legacyIdentityPhone = identity.whatsappNumber;
+    return legacyIdentityPhone != null &&
+        whatsappPhone?.normalized == legacyIdentityPhone.normalized;
   }
 }

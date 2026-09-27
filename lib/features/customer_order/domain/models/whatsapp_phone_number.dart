@@ -32,7 +32,7 @@ class WhatsappPhoneNumber {
 
   static String? validate(String? input) {
     if (input == null || input.trim().isEmpty) {
-      return 'Saisissez votre numéro WhatsApp.';
+      return 'Saisissez un numéro de téléphone valide.';
     }
 
     String digits = _digitsOnly(input);

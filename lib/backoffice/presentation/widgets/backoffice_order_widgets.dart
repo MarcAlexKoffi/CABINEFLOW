@@ -928,11 +928,6 @@ Future<void> showBackofficeOrderDetails(
                     icon: Symbols.badge_rounded,
                   ),
                   BackofficeInfoItem(
-                    label: 'WhatsApp client',
-                    value: formatIvorianPhone(order.clientWhatsappPhone),
-                    icon: Symbols.chat_rounded,
-                  ),
-                  BackofficeInfoItem(
                     label: 'Bénéficiaire',
                     value: formatIvorianPhone(order.beneficiaryPhone),
                     icon: Symbols.phone_android_rounded,

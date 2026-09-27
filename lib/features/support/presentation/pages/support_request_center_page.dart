@@ -7,6 +7,7 @@ import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
+import 'package:cabine_flow/features/messaging/data/services/customer_messaging_delivery_service.dart';
 import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
 import 'package:cabine_flow/features/refunds/presentation/pages/refund_management_page.dart';
@@ -18,7 +19,6 @@ import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 enum _SupportInboxTab { newRequests, inProgress, history }
 
@@ -458,12 +458,6 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
                                                   value: order.clientName,
                                                 ),
                                                 _InfoRow(
-                                                  label: 'WhatsApp',
-                                                  value: _formatSupportPhone(
-                                                    order.clientWhatsappPhone,
-                                                  ),
-                                                ),
-                                                _InfoRow(
                                                   label: 'Bénéficiaire',
                                                   value: _formatSupportPhone(
                                                     order.beneficiaryPhone,
@@ -632,7 +626,7 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
                   ? null
                   : () => _notifyCustomer(request, order),
               icon: const Icon(Symbols.chat_rounded),
-              label: const Text('Notifier le client sur WhatsApp'),
+              label: const Text('Notifier dans la messagerie'),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(50),
               ),
@@ -811,54 +805,20 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
   }
 
   Future<void> _notifyCustomer(SupportRequest request, QueueOrder order) async {
-    final String phone = _normalizeWhatsappPhone(order.clientWhatsappPhone);
-    if (phone.isEmpty) {
-      _showMessage('Aucun numéro WhatsApp client n’est disponible.');
-      return;
-    }
-
     final String resolution = request.resolutionNote?.trim() ?? '';
     final String message = resolution.isEmpty
         ? 'Bonjour ${order.clientName}, votre demande concernant la commande ${request.orderReference} a été traitée par IzyTel.'
         : 'Bonjour ${order.clientName}, votre demande concernant la commande ${request.orderReference} a été traitée par IzyTel. Réponse : $resolution';
-    final Uri uri = Uri.https('wa.me', '/$phone', <String, String>{
-      'text': message,
-    });
 
-    final bool opened = await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
-    if (!mounted) {
-      return;
-    }
-    if (!opened) {
-      _showMessage('Impossible d’ouvrir WhatsApp.');
-      return;
-    }
-
-    final bool? sent = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Client notifié ?'),
-          content: const Text(
-            'Confirmez uniquement si le message a réellement été envoyé au client sur WhatsApp.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Pas encore'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Oui, envoyé'),
-            ),
-          ],
-        );
-      },
-    );
-    if (sent != true) {
+    try {
+      await CustomerMessagingDeliveryService().notifyOrder(
+        orderId: order.id,
+        orderReference: order.reference,
+        message: message,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage('Impossible d’envoyer le message au client : $error');
       return;
     }
 
@@ -868,7 +828,7 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
         staffId: widget.user.id,
         staffName: widget.user.name,
       ),
-      successMessage: 'La notification WhatsApp est tracée dans le dossier.',
+      successMessage: 'Le client a été notifié dans la messagerie IzyTel.',
     );
   }
 
@@ -920,16 +880,7 @@ class _SupportRequestDetailPageState extends State<SupportRequestDetailPage> {
     IzyTelFeedback.show(context, message);
   }
 
-  String _normalizeWhatsappPhone(String value) {
-    final String digits = value.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.startsWith('225')) {
-      return digits;
-    }
-    if (digits.startsWith('0')) {
-      return '225$digits';
-    }
-    return digits;
-  }
+
 }
 
 class _CreditRefundInfo extends StatelessWidget {
@@ -1454,7 +1405,7 @@ class _TraceabilityCard extends StatelessWidget {
               icon: Symbols.chat_rounded,
               label: 'Client notifié',
               detail:
-                  '${request.customerNotifiedByName ?? 'Auteur non enregistré'} · WhatsApp · ${_formatDateTime(request.customerNotifiedAt!)}',
+                  '${request.customerNotifiedByName ?? 'Auteur non enregistré'} · Messagerie IzyTel · ${_formatDateTime(request.customerNotifiedAt!)}',
             ),
           if (request.closedAt != null)
             _TraceLine(

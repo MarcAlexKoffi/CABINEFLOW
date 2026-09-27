@@ -3177,7 +3177,6 @@ class FirestoreOrdersRepository
 
   void _validateCreateRequest(CreateOrderRequest request) {
     if (request.clientName.trim().length < 2 ||
-        request.clientWhatsappPhone.trim().isEmpty ||
         request.beneficiaryPhone.trim().isEmpty ||
         request.offerLabel.trim().length < 2 ||
         request.amount <= 0) {

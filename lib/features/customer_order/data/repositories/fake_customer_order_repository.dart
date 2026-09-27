@@ -153,7 +153,7 @@ class FakeCustomerOrderRepository implements CustomerOrderRepository {
 
     for (final CustomerOrderReceipt order in _orders.values) {
       if (order.reference.toUpperCase() == normalizedReference &&
-          order.draft.identity?.whatsappNumber.normalized ==
+          order.draft.identity?.whatsappNumber?.normalized ==
               whatsapp.normalized) {
         return order;
       }

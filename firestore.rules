@@ -3085,7 +3085,7 @@ service cloud.firestore {
         )
         && (
           request.resource.data.get('notificationChannel', null) == null
-          || request.resource.data.get('notificationChannel', null) == 'whatsapp'
+          || request.resource.data.get('notificationChannel', null) in ['whatsapp', 'messaging']
         )
         && (
           request.resource.data.get('closedAt', null) == null
@@ -3210,7 +3210,7 @@ service cloud.firestore {
         && request.resource.data.get('customerNotifiedByName', null) is string
         && request.resource.data.get('customerNotifiedByName', '').size() >= 2
         && request.resource.data.get('customerNotifiedByName', '').size() <= 80
-        && request.resource.data.get('notificationChannel', null) == 'whatsapp'
+        && request.resource.data.get('notificationChannel', null) == 'messaging'
         && request.resource.data.get('closedAt', null) == null
         && request.resource.data.get('closedBy', null) == null
         && request.resource.data.get('closedByName', null) == null;
@@ -3436,7 +3436,7 @@ service cloud.firestore {
         )
         && (
           request.resource.data.get('notificationChannel', null) == null
-          || request.resource.data.get('notificationChannel', null) == 'whatsapp'
+          || request.resource.data.get('notificationChannel', null) in ['whatsapp', 'messaging']
         )
         && (
           request.resource.data.get('reconciledAt', null) == null
@@ -3455,7 +3455,7 @@ service cloud.firestore {
 
     // PHASE 11B FIX V2 - création de remboursement.
     // Les champs dupliqués servant uniquement à l'affichage (nom client,
-    // WhatsApp, description de la demande, référence de paiement) ne doivent
+    // Ancien téléphone client, description de la demande, référence de paiement) ne doivent
     // pas rendre la création impossible à cause d'une normalisation locale
     // (trim, casse, ancienne donnée). La sécurité repose sur les documents
     // canoniques orders + supportRequests, le montant, l'UID client et le rôle
@@ -3584,7 +3584,7 @@ service cloud.firestore {
         && request.resource.data.customerNotifiedByName is string
         && request.resource.data.customerNotifiedByName.size() >= 2
         && request.resource.data.customerNotifiedByName.size() <= 80
-        && request.resource.data.notificationChannel == 'whatsapp';
+        && request.resource.data.notificationChannel == 'messaging';
     }
 
     function isValidRefundReconciliation() {

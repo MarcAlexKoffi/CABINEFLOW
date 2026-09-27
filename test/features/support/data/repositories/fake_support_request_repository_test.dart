@@ -122,7 +122,7 @@ void main() {
   );
 
   test(
-    'trace la notification WhatsApp puis la fermeture sans supprimer la demande',
+    'trace la notification Messagerie puis la fermeture sans supprimer la demande',
     () async {
       final FakeSupportRequestRepository repository =
           FakeSupportRequestRepository();
@@ -160,7 +160,7 @@ void main() {
           (await repository.watchAllRequests().first).single;
       expect(request.status, SupportRequestStatus.closed);
       expect(request.customerNotifiedAt, isNotNull);
-      expect(request.notificationChannel, 'whatsapp');
+      expect(request.notificationChannel, 'messaging');
       expect(request.customerNotifiedBy, 'admin-1');
       expect(request.customerNotifiedByName, 'Marc');
       expect(request.closedAt, isNotNull);

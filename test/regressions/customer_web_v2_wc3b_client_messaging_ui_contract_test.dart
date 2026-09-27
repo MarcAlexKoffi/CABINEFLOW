@@ -33,13 +33,13 @@ void main() {
       expect(help, contains('onTap: onOpenMessaging'));
     });
 
-    test('WhatsApp devient un canal externe complementaire', () {
-      expect(help, contains("title: 'WhatsApp (support externe)'"));
-      expect(help, contains('Canal complémentaire'));
-      expect(
-        home,
-        contains('Écrivez d’abord dans la messagerie IzyTel'),
-      );
+    test('la messagerie IzyTel est le canal opérationnel unique', () {
+      expect(help, contains("title: 'Messagerie IzyTel'"));
+      expect(help, isNot(contains('WhatsApp')));
+      expect(home, contains('messagerie IzyTel'));
+      expect(home, isNot(contains('WhatsApp')));
+      expect(flow, contains('orderContext: _viewModel.orderContext'));
+      expect(flow, contains('customerName: _viewModel.draft.identity?.name'));
       expect(
         help,
         contains('référence et son code de récupération'),

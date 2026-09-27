@@ -1,13 +1,16 @@
 import 'package:cabine_flow/core/services/wave_payment_link_builder.dart';
 import 'package:cabine_flow/core/theme/customer_app_colors.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/beneficiary_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_order_labels.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_progress_indicator.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_cards.dart';
+import 'package:cabine_flow/shared/widgets/design_system/izy_tel_inputs.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class CustomerPaymentPage extends StatefulWidget {
@@ -30,6 +33,23 @@ class CustomerPaymentPage extends StatefulWidget {
 
 class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
   bool _isOpeningWave = false;
+  late final TextEditingController _wavePayerPhoneController;
+
+  @override
+  void initState() {
+    super.initState();
+    final String initialPhone =
+        widget.viewModel.receipt?.paymentDeclaration?.wavePayerPhone.displayValue ??
+        widget.viewModel.draft.beneficiaryNumber?.displayValue ??
+        '';
+    _wavePayerPhoneController = TextEditingController(text: initialPhone);
+  }
+
+  @override
+  void dispose() {
+    _wavePayerPhoneController.dispose();
+    super.dispose();
+  }
 
   Uri get _paymentUri {
     return widget.linkBuilder.build(amount: widget.viewModel.draft.amount!);
@@ -86,13 +106,21 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
 
   Future<void> _confirmPaymentDeclaration() async {
     final CustomerOrderDraft draft = widget.viewModel.draft;
+    final String? phoneError = BeneficiaryPhoneNumber.validate(
+      _wavePayerPhoneController.text,
+      emptyMessage: 'Saisissez le numéro Wave du payeur.',
+    );
+    if (phoneError != null) {
+      _showMessage(phoneError);
+      return;
+    }
     final TimeOfDay now = TimeOfDay.now();
     final String approximatePaymentTime =
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
     final bool successful = await widget.viewModel.declarePayment(
       waveAccountName: draft.identity!.name,
-      wavePayerPhoneInput: draft.identity!.whatsappNumber.displayValue,
+      wavePayerPhoneInput: _wavePayerPhoneController.text,
       approximatePaymentTime: approximatePaymentTime,
     );
 
@@ -161,6 +189,10 @@ class _CustomerPaymentPageState extends State<CustomerPaymentPage> {
                             const _PaymentMethodGrid(),
                             const SizedBox(height: 18),
                             _PaymentSummaryCard(draft: draft),
+                            const SizedBox(height: 16),
+                            _WavePayerPhoneCard(
+                              controller: _wavePayerPhoneController,
+                            ),
                             const SizedBox(height: 16),
                             const _PaymentSecurityCard(),
                             const SizedBox(height: 20),
@@ -456,6 +488,53 @@ class _PaymentMethodCard extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _WavePayerPhoneCard extends StatelessWidget {
+  const _WavePayerPhoneCard({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return IzyTelCard(
+      showShadow: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          const Text(
+            'Numéro Wave du payeur',
+            style: TextStyle(
+              color: CustomerAppColors.primaryDeep,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Utilisé uniquement pour rapprocher le paiement. Ce numéro n’est pas un canal de contact client.',
+            style: TextStyle(
+              color: CustomerAppColors.onSurfaceVariant,
+              fontSize: 12.5,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 12),
+          IzyTelTextInput(
+            controller: controller,
+            keyboardType: TextInputType.phone,
+            textInputAction: TextInputAction.done,
+            hintText: '+225 07 00 00 00 00',
+            prefixIcon: Icons.account_balance_wallet_outlined,
+            inputFormatters: <TextInputFormatter>[
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ]')),
+              LengthLimitingTextInputFormatter(20),
+            ],
+          ),
+        ],
       ),
     );
   }

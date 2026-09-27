@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cabine_flow/core/theme/customer_app_colors.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/customer_order_context.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_order_labels.dart';
 import 'package:cabine_flow/features/messaging/domain/models/customer_conversation.dart';
@@ -16,6 +17,8 @@ class CustomerMessagingPage extends StatefulWidget {
     super.key,
     required this.repository,
     required this.orders,
+    required this.orderContext,
+    this.customerName,
     required this.onBack,
     required this.onOpenHome,
     required this.onOpenOffers,
@@ -25,6 +28,8 @@ class CustomerMessagingPage extends StatefulWidget {
 
   final CustomerMessagingRepository repository;
   final List<CustomerOrderReceipt> orders;
+  final CustomerOrderContextDraft orderContext;
+  final String? customerName;
   final VoidCallback onBack;
   final VoidCallback onOpenHome;
   final VoidCallback onOpenOffers;
@@ -177,6 +182,10 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
           .createConversation(
             orderId: order?.id,
             orderReference: order?.reference,
+            customerName: widget.customerName,
+            locationStatus: widget.orderContext.locationStatus.name,
+            latitude: widget.orderContext.latitude,
+            longitude: widget.orderContext.longitude,
             message: message,
           );
       if (!mounted) return;

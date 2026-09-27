@@ -56,7 +56,7 @@ class FirestoreCustomerProfileRepository implements CustomerProfileRepository {
         'schemaVersion': 1,
         'customerAuthUid': customer.uid,
         'name': identity.name.trim(),
-        'whatsappPhone': identity.whatsappNumber.normalized,
+        'whatsappPhone': identity.whatsappNumber?.normalized,
         'defaultBeneficiaryPhone': beneficiaryPhone.normalized,
         'updatedAt': FieldValue.serverTimestamp(),
       };
@@ -98,13 +98,18 @@ class FirestoreCustomerProfileRepository implements CustomerProfileRepository {
       throw StateError('Le profil client contient un nom invalide.');
     }
 
-    if (rawWhatsappPhone is! String || rawDefaultBeneficiary is! String) {
+    if (rawDefaultBeneficiary is! String) {
       throw StateError('Le profil client contient un numéro invalide.');
+    }
+
+    WhatsappPhoneNumber? legacyWhatsapp;
+    if (rawWhatsappPhone is String && rawWhatsappPhone.trim().isNotEmpty) {
+      legacyWhatsapp = WhatsappPhoneNumber.parse(rawWhatsappPhone);
     }
 
     return CustomerProfile(
       name: rawName.trim(),
-      whatsappPhone: WhatsappPhoneNumber.parse(rawWhatsappPhone),
+      whatsappPhone: legacyWhatsapp,
       defaultBeneficiaryPhone: BeneficiaryPhoneNumber.parse(
         rawDefaultBeneficiary,
       ),

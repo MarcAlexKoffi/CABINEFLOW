@@ -143,7 +143,7 @@ class SupabaseTerritoryRepository implements TerritoryRepository {
   @override
   Future<TerritoryZone> createZone(TerritoryZoneDraft draft) async {
     final Object? raw = await _client.rpc(
-      'izytel_create_territory_zone',
+      'izytel_wc5_create_territory_zone',
       params: <String, dynamic>{
         'p_name': draft.name.trim(),
         'p_city': draft.city.trim(),
@@ -151,6 +151,8 @@ class SupabaseTerritoryRepository implements TerritoryRepository {
         'p_latitude': draft.latitude,
         'p_longitude': draft.longitude,
         'p_manager_id': _nullable(draft.managerId),
+        'p_coverage_radius_km': draft.coverageRadiusKm,
+        'p_is_central_fallback': draft.isCentralFallback,
         'p_is_active': draft.isActive,
       },
     );
@@ -163,7 +165,7 @@ class SupabaseTerritoryRepository implements TerritoryRepository {
     required TerritoryZoneDraft update,
   }) async {
     final Object? raw = await _client.rpc(
-      'izytel_update_territory_zone',
+      'izytel_wc5_update_territory_zone',
       params: <String, dynamic>{
         'p_zone_id': zone.id,
         'p_name': update.name.trim(),
@@ -172,6 +174,8 @@ class SupabaseTerritoryRepository implements TerritoryRepository {
         'p_latitude': update.latitude,
         'p_longitude': update.longitude,
         'p_manager_id': _nullable(update.managerId),
+        'p_coverage_radius_km': update.coverageRadiusKm,
+        'p_is_central_fallback': update.isCentralFallback,
         'p_is_active': update.isActive,
       },
     );
@@ -278,6 +282,8 @@ class SupabaseTerritoryRepository implements TerritoryRepository {
       latitude: _double(row['latitude']),
       longitude: _double(row['longitude']),
       managerId: _nullableString(row['manager_id']),
+      coverageRadiusKm: _double(row['coverage_radius_km']) ?? 50,
+      isCentralFallback: row['is_central_fallback'] == true,
       isActive: row['is_active'] == true,
       legacyFirestoreId: _nullableString(row['legacy_firestore_id']),
       createdAt: _date(row['created_at']),
@@ -297,6 +303,8 @@ class SupabaseTerritoryRepository implements TerritoryRepository {
           a.latitude != b.latitude ||
           a.longitude != b.longitude ||
           a.managerId != b.managerId ||
+          a.coverageRadiusKm != b.coverageRadiusKm ||
+          a.isCentralFallback != b.isCentralFallback ||
           a.isActive != b.isActive ||
           a.updatedAt != b.updatedAt) {
         return false;

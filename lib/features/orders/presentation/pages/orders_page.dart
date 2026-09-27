@@ -17,7 +17,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/agent_assignment_page.dart';
 import 'package:cabine_flow/features/orders/presentation/navigation/staff_order_navigation.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/order_processing_page.dart';
-import 'package:cabine_flow/features/orders/presentation/pages/customer_confirmation_page.dart';
+import 'package:cabine_flow/features/messaging/data/services/customer_messaging_delivery_service.dart';
 
 class OrdersPage extends StatefulWidget {
   const OrdersPage({
@@ -45,52 +45,50 @@ class _OrdersPageState extends State<OrdersPage> {
   Future<void> _markTransactionSuccessful() async {
     final bool isSuccessful = await _viewModel.markActiveOrderSuccessful();
 
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
     if (!isSuccessful) {
-      final String message =
-          _viewModel.errorMessage ?? 'Impossible de terminer la commande.';
-
-      IzyTelFeedback.error(context, message);
-
+      IzyTelFeedback.error(
+        context,
+        _viewModel.errorMessage ?? 'Impossible de terminer la commande.',
+      );
       return;
     }
 
-    final QueueOrder? confirmationOrder = _viewModel.activeOrder;
+    final QueueOrder? order = _viewModel.activeOrder;
+    if (order == null) return;
 
-    if (confirmationOrder == null) {
-      return;
-    }
-
-    final bool? messageWasSent = await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
-        fullscreenDialog: true,
-        builder: (BuildContext routeContext) {
-          return CustomerConfirmationPage(
-            order: confirmationOrder,
-            onComplete: (bool messageSent) {
-              return _viewModel.completeCustomerConfirmation(
-                messageSent: messageSent,
-              );
-            },
-          );
-        },
-      ),
+    // L'Agent ne contacte jamais directement le client. La clôture passe la
+    // commande à `completed`; le trigger Supabase WC5 publie alors un message
+    // système automatique dans la conversation IzyTel de la bonne zone.
+    final bool completed = await _viewModel.completeCustomerConfirmation(
+      messageSent: true,
     );
-
-    if (!mounted || messageWasSent == null) {
+    if (!mounted) return;
+    if (!completed) {
+      IzyTelFeedback.error(
+        context,
+        'La transaction est réussie, mais la clôture de la commande a échoué.',
+      );
       return;
     }
-
-    final String message = messageWasSent
-        ? 'La commande ${confirmationOrder.reference} est terminée '
-              'et le message client est enregistré comme envoyé.'
-        : 'La commande ${confirmationOrder.reference} est terminée '
-              'sans envoi du message client.';
-
-    IzyTelFeedback.success(context, message);
+    try {
+      await CustomerMessagingDeliveryService().notifyCompletedOrder(
+        orderId: order.id,
+        orderReference: order.reference,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      IzyTelFeedback.error(
+        context,
+        'Commande terminée, mais la notification système IzyTel devra être resynchronisée.',
+      );
+      return;
+    }
+    if (!mounted) return;
+    IzyTelFeedback.success(
+      context,
+      'Commande ${order.reference} terminée. Le client a été notifié automatiquement dans IzyTel.',
+    );
   }
 
   Future<void> _markTransactionFailed(

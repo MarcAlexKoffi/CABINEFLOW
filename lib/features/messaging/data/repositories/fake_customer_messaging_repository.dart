@@ -49,6 +49,10 @@ class FakeCustomerMessagingRepository implements CustomerMessagingRepository {
   Future<CustomerConversation> createConversation({
     String? orderId,
     String? orderReference,
+    String? customerName,
+    String? locationStatus,
+    double? latitude,
+    double? longitude,
     required String message,
   }) async {
     final String body = _message(message);
@@ -59,6 +63,7 @@ class FakeCustomerMessagingRepository implements CustomerMessagingRepository {
       customerAuthUid: customerUid,
       orderId: _nullable(orderId),
       orderReference: _nullable(orderReference)?.toUpperCase(),
+      customerName: _nullable(customerName) ?? 'Client',
       status: CustomerConversationStatus.open,
       lastMessageAt: now,
       lastMessagePreview: body,
@@ -135,6 +140,8 @@ class FakeCustomerMessagingRepository implements CustomerMessagingRepository {
         customerAuthUid: current.customerAuthUid,
         orderId: current.orderId,
         orderReference: current.orderReference,
+        customerName: current.customerName,
+        zoneId: current.zoneId,
         status: CustomerConversationStatus.inProgress,
         assignedManagerUid: managerUid,
         assignedManagerName: managerName,

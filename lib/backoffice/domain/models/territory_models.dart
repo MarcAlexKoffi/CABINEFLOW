@@ -72,6 +72,8 @@ class TerritoryZone {
     this.latitude,
     this.longitude,
     this.managerId,
+    this.coverageRadiusKm = 50,
+    this.isCentralFallback = false,
     this.legacyFirestoreId,
     this.createdAt,
     this.updatedAt,
@@ -84,6 +86,8 @@ class TerritoryZone {
   final double? latitude;
   final double? longitude;
   final String? managerId;
+  final double coverageRadiusKm;
+  final bool isCentralFallback;
   final bool isActive;
   final String? legacyFirestoreId;
   final DateTime? createdAt;
@@ -109,6 +113,8 @@ class TerritoryZoneDraft {
     this.latitude,
     this.longitude,
     this.managerId,
+    this.coverageRadiusKm = 50,
+    this.isCentralFallback = false,
   });
 
   final String name;
@@ -117,6 +123,8 @@ class TerritoryZoneDraft {
   final double? latitude;
   final double? longitude;
   final String? managerId;
+  final double coverageRadiusKm;
+  final bool isCentralFallback;
   final bool isActive;
 }
 

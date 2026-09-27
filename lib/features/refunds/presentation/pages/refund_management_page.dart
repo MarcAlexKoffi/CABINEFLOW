@@ -7,6 +7,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
+import 'package:cabine_flow/features/messaging/data/services/customer_messaging_delivery_service.dart';
 import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
 import 'package:cabine_flow/features/refunds/domain/repositories/refund_repository.dart';
 import 'package:cabine_flow/features/refunds/presentation/widgets/refund_text_input_sheet.dart';
@@ -14,7 +15,6 @@ import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 enum _RefundFilter { all, pending, approved, refunded, reconciled, rejected }
 
@@ -303,7 +303,6 @@ class _RefundManagementPageState extends State<RefundManagementPage> {
           if (query.isEmpty) return true;
           return value.orderReference.toLowerCase().contains(query) ||
               value.clientName.toLowerCase().contains(query) ||
-              value.clientWhatsappPhone.toLowerCase().contains(query) ||
               value.reason.label.toLowerCase().contains(query);
         })
         .toList(growable: false);
@@ -448,12 +447,6 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
                               _InfoRow(
                                 label: 'Client',
                                 value: refund.clientName,
-                              ),
-                              _InfoRow(
-                                label: 'WhatsApp',
-                                value: formatIvorianPhone(
-                                  refund.clientWhatsappPhone,
-                                ),
                               ),
                               _InfoRow(
                                 label: 'Montant initial',
@@ -620,7 +613,7 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
             FilledButton.icon(
               onPressed: order == null ? null : () => _notify(refund, order),
               icon: const Icon(Symbols.chat_rounded),
-              label: const Text('Notifier le client sur WhatsApp'),
+              label: const Text('Notifier dans la messagerie'),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(50),
               ),
@@ -641,7 +634,7 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
             FilledButton.icon(
               onPressed: order == null ? null : () => _notify(refund, order),
               icon: const Icon(Symbols.chat_rounded),
-              label: const Text('Notifier le client sur WhatsApp'),
+              label: const Text('Notifier dans la messagerie'),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(50),
               ),
@@ -743,43 +736,32 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
   }
 
   Future<void> _notify(RefundCase refund, QueueOrder order) async {
-    final String phone = _normalizeWhatsappPhone(order.clientWhatsappPhone);
-    if (phone.isEmpty) {
-      _showMessage('Aucun numéro WhatsApp client n’est disponible.');
-      return;
-    }
     final String ref = refund.refundReference?.trim() ?? '';
     final String referenceSentence = ref.isEmpty
         ? ''
         : ' Référence du remboursement : $ref.';
     final String message =
         'Bonjour ${order.clientName}, le remboursement de ${_formatAmount(refund.amount)} F concernant votre commande ${refund.orderReference} a été effectué par IzyTel.$referenceSentence';
-    final Uri uri = Uri.https('wa.me', '/$phone', <String, String>{
-      'text': message,
-    });
-    final bool opened = await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
-    if (!mounted) return;
-    if (!opened) {
-      _showMessage('Impossible d’ouvrir WhatsApp.');
+
+    try {
+      await CustomerMessagingDeliveryService().notifyOrder(
+        orderId: order.id,
+        orderReference: order.reference,
+        message: message,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage('Impossible d’envoyer le message au client : $error');
       return;
     }
-    final bool confirmed = await _confirm(
-      title: 'Client notifié ?',
-      message:
-          'Confirmez uniquement si le message a réellement été envoyé au client.',
-      confirmLabel: 'Oui, envoyé',
-    );
-    if (!confirmed) return;
+
     await _runAction(
       () => widget.repository.markCustomerNotified(
         orderId: refund.orderId,
         staffId: widget.user.id,
         staffName: widget.user.name,
       ),
-      'Notification WhatsApp enregistrée dans l’historique.',
+      'Notification enregistrée dans la messagerie IzyTel.',
     );
   }
 
@@ -865,12 +847,7 @@ class _RefundDetailPageState extends State<RefundDetailPage> {
     IzyTelFeedback.show(context, value);
   }
 
-  String _normalizeWhatsappPhone(String value) {
-    final String digits = value.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.startsWith('225')) return digits;
-    if (digits.startsWith('0')) return '225$digits';
-    return digits;
-  }
+
 }
 
 class _RefundCard extends StatelessWidget {
@@ -920,17 +897,6 @@ class _RefundCard extends StatelessWidget {
                         color: IzyTelColors.textPrimary,
                         fontSize: IzyTelTypeScale.text,
                         fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      formatIvorianPhone(refund.clientWhatsappPhone),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: IzyTelColors.textSecondary,
-                        fontSize: IzyTelTypeScale.micro,
-                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
@@ -1172,7 +1138,7 @@ class _RefundTimeline extends StatelessWidget {
         ),
       if (refund.customerNotifiedAt != null)
         _TimelineItem(
-          label: 'Client notifié sur WhatsApp',
+          label: 'Client notifié dans la messagerie IzyTel',
           date: refund.customerNotifiedAt!,
           actor: refund.customerNotifiedByName ?? 'Administrateur',
           done: true,

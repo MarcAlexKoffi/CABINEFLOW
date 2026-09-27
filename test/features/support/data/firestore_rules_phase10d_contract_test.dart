@@ -30,7 +30,7 @@ void main() {
     expect(
       rules,
       contains(
-        "request.resource.data.get('notificationChannel', null) == 'whatsapp'",
+        "request.resource.data.get('notificationChannel', null) == 'messaging'",
       ),
     );
     expect(rules, contains('allow list: if isStaff();'));

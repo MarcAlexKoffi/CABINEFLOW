@@ -151,7 +151,7 @@ class FakeRefundRepository implements RefundRepository {
       customerNotifiedAt: DateTime.now(),
       customerNotifiedBy: staffId,
       customerNotifiedByName: staffName,
-      notificationChannel: 'whatsapp',
+      notificationChannel: 'messaging',
       updatedAt: DateTime.now(),
     );
     _emit();

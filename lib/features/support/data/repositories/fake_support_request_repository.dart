@@ -125,7 +125,7 @@ class FakeSupportRequestRepository implements SupportRequestRepository {
         customerNotifiedAt: DateTime.now(),
         customerNotifiedBy: staffId,
         customerNotifiedByName: staffName,
-        notificationChannel: 'whatsapp',
+        notificationChannel: 'messaging',
       ),
     );
   }

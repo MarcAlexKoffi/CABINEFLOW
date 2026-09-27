@@ -107,13 +107,13 @@ class StaffOrderNavigation {
           onBack: () {
             Navigator.of(detailContext).maybePop();
           },
-          onOpenCustomerHistory: (String whatsappPhone) {
+          onOpenCustomerHistory: (String searchQuery) {
             unawaited(
               openHistory(
                 context: detailContext,
                 user: user,
                 repository: repository,
-                initialSearchQuery: whatsappPhone,
+                initialSearchQuery: searchQuery,
               ),
             );
           },

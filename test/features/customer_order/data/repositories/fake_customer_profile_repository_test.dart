@@ -20,7 +20,7 @@ void main() {
       );
 
       expect(repository.profile?.name, 'Client test');
-      expect(repository.profile?.whatsappPhone.normalized, '+2250700000000');
+      expect(repository.profile?.whatsappPhone?.normalized, '+2250700000000');
       expect(
         repository.profile?.defaultBeneficiaryPhone.normalized,
         '+2250512345678',

@@ -10,6 +10,10 @@ abstract interface class CustomerMessagingRepository {
   Future<CustomerConversation> createConversation({
     String? orderId,
     String? orderReference,
+    String? customerName,
+    String? locationStatus,
+    double? latitude,
+    double? longitude,
     required String message,
   });
 

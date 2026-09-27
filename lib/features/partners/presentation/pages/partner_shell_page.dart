@@ -1479,10 +1479,6 @@ class _PartnerOrderDetailPageState extends State<PartnerOrderDetailPage> {
                             rows: <MapEntry<String, String>>[
                               MapEntry('Nom', order.clientName),
                               MapEntry(
-                                'WhatsApp',
-                                _partnerFormatPhone(order.clientWhatsappPhone),
-                              ),
-                              MapEntry(
                                 'Bénéficiaire',
                                 _partnerFormatPhone(order.beneficiaryPhone),
                               ),

@@ -761,11 +761,12 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
     }
 
     final CustomerIdentity? identity = order.draft.identity;
-    if (identity == null) return;
+    final WhatsappPhoneNumber? legacyWhatsapp = identity?.whatsappNumber;
+    if (identity == null || legacyWhatsapp == null) return;
 
     final String recoveryKey = CustomerOrderRecoveryKey.build(
       reference: order.reference,
-      whatsappPhone: identity.whatsappNumber,
+      whatsappPhone: legacyWhatsapp,
     );
     final DocumentReference<Map<String, dynamic>> recoveryRef =
         _recoveryKeysCollection.doc(recoveryKey);
@@ -778,7 +779,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
           'schemaVersion': 1,
           'orderId': order.id,
           'orderReference': order.reference,
-          'whatsappPhone': identity.whatsappNumber.normalized,
+          'whatsappPhone': legacyWhatsapp.normalized,
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
@@ -939,7 +940,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
       'source': OrderSource.customerWeb.name,
       'customerAuthUid': customerUid,
       'clientName': draft.identity!.name,
-      'clientWhatsappPhone': draft.identity!.whatsappNumber.normalized,
+      'clientWhatsappPhone': '',
       'service': draft.service!.name,
       'network': draft.network!.name,
       'operationType': _operationTypeValue(draft),
@@ -1002,9 +1003,17 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
         (MobileNetwork item) => item.name == data['network'],
       );
       final String clientName = _readString(data['clientName'])!;
-      final WhatsappPhoneNumber whatsappNumber = WhatsappPhoneNumber.parse(
-        _readString(data['clientWhatsappPhone'])!,
+      WhatsappPhoneNumber? legacyWhatsapp;
+      final String? legacyWhatsappRaw = _readNullableString(
+        data['clientWhatsappPhone'],
       );
+      if (legacyWhatsappRaw != null) {
+        try {
+          legacyWhatsapp = WhatsappPhoneNumber.parse(legacyWhatsappRaw);
+        } on FormatException {
+          legacyWhatsapp = null;
+        }
+      }
       final BeneficiaryPhoneNumber beneficiaryNumber =
           BeneficiaryPhoneNumber.parse(_readString(data['beneficiaryPhone'])!);
       final String offerLabel =
@@ -1041,7 +1050,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
       final CustomerOrderDraft draft = CustomerOrderDraft(
         identity: CustomerIdentity(
           name: clientName,
-          whatsappNumber: whatsappNumber,
+          whatsappNumber: legacyWhatsapp,
         ),
         service: service,
         network: network,
@@ -1131,15 +1140,19 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
       final String? clientWhatsapp = _readNullableString(
         data['client_whatsapp_phone'],
       );
-      if (clientName != null && clientWhatsapp != null) {
-        try {
-          identity = CustomerIdentity(
-            name: clientName,
-            whatsappNumber: WhatsappPhoneNumber.parse(clientWhatsapp),
-          );
-        } on FormatException {
-          identity = null;
+      if (clientName != null) {
+        WhatsappPhoneNumber? legacyWhatsapp;
+        if (clientWhatsapp != null) {
+          try {
+            legacyWhatsapp = WhatsappPhoneNumber.parse(clientWhatsapp);
+          } on FormatException {
+            legacyWhatsapp = null;
+          }
         }
+        identity = CustomerIdentity(
+          name: clientName,
+          whatsappNumber: legacyWhatsapp,
+        );
       }
 
       final CustomerOrderDraft draft = CustomerOrderDraft(

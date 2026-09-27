@@ -434,6 +434,8 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
               key: const ValueKey<String>('customer-messaging'),
               repository: _messagingRepository,
               orders: _viewModel.customerOrders,
+              orderContext: _viewModel.orderContext,
+              customerName: _viewModel.draft.identity?.name,
               onBack: _requestBack,
               onOpenHome: _openHome,
               onOpenOffers: _openCatalog,
@@ -487,6 +489,7 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
           viewModel: _viewModel,
           onOpenHistory: _openHistory,
           onOpenRecovery: _openRecovery,
+          onOpenMessaging: _openMessaging,
           onResumeOrder: _openOrder,
           onBackToHome: _requestBack,
         );
@@ -545,6 +548,7 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
           viewModel: _viewModel,
           onOpenHistory: _openHistory,
           onOpenRecovery: _openRecovery,
+          onOpenMessaging: _openMessaging,
           onResumeOrder: _openOrder,
           onBackToHome: _requestBack,
         );

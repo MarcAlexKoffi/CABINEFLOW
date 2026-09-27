@@ -170,7 +170,7 @@ class FirestoreSupportRequestRepository implements SupportRequestRepository {
       'customerNotifiedAt': FieldValue.serverTimestamp(),
       'customerNotifiedBy': staffId.trim(),
       'customerNotifiedByName': staffName.trim(),
-      'notificationChannel': 'whatsapp',
+      'notificationChannel': 'messaging',
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }

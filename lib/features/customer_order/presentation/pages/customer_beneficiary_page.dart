@@ -2,6 +2,7 @@ import 'package:cabine_flow/core/theme/customer_app_colors.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/beneficiary_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/frequent_beneficiary_contact.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_flow_scaffold.dart';
@@ -90,17 +91,18 @@ class _CustomerBeneficiaryPageState extends State<CustomerBeneficiaryPage> {
     _refreshNetworkWarning(value);
   }
 
-  void _selectSuggestion(BeneficiaryPhoneNumber beneficiary) {
+  void _selectSuggestion(FrequentBeneficiaryContact contact) {
     FocusManager.instance.primaryFocus?.unfocus();
-    _beneficiaryController.text = beneficiary.displayValue;
+    _beneficiaryController.text = contact.phoneNumber.displayValue;
 
-    // Ce numéro a déjà été utilisé au moins deux fois avec ce même réseau.
-    // Le raccourci doit rester réellement instantané, sans redemander
-    // une confirmation de portabilité ni une seconde saisie.
-    widget.viewModel.selectSuggestedBeneficiary(
-      beneficiary: beneficiary,
+    // Le contact frequent remplit uniquement le numero beneficiaire. Le nom
+    // affiche sur la carte sert a distinguer les couples historiques nom +
+    // numero, sans ecraser le nom/surnom saisi pour la commande en cours.
+    widget.viewModel.selectSuggestedBeneficiaryContact(
+      contact: contact,
       isPortabilityConfirmed: true,
     );
+    _refreshNetworkWarning(_beneficiaryController.text);
   }
 
   void _continue() {
@@ -132,8 +134,8 @@ class _CustomerBeneficiaryPageState extends State<CustomerBeneficiaryPage> {
   Widget build(BuildContext context) {
     final CustomerOrderDraft draft = widget.viewModel.draft;
     final MobileNetwork? selectedNetwork = draft.network;
-    final List<BeneficiaryPhoneNumber> suggestions =
-        widget.viewModel.suggestedBeneficiaryNumbers;
+    final List<FrequentBeneficiaryContact> suggestions =
+        widget.viewModel.suggestedBeneficiaryContacts;
     final bool canUseMainContinue =
         _beneficiaryController.text.trim().isNotEmpty &&
         (!_requiresPortabilityConfirmation || _isPortabilityConfirmed);
@@ -206,7 +208,7 @@ class _CustomerBeneficiaryPageState extends State<CustomerBeneficiaryPage> {
             if (suggestions.isNotEmpty) ...<Widget>[
               const SizedBox(height: 22),
               _FrequentNumbers(
-                numbers: suggestions,
+                contacts: suggestions,
                 onSelected: _selectSuggestion,
               ),
             ],
@@ -283,12 +285,12 @@ class _OrderContextCard extends StatelessWidget {
 
 class _FrequentNumbers extends StatelessWidget {
   const _FrequentNumbers({
-    required this.numbers,
+    required this.contacts,
     required this.onSelected,
   });
 
-  final List<BeneficiaryPhoneNumber> numbers;
-  final ValueChanged<BeneficiaryPhoneNumber> onSelected;
+  final List<FrequentBeneficiaryContact> contacts;
+  final ValueChanged<FrequentBeneficiaryContact> onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -305,7 +307,7 @@ class _FrequentNumbers extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         const Text(
-          'Des numéros déjà utilisés plusieurs fois sur ce réseau.',
+          'Vos contacts déjà utilisés. Touchez un contact pour remplir automatiquement le numéro bénéficiaire.',
           style: TextStyle(
             color: CustomerAppColors.onSurfaceVariant,
             fontSize: 12.5,
@@ -317,11 +319,11 @@ class _FrequentNumbers extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           child: Row(
             children: <Widget>[
-              for (int index = 0; index < numbers.length; index++) ...<Widget>[
+              for (int index = 0; index < contacts.length; index++) ...<Widget>[
                 if (index > 0) const SizedBox(width: 10),
-                _FrequentNumberCard(
-                  number: numbers[index],
-                  onTap: () => onSelected(numbers[index]),
+                _FrequentContactCard(
+                  contact: contacts[index],
+                  onTap: () => onSelected(contacts[index]),
                 ),
               ],
             ],
@@ -332,54 +334,66 @@ class _FrequentNumbers extends StatelessWidget {
   }
 }
 
-class _FrequentNumberCard extends StatelessWidget {
-  const _FrequentNumberCard({required this.number, required this.onTap});
+class _FrequentContactCard extends StatelessWidget {
+  const _FrequentContactCard({required this.contact, required this.onTap});
 
-  final BeneficiaryPhoneNumber number;
+  final FrequentBeneficiaryContact contact;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 190,
+      width: 205,
       child: IzyTelCard(
         onTap: onTap,
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         showShadow: false,
         child: Row(
           children: <Widget>[
             Container(
-              width: 38,
-              height: 38,
+              width: 42,
+              height: 42,
               alignment: Alignment.center,
               decoration: const BoxDecoration(
                 color: CustomerAppColors.primaryContainer,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.history_rounded,
-                color: CustomerAppColors.primary,
-                size: 19,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
               child: Text(
-                number.displayValue.replaceFirst('+225 ', ''),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                contact.initials,
                 style: const TextStyle(
-                  color: CustomerAppColors.primaryDeep,
+                  color: CustomerAppColors.primary,
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
                 ),
               ),
             ),
-            const SizedBox(width: 5),
-            const Icon(
-              Icons.arrow_forward_ios_rounded,
-              color: CustomerAppColors.primary,
-              size: 15,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    contact.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: CustomerAppColors.primaryDeep,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    contact.phoneNumber.displayValue.replaceFirst('+225 ', ''),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: CustomerAppColors.onSurfaceVariant,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),

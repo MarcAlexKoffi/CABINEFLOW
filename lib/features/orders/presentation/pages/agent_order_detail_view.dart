@@ -470,10 +470,6 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
                         rows: <MapEntry<String, String>>[
                           MapEntry('Nom', order.clientName),
                           MapEntry(
-                            'WhatsApp',
-                            formatIvorianPhone(order.clientWhatsappPhone),
-                          ),
-                          MapEntry(
                             'Bénéficiaire',
                             formatIvorianPhone(order.beneficiaryPhone),
                           ),

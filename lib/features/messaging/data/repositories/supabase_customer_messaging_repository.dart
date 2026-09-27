@@ -138,15 +138,23 @@ class SupabaseCustomerMessagingRepository
   Future<CustomerConversation> createConversation({
     String? orderId,
     String? orderReference,
+    String? customerName,
+    String? locationStatus,
+    double? latitude,
+    double? longitude,
     required String message,
   }) async {
     final String body = _message(message);
     final dynamic raw = await _client.rpc(
-      'izytel_wc3_create_conversation',
+      'izytel_wc5_create_conversation',
       params: <String, dynamic>{
         'p_order_id': orderId?.trim() ?? '',
         'p_order_reference': orderReference?.trim().toUpperCase() ?? '',
         'p_body': body,
+        'p_customer_name': customerName?.trim() ?? '',
+        'p_location_status': locationStatus?.trim() ?? 'notRequested',
+        'p_latitude': latitude,
+        'p_longitude': longitude,
       },
     );
     final Map<String, dynamic>? row = _firstRow(raw);
@@ -263,6 +271,8 @@ class SupabaseCustomerMessagingRepository
       customerAuthUid: customerUid,
       orderId: _nullable(row['order_id']),
       orderReference: _nullable(row['order_reference']),
+      customerName: _nullable(row['customer_name']) ?? 'Client',
+      zoneId: _nullable(row['zone_id']),
       status: CustomerConversationStatusX.fromStorage(row['status']),
       assignedManagerUid: _nullable(row['assigned_manager_uid']),
       assignedManagerName: _nullable(row['assigned_manager_name']),

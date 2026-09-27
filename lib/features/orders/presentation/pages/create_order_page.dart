@@ -42,16 +42,11 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
 
   final TextEditingController _clientNameController = TextEditingController();
 
-  final TextEditingController _whatsappController = TextEditingController();
-
   final TextEditingController _beneficiaryController = TextEditingController();
 
   final TextEditingController _offerDetailController = TextEditingController();
 
   final TextEditingController _amountController = TextEditingController();
-
-  final TextEditingController _originalMessageController =
-      TextEditingController();
 
   final TextEditingController _notesController = TextEditingController();
 
@@ -72,11 +67,9 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
   @override
   void dispose() {
     _clientNameController.dispose();
-    _whatsappController.dispose();
     _beneficiaryController.dispose();
     _offerDetailController.dispose();
     _amountController.dispose();
-    _originalMessageController.dispose();
     _notesController.dispose();
     _viewModel.dispose();
 
@@ -154,7 +147,7 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
 
     final CreateOrderRequest request = CreateOrderRequest(
       clientName: _clientNameController.text,
-      clientWhatsappPhone: _whatsappController.text,
+      clientWhatsappPhone: '',
       network: _viewModel.selectedNetwork,
       beneficiaryPhone: _beneficiaryController.text,
       operationType: operationType,
@@ -162,9 +155,7 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
       amount: int.parse(_amountController.text),
       offerId: isCustomOffer ? null : selectedOffer.id,
       isCustomOffer: isCustomOffer,
-      originalWhatsappMessage: _originalMessageController.text.trim().isEmpty
-          ? null
-          : _originalMessageController.text,
+      originalWhatsappMessage: null,
       internalNotes: _notesController.text.trim().isEmpty
           ? null
           : _notesController.text,
@@ -275,22 +266,6 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
                                   'Saisis le nom du client.',
                                 );
                               },
-                            ),
-                            const SizedBox(height: 14),
-                            const _FormLabel(text: 'Numéro WhatsApp'),
-                            TextFormField(
-                              controller: _whatsappController,
-                              keyboardType: TextInputType.phone,
-                              inputFormatters: [
-                                FilteringTextInputFormatter.allow(
-                                  RegExp(r'[0-9 +]'),
-                                ),
-                              ],
-                              decoration: _inputDecoration(
-                                hintText: '+225 00 00 00 00 00',
-                                prefixIcon: Icons.chat_outlined,
-                              ),
-                              validator: _validatePhone,
                             ),
                           ],
                         ),
@@ -453,16 +428,6 @@ class _CreateOrderPageState extends State<CreateOrderPage> {
                         _FormSection(
                           title: 'Contexte et notes',
                           children: [
-                            const _FormLabel(text: 'Message WhatsApp original'),
-                            TextFormField(
-                              controller: _originalMessageController,
-                              minLines: 3,
-                              maxLines: 6,
-                              decoration: _inputDecoration(
-                                hintText: 'Colle le message original ici...',
-                              ),
-                            ),
-                            const SizedBox(height: 14),
                             const _FormLabel(
                               text: 'Observations / notes internes',
                             ),

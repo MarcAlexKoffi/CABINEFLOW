@@ -32,33 +32,35 @@ void main() {
       expect(source, contains('widget.repository.resolve('));
     });
 
-    test('la notification support ouvre réellement WhatsApp avant de tracer', () {
+    test('la notification support utilise la messagerie IzyTel avant de tracer', () {
       final String source = File(
         'lib/backoffice/presentation/pages/clients/backoffice_support_requests_page.dart',
       ).readAsStringSync();
-      expect(source, contains('BackofficeWhatsAppService.openMessage('));
-      expect(source, contains('Message WhatsApp réellement envoyé ?'));
+      expect(source, contains('CustomerMessagingDeliveryService().notifyOrder('));
       expect(source, contains('markCustomerNotified('));
+      expect(source, contains('messagerie IzyTel'));
+      expect(source, isNot(contains('BackofficeWhatsAppService')));
+      expect(source, isNot(contains('wa.me')));
     });
 
     test('la notification remboursement synchronise la demande client', () {
       final String source = File(
         'lib/backoffice/presentation/pages/clients/backoffice_refunds_page.dart',
       ).readAsStringSync();
-      expect(source, contains('BackofficeWhatsAppService.openMessage('));
+      expect(source, contains('CustomerMessagingDeliveryService().notifyOrder('));
       expect(source, contains('support.resolve('));
       expect(source, contains('support.markCustomerNotified('));
       expect(source, contains('refund.supportRequestId'));
       expect(source, contains('Voir la demande client'));
+      expect(source, isNot(contains('BackofficeWhatsAppService')));
     });
 
-    test('le service WhatsApp utilise wa.me et une application externe', () {
-      final String source = File(
-        'lib/backoffice/presentation/services/backoffice_whatsapp_service.dart',
-      ).readAsStringSync();
-      expect(source, contains("Uri.https('wa.me'"));
-      expect(source, contains('LaunchMode.externalApplication'));
-      expect(source, contains("return '225\$digits';"));
+    test('aucun service WhatsApp opérationnel ne subsiste dans le back-office', () {
+      expect(
+        File('lib/backoffice/presentation/services/backoffice_whatsapp_service.dart')
+            .existsSync(),
+        isFalse,
+      );
     });
   });
 }

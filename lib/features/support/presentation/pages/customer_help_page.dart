@@ -1,9 +1,7 @@
-import 'package:cabine_flow/core/services/customer_support_whatsapp.dart';
 import 'package:cabine_flow/core/theme/customer_app_colors.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_bottom_navigation.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_cards.dart';
 import 'package:cabine_flow/shared/widgets/design_system/izy_tel_shell.dart';
-import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 
 class CustomerHelpPage extends StatelessWidget {
@@ -24,16 +22,6 @@ class CustomerHelpPage extends StatelessWidget {
   final VoidCallback onOpenOffers;
   final VoidCallback onOpenHistory;
 
-  Future<void> _launchWhatsApp(BuildContext context) async {
-    final bool opened = await CustomerSupportWhatsApp.open();
-    if (!context.mounted || opened) {
-      return;
-    }
-    IzyTelFeedback.error(
-      context,
-      'Impossible d’ouvrir WhatsApp pour le moment.',
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -149,21 +137,6 @@ class CustomerHelpPage extends StatelessWidget {
                         onTap: onOpenRecovery,
                       ),
                     ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: _HelpCard(
-                        leading: Image.asset(
-                          'assets/images/whatsapp_logo.png',
-                          width: 30,
-                          height: 30,
-                        ),
-                        iconBackground: CustomerAppColors.successContainer,
-                        title: 'WhatsApp (support externe)',
-                        description:
-                            'Canal complémentaire pour joindre le service client au ${CustomerSupportWhatsApp.displayPhone}.',
-                        onTap: () => _launchWhatsApp(context),
-                      ),
-                    ),
                   ],
                 )
               else ...<Widget>[
@@ -189,19 +162,6 @@ class CustomerHelpPage extends StatelessWidget {
                   description:
                       'Retrouvez une commande créée sur un autre téléphone avec sa référence et son code de récupération.',
                   onTap: onOpenRecovery,
-                ),
-                const SizedBox(height: 12),
-                _HelpCard(
-                  leading: Image.asset(
-                    'assets/images/whatsapp_logo.png',
-                    width: 30,
-                    height: 30,
-                  ),
-                  iconBackground: CustomerAppColors.successContainer,
-                  title: 'WhatsApp (support externe)',
-                  description:
-                      'Canal complémentaire pour joindre le service client au ${CustomerSupportWhatsApp.displayPhone}.',
-                  onTap: () => _launchWhatsApp(context),
                 ),
               ],
               const SizedBox(height: 24),

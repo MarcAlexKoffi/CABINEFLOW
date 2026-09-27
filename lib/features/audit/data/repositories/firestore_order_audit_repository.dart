@@ -240,12 +240,12 @@ class FirestoreOrderAuditRepository implements OrderAuditRepository {
     add(
       suffix: 'CUSTOMER_NOTIFIED',
       date: _date(data['customerNotifiedAt']),
-      title: 'Client notifié sur WhatsApp',
+      title: 'Client notifié dans la messagerie IzyTel',
       actorRole: 'admin',
       actorId: notifiedBy,
       actorName: notifiedByName,
       details: <String>[
-        'Canal : WhatsApp',
+        'Canal : Messagerie IzyTel',
         if (notifiedBy.isEmpty && notifiedByName.isEmpty)
           'Auteur non enregistré pour cette ancienne action.',
       ],
@@ -369,7 +369,7 @@ class FirestoreOrderAuditRepository implements OrderAuditRepository {
       title: 'Client notifié du remboursement',
       actorId: _string(data['customerNotifiedBy']),
       actorName: _string(data['customerNotifiedByName']),
-      details: const <String>['Canal : WhatsApp'],
+      details: const <String>['Canal : Messagerie IzyTel'],
     );
 
     add(
@@ -494,7 +494,7 @@ class FirestoreOrderAuditRepository implements OrderAuditRepository {
     }
     if (messageSent is bool) {
       details.add(
-        'Message WhatsApp : ${messageSent ? 'envoyé' : 'non envoyé'}',
+        'Message IzyTel : ${messageSent ? 'envoyé' : 'non envoyé'}',
       );
     }
     if (releasedToQueue is bool && type == 'ASSIGNMENT_REFUSED') {

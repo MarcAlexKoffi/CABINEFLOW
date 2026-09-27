@@ -55,7 +55,7 @@ class PaymentDeclaration {
     } on FormatException catch (error) {
       throw FormatException(
         error.message.toString().replaceAll(
-          'votre numéro WhatsApp',
+          'le numéro du payeur Wave',
           'le numéro Wave',
         ),
       );

@@ -2,12 +2,12 @@ import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/features/messaging/data/services/customer_messaging_delivery_service.dart';
 import 'package:cabine_flow/features/payments/domain/repositories/payment_link_repository.dart';
 import 'package:cabine_flow/features/payments/presentation/view_models/payment_request_view_model.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class SendWaveLinkPage extends StatefulWidget {
   const SendWaveLinkPage({
@@ -50,22 +50,6 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
     super.dispose();
   }
 
-  String get _normalizedWhatsappPhone {
-    String digits = widget.order.clientWhatsappPhone.replaceAll(
-      RegExp(r'[^0-9]'),
-      '',
-    );
-
-    if (digits.startsWith('225')) {
-      return digits;
-    }
-
-    if (digits.startsWith('0')) {
-      return '225$digits';
-    }
-
-    return digits;
-  }
 
   Future<void> _copyPaymentLink() async {
     final String? paymentLink = _viewModel.paymentLinkData?.url;
@@ -93,74 +77,27 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
     _showMessage('Message de paiement copié.');
   }
 
-  Future<void> _openWhatsapp() async {
-    final Uri whatsappUri = Uri.https(
-      'wa.me',
-      '/$_normalizedWhatsappPhone',
-      <String, String>{'text': _viewModel.paymentMessage},
-    );
-
-    final bool wasOpened = await launchUrl(
-      whatsappUri,
-      mode: LaunchMode.externalApplication,
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    if (!wasOpened) {
-      _showMessage('Impossible d’ouvrir WhatsApp.');
-    }
-  }
-
-  Future<void> _confirmLinkWasSent() async {
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Lien envoyé'),
-          content: Text(
-            'Confirme que le lien Wave de la commande '
-            '${widget.order.reference} a bien été envoyé '
-            'au client.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(false);
-              },
-              child: const Text('Annuler'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(true);
-              },
-              child: const Text('Confirmer'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed != true) {
+  Future<void> _sendPaymentMessage() async {
+    try {
+      await CustomerMessagingDeliveryService().notifyOrder(
+        orderId: widget.order.id,
+        orderReference: widget.order.reference,
+        message: _viewModel.paymentMessage,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage('Impossible d’envoyer le lien dans la messagerie IzyTel : $error');
       return;
     }
 
     final bool successful = await _viewModel.markPaymentRequestAsSent();
-
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
     if (!successful) {
       _showMessage(
-        _viewModel.errorMessage ?? 'Impossible d’enregistrer l’envoi.',
+        _viewModel.errorMessage ?? 'Le message est parti, mais son enregistrement a échoué.',
       );
-
       return;
     }
-
     Navigator.of(context).pop(true);
   }
 
@@ -305,52 +242,32 @@ class _SendWaveLinkPageState extends State<SendWaveLinkPage> {
             onCopyPressed: _copyPaymentLink,
           ),
           const SizedBox(height: 22),
-          OutlinedButton.icon(
-            onPressed: _viewModel.isSubmitting ? null : _openWhatsapp,
-            style: OutlinedButton.styleFrom(
+          FilledButton.icon(
+            onPressed: _viewModel.isSubmitting ? null : _sendPaymentMessage,
+            style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(56),
-              foregroundColor: const Color(0xFF25D366),
-              side: const BorderSide(color: Color(0x6625D366)),
             ),
-            icon: const Icon(Icons.chat_rounded),
-            label: const Text('Ouvrir WhatsApp'),
+            icon: _viewModel.isSubmitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.forum_rounded),
+            label: Text(
+              _viewModel.isSubmitting
+                  ? 'Envoi en cours...'
+                  : 'Envoyer dans la messagerie IzyTel',
+            ),
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _viewModel.isSubmitting
-                      ? null
-                      : _copyPaymentMessage,
-                  icon: const Icon(Icons.content_copy_rounded, size: 18),
-                  label: const Text('Copier'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: _viewModel.isSubmitting
-                      ? null
-                      : _confirmLinkWasSent,
-                  icon: _viewModel.isSubmitting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.check_circle_rounded, size: 18),
-                  label: Text(
-                    _viewModel.isSubmitting
-                        ? 'Enregistrement...'
-                        : 'Marquer envoyé',
-                  ),
-                ),
-              ),
-            ],
+          OutlinedButton.icon(
+            onPressed: _viewModel.isSubmitting ? null : _copyPaymentMessage,
+            icon: const Icon(Icons.content_copy_rounded, size: 18),
+            label: const Text('Copier le message'),
           ),
           const SizedBox(height: 10),
           TextButton(

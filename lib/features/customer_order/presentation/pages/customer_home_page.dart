@@ -1418,7 +1418,7 @@ class _SupportSection extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Une question sur une commande ou un paiement ? Écrivez d’abord dans la messagerie IzyTel ; WhatsApp reste disponible en complément.',
+                  'Une question sur une commande ou un paiement ? Écrivez directement dans la messagerie IzyTel pour être pris en charge par votre Manager de zone.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],

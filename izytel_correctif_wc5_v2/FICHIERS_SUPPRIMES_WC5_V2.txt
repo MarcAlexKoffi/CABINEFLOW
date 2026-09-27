@@ -1,0 +1,6 @@
+assets/images/whatsapp_logo.png
+lib/backoffice/presentation/services/backoffice_whatsapp_service.dart
+lib/core/services/customer_support_whatsapp.dart
+lib/features/customer_order/presentation/widgets/customer_support_button.dart
+test/core/services/customer_support_whatsapp_test.dart
+test/regressions/phase2_web_navigation_whatsapp_buttons_contract_test.dart

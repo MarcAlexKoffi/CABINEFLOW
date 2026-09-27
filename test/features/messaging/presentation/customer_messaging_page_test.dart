@@ -1,3 +1,4 @@
+import 'package:cabine_flow/features/customer_order/domain/models/customer_order_context.dart';
 import 'package:cabine_flow/features/messaging/data/repositories/fake_customer_messaging_repository.dart';
 import 'package:cabine_flow/features/messaging/presentation/pages/customer_messaging_page.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +16,7 @@ void main() {
         home: CustomerMessagingPage(
           repository: repository,
           orders: const [],
+          orderContext: const CustomerOrderContextDraft(),
           onBack: () {},
           onOpenHome: () {},
           onOpenOffers: () {},
@@ -76,6 +78,7 @@ void main() {
         home: CustomerMessagingPage(
           repository: repository,
           orders: const [],
+          orderContext: const CustomerOrderContextDraft(),
           onBack: () {},
           onOpenHome: () {},
           onOpenOffers: () {},
