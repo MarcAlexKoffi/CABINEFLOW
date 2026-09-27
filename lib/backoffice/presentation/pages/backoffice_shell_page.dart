@@ -28,6 +28,8 @@ import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/auth/presentation/widgets/staff_profile_avatar.dart';
+import 'package:cabine_flow/features/messaging/data/repositories/operational_customer_messaging_repository.dart';
+import 'package:cabine_flow/features/messaging/presentation/pages/staff_customer_messaging_page.dart';
 import 'package:cabine_flow/features/control/domain/models/control_snapshot.dart';
 import 'package:cabine_flow/features/control/domain/repositories/control_repository.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
@@ -51,6 +53,7 @@ enum BackofficeDestination {
   assignments,
   failedOrders,
   customerRequests,
+  customerMessaging,
   refunds,
   agents,
   cabinisteFinances,
@@ -101,6 +104,8 @@ extension _BackofficeDestinationX on BackofficeDestination {
         return 'Commandes échouées';
       case BackofficeDestination.customerRequests:
         return 'Demandes clients';
+      case BackofficeDestination.customerMessaging:
+        return 'Messagerie clients';
       case BackofficeDestination.refunds:
         return 'Remboursements';
       case BackofficeDestination.agents:
@@ -160,6 +165,8 @@ extension _BackofficeDestinationX on BackofficeDestination {
         return Symbols.error_rounded;
       case BackofficeDestination.customerRequests:
         return Symbols.support_agent_rounded;
+      case BackofficeDestination.customerMessaging:
+        return Symbols.forum_rounded;
       case BackofficeDestination.refunds:
         return Symbols.currency_exchange_rounded;
       case BackofficeDestination.agents:
@@ -215,6 +222,7 @@ extension _BackofficeDestinationX on BackofficeDestination {
       case BackofficeDestination.failedOrders:
         return _BackofficeSection.operations;
       case BackofficeDestination.customerRequests:
+      case BackofficeDestination.customerMessaging:
       case BackofficeDestination.refunds:
         return _BackofficeSection.clients;
       case BackofficeDestination.agents:
@@ -261,6 +269,8 @@ extension _BackofficeDestinationX on BackofficeDestination {
         return permissions.canManageFailedOrders;
       case BackofficeDestination.customerRequests:
         return permissions.canViewSupportRequests;
+      case BackofficeDestination.customerMessaging:
+        return user.isManager || user.role == UserRole.administrator;
       case BackofficeDestination.refunds:
         return permissions.canManageRefunds;
       case BackofficeDestination.agents:
@@ -957,6 +967,12 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
           orderHistoryRepository: historyRepository,
           initialOrderReference: _supportFocusOrderReference,
           onOpenRefunds: _openRefundsForReference,
+        );
+      case BackofficeDestination.customerMessaging:
+        return StaffCustomerMessagingPage(
+          user: widget.user,
+          repository: createOperationalCustomerMessagingRepository(),
+          embedded: true,
         );
       case BackofficeDestination.refunds:
         final RefundRepository? refundRepository = widget.refundRepository;

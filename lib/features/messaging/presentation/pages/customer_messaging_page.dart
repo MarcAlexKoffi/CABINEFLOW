@@ -211,7 +211,25 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
         message: message,
       );
       if (!mounted) return;
+
+      // Le RPC a confirmé l'écriture serveur : on ne dépend pas de Realtime
+      // pour afficher le message du client. Une lecture REST canonique est
+      // demandée immédiatement ; le stream Realtime reste ensuite l'accélérateur.
       _replyController.clear();
+      try {
+        final List<CustomerMessage> refreshedMessages = await widget.repository
+            .watchMessages(conversationId: conversation.id)
+            .first;
+        if (!mounted || _selectedConversation?.id != conversation.id) return;
+        setState(() {
+          _messages = refreshedMessages;
+          _isLoadingMessages = false;
+          _messageError = null;
+        });
+      } catch (_) {
+        // Le message est déjà enregistré côté serveur. Si la relecture REST
+        // ponctuelle échoue, le stream courant ou son fallback le récupérera.
+      }
       _scrollMessagesToBottom();
     } catch (error) {
       if (!mounted) return;

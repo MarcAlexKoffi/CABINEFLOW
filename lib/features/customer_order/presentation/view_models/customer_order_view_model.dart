@@ -4,12 +4,14 @@ import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/beneficiary_phone_number.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_identity.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_offer.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/customer_order_context.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_draft.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_session.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/payment_declaration.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/whatsapp_phone_number.dart';
+import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_context_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_order_session_store.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
@@ -21,11 +23,17 @@ class CustomerOrderViewModel extends ChangeNotifier {
   CustomerOrderViewModel({
     required CustomerOrderRepository orderRepository,
     CustomerOrderSessionStore? sessionStore,
+    CustomerOrderContextRepository? orderContextRepository,
+    CustomerOrderContextDraft orderContext = const CustomerOrderContextDraft(),
   }) : _orderRepository = orderRepository,
-       _sessionStore = sessionStore ?? _NoopCustomerOrderSessionStore();
+       _sessionStore = sessionStore ?? _NoopCustomerOrderSessionStore(),
+       _orderContextRepository = orderContextRepository,
+       _orderContext = orderContext;
 
   final CustomerOrderRepository _orderRepository;
   final CustomerOrderSessionStore _sessionStore;
+  final CustomerOrderContextRepository? _orderContextRepository;
+  CustomerOrderContextDraft _orderContext;
 
   CustomerOrderDraft _draft = const CustomerOrderDraft();
   CustomerOrderReceipt? _receipt;
@@ -55,6 +63,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
   }
 
   CustomerOrderDraft get draft => _draft;
+  CustomerOrderContextDraft get orderContext => _orderContext;
   CustomerOrderReceipt? get receipt => _receipt;
   int get currentStep => _currentStep;
   bool get isSubmitting => _isSubmitting;
@@ -187,23 +196,42 @@ class CustomerOrderViewModel extends ChangeNotifier {
 
       _historySubscription = _orderRepository.watchCustomerOrders().listen(
         (List<CustomerOrderReceipt> orders) {
-          _customerOrders = List<CustomerOrderReceipt>.of(orders);
+          final List<CustomerOrderReceipt> nextOrders =
+              List<CustomerOrderReceipt>.of(orders);
           _isLoadingHistory = false;
           _historyErrorMessage = null;
 
           final CustomerOrderReceipt? currentOrder = _receipt;
           if (currentOrder != null) {
-            for (final CustomerOrderReceipt order in orders) {
-              if (order.id == currentOrder.id) {
-                _receipt = order;
-                _draft = order.draft;
-                break;
+            final int index = nextOrders.indexWhere(
+              (CustomerOrderReceipt order) => order.id == currentOrder.id,
+            );
+            if (index >= 0) {
+              CustomerOrderReceipt merged = nextOrders[index];
+              if (merged.recoveryCode == null &&
+                  currentOrder.recoveryCode != null) {
+                merged = merged.copyWith(
+                  recoveryCode: currentOrder.recoveryCode,
+                );
               }
+              nextOrders[index] = merged;
+              _receipt = merged;
+              _draft = merged.draft;
+            } else if (_savedSession?.orderId == currentOrder.id) {
+              // Une commande recuperee par code n'appartient pas forcement a
+              // l'UID anonyme Firestore de cet appareil. On la conserve dans
+              // l'historique local au lieu de l'effacer au prochain snapshot.
+              nextOrders.insert(0, currentOrder);
             }
           } else {
-            _restoreSavedActiveOrderOnce(orders);
+            _restoreSavedActiveOrderOnce(nextOrders);
           }
 
+          nextOrders.sort(
+            (CustomerOrderReceipt first, CustomerOrderReceipt second) =>
+                second.createdAt.compareTo(first.createdAt),
+          );
+          _customerOrders = nextOrders;
           notifyListeners();
         },
         onError: (Object error) {
@@ -239,14 +267,17 @@ class CustomerOrderViewModel extends ChangeNotifier {
 
     for (final CustomerOrderReceipt order in orders) {
       if (order.id == session.orderId && _isResumableOrder(order)) {
-        _applyResumedOrder(order, rememberLocally: false);
+        final CustomerOrderReceipt resumable =
+            order.recoveryCode == null && session.hasRecoveryCode
+            ? order.copyWith(recoveryCode: session.recoveryCode)
+            : order;
+        _applyResumedOrder(resumable, rememberLocally: false);
         return;
       }
     }
 
-    // Le document peut appartenir à l'UID anonyme d'un autre appareil.
-    // Dans ce cas, la référence + le WhatsApp mémorisés localement permettent
-    // de restaurer l'accès limité accordé par la Phase 10B.
+    // Les sessions WC2 utilisent reference + code via Supabase. Les anciennes
+    // sessions Phase 10B gardent uniquement leur fallback reference + WhatsApp.
     unawaited(_restoreRecoveredSession(session));
   }
 
@@ -761,6 +792,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
       final CustomerOrderReceipt createdOrder = await _orderRepository
           .createOrder(draft: _draft);
       _receipt = createdOrder;
+      await _registerOrderContextSafely(createdOrder);
       await _rememberOrder(createdOrder);
       _startOrderTracking(createdOrder);
       _currentStep = 7;
@@ -780,6 +812,27 @@ class CustomerOrderViewModel extends ChangeNotifier {
       _isSubmitting = false;
       notifyListeners();
     }
+  }
+
+  Future<void> _registerOrderContextSafely(
+    CustomerOrderReceipt order,
+  ) async {
+    final CustomerOrderContextRepository? repository = _orderContextRepository;
+    if (repository == null) return;
+
+    try {
+      await repository.registerContext(order: order, context: _orderContext);
+    } on Object catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'CustomerOrder.context-register',
+        error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  void updateOrderContext(CustomerOrderContextDraft context) {
+    _orderContext = context;
   }
 
   void markPaymentLinkOpened() {
@@ -939,7 +992,7 @@ class CustomerOrderViewModel extends ChangeNotifier {
     try {
       await _sessionStore.save(session);
     } on Object {
-      // Firestore remains the source of truth if browser storage is unavailable.
+      // Le stockage navigateur est uniquement un confort local. Le backend reste canonique.
     }
   }
 

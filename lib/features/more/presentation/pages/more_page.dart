@@ -18,6 +18,9 @@ import 'package:cabine_flow/features/finances/data/repositories/manager_read_onl
 import 'package:cabine_flow/features/finances/presentation/pages/cabiniste_finance_supervision_page.dart';
 import 'package:cabine_flow/features/finances/presentation/pages/supplier_finance_page.dart';
 import 'package:cabine_flow/features/managers/presentation/pages/manager_accounts_page.dart';
+import 'package:cabine_flow/features/messaging/data/repositories/operational_customer_messaging_repository.dart';
+import 'package:cabine_flow/features/messaging/domain/repositories/customer_messaging_repository.dart';
+import 'package:cabine_flow/features/messaging/presentation/pages/staff_customer_messaging_page.dart';
 import 'package:cabine_flow/features/team/presentation/pages/team_performance_page.dart';
 import 'package:cabine_flow/features/more/presentation/pages/admin_activity_journal_page.dart';
 import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
@@ -526,10 +529,23 @@ class MorePage extends StatelessWidget {
     final UserPermissions permissions = user.permissions;
     final SupportRequestRepository supportRepository =
         createOperationalSupportRequestRepository();
+    final CustomerMessagingRepository messagingRepository =
+        createOperationalCustomerMessagingRepository();
     final OrderHistoryRepository? historyRepository =
         ordersRepository is OrderHistoryRepository
         ? ordersRepository as OrderHistoryRepository
         : null;
+
+    void openMessaging() {
+      Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (BuildContext context) => StaffCustomerMessagingPage(
+            user: user,
+            repository: messagingRepository,
+          ),
+        ),
+      );
+    }
 
     void openSupportRequests() {
       final OrderHistoryRepository? history = historyRepository;
@@ -674,6 +690,12 @@ class MorePage extends StatelessWidget {
                         ),
                         if (permissions.canViewSupportRequests)
                           IzyTelAccountAction(
+                            icon: Symbols.forum_rounded,
+                            label: 'Messagerie clients',
+                            onTap: openMessaging,
+                          ),
+                        if (permissions.canViewSupportRequests)
+                          IzyTelAccountAction(
                             icon: Symbols.support_agent_rounded,
                             label: 'Demandes clients',
                             onTap: openSupportRequests,
@@ -734,6 +756,17 @@ class MorePage extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
+                  if (permissions.canViewSupportRequests)
+                    IzyTelMenuRow(
+                      icon: Symbols.forum_rounded,
+                      title: 'Messagerie clients',
+                      subtitle:
+                          'Prendre en charge et répondre aux conversations reçues depuis le Web Client.',
+                      iconColor: IzyTelColors.primary,
+                      onTap: openMessaging,
+                    ),
+                  if (permissions.canViewSupportRequests)
+                    const Divider(height: 1),
                   if (permissions.canViewSupportRequests)
                     IzyTelMenuRow(
                       icon: Symbols.support_agent_rounded,

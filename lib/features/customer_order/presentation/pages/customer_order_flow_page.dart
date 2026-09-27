@@ -2,12 +2,15 @@ import 'dart:async';
 
 import 'package:cabine_flow/core/navigation/customer_web_history.dart';
 import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
+import 'package:cabine_flow/features/customer_order/data/acquisition/customer_acquisition_source.dart';
 import 'package:cabine_flow/features/customer_order/data/local/customer_order_session_store.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/fake_customer_offer_repository.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/firestore_customer_offer_repository.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/supabase_customer_offer_repository.dart';
 import 'package:cabine_flow/features/customer_order/data/repositories/firestore_customer_order_repository.dart';
+import 'package:cabine_flow/features/customer_order/data/repositories/operational_customer_order_context_repository.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_offer.dart';
+import 'package:cabine_flow/features/customer_order/domain/models/customer_order_context.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_offer_repository.dart';
@@ -53,8 +56,7 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
   late final CustomerMessagingRepository _messagingRepository;
   late final CustomerWebHistoryController _webHistory;
 
-  final CustomerOrderRepository _orderRepository =
-      FirestoreCustomerOrderRepository();
+  late final CustomerOrderRepository _orderRepository;
   final CustomerOrderSessionStore _sessionStore =
       BrowserCustomerOrderSessionStore();
   final List<CustomerWebHistoryEntry> _navigationStack =
@@ -76,9 +78,15 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
             : const FakeCustomerOfferRepository());
     _supportRequestRepository = createOperationalSupportRequestRepository();
     _messagingRepository = createOperationalCustomerMessagingRepository();
+    _orderRepository = FirestoreCustomerOrderRepository();
+    final String? acquisitionSourceCode = resolveCustomerAcquisitionSourceCode();
     _viewModel = CustomerOrderViewModel(
       orderRepository: _orderRepository,
       sessionStore: _sessionStore,
+      orderContextRepository: createOperationalCustomerOrderContextRepository(),
+      orderContext: CustomerOrderContextDraft(
+        sourceCode: acquisitionSourceCode,
+      ),
     );
     _lastObservedStep = _viewModel.currentStep;
     _viewModel.addListener(_handleViewModelNavigationChanged);

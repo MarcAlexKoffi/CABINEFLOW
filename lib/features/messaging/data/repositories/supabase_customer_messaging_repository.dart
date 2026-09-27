@@ -6,7 +6,8 @@ import 'package:cabine_flow/features/messaging/domain/repositories/customer_mess
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 
-class SupabaseCustomerMessagingRepository implements CustomerMessagingRepository {
+class SupabaseCustomerMessagingRepository
+    implements CustomerMessagingRepository {
   SupabaseCustomerMessagingRepository({
     SupabaseClient? client,
     FirebaseAuth? firebaseAuth,
@@ -55,6 +56,22 @@ class SupabaseCustomerMessagingRepository implements CustomerMessagingRepository
         stackTrace: stackTrace,
       );
     }
+
+    // Realtime reste un accélérateur. Si le WebSocket est indisponible ou
+    // si Supabase ferme le stream, on continue à rafraîchir l'état canonique
+    // via la Data API plutôt que de laisser l'interface figée.
+    while (true) {
+      await Future<void>.delayed(const Duration(seconds: 5));
+      try {
+        yield await _fetchConversations(customerUid: customerUid);
+      } catch (error, stackTrace) {
+        IzyTelLog.backendError(
+          'CustomerMessaging.conversations-fallback',
+          error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
   }
 
   Future<List<CustomerConversation>> _fetchConversations({
@@ -90,6 +107,21 @@ class SupabaseCustomerMessagingRepository implements CustomerMessagingRepository
         error,
         stackTrace: stackTrace,
       );
+    }
+
+    // Même si Realtime tombe, une conversation ouverte doit continuer à
+    // recevoir les réponses sans obliger le client à quitter puis revenir.
+    while (true) {
+      await Future<void>.delayed(const Duration(seconds: 2));
+      try {
+        yield await _fetchMessages(id);
+      } catch (error, stackTrace) {
+        IzyTelLog.backendError(
+          'CustomerMessaging.messages-fallback',
+          error,
+          stackTrace: stackTrace,
+        );
+      }
     }
   }
 
@@ -132,23 +164,17 @@ class SupabaseCustomerMessagingRepository implements CustomerMessagingRepository
     required String conversationId,
     required String message,
   }) {
-    return _rpcVoid(
-      'izytel_wc3_send_client_message',
-      <String, dynamic>{
-        'p_conversation_id': _requiredId(conversationId, 'conversation'),
-        'p_body': _message(message),
-      },
-    );
+    return _rpcVoid('izytel_wc3_send_client_message', <String, dynamic>{
+      'p_conversation_id': _requiredId(conversationId, 'conversation'),
+      'p_body': _message(message),
+    });
   }
 
   @override
   Future<void> takeConversation({required String conversationId}) {
-    return _rpcVoid(
-      'izytel_wc3_take_conversation',
-      <String, dynamic>{
-        'p_conversation_id': _requiredId(conversationId, 'conversation'),
-      },
-    );
+    return _rpcVoid('izytel_wc3_take_conversation', <String, dynamic>{
+      'p_conversation_id': _requiredId(conversationId, 'conversation'),
+    });
   }
 
   @override
@@ -156,23 +182,17 @@ class SupabaseCustomerMessagingRepository implements CustomerMessagingRepository
     required String conversationId,
     required String message,
   }) {
-    return _rpcVoid(
-      'izytel_wc3_send_manager_message',
-      <String, dynamic>{
-        'p_conversation_id': _requiredId(conversationId, 'conversation'),
-        'p_body': _message(message),
-      },
-    );
+    return _rpcVoid('izytel_wc3_send_manager_message', <String, dynamic>{
+      'p_conversation_id': _requiredId(conversationId, 'conversation'),
+      'p_body': _message(message),
+    });
   }
 
   @override
   Future<void> resolveConversation({required String conversationId}) {
-    return _rpcVoid(
-      'izytel_wc3_resolve_conversation',
-      <String, dynamic>{
-        'p_conversation_id': _requiredId(conversationId, 'conversation'),
-      },
-    );
+    return _rpcVoid('izytel_wc3_resolve_conversation', <String, dynamic>{
+      'p_conversation_id': _requiredId(conversationId, 'conversation'),
+    });
   }
 
   Future<void> _rpcVoid(String function, Map<String, dynamic> params) async {
@@ -180,7 +200,8 @@ class SupabaseCustomerMessagingRepository implements CustomerMessagingRepository
   }
 
   Future<String> _requireUid() async {
-    final User? user = _firebaseAuth.currentUser ??
+    final User? user =
+        _firebaseAuth.currentUser ??
         await _firebaseAuth.authStateChanges().first;
     final String uid = user?.uid.trim() ?? '';
     if (uid.isEmpty) {
@@ -198,26 +219,28 @@ class SupabaseCustomerMessagingRepository implements CustomerMessagingRepository
   List<CustomerConversation> _conversationRows(
     List<Map<String, dynamic>> rows,
   ) {
-    final List<CustomerConversation> conversations = rows
-        .map(_conversationFromRow)
-        .whereType<CustomerConversation>()
-        .toList(growable: false)
-      ..sort(
-        (CustomerConversation a, CustomerConversation b) =>
-            b.updatedAt.compareTo(a.updatedAt),
-      );
+    final List<CustomerConversation> conversations =
+        rows
+            .map(_conversationFromRow)
+            .whereType<CustomerConversation>()
+            .toList(growable: false)
+          ..sort(
+            (CustomerConversation a, CustomerConversation b) =>
+                b.updatedAt.compareTo(a.updatedAt),
+          );
     return List<CustomerConversation>.unmodifiable(conversations);
   }
 
   List<CustomerMessage> _messageRows(List<Map<String, dynamic>> rows) {
-    final List<CustomerMessage> messages = rows
-        .map(_messageFromRow)
-        .whereType<CustomerMessage>()
-        .toList(growable: false)
-      ..sort(
-        (CustomerMessage a, CustomerMessage b) =>
-            a.createdAt.compareTo(b.createdAt),
-      );
+    final List<CustomerMessage> messages =
+        rows
+            .map(_messageFromRow)
+            .whereType<CustomerMessage>()
+            .toList(growable: false)
+          ..sort(
+            (CustomerMessage a, CustomerMessage b) =>
+                a.createdAt.compareTo(b.createdAt),
+          );
     return List<CustomerMessage>.unmodifiable(messages);
   }
 
@@ -299,7 +322,9 @@ class SupabaseCustomerMessagingRepository implements CustomerMessagingRepository
   String _message(String value) {
     final String body = value.trim();
     if (body.isEmpty || body.length > 2000) {
-      throw ArgumentError('Le message doit contenir entre 1 et 2000 caractères.');
+      throw ArgumentError(
+        'Le message doit contenir entre 1 et 2000 caractères.',
+      );
     }
     return body;
   }
