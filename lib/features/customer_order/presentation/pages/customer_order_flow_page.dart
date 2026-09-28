@@ -35,6 +35,7 @@ import 'package:cabine_flow/features/customer_order/presentation/pages/customer_
 import 'package:cabine_flow/features/customer_order/presentation/view_models/customer_order_view_model.dart';
 import 'package:cabine_flow/features/customer_order/presentation/widgets/customer_location_consent_dialog.dart';
 import 'package:cabine_flow/features/messaging/data/repositories/operational_customer_messaging_repository.dart';
+import 'package:cabine_flow/features/messaging/domain/models/customer_conversation.dart';
 import 'package:cabine_flow/features/messaging/domain/repositories/customer_messaging_repository.dart';
 import 'package:cabine_flow/features/messaging/presentation/pages/customer_messaging_page.dart';
 import 'package:cabine_flow/features/support/data/repositories/operational_support_request_repository.dart';
@@ -42,6 +43,7 @@ import 'package:cabine_flow/features/support/domain/repositories/support_request
 import 'package:cabine_flow/features/support/presentation/pages/customer_help_page.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 
 enum _CustomerSurface { home, order, catalog, history, help, messaging, recovery }
@@ -74,6 +76,17 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
   int _lastObservedStep = 1;
   bool _suppressHistoryRecording = false;
   bool _initialLocationPromptShown = false;
+  bool _messagingRouteActive = false;
+  bool _messagingInnerActive = false;
+  int _messagingInnerResetToken = 0;
+  CustomerWebHistoryEntry? _messagingReturnEntry;
+  StreamSubscription<List<CustomerConversation>>? _customerMessagingAlertsSub;
+  final Map<String, DateTime> _customerConversationLastMessageAt =
+      <String, DateTime>{};
+  bool _customerMessagingAlertsSeeded = false;
+
+  static const int _messagingListHistoryStep = 0;
+  static const int _messagingInnerHistoryStep = 1;
 
   @override
   void initState() {
@@ -114,8 +127,11 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
 
   Future<void> _initializeCustomerExperience() async {
     await _viewModel.initialize();
+    if (!mounted) return;
 
-    if (!mounted || !kIsWeb) {
+    _startCustomerMessagingAlerts();
+
+    if (!kIsWeb) {
       return;
     }
 
@@ -124,6 +140,59 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
         unawaited(_showInitialLocationPrompt());
       }
     });
+  }
+
+  void _startCustomerMessagingAlerts() {
+    _customerMessagingAlertsSub?.cancel();
+    _customerMessagingAlertsSub = _messagingRepository
+        .watchCustomerConversations()
+        .listen(
+          (List<CustomerConversation> conversations) {
+            if (!mounted) return;
+
+            if (!_customerMessagingAlertsSeeded) {
+              _customerConversationLastMessageAt
+                ..clear()
+                ..addEntries(
+                  conversations.map(
+                    (CustomerConversation conversation) => MapEntry<String, DateTime>(
+                      conversation.id,
+                      conversation.lastMessageAt,
+                    ),
+                  ),
+                );
+              _customerMessagingAlertsSeeded = true;
+              return;
+            }
+
+            for (final CustomerConversation conversation in conversations) {
+              final DateTime? previous =
+                  _customerConversationLastMessageAt[conversation.id];
+              _customerConversationLastMessageAt[conversation.id] =
+                  conversation.lastMessageAt;
+
+              if (previous == null ||
+                  !conversation.lastMessageAt.isAfter(previous) ||
+                  conversation.lastSenderType !=
+                      CustomerMessageSenderType.manager) {
+                continue;
+              }
+
+              final String preview = conversation.lastMessagePreview.trim();
+              IzyTelFeedback.show(
+                context,
+                preview.isEmpty
+                    ? 'IzyTel vous a répondu dans la messagerie.'
+                    : 'IzyTel : $preview',
+                duration: const Duration(seconds: 5),
+              );
+            }
+          },
+          onError: (Object _, StackTrace _) {
+            // La notification in-app est un confort. La messagerie garde son
+            // propre stream/fallback et ne doit jamais etre bloquee ici.
+          },
+        );
   }
 
   Future<void> _showInitialLocationPrompt() async {
@@ -179,6 +248,7 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
 
   @override
   void dispose() {
+    _customerMessagingAlertsSub?.cancel();
     _webHistory.dispose();
     _viewModel.removeListener(_handleViewModelNavigationChanged);
     _viewModel.dispose();
@@ -189,9 +259,13 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
     _CustomerSurface surface, {
     int? step,
   }) {
+    final int resolvedStep = step ??
+        (surface == _CustomerSurface.messaging
+            ? _messagingListHistoryStep
+            : _viewModel.currentStep);
     return CustomerWebHistoryEntry(
       location: surface.name,
-      step: step ?? _viewModel.currentStep,
+      step: resolvedStep,
     );
   }
 
@@ -224,11 +298,37 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
   }
 
   void _navigateTo(_CustomerSurface surface) {
+    if (_surface == _CustomerSurface.messaging &&
+        surface != _CustomerSurface.messaging &&
+        _messagingInnerActive) {
+      _collapseMessagingInnerHistory();
+    }
+
+    if (surface != _CustomerSurface.messaging) {
+      _messagingInnerActive = false;
+      if (_surface == _CustomerSurface.messaging) {
+        _messagingReturnEntry = null;
+      }
+    }
     final CustomerWebHistoryEntry entry = _entryFor(surface);
     if (_surface != surface) {
       setState(() => _surface = surface);
     }
     _pushHistoryEntry(entry);
+  }
+
+  void _collapseMessagingInnerHistory() {
+    _messagingInnerActive = false;
+    _messagingInnerResetToken += 1;
+    final CustomerWebHistoryEntry listEntry = _entryFor(
+      _CustomerSurface.messaging,
+      step: _messagingListHistoryStep,
+    );
+    if (_navigationStack.isNotEmpty &&
+        _navigationStack.last.location == _CustomerSurface.messaging.name) {
+      _navigationStack[_navigationStack.length - 1] = listEntry;
+    }
+    _webHistory.replace(listEntry);
   }
 
   void _openHome() => _navigateTo(_CustomerSurface.home);
@@ -263,7 +363,55 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
 
   void _openHelp() => _navigateTo(_CustomerSurface.help);
 
-  void _openMessaging() => _navigateTo(_CustomerSurface.messaging);
+  void _openMessaging() {
+    // WC8: la messagerie n'est plus un simple etat dans l'AnimatedSwitcher.
+    // Elle est poussee comme une vraie route Flutter au-dessus de l'ecran
+    // courant. Le bouton Retour Android/Chrome remonte donc naturellement
+    // conversation -> liste -> ecran d'origine (Aide, identification, etc.).
+    unawaited(_pushMessagingRoute());
+  }
+
+  Future<void> _pushMessagingRoute() async {
+    if (!mounted || _messagingRouteActive) return;
+
+    _messagingRouteActive = true;
+    try {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          settings: const RouteSettings(name: '/customer/messaging'),
+          builder: (BuildContext routeContext) {
+            void leaveTo(_CustomerSurface target) {
+              Navigator.of(routeContext).pop();
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                _navigateTo(target);
+              });
+            }
+
+            return CustomerMessagingPage(
+              repository: _messagingRepository,
+              orders: _viewModel.customerOrders,
+              orderContext: _viewModel.orderContext,
+              customerName: _viewModel.draft.identity?.name,
+              onBack: () => Navigator.of(routeContext).maybePop(),
+              onOpenHome: () => leaveTo(_CustomerSurface.home),
+              onOpenOffers: () => leaveTo(_CustomerSurface.catalog),
+              onOpenHistory: () => leaveTo(_CustomerSurface.history),
+              onOpenHelp: () => leaveTo(_CustomerSurface.help),
+            );
+          },
+        ),
+      );
+    } finally {
+      // Le popstate produit par la route Messagerie doit etre laisse a Flutter
+      // pendant tout le depilage. On ne reactive l'historique metier qu'apres
+      // le frame qui a restaure l'ecran d'origine.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _messagingRouteActive = false;
+      });
+    }
+  }
 
   void _openRecovery() {
     _viewModel.clearRecoveryError();
@@ -352,10 +500,56 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
     _webHistory.replace(current);
   }
 
-  void _handleBrowserHistoryPop(CustomerWebHistoryEntry? entry) {
-    if (!mounted || entry == null) {
+  void _handleMessagingInnerViewChanged(bool active) {
+    if (active) {
+      if (_messagingInnerActive) return;
+      _messagingInnerActive = true;
+      _pushHistoryEntry(
+        _entryFor(
+          _CustomerSurface.messaging,
+          step: _messagingInnerHistoryStep,
+        ),
+      );
       return;
     }
+
+    _messagingInnerActive = false;
+  }
+
+  void _handleBrowserHistoryPop(CustomerWebHistoryEntry? entry) {
+    if (!mounted) return;
+
+    // Une route Flutter dediee gere toute la pile de la messagerie. Le
+    // popstate du navigateur qui ferme cette route ne doit surtout pas etre
+    // interprete une seconde fois par l'ancien historique des surfaces, sinon
+    // Aide est sautee et l'utilisateur retombe directement sur Accueil.
+    if (_messagingRouteActive) return;
+
+    // Le navigateur Android peut parfois remonter une entree plus ancienne
+    // que celle attendue lorsqu'une PWA/Flutter manipule le meme URL. Pendant
+    // la messagerie, on protege donc explicitement le parcours :
+    // fil/composer -> liste Messagerie -> ecran d'origine exact.
+    if (_surface == _CustomerSurface.messaging) {
+      if (_messagingInnerActive) {
+        final CustomerWebHistoryEntry listEntry = _entryFor(
+          _CustomerSurface.messaging,
+          step: _messagingListHistoryStep,
+        );
+        _webHistory.replace(listEntry);
+        _restoreHistoryEntry(listEntry);
+        return;
+      }
+
+      final CustomerWebHistoryEntry? origin = _messagingReturnEntry;
+      if (origin != null) {
+        _webHistory.replace(origin);
+        _restoreHistoryEntry(origin);
+        _messagingReturnEntry = null;
+        return;
+      }
+    }
+
+    if (entry == null) return;
 
     // A confirmed order is terminal. Browser back must never reopen the
     // payment form. Skip older order-step entries until the previous main
@@ -389,11 +583,17 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
 
     _suppressHistoryRecording = true;
     try {
+      bool messagingListRestored = false;
       if (target == _CustomerSurface.order) {
         _viewModel.restoreNavigationStep(entry.step);
+      } else if (target == _CustomerSurface.messaging &&
+          entry.step == _messagingListHistoryStep) {
+        _messagingInnerActive = false;
+        _messagingInnerResetToken += 1;
+        messagingListRestored = true;
       }
       _lastObservedStep = _viewModel.currentStep;
-      if (_surface != target && mounted) {
+      if (mounted && (_surface != target || messagingListRestored)) {
         setState(() => _surface = target);
       }
     } finally {
@@ -441,6 +641,8 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
               onOpenOffers: _openCatalog,
               onOpenHistory: _openHistory,
               onOpenHelp: _openHelp,
+              onInnerViewChanged: _handleMessagingInnerViewChanged,
+              resetInnerViewToken: _messagingInnerResetToken,
             ),
             _CustomerSurface.history => CustomerOrderHistoryPage(
               key: const ValueKey<String>('customer-history'),

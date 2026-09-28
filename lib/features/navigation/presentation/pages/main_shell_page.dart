@@ -27,7 +27,10 @@ import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_rep
 import 'package:cabine_flow/features/dashboard/presentation/pages/dashboard_page.dart';
 import 'package:cabine_flow/features/dashboard/presentation/widgets/dashboard_widgets.dart';
 import 'package:cabine_flow/features/finances/presentation/pages/finances_page.dart';
+import 'package:cabine_flow/features/messaging/data/repositories/operational_customer_messaging_repository.dart';
+import 'package:cabine_flow/features/messaging/presentation/pages/staff_customer_messaging_page.dart';
 import 'package:cabine_flow/features/more/presentation/pages/more_page.dart';
+import 'package:cabine_flow/features/navigation/presentation/widgets/izytel_mobile_back_scope.dart';
 import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/automatic_assignment.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
@@ -38,7 +41,6 @@ import 'package:cabine_flow/features/orders/presentation/pages/agent_orders_page
 import 'package:cabine_flow/features/payments/presentation/pages/payments_page.dart';
 import 'package:cabine_flow/features/payments/domain/repositories/payment_link_repository.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
@@ -88,9 +90,6 @@ class _MainShellPageState extends State<MainShellPage>
   bool _managerSupabaseWarningShown = false;
   bool _notificationPermissionWarningShown = false;
   bool _isLoggingOut = false;
-  DateTime? _lastBackPressAt;
-  bool _handlingSystemBack = false;
-  late final List<NavigatorObserver> _tabNavigatorObservers;
   StreamSubscription<IzyTelNotificationPayload>? _notificationOpenedSubscription;
   StreamSubscription<IzyTelNotificationPayload>? _notificationForegroundSubscription;
 
@@ -105,17 +104,17 @@ class _MainShellPageState extends State<MainShellPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _tabNavigatorObservers = List<NavigatorObserver>.generate(
-      _tabNavigatorKeys.length,
-      (_) => _IzyTelTabNavigationObserver(_disarmExit),
-    );
     unawaited(_startNotificationRegistry());
     if (widget.user.role != UserRole.agent) {
       _wireStaffNotifications();
+    }
+    // La synchronisation du backlog parcourt encore la file legacy globale.
+    // Elle reste donc strictement Admin ; un Manager consomme uniquement les
+    // lignes Supabase déjà filtrées par sa zone.
+    if (widget.user.role == UserRole.administrator) {
       _startAutomaticAssignmentWatchers();
       _scheduleAutomaticAssignmentSync(immediate: true);
-      if (SupabaseBootstrap.isInitialized &&
-          widget.user.role == UserRole.administrator) {
+      if (SupabaseBootstrap.isInitialized) {
         unawaited(_synchronizePhase5ConsolidatedBackfill());
       }
     }
@@ -164,7 +163,7 @@ class _MainShellPageState extends State<MainShellPage>
       if (!mounted) return;
       IzyTelFeedback.show(
         context,
-        'Les notifications IzyTel sont désactivées sur ce téléphone. Active-les dans les paramètres Android pour recevoir les nouvelles commandes.',
+        'Les notifications IzyTel sont désactivées sur ce téléphone. Active-les dans les paramètres Android pour recevoir les nouvelles commandes et les messages clients.',
         tone: IzyTelFeedbackTone.warning,
         duration: const Duration(seconds: 5),
       );
@@ -211,6 +210,27 @@ class _MainShellPageState extends State<MainShellPage>
     IzyTelNotificationPayload payload,
   ) async {
     if (!mounted) return;
+
+    if (payload.targetsConversation ||
+        payload.type == 'customer_message_new' ||
+        payload.type == 'manager_message_new') {
+      _openMoreTab();
+      await Future<void>.delayed(Duration.zero);
+      if (!mounted) return;
+      final NavigatorState? moreNavigator = _tabNavigatorKeys[4].currentState;
+      moreNavigator?.popUntil((Route<dynamic> route) => route.isFirst);
+      moreNavigator?.push<void>(
+        MaterialPageRoute<void>(
+          settings: const RouteSettings(name: '/staff/customer-messaging'),
+          builder: (_) => StaffCustomerMessagingPage(
+            user: widget.user,
+            repository: createOperationalCustomerMessagingRepository(),
+            initialConversationId: payload.conversationId,
+          ),
+        ),
+      );
+      return;
+    }
 
     if (payload.targetsOrder ||
         payload.type == 'order_assigned' ||
@@ -378,7 +398,7 @@ class _MainShellPageState extends State<MainShellPage>
   }
 
   void _openOrdersTab() {
-    _selectDestination(1);
+    _openRootDestination(1);
   }
 
   Future<void> _openSpecificOrder(QueueOrder order) async {
@@ -421,15 +441,15 @@ class _MainShellPageState extends State<MainShellPage>
   }
 
   void _openPaymentsTab() {
-    _selectDestination(2);
+    _openRootDestination(2);
   }
 
   void _openNetworkTab() {
-    _selectDestination(3);
+    _openRootDestination(3);
   }
 
   void _openMoreTab() {
-    _selectDestination(4);
+    _openRootDestination(4);
   }
 
   Future<void> _logoutAdmin() async {
@@ -490,57 +510,24 @@ class _MainShellPageState extends State<MainShellPage>
     }
   }
 
-  void _disarmExit() {
-    _lastBackPressAt = null;
-  }
-
   void _popTabToRoot(int index) {
     _tabNavigatorKeys[index].currentState?.popUntil(
       (Route<dynamic> route) => route.isFirst,
     );
   }
 
-  Future<void> _handleSystemBack() async {
-    if (_handlingSystemBack) return;
-    _handlingSystemBack = true;
-    try {
-      final NavigatorState? currentNavigator =
-          _tabNavigatorKeys[_selectedIndex].currentState;
-
-      if (currentNavigator != null && await currentNavigator.maybePop()) {
-        _disarmExit();
-        return;
-      }
-
-      if (_selectedIndex != 0) {
-        _disarmExit();
-        _popTabToRoot(0);
-        if (mounted) setState(() => _selectedIndex = 0);
-        return;
-      }
-
-      final DateTime now = DateTime.now();
-      final DateTime? previous = _lastBackPressAt;
-      if (previous == null ||
-          now.difference(previous) > const Duration(seconds: 2)) {
-        _lastBackPressAt = now;
-        if (mounted) {
-          IzyTelFeedback.show(
-            context,
-            'Appuie encore une fois pour quitter IzyTel.',
-          );
-        }
-        return;
-      }
-
-      await SystemNavigator.pop();
-    } finally {
-      _handlingSystemBack = false;
+  void _selectDestination(int index) {
+    if (index == _selectedIndex) {
+      // Convention mobile : retaper l'onglet actif revient a sa racine.
+      _popTabToRoot(index);
+      return;
     }
+
+    // Chaque onglet conserve sa propre pile quand on change d'onglet.
+    setState(() => _selectedIndex = index);
   }
 
-  void _selectDestination(int index) {
-    _disarmExit();
+  void _openRootDestination(int index) {
     _popTabToRoot(index);
     if (index == _selectedIndex) return;
     setState(() => _selectedIndex = index);
@@ -549,7 +536,6 @@ class _MainShellPageState extends State<MainShellPage>
   Widget _buildTabNavigator(int index, Widget rootPage) {
     return Navigator(
       key: _tabNavigatorKeys[index],
-      observers: <NavigatorObserver>[_tabNavigatorObservers[index]],
       onGenerateRoute: (RouteSettings settings) {
         return MaterialPageRoute<void>(
           settings: settings,
@@ -622,10 +608,13 @@ class _MainShellPageState extends State<MainShellPage>
       ),
     ];
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (!didPop) unawaited(_handleSystemBack());
+    return IzyTelMobileBackScope(
+      activeNavigatorKey: _tabNavigatorKeys[_selectedIndex],
+      isHomeTab: _selectedIndex == 0,
+      onReturnHome: () {
+        if (mounted && _selectedIndex != 0) {
+          setState(() => _selectedIndex = 0);
+        }
       },
       child: Scaffold(
         backgroundColor: IzyTelColors.background,
@@ -668,9 +657,6 @@ class _AgentShell extends StatefulWidget {
 class _AgentShellState extends State<_AgentShell> {
   int _selectedIndex = 0;
   bool _isLoggingOut = false;
-  DateTime? _lastBackPressAt;
-  bool _handlingSystemBack = false;
-  late final List<NavigatorObserver> _tabNavigatorObservers;
   StreamSubscription<IzyTelNotificationPayload>? _notificationOpenedSubscription;
   StreamSubscription<IzyTelNotificationPayload>? _notificationForegroundSubscription;
   final ValueNotifier<IzyTelNotificationPayload?> _notificationOrderRequest =
@@ -685,10 +671,6 @@ class _AgentShellState extends State<_AgentShell> {
   @override
   void initState() {
     super.initState();
-    _tabNavigatorObservers = List<NavigatorObserver>.generate(
-      _tabNavigatorKeys.length,
-      (_) => _IzyTelTabNavigationObserver(_disarmExit),
-    );
     _notificationForegroundSubscription =
         FirebaseMessagingBootstrap.foregroundPayloads.listen(
       (IzyTelNotificationPayload payload) {
@@ -729,8 +711,7 @@ class _AgentShellState extends State<_AgentShell> {
     if (payload.targetsOrder ||
         payload.type == 'order_assigned' ||
         payload.type == 'order_reassigned') {
-      _selectDestination(1);
-      _popTabToRoot(1);
+      _openRootDestination(1);
       _notificationOrderRequest.value = null;
       scheduleMicrotask(() {
         if (mounted) _notificationOrderRequest.value = payload;
@@ -739,7 +720,7 @@ class _AgentShellState extends State<_AgentShell> {
     }
 
     if (payload.type == 'agent_issue_resolved') {
-      _selectDestination(3);
+      _openRootDestination(3);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         final NavigatorState? profileNavigator =
@@ -823,57 +804,21 @@ class _AgentShellState extends State<_AgentShell> {
     }
   }
 
-  void _disarmExit() {
-    _lastBackPressAt = null;
-  }
-
   void _popTabToRoot(int index) {
     _tabNavigatorKeys[index].currentState?.popUntil(
       (Route<dynamic> route) => route.isFirst,
     );
   }
 
-  Future<void> _handleSystemBack() async {
-    if (_handlingSystemBack) return;
-    _handlingSystemBack = true;
-    try {
-      final NavigatorState? currentNavigator =
-          _tabNavigatorKeys[_selectedIndex].currentState;
-
-      if (currentNavigator != null && await currentNavigator.maybePop()) {
-        _disarmExit();
-        return;
-      }
-
-      if (_selectedIndex != 0) {
-        _disarmExit();
-        _popTabToRoot(0);
-        if (mounted) setState(() => _selectedIndex = 0);
-        return;
-      }
-
-      final DateTime now = DateTime.now();
-      final DateTime? previous = _lastBackPressAt;
-      if (previous == null ||
-          now.difference(previous) > const Duration(seconds: 2)) {
-        _lastBackPressAt = now;
-        if (mounted) {
-          IzyTelFeedback.show(
-            context,
-            'Appuie encore une fois pour quitter IzyTel.',
-          );
-        }
-        return;
-      }
-
-      await SystemNavigator.pop();
-    } finally {
-      _handlingSystemBack = false;
+  void _selectDestination(int index) {
+    if (index == _selectedIndex) {
+      _popTabToRoot(index);
+      return;
     }
+    setState(() => _selectedIndex = index);
   }
 
-  void _selectDestination(int index) {
-    _disarmExit();
+  void _openRootDestination(int index) {
     _popTabToRoot(index);
     if (index == _selectedIndex) return;
     setState(() => _selectedIndex = index);
@@ -882,7 +827,6 @@ class _AgentShellState extends State<_AgentShell> {
   Widget _buildTabNavigator(int index, Widget rootPage) {
     return Navigator(
       key: _tabNavigatorKeys[index],
-      observers: <NavigatorObserver>[_tabNavigatorObservers[index]],
       onGenerateRoute: (RouteSettings settings) {
         return MaterialPageRoute<void>(
           settings: settings,
@@ -893,16 +837,15 @@ class _AgentShellState extends State<_AgentShell> {
   }
 
   void _openAgentOrders() {
-    _selectDestination(1);
+    _openRootDestination(1);
   }
 
   void _openAgentProfile() {
-    _selectDestination(3);
-    _popTabToRoot(3);
+    _openRootDestination(3);
   }
 
   void _openAgentHistory() {
-    _selectDestination(2);
+    _openRootDestination(2);
   }
 
   void _openAgentPerformance() {
@@ -973,10 +916,13 @@ class _AgentShellState extends State<_AgentShell> {
       ),
     ];
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (!didPop) unawaited(_handleSystemBack());
+    return IzyTelMobileBackScope(
+      activeNavigatorKey: _tabNavigatorKeys[_selectedIndex],
+      isHomeTab: _selectedIndex == 0,
+      onReturnHome: () {
+        if (mounted && _selectedIndex != 0) {
+          setState(() => _selectedIndex = 0);
+        }
       },
       child: Scaffold(
         backgroundColor: IzyTelColors.background,
@@ -993,37 +939,6 @@ class _AgentShellState extends State<_AgentShell> {
         ),
       ),
     );
-  }
-}
-
-class _IzyTelTabNavigationObserver extends NavigatorObserver {
-  _IzyTelTabNavigationObserver(this.onNavigation);
-
-  final VoidCallback onNavigation;
-
-  @override
-  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    onNavigation();
-  }
-
-  @override
-  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    onNavigation();
-  }
-
-  @override
-  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    onNavigation();
-  }
-
-  @override
-  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
-    onNavigation();
-  }
-
-  @override
-  void didStartUserGesture(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    onNavigation();
   }
 }
 

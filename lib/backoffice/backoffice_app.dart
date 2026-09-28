@@ -296,11 +296,22 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
       );
     }
 
+    final OrdersRepository shellOrders =
+        (user.role == UserRole.manager || user.role == UserRole.supervisor) &&
+                widget.ordersRepository is HybridOrdersRepository
+            ? HybridOrdersRepository(viewer: user)
+            : widget.ordersRepository;
+    final AgentRepository shellAgents =
+        (user.role == UserRole.manager || user.role == UserRole.supervisor) &&
+                widget.agentRepository is FirestoreAgentRepository
+            ? FirestoreAgentRepository(viewer: user)
+            : widget.agentRepository;
+
     return BackofficeShellPage(
       user: user,
       userRepository: widget.userRepository,
-      ordersRepository: widget.ordersRepository,
-      agentRepository: widget.agentRepository,
+      ordersRepository: shellOrders,
+      agentRepository: shellAgents,
       territoryRepository: widget.territoryRepository,
       supportRepository: widget.supportRepository,
       refundRepository: widget.refundRepository,

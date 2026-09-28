@@ -6,7 +6,7 @@ void main() {
   String source(String path) => File(path).readAsStringSync();
 
   test(
-    'Agent detaille reste accessible au Manager avec capacités seules modifiables',
+    'Agent detaille laisse au Manager la gestion operationnelle de ses Agents',
     () {
       final String detail = source(
         'lib/features/agents/presentation/pages/agent_detail_page.dart',
@@ -17,12 +17,13 @@ void main() {
         contains("label: const Text('Identité et activité détaillée')"),
       );
       expect(detail, contains('widget.viewer.isManager'));
-      expect(detail, contains('adjustManagedAgentCapacity'));
+      expect(detail, contains('updateManagedAgentOperations'));
       expect(
         detail,
-        contains("label: const Text('Enregistrer les capacités Agent')"),
+        contains("label: const Text('Enregistrer la gestion Agent')"),
       );
-      expect(detail, contains('readOnly: !_canEditCapacities'));
+      expect(detail, contains('readOnly: !_canEditOperationalSettings'));
+      expect(detail, contains('onChanged: !_canEditOperationalSettings'));
       expect(detail, contains('readOnly: widget.readOnly'));
     },
   );

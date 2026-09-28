@@ -23,9 +23,16 @@ class CustomerWebHistoryController {
 
   bool get supported => false;
 
-  void replace(CustomerWebHistoryEntry entry) {}
+  CustomerWebHistoryEntry? _currentEntry;
+  CustomerWebHistoryEntry? get currentEntry => _currentEntry;
 
-  void push(CustomerWebHistoryEntry entry) {}
+  void replace(CustomerWebHistoryEntry entry) {
+    _currentEntry = entry;
+  }
+
+  void push(CustomerWebHistoryEntry entry) {
+    _currentEntry = entry;
+  }
 
   void back() {}
 

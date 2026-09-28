@@ -9,11 +9,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class SupabaseAgentOperationalRecord {
   const SupabaseAgentOperationalRecord({
     required this.agentId,
+    required this.agentName,
     required this.isActive,
     required this.profile,
   });
 
   final String agentId;
+  final String agentName;
   final bool isActive;
   final AgentProfile profile;
 }
@@ -28,7 +30,7 @@ class SupabaseAgentOperationsRepository {
     : _client = client ?? Supabase.instance.client;
 
   static const String tableName = 'phase5_agent_capacities';
-  static const Duration pollInterval = Duration(seconds: 3);
+  static const Duration fallbackPollInterval = Duration(seconds: 30);
 
   final SupabaseClient _client;
 
@@ -54,64 +56,152 @@ class SupabaseAgentOperationsRepository {
   }
 
   Stream<AgentProfile?> watchProfile(String agentId) async* {
+    final String id = agentId.trim();
+    if (id.isEmpty) {
+      yield null;
+      return;
+    }
+
     AgentProfile? lastKnown;
+    try {
+      final SupabaseAgentOperationalRecord? initial = await fetchRecord(id);
+      lastKnown = initial?.profile;
+      yield lastKnown;
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'AgentOperations.profile-initial',
+        error,
+        stackTrace: stackTrace,
+      );
+      if (!BackendFailurePolicy.canRetryRead(error)) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+    }
+
+    try {
+      await _syncRealtimeAuth();
+      final Stream<List<Map<String, dynamic>>> rowsStream = _client
+          .from(tableName)
+          .stream(primaryKey: const <String>['agent_id'])
+          .eq('agent_id', id);
+      await for (final List<Map<String, dynamic>> rows in rowsStream) {
+        final AgentProfile? current = rows.isEmpty
+            ? null
+            : _recordFromRow(rows.first).profile;
+        lastKnown = current;
+        yield current;
+      }
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'AgentOperations.profile-realtime',
+        error,
+        stackTrace: stackTrace,
+      );
+    }
+
+    // Realtime est la voie normale. Ce polling lent n'est qu'un filet de
+    // securite si le WebSocket tombe ; il remplace l'ancien polling 3 s qui
+    // saturait le compte Agent avec plusieurs GET concurrents.
     int failures = 0;
     while (true) {
+      await Future<void>.delayed(
+        BackendFailurePolicy.retryDelay(
+          baseDelay: fallbackPollInterval,
+          consecutiveFailures: failures,
+        ),
+      );
       try {
-        final SupabaseAgentOperationalRecord? record = await fetchRecord(
-          agentId,
-        );
+        final SupabaseAgentOperationalRecord? record = await fetchRecord(id);
         lastKnown = record?.profile;
         failures = 0;
         yield lastKnown;
-        await Future<void>.delayed(pollInterval);
       } catch (error, stackTrace) {
         IzyTelLog.backendError(
-          'AgentOperations.profile',
+          'AgentOperations.profile-fallback',
           error,
           stackTrace: stackTrace,
         );
         if (!BackendFailurePolicy.canRetryRead(error)) {
           Error.throwWithStackTrace(error, stackTrace);
         }
+        failures += 1;
         if (lastKnown != null) yield lastKnown;
-        await Future<void>.delayed(
-          BackendFailurePolicy.retryDelay(
-            baseDelay: pollInterval,
-            consecutiveFailures: failures++,
-          ),
-        );
       }
     }
   }
 
   Stream<List<SupabaseAgentOperationalRecord>> watchAllForStaff() async* {
     List<SupabaseAgentOperationalRecord>? lastKnown;
+    try {
+      lastKnown = await fetchAllForStaff();
+      yield lastKnown;
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'AgentOperations.directory-initial',
+        error,
+        stackTrace: stackTrace,
+      );
+      if (!BackendFailurePolicy.canRetryRead(error)) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+    }
+
+    try {
+      await _syncRealtimeAuth();
+      final Stream<List<Map<String, dynamic>>> rowsStream = _client
+          .from(tableName)
+          .stream(primaryKey: const <String>['agent_id']);
+      await for (final List<Map<String, dynamic>> rows in rowsStream) {
+        final List<SupabaseAgentOperationalRecord> records = rows
+            .map(_recordFromRow)
+            .toList(growable: false)
+          ..sort(
+            (SupabaseAgentOperationalRecord a,
+                    SupabaseAgentOperationalRecord b) =>
+                a.profile.agentCode.compareTo(b.profile.agentCode),
+          );
+        lastKnown = List<SupabaseAgentOperationalRecord>.unmodifiable(records);
+        yield lastKnown;
+      }
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'AgentOperations.directory-realtime',
+        error,
+        stackTrace: stackTrace,
+      );
+    }
+
     int failures = 0;
     while (true) {
+      await Future<void>.delayed(
+        BackendFailurePolicy.retryDelay(
+          baseDelay: fallbackPollInterval,
+          consecutiveFailures: failures,
+        ),
+      );
       try {
         lastKnown = await fetchAllForStaff();
         failures = 0;
         yield lastKnown;
-        await Future<void>.delayed(pollInterval);
       } catch (error, stackTrace) {
         IzyTelLog.backendError(
-          'AgentOperations.directory',
+          'AgentOperations.directory-fallback',
           error,
           stackTrace: stackTrace,
         );
         if (!BackendFailurePolicy.canRetryRead(error)) {
           Error.throwWithStackTrace(error, stackTrace);
         }
+        failures += 1;
         if (lastKnown != null) yield lastKnown;
-        await Future<void>.delayed(
-          BackendFailurePolicy.retryDelay(
-            baseDelay: pollInterval,
-            consecutiveFailures: failures++,
-          ),
-        );
       }
     }
+  }
+
+  Future<void> _syncRealtimeAuth() async {
+    final String? token = await FirebaseAuth.instance.currentUser?.getIdToken();
+    if (token == null || token.trim().isEmpty) return;
+    await _client.realtime.setAuth(token);
   }
 
   Future<AgentProfile> updateOwnOperations({
@@ -192,6 +282,31 @@ class SupabaseAgentOperationsRepository {
     );
   }
 
+  Future<AgentProfile> updateManagedAgentOperations({
+    required String agentId,
+    required ManagedAgentOperationalUpdate update,
+  }) async {
+    final String uid = (FirebaseAuth.instance.currentUser?.uid ?? '').trim();
+    if (uid.isEmpty) {
+      throw StateError('Aucune session Manager active.');
+    }
+    final Object? raw = await _client.rpc(
+      'izytel_manager_update_agent_operations',
+      params: <String, dynamic>{
+        'p_agent_id': agentId.trim(),
+        'p_authorized_networks': update.authorizedNetworks
+            .map((AgentNetwork network) => network.name)
+            .toList(growable: false),
+        'p_daily_transaction_limit': update.dailyTransactionLimit,
+        'p_max_transactions_per_day': update.maxTransactionsPerDay,
+        'p_orange': update.orangeCapacity,
+        'p_mtn': update.mtnCapacity,
+        'p_moov': update.moovCapacity,
+      },
+    );
+    return _profileFromRpc(raw, fallbackAgentId: agentId);
+  }
+
   Future<AgentProfile> provisionAgent({
     required StaffAccountSummary account,
   }) async {
@@ -227,6 +342,7 @@ class SupabaseAgentOperationsRepository {
     }
     return SupabaseAgentOperationalRecord(
       agentId: id,
+      agentName: _string(row['agent_name'], fallback: 'Agent'),
       isActive: row['is_active'] == true,
       profile: _profileFromRow(row, fallbackAgentId: id),
     );

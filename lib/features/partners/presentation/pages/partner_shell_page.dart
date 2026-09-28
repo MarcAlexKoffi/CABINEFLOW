@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:cabine_flow/app/app_routes.dart';
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/notifications/firebase_messaging_bootstrap.dart';
@@ -14,6 +15,7 @@ import 'package:cabine_flow/features/auth/domain/models/staff_profile.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:cabine_flow/features/partners/data/repositories/supabase_partner_order_repository.dart';
 import 'package:cabine_flow/features/partners/domain/models/partner_order_models.dart';
+import 'package:cabine_flow/features/navigation/presentation/widgets/izytel_mobile_back_scope.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:flutter/foundation.dart';
@@ -42,8 +44,6 @@ class _PartnerShellPageState extends State<PartnerShellPage>
     with WidgetsBindingObserver {
   int _selectedIndex = 0;
   bool _isLoggingOut = false;
-  DateTime? _lastBackPressAt;
-  bool _handlingBack = false;
   StreamSubscription<IzyTelNotificationPayload>? _notificationOpened;
   StreamSubscription<IzyTelNotificationPayload>? _notificationForeground;
   final List<GlobalKey<NavigatorState>> _navigatorKeys =
@@ -116,16 +116,27 @@ class _PartnerShellPageState extends State<PartnerShellPage>
     if (payload.targetsOrder ||
         payload.type == 'order_assigned' ||
         payload.type == 'order_reassigned') {
-      _selectTab(1);
+      _openRootTab(1);
       _refreshOrders.value++;
     }
   }
 
-  void _selectTab(int index) {
-    _lastBackPressAt = null;
+  void _popTabToRoot(int index) {
     _navigatorKeys[index].currentState?.popUntil(
       (Route<dynamic> route) => route.isFirst,
     );
+  }
+
+  void _selectTab(int index) {
+    if (index == _selectedIndex) {
+      _popTabToRoot(index);
+      return;
+    }
+    setState(() => _selectedIndex = index);
+  }
+
+  void _openRootTab(int index) {
+    _popTabToRoot(index);
     if (index == _selectedIndex) return;
     setState(() => _selectedIndex = index);
   }
@@ -189,52 +200,15 @@ class _PartnerShellPageState extends State<PartnerShellPage>
     }
   }
 
-  Future<void> _handleBack() async {
-    if (_handlingBack) return;
-    _handlingBack = true;
-    try {
-      final NavigatorState? current =
-          _navigatorKeys[_selectedIndex].currentState;
-      if (current != null && current.canPop()) {
-        current.pop();
-        _lastBackPressAt = null;
-        return;
-      }
-
-      if (_selectedIndex != 0) {
-        _selectTab(0);
-        return;
-      }
-
-      final DateTime now = DateTime.now();
-      if (_lastBackPressAt == null ||
-          now.difference(_lastBackPressAt!) > const Duration(seconds: 2)) {
-        _lastBackPressAt = now;
-        if (mounted) {
-          IzyTelFeedback.show(
-            context,
-            'Appuie encore une fois pour quitter IzyTel.',
-          );
-        }
-        return;
-      }
-
-      await SystemNavigator.pop();
-    } finally {
-      await Future<void>.delayed(const Duration(milliseconds: 250));
-      _handlingBack = false;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = <Widget>[
       _PartnerHomePage(
         user: widget.user,
         repository: widget.repository,
-        onOpenOrders: () => _selectTab(1),
-        onOpenHistory: () => _selectTab(2),
-        onOpenProfile: () => _selectTab(3),
+        onOpenOrders: () => _openRootTab(1),
+        onOpenHistory: () => _openRootTab(2),
+        onOpenProfile: () => _openRootTab(3),
         refreshOrders: _refreshOrders,
         refreshProfile: _refreshProfile,
       ),
@@ -243,7 +217,7 @@ class _PartnerShellPageState extends State<PartnerShellPage>
         repository: widget.repository,
         refreshSignal: _refreshOrders,
         profileRefreshSignal: _refreshProfile,
-        onOpenProfile: () => _selectTab(3),
+        onOpenProfile: () => _openRootTab(3),
         onLogout: _logout,
       ),
       _PartnerHistoryPage(
@@ -259,10 +233,13 @@ class _PartnerShellPageState extends State<PartnerShellPage>
       ),
     ];
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (!didPop) unawaited(_handleBack());
+    return IzyTelMobileBackScope(
+      activeNavigatorKey: _navigatorKeys[_selectedIndex],
+      isHomeTab: _selectedIndex == 0,
+      onReturnHome: () {
+        if (mounted && _selectedIndex != 0) {
+          setState(() => _selectedIndex = 0);
+        }
       },
       child: Scaffold(
         backgroundColor: IzyTelColors.background,

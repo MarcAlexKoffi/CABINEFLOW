@@ -2,9 +2,12 @@ import 'dart:async';
 
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
+import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/dashboard/data/repositories/firestore_dashboard_repository.dart';
 import 'package:cabine_flow/features/dashboard/domain/models/dashboard_data.dart';
 import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_repository.dart';
+import 'package:cabine_flow/features/orders/data/repositories/firestore_orders_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/supabase_phase4_assignment_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/automatic_assignment.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
@@ -19,41 +22,90 @@ class HybridDashboardRepository implements DashboardRepository {
   HybridDashboardRepository({
     FirestoreDashboardRepository? firestoreRepository,
     SupabasePhase4AssignmentRepository? phase4Repository,
+    FirestoreOrdersRepository? firestoreOrdersRepository,
+    AppUser? viewer,
   }) : _firestore = firestoreRepository ?? FirestoreDashboardRepository(),
-       _phase4 = phase4Repository ?? SupabasePhase4AssignmentRepository();
+       _phase4 = phase4Repository ?? SupabasePhase4AssignmentRepository(),
+       _firestoreOrders =
+           firestoreOrdersRepository ??
+           FirestoreOrdersRepository(
+             enableNativeAutoAssignment: false,
+             requireFirestoreProof: false,
+           ),
+       _viewer = viewer;
 
   final FirestoreDashboardRepository _firestore;
   final SupabasePhase4AssignmentRepository _phase4;
+  final FirestoreOrdersRepository _firestoreOrders;
+  final AppUser? _viewer;
+
+  bool get _isManager => _viewer?.isManager ?? false;
 
   @override
   Future<DashboardData> fetchDashboardData() async {
+    // Un Manager est strictement territorial : aucune lecture Firestore legacy
+    // globale ne doit alimenter son tableau de bord. Supabase/RLS est la source
+    // canonique de son périmètre.
     DashboardData firebase = _emptyDashboardData();
-    try {
-      firebase = await _firestore.fetchDashboardData();
-    } catch (error, stackTrace) {
-      IzyTelLog.backendError(
-        'Dashboard.legacy-pre-sync',
-        error,
-        stackTrace: stackTrace,
-      );
-      if (!BackendFailurePolicy.canRetryRead(error)) {
-        Error.throwWithStackTrace(error, stackTrace);
+    if (!_isManager) {
+      try {
+        firebase = await _firestore.fetchDashboardData();
+      } catch (error, stackTrace) {
+        IzyTelLog.backendError(
+          'Dashboard.legacy-pre-sync',
+          error,
+          stackTrace: stackTrace,
+        );
+        if (!BackendFailurePolicy.canRetryRead(error)) {
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+      }
+    } else {
+      try {
+        firebase = await _managerLegacyDashboard(
+          await _firestoreOrders.fetchPaymentTrackingOrders(),
+        );
+      } catch (error, stackTrace) {
+        IzyTelLog.backendError(
+          'Dashboard.manager-payments',
+          error,
+          stackTrace: stackTrace,
+        );
+        // Une panne de la file legacy ne doit pas bloquer le dashboard zoné.
       }
     }
 
     try {
       final List<Phase4AssignmentSnapshot> snapshots = await _phase4
           .fetchAllForStaff();
-      final List<AutomaticAssignmentAgent> candidates = await _phase4
-          .fetchAssignmentCandidates();
-      return _overlay(firebase, snapshots, candidates);
+      List<AutomaticAssignmentAgent> candidates =
+          const <AutomaticAssignmentAgent>[];
+      bool capacitiesReady = false;
+      try {
+        candidates = await _phase4.fetchAssignmentCandidates();
+        capacitiesReady = true;
+      } catch (error, stackTrace) {
+        IzyTelLog.backendError(
+          'Phase4.dashboard-capacities',
+          error,
+          stackTrace: stackTrace,
+        );
+        // Les capacités sont auxiliaires : elles ne doivent jamais rendre
+        // tout le dashboard Manager inutilisable.
+      }
+      return _overlay(
+        firebase,
+        snapshots,
+        candidates,
+        capacitiesReady: capacitiesReady,
+      );
     } catch (error, stackTrace) {
       IzyTelLog.backendError(
         'Phase4.dashboard',
         error,
         stackTrace: stackTrace,
       );
-      if (!BackendFailurePolicy.canRetryRead(error)) {
+      if (_isManager || !BackendFailurePolicy.canRetryRead(error)) {
         Error.throwWithStackTrace(error, stackTrace);
       }
       return firebase;
@@ -114,10 +166,8 @@ class HybridDashboardRepository implements DashboardRepository {
           error,
           stackTrace: stackTrace,
         );
-        if (!BackendFailurePolicy.canRetryRead(error) && !controller.isClosed) {
-          controller.addError(error, stackTrace);
-          return;
-        }
+        // Une erreur de capacité ne bloque pas le tableau de bord : les
+        // indicateurs de commandes restent exploitables et zonés.
         // En panne transitoire avant le premier chargement, les autres
         // indicateurs restent utilisables mais les soldes reseau restent
         // explicitement indisponibles plutot que d'afficher un faux zero.
@@ -125,12 +175,47 @@ class HybridDashboardRepository implements DashboardRepository {
       }
     }
 
-    late final StreamSubscription<DashboardData> firebaseSubscription;
+    StreamSubscription<DashboardData>? firebaseSubscription;
+    StreamSubscription<List<QueueOrder>>? managerPaymentSubscription;
     late final StreamSubscription<List<Phase4AssignmentSnapshot>>
     phase4Subscription;
 
     controller.onListen = () {
-      firebaseSubscription = _firestore.watchDashboardData().listen(
+      if (_isManager) {
+        firebaseReady = true;
+        managerPaymentSubscription = _firestoreOrders
+            .watchPaymentTrackingOrders()
+            .listen(
+              (List<QueueOrder> orders) {
+                unawaited(() async {
+                  try {
+                    final DashboardData scoped = await _managerLegacyDashboard(
+                      orders,
+                    );
+                    if (controller.isClosed) return;
+                    firebase = scoped;
+                    firebaseReady = true;
+                    emit();
+                  } catch (error, stackTrace) {
+                    IzyTelLog.backendError(
+                      'Dashboard.manager-payments-watch',
+                      error,
+                      stackTrace: stackTrace,
+                    );
+                    // Fail closed : jamais de remontée d'une donnée globale.
+                  }
+                }());
+              },
+              onError: (Object error, StackTrace stackTrace) {
+                IzyTelLog.backendError(
+                  'Dashboard.manager-payments-watch',
+                  error,
+                  stackTrace: stackTrace,
+                );
+              },
+            );
+      } else {
+        firebaseSubscription = _firestore.watchDashboardData().listen(
         (DashboardData value) {
           firebase = value;
           firebaseReady = true;
@@ -149,7 +234,8 @@ class HybridDashboardRepository implements DashboardRepository {
           }
           if (!controller.isClosed) controller.addError(error, stackTrace);
         },
-      );
+        );
+      }
       phase4Subscription = _phase4.watchAllForStaff().listen(
         (List<Phase4AssignmentSnapshot> value) {
           unawaited(refreshPhase4(value));
@@ -173,10 +259,56 @@ class HybridDashboardRepository implements DashboardRepository {
     };
     controller.onCancel = () async {
       candidateRefreshSerial += 1;
-      await firebaseSubscription.cancel();
+      await firebaseSubscription?.cancel();
+      await managerPaymentSubscription?.cancel();
       await phase4Subscription.cancel();
     };
     return controller.stream;
+  }
+
+  Future<DashboardData> _managerLegacyDashboard(
+    List<QueueOrder> orders,
+  ) async {
+    final Set<String> visibleIds = await _phase4.fetchVisibleLegacyOrderIds();
+    final List<QueueOrder> scoped = orders
+        .where((QueueOrder order) => visibleIds.contains(order.id))
+        .toList(growable: false);
+    final List<QueueOrder> pending = scoped.where((QueueOrder order) {
+      return order.paymentStatus == OrderPaymentStatus.declared &&
+          (order.status == QueueOrderStatus.paymentToVerify ||
+              order.status == QueueOrderStatus.awaitingPayment);
+    }).toList(growable: false);
+
+    return DashboardData(
+      ordersToProcess: pending.length,
+      averageWaitingMinutes: 0,
+      statistics: DashboardStatistics(
+        newRequests: 0,
+        paymentsToVerify: pending.length,
+        inProgress: 0,
+        completed: 0,
+      ),
+      balances: const <AccountBalance>[
+        AccountBalance(channel: ServiceChannel.orange),
+        AccountBalance(channel: ServiceChannel.mtn),
+        AccountBalance(channel: ServiceChannel.moov),
+        AccountBalance(channel: ServiceChannel.wave),
+      ],
+      priorityOrders: pending.take(5).map((QueueOrder order) {
+        return PriorityOrder(
+          orderId: order.id,
+          reference: order.reference,
+          phoneNumber: order.beneficiaryPhone,
+          operationLabel: order.offerLabel.trim().isEmpty
+              ? _operationLabel(order.operationType)
+              : order.offerLabel.trim(),
+          amount: order.amount,
+          channel: _serviceChannel(order.network),
+          status: PriorityOrderStatus.pendingVerification,
+          actionLabel: 'Vérifier',
+        );
+      }).toList(growable: false),
+    );
   }
 
   DashboardData _overlay(

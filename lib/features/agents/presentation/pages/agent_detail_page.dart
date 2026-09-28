@@ -38,7 +38,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
   late final TextEditingController _dailyLimitController;
   late final TextEditingController _maxTransactionsController;
   late final Map<AgentNetwork, TextEditingController> _capacityControllers;
-  bool _savingManagerCapacities = false;
+  bool _savingManagerOperations = false;
 
   @override
   void initState() {
@@ -267,13 +267,32 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
     );
   }
 
-  bool get _canEditCapacities => !widget.readOnly || widget.viewer.isManager;
+  bool get _canEditOperationalSettings =>
+      !widget.readOnly || widget.viewer.isManager;
 
-  Future<void> _saveManagerCapacities() async {
-    if (!widget.viewer.isManager || _savingManagerCapacities) return;
+  Future<void> _saveManagerOperations() async {
+    if (!widget.viewer.isManager || _savingManagerOperations) return;
     final AgentProfile? profile = widget.agent.profile;
     if (profile == null) {
       IzyTelFeedback.error(context, 'Profil opérationnel Agent indisponible.');
+      return;
+    }
+
+    final int? dailyLimit = int.tryParse(
+      _dailyLimitController.text.trim(),
+    );
+    final int? maxTransactions = int.tryParse(
+      _maxTransactionsController.text.trim(),
+    );
+    if (dailyLimit == null ||
+        dailyLimit < 0 ||
+        maxTransactions == null ||
+        maxTransactions < 0) {
+      IzyTelFeedback.show(
+        context,
+        'Vérifie les limites de transactions.',
+        tone: IzyTelFeedbackTone.warning,
+      );
       return;
     }
 
@@ -293,26 +312,32 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
       next[network] = value;
     }
 
-    setState(() => _savingManagerCapacities = true);
+    setState(() => _savingManagerOperations = true);
     try {
-      for (final AgentNetwork network in AgentNetwork.values) {
-        final int value = next[network]!;
-        if (value == profile.capacityFor(network)) continue;
-        await widget.repository.adjustManagedAgentCapacity(
-          agentId: widget.agent.userId,
-          network: network,
-          targetCapacity: value,
-          reason: 'Ajustement capacité par Manager',
-        );
-      }
+      await widget.repository.updateManagedAgentOperations(
+        agentId: widget.agent.userId,
+        update: ManagedAgentOperationalUpdate(
+          authorizedNetworks: _viewModel.authorizedNetworks.toList(
+            growable: false,
+          ),
+          dailyTransactionLimit: dailyLimit,
+          maxTransactionsPerDay: maxTransactions,
+          orangeCapacity: next[AgentNetwork.orange]!,
+          mtnCapacity: next[AgentNetwork.mtn]!,
+          moovCapacity: next[AgentNetwork.moov]!,
+        ),
+      );
       if (!mounted) return;
-      IzyTelFeedback.success(context, 'Capacités Agent enregistrées.');
+      IzyTelFeedback.success(
+        context,
+        'Gestion opérationnelle Agent enregistrée.',
+      );
       Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;
       IzyTelFeedback.error(context, error.toString());
     } finally {
-      if (mounted) setState(() => _savingManagerCapacities = false);
+      if (mounted) setState(() => _savingManagerOperations = false);
     }
   }
 
@@ -438,7 +463,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                     children: [
                       TextField(
                         controller: _dailyLimitController,
-                        readOnly: widget.readOnly,
+                        readOnly: !_canEditOperationalSettings,
                         keyboardType: TextInputType.number,
                         style: const TextStyle(
                           color: IzyTelColors.textPrimary,
@@ -452,7 +477,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                       const SizedBox(height: 10),
                       TextField(
                         controller: _maxTransactionsController,
-                        readOnly: widget.readOnly,
+                        readOnly: !_canEditOperationalSettings,
                         keyboardType: TextInputType.number,
                         style: const TextStyle(
                           color: IzyTelColors.textPrimary,
@@ -469,7 +494,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                           padding: const EdgeInsets.only(bottom: 10),
                           child: TextField(
                             controller: _capacityControllers[network],
-                            readOnly: !_canEditCapacities,
+                            readOnly: !_canEditOperationalSettings,
                             keyboardType: TextInputType.number,
                             style: const TextStyle(
                               color: IzyTelColors.textPrimary,
@@ -544,7 +569,7 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                                 ),
                                 Switch(
                                   value: enabled,
-                                  onChanged: widget.readOnly
+                                  onChanged: !_canEditOperationalSettings
                                       ? null
                                       : (_) => _viewModel.toggleNetwork(network),
                                 ),
@@ -617,13 +642,13 @@ class _AgentDetailPageState extends State<AgentDetailPage> {
                 if (widget.readOnly && widget.viewer.isManager) ...[
                   const SizedBox(height: 18),
                   FilledButton.icon(
-                    onPressed: _savingManagerCapacities ? null : _saveManagerCapacities,
-                    icon: const Icon(Symbols.account_balance_wallet_rounded),
-                    label: const Text('Enregistrer les capacités Agent'),
+                    onPressed: _savingManagerOperations ? null : _saveManagerOperations,
+                    icon: const Icon(Symbols.tune_rounded),
+                    label: const Text('Enregistrer la gestion Agent'),
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Le Manager peut ajuster les capacités réseau de ses Agents, mais pas leur identité, leurs zones, leurs quotas ni leurs réseaux autorisés.',
+                    'Le Manager peut ajuster les quotas, les capacités et les réseaux autorisés de ses Agents. L’identité et le rattachement territorial restent administratifs.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: IzyTelColors.textSecondary,

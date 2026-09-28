@@ -25,6 +25,7 @@ class AgentActivityViewModel extends ChangeNotifier {
   List<AgentIssue> issues = const <AgentIssue>[];
   bool isLoading = true;
   bool isSaving = false;
+  bool _isDisposed = false;
   String? errorMessage;
 
   List<AgentZone> get assignedZones {
@@ -94,6 +95,92 @@ class AgentActivityViewModel extends ChangeNotifier {
     });
   }
 
+
+  Future<void> refresh() async {
+    // Le pull-to-refresh ne redemarre plus les abonnements Realtime.
+    // Redemarrer les streams obligeait a attendre leur annulation et pouvait
+    // laisser le RefreshIndicator actif indefiniment sur certains appareils.
+    // On effectue seulement des lectures ponctuelles bornees dans le temps ;
+    // les abonnements existants restent la source temps reel.
+    const Duration timeout = Duration(seconds: 6);
+
+    Future<void> refreshProfile() async {
+      try {
+        final AgentProfile? value = await _repository
+            .watchAgentProfile(agentId)
+            .first
+            .timeout(timeout);
+        profile = value;
+      } catch (error, stackTrace) {
+        IzyTelLog.backendError(
+          'AgentActivity.refresh-profile',
+          error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
+
+    Future<void> refreshPersonalProfile() async {
+      try {
+        final AgentPersonalProfile? value = await _repository
+            .watchPersonalProfile(agentId)
+            .first
+            .timeout(timeout);
+        personalProfile = value;
+        final String? path = value?.avatarStoragePath;
+        if (path == null || path.trim().isEmpty) {
+          avatarUrl = null;
+        } else {
+          unawaited(_loadAvatarUrl(path));
+        }
+      } catch (error, stackTrace) {
+        IzyTelLog.backendError(
+          'AgentActivity.refresh-personal-profile',
+          error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
+
+    Future<void> refreshZones() async {
+      try {
+        zones = await _repository.watchZones().first.timeout(timeout);
+      } catch (error, stackTrace) {
+        IzyTelLog.backendError(
+          'AgentActivity.refresh-zones',
+          error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
+
+    Future<void> refreshIssues() async {
+      try {
+        issues = await _repository
+            .watchAgentIssues(agentId)
+            .first
+            .timeout(timeout);
+      } catch (error, stackTrace) {
+        IzyTelLog.backendError(
+          'AgentActivity.refresh-issues',
+          error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
+
+    await Future.wait<void>(<Future<void>>[
+      refreshProfile(),
+      refreshPersonalProfile(),
+      refreshZones(),
+      refreshIssues(),
+    ]);
+
+    if (_isDisposed) return;
+    isLoading = false;
+    notifyListeners();
+  }
+
   Future<void> _loadAvatarUrl(String storagePath) async {
     final String? resolved = await _repository.resolvePersonalFileUrl(
       storagePath,
@@ -155,6 +242,20 @@ class AgentActivityViewModel extends ChangeNotifier {
 
   Future<bool> _save(AgentOperationalUpdate update) async {
     if (isSaving) return false;
+    final AgentProfile? previous = profile;
+    if (previous == null) return false;
+
+    // Mise a jour optimiste : le switch disponibilite/reseau repond
+    // immediatement au toucher. Supabase confirme ensuite la valeur canonique
+    // via Realtime ; en cas d'echec on restaure le profil precedent.
+    profile = previous.copyWith(
+      availability: update.availability,
+      activeNetworks: update.activeNetworks,
+      orangeCapacity: update.orangeCapacity,
+      mtnCapacity: update.mtnCapacity,
+      moovCapacity: update.moovCapacity,
+      updatedAt: DateTime.now(),
+    );
     isSaving = true;
     errorMessage = null;
     notifyListeners();
@@ -167,6 +268,7 @@ class AgentActivityViewModel extends ChangeNotifier {
         error,
         stackTrace: stackTrace,
       );
+      profile = previous;
       errorMessage = 'Impossible d’enregistrer la modification.';
       return false;
     } finally {
@@ -193,6 +295,7 @@ class AgentActivityViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _profileSub?.cancel();
     _personalProfileSub?.cancel();
     _zonesSub?.cancel();

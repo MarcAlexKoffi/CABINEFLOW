@@ -5,28 +5,33 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   String source(String path) => File(path).readAsStringSync();
 
-  test('system back follows subpage then home then double exit', () {
+  test('system back is centralized in the mobile back scope', () {
     final String shell = source(
       'lib/features/navigation/presentation/pages/main_shell_page.dart',
     );
+    final String guard = source(
+      'lib/features/navigation/presentation/widgets/izytel_mobile_back_scope.dart',
+    );
 
-    expect(shell, contains('await currentNavigator.maybePop()'));
-    expect(shell, contains('_popTabToRoot(0)'));
-    expect(shell, contains("'Appuie encore une fois pour quitter IzyTel.'"));
-    expect(shell, contains('await SystemNavigator.pop()'));
-    expect(shell, contains('if (_handlingSystemBack) return;'));
+    expect(shell, contains('IzyTelMobileBackScope('));
+    expect(guard, contains('PopScope<Object?>'));
+    expect(guard, contains('canPop: false'));
+    expect(guard, contains('await activeNavigator.maybePop()'));
+    expect(guard, contains('if (!widget.isHomeTab)'));
+    expect(guard, contains('widget.onReturnHome()'));
+    expect(guard, contains('await SystemNavigator.pop()'));
+    expect(shell, isNot(contains('NavigatorPopHandler<Object?>')));
   });
 
-  test('every tab route change disarms the exit double press', () {
+  test('bottom tabs preserve independent stacks and reselect pops locally', () {
     final String shell = source(
       'lib/features/navigation/presentation/pages/main_shell_page.dart',
     );
 
-    expect(shell, contains('class _IzyTelTabNavigationObserver'));
-    expect(shell, contains('void didPush('));
-    expect(shell, contains('void didPop('));
-    expect(shell, contains('void didStartUserGesture('));
-    expect(shell, contains('observers: <NavigatorObserver>'));
+    expect(shell, contains('if (index == _selectedIndex)'));
+    expect(shell, contains('// Chaque onglet conserve sa propre pile'));
+    expect(shell, contains('void _openRootDestination(int index)'));
+    expect(shell, isNot(contains('class _IzyTelTabNavigationObserver')));
   });
 
   test('staff customer history is pushed above detail instead of replacing it', () {

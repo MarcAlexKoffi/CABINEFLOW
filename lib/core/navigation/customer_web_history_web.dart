@@ -33,6 +33,9 @@ class CustomerWebHistoryController {
 
   bool get supported => true;
 
+  CustomerWebHistoryEntry? get currentEntry =>
+      _decode(html.window.history.state);
+
   Map<String, Object> _encode(CustomerWebHistoryEntry entry) {
     return <String, Object>{
       'app': _marker,
@@ -61,31 +64,19 @@ class CustomerWebHistoryController {
     html.window.history.back();
   }
 
-  void _handlePopState(html.PopStateEvent event) {
-    final dynamic raw = event.state;
-    if (raw is! Map) {
-      onPop(null);
-      return;
-    }
-
-    if (raw['app'] != _marker) {
-      onPop(null);
-      return;
-    }
-
+  CustomerWebHistoryEntry? _decode(dynamic raw) {
+    if (raw is! Map || raw['app'] != _marker) return null;
     final Object? rawLocation = raw['location'];
     final Object? rawStep = raw['step'];
-    if (rawLocation is! String || rawStep is! num) {
-      onPop(null);
-      return;
-    }
-
-    onPop(
-      CustomerWebHistoryEntry(
-        location: rawLocation,
-        step: rawStep.toInt(),
-      ),
+    if (rawLocation is! String || rawStep is! num) return null;
+    return CustomerWebHistoryEntry(
+      location: rawLocation,
+      step: rawStep.toInt(),
     );
+  }
+
+  void _handlePopState(html.PopStateEvent event) {
+    onPop(_decode(event.state));
   }
 
   void dispose() {

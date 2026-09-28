@@ -2,17 +2,24 @@ import 'package:cabine_flow/backoffice/domain/models/territory_models.dart';
 import 'package:cabine_flow/backoffice/domain/repositories/territory_repository.dart';
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseTerritoryRepository implements TerritoryRepository {
-  SupabaseTerritoryRepository({SupabaseClient? client})
-    : _client = client ?? Supabase.instance.client;
+  SupabaseTerritoryRepository({
+    SupabaseClient? client,
+    FirebaseFirestore? firestore,
+  }) : _client = client ?? Supabase.instance.client,
+       _firestore = firestore ??
+           (Firebase.apps.isNotEmpty ? FirebaseFirestore.instance : null);
 
   static const String managersTable = 'manager_profiles';
   static const String zonesTable = 'territory_zones';
   static const Duration _fallbackPollInterval = Duration(seconds: 30);
 
   final SupabaseClient _client;
+  final FirebaseFirestore? _firestore;
 
   @override
   Future<List<TerritoryManager>> fetchManagers() async {
@@ -112,10 +119,51 @@ class SupabaseTerritoryRepository implements TerritoryRepository {
 
   @override
   Future<int> syncManagersFromStaffRegistry() async {
+    // Le registre Utilisateurs reste canonique dans Firestore. Avant de
+    // synchroniser manager_profiles, on provisionne dans Supabase les comptes
+    // Manager/Supervisor visibles par l'Admin. Cela évite qu'un compte créé
+    // dans /users soit visible dans Utilisateurs mais absent de Comptes Managers
+    // et du sélecteur de zone.
+    int provisioned = 0;
+    final FirebaseFirestore? firestore = _firestore;
+    if (firestore != null) {
+      final QuerySnapshot<Map<String, dynamic>> snapshot =
+          await firestore.collection('users').get();
+      final List<Future<void>> jobs = <Future<void>>[];
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> document
+          in snapshot.docs) {
+        final Map<String, dynamic> data = document.data();
+        final String role = _string(data['role']).toLowerCase();
+        if (role != 'manager' && role != 'supervisor') continue;
+        final String displayName = _string(
+          data['name'],
+          fallback: 'Manager IzyTel',
+        );
+        final bool isActive = data['isActive'] == true;
+        provisioned += 1;
+        jobs.add(
+          _client
+              .rpc(
+                'izytel_wc6_provision_manager_account',
+                params: <String, dynamic>{
+                  'p_firebase_uid': document.id,
+                  'p_display_name': displayName,
+                  'p_is_active': isActive,
+                },
+              )
+              .then<void>((Object? _) {}),
+        );
+      }
+      if (jobs.isNotEmpty) await Future.wait<void>(jobs);
+    }
+
     final Object? raw = await _client.rpc('izytel_sync_manager_profiles');
-    if (raw is int) return raw;
-    if (raw is num) return raw.toInt();
-    return int.tryParse(raw?.toString() ?? '') ?? 0;
+    final int registryCount = raw is int
+        ? raw
+        : raw is num
+        ? raw.toInt()
+        : int.tryParse(raw?.toString() ?? '') ?? 0;
+    return provisioned > registryCount ? provisioned : registryCount;
   }
 
   @override

@@ -92,6 +92,11 @@ class _BackofficeZonesPageState extends State<BackofficeZonesPage> {
       });
     }
     try {
+      if (_canManage) {
+        // Le registre Manager est alimenté depuis les comptes Firestore avant
+        // de construire le sélecteur « Manager responsable ».
+        await widget.territoryRepository.syncManagersFromStaffRegistry();
+      }
       final List<Object> data = await Future.wait<Object>(<Future<Object>>[
         widget.territoryRepository.fetchZones(),
         widget.territoryRepository.fetchManagers(),

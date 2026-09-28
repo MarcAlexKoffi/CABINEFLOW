@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:cabine_flow/features/agents/data/repositories/supabase_agent_personal_profile_repository.dart';
@@ -69,6 +70,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
   bool _showValidationErrors = false;
   String? _error;
   String? _mediaWarning;
+  int _loadGeneration = 0;
 
   bool get _isVerified => _verificationStatus == 'verified';
 
@@ -103,6 +105,7 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
   }
 
   Future<void> _load() async {
+    final int generation = ++_loadGeneration;
     if (mounted) {
       setState(() {
         _isLoading = true;
@@ -111,8 +114,8 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       });
     }
 
-    // Le compte Firebase reste l'identité de connexion pendant la migration.
-    // Les données personnelles sont désormais lues exclusivement dans Supabase.
+    // Le compte Firebase reste l'identite de connexion pendant la migration.
+    // Les donnees personnelles sont desormais lues exclusivement dans Supabase.
     _hydrateFromSignedInUser();
 
     final SupabaseAgentPersonalProfileRepository? repository =
@@ -120,13 +123,18 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
     if (repository == null) {
       _error =
           'Supabase n’est pas initialisé. Le profil reste consultable, mais ne peut pas encore être enregistré.';
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && generation == _loadGeneration) {
+        setState(() => _isLoading = false);
+      }
       return;
     }
 
     Map<String, dynamic>? data;
     try {
-      data = await repository.fetchProfile(widget.user.id);
+      data = await repository
+          .fetchProfile(widget.user.id)
+          .timeout(const Duration(seconds: 12));
+      if (generation != _loadGeneration) return;
       if (data != null) {
         _existingProfile = Map<String, dynamic>.from(data);
         _firstName.text = _text(data['firstName']);
@@ -149,50 +157,78 @@ class _AgentPersonalProfilePageState extends State<AgentPersonalProfilePage> {
       } else {
         _existingProfile = null;
       }
+    } on TimeoutException {
+      _error =
+          'Le chargement du profil prend trop de temps. Le formulaire reste disponible ; réessaie l’actualisation plus tard.';
     } catch (error) {
       _error =
           'Impossible de charger le profil Supabase pour le moment : $error';
     }
 
-    final List<String> unavailableMedia = <String>[];
-    if (data != null) {
-      try {
-        _avatarMedia = await repository.fetchMedia(
-          agentId: widget.user.id,
-          kind: AgentPersonalMediaKind.avatar,
-          profile: data,
-        );
-      } catch (_) {
-        _avatarMedia = null;
-        unavailableMedia.add('photo de profil');
-      }
-
-      try {
-        _identityMedia = await repository.fetchMedia(
-          agentId: widget.user.id,
-          kind: AgentPersonalMediaKind.identity,
-          profile: data,
-        );
-      } catch (_) {
-        _identityMedia = null;
-        unavailableMedia.add('pièce d’identité');
-      }
-    } else {
-      _avatarMedia = null;
-      _identityMedia = null;
-    }
-
     _pendingAvatar = null;
     _pendingIdentity = null;
-    if (unavailableMedia.isNotEmpty) {
-      _mediaWarning =
-          'Certains médias Supabase sont temporairement indisponibles '
-          '(${unavailableMedia.join(', ')}). Le formulaire reste utilisable.';
-    }
 
-    if (mounted) {
+    // Le formulaire ne doit jamais attendre le téléchargement des images/PDF.
+    // On libère l'ecran dès que les champs texte sont disponibles, puis les
+    // medias arrivent en arrière-plan avec leur propre timeout.
+    if (mounted && generation == _loadGeneration) {
       setState(() => _isLoading = false);
     }
+
+    if (data == null) {
+      if (mounted && generation == _loadGeneration) {
+        setState(() {
+          _avatarMedia = null;
+          _identityMedia = null;
+        });
+      }
+      return;
+    }
+
+    unawaited(_loadMediaInBackground(repository, data, generation));
+  }
+
+  Future<void> _loadMediaInBackground(
+    SupabaseAgentPersonalProfileRepository repository,
+    Map<String, dynamic> profile,
+    int generation,
+  ) async {
+    final List<String> unavailable = <String>[];
+
+    Future<AgentPersonalMedia?> load(
+      AgentPersonalMediaKind kind,
+      String label,
+    ) async {
+      try {
+        return await repository
+            .fetchMedia(
+              agentId: widget.user.id,
+              kind: kind,
+              profile: profile,
+            )
+            .timeout(const Duration(seconds: 8));
+      } catch (_) {
+        unavailable.add(label);
+        return null;
+      }
+    }
+
+    final List<AgentPersonalMedia?> media = await Future.wait(
+      <Future<AgentPersonalMedia?>>[
+        load(AgentPersonalMediaKind.avatar, 'photo de profil'),
+        load(AgentPersonalMediaKind.identity, 'pièce d’identité'),
+      ],
+    );
+
+    if (!mounted || generation != _loadGeneration) return;
+    setState(() {
+      _avatarMedia = media[0];
+      _identityMedia = media[1];
+      _mediaWarning = unavailable.isEmpty
+          ? null
+          : 'Certains médias Supabase sont temporairement indisponibles '
+                '(${unavailable.join(', ')}). Le formulaire reste utilisable.';
+    });
   }
 
   void _hydrateFromSignedInUser() {

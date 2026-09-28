@@ -244,6 +244,24 @@ class AgentOperationalUpdate {
   final int moovCapacity;
 }
 
+class ManagedAgentOperationalUpdate {
+  const ManagedAgentOperationalUpdate({
+    required this.authorizedNetworks,
+    required this.dailyTransactionLimit,
+    required this.maxTransactionsPerDay,
+    required this.orangeCapacity,
+    required this.mtnCapacity,
+    required this.moovCapacity,
+  });
+
+  final List<AgentNetwork> authorizedNetworks;
+  final int dailyTransactionLimit;
+  final int maxTransactionsPerDay;
+  final int orangeCapacity;
+  final int mtnCapacity;
+  final int moovCapacity;
+}
+
 class AgentIssueDraft {
   const AgentIssueDraft({
     required this.type,

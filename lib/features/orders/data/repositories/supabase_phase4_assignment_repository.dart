@@ -20,6 +20,7 @@ class Phase4AssignmentSnapshot {
     required this.assignmentState,
     required this.firebaseCreatedAt,
     required this.updatedAt,
+    this.zoneId,
     this.originalWhatsappMessage,
     this.internalNotes,
     this.paymentPayerName,
@@ -92,6 +93,7 @@ class Phase4AssignmentSnapshot {
   final DateTime? customerConfirmationCompletedAt;
   final bool legacyStateUnresolved;
   final DateTime updatedAt;
+  final String? zoneId;
 
   bool get isAssigned => assignmentState == 'assigned';
   bool get isAccepted => assignmentState == 'accepted';
@@ -610,6 +612,37 @@ class SupabasePhase4AssignmentRepository {
     return _snapshotFromRow(rows.first);
   }
 
+
+  Future<bool> managerAssignmentAllowed({
+    required String orderId,
+    required String agentId,
+  }) async {
+    final Object? raw = await _client.rpc(
+      'izytel_wc6_manager_assignment_allowed',
+      params: <String, dynamic>{
+        'p_order_id': orderId.trim(),
+        'p_agent_id': agentId.trim(),
+      },
+    );
+    return raw == true || raw?.toString().toLowerCase() == 'true';
+  }
+
+  Future<Set<String>> fetchVisibleLegacyOrderIds() async {
+    final Object? raw = await _client.rpc('izytel_wc6_visible_legacy_order_ids');
+    final List<dynamic> rows = raw is List ? raw : const <dynamic>[];
+    final Set<String> ids = <String>{};
+    for (final dynamic item in rows) {
+      if (item is Map) {
+        final String id = _string(item['order_id']);
+        if (id.isNotEmpty) ids.add(id);
+      } else {
+        final String id = _string(item);
+        if (id.isNotEmpty) ids.add(id);
+      }
+    }
+    return Set<String>.unmodifiable(ids);
+  }
+
   Future<List<Phase4AssignmentSnapshot>> fetchAllForStaff() async {
     final List<Map<String, dynamic>> rows = await _client
         .from(ordersTable)
@@ -1030,6 +1063,7 @@ class SupabasePhase4AssignmentRepository {
       ),
       legacyStateUnresolved: row['legacy_state_unresolved'] == true,
       updatedAt: updatedAt,
+      zoneId: _nullable(row['zone_id']),
     );
   }
 

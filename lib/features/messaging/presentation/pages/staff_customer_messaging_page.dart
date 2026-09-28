@@ -18,11 +18,13 @@ class StaffCustomerMessagingPage extends StatefulWidget {
     required this.user,
     required this.repository,
     this.embedded = false,
+    this.initialConversationId,
   });
 
   final AppUser user;
   final CustomerMessagingRepository repository;
   final bool embedded;
+  final String? initialConversationId;
 
   @override
   State<StaffCustomerMessagingPage> createState() =>
@@ -49,6 +51,7 @@ class _StaffCustomerMessagingPageState extends State<StaffCustomerMessagingPage>
   bool _taking = false;
   bool _sending = false;
   bool _resolving = false;
+  bool _initialConversationOpened = false;
 
   bool get _managerMode => widget.user.isManager;
   bool get _adminMode => widget.user.role == UserRole.administrator;
@@ -100,6 +103,8 @@ class _StaffCustomerMessagingPageState extends State<StaffCustomerMessagingPage>
           _messageSubscription?.cancel();
           _messageSubscription = null;
         }
+
+        _openInitialConversationIfAvailable(conversations);
       },
       onError: (Object _, StackTrace _) {
         if (!mounted) return;
@@ -110,6 +115,33 @@ class _StaffCustomerMessagingPageState extends State<StaffCustomerMessagingPage>
         });
       },
     );
+  }
+
+  void _openInitialConversationIfAvailable(
+    List<CustomerConversation> conversations,
+  ) {
+    if (_initialConversationOpened) return;
+    final String id = widget.initialConversationId?.trim() ?? '';
+    if (id.isEmpty) {
+      _initialConversationOpened = true;
+      return;
+    }
+
+    CustomerConversation? target;
+    for (final CustomerConversation conversation in conversations) {
+      if (conversation.id == id) {
+        target = conversation;
+        break;
+      }
+    }
+    if (target == null) return;
+
+    _initialConversationOpened = true;
+    final CustomerConversation resolved = target;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _openConversation(resolved);
+    });
   }
 
   Future<void> _refreshInboxOnce() async {
@@ -372,7 +404,15 @@ class _StaffCustomerMessagingPageState extends State<StaffCustomerMessagingPage>
       );
     }
 
-    return Scaffold(
+    return PopScope(
+      canPop: _selectedConversation == null,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (didPop) return;
+        if (_selectedConversation != null) {
+          _closeConversation();
+        }
+      },
+      child: Scaffold(
       backgroundColor: IzyTelColors.background,
       appBar: AppBar(
         title: const Text('Messagerie clients'),
@@ -386,6 +426,7 @@ class _StaffCustomerMessagingPageState extends State<StaffCustomerMessagingPage>
           child: content,
         ),
       ),
+    ),
     );
   }
 
@@ -424,7 +465,7 @@ class _StaffCustomerMessagingPageState extends State<StaffCustomerMessagingPage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           Text(
-                            _managerMode ? 'File Manager' : 'Supervision',
+                            _managerMode ? 'Boîte clients · votre zone' : 'Supervision',
                             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w800,
                             ),
@@ -432,7 +473,7 @@ class _StaffCustomerMessagingPageState extends State<StaffCustomerMessagingPage>
                           const SizedBox(height: 3),
                           Text(
                             _managerMode
-                                ? 'Les Agents ne voient jamais ces échanges.'
+                                ? 'Demandes clients routées vers votre périmètre territorial.'
                                 : 'Lecture seule de tous les échanges clients.',
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: IzyTelColors.textSecondary,
@@ -490,28 +531,54 @@ class _StaffCustomerMessagingPageState extends State<StaffCustomerMessagingPage>
           ),
           const Divider(height: 1),
           Expanded(
-            child: _loadingInbox
-                ? const Center(child: CircularProgressIndicator())
-                : _inboxError != null
-                ? _errorState(_inboxError!, _subscribeInbox)
-                : visible.isEmpty
-                ? const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text(
-                        'Aucune conversation dans cette vue.',
-                        textAlign: TextAlign.center,
+            child: RefreshIndicator(
+              onRefresh: _refreshInboxOnce,
+              child: LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  Widget state;
+                  if (_loadingInbox) {
+                    state = const Center(child: CircularProgressIndicator());
+                  } else if (_inboxError != null) {
+                    state = _errorState(_inboxError!, _subscribeInbox);
+                  } else if (visible.isEmpty) {
+                    state = const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text(
+                          'Aucune conversation dans cette vue.',
+                          textAlign: TextAlign.center,
+                        ),
                       ),
-                    ),
-                  )
-                : ListView.separated(
+                    );
+                  } else {
+                    state = Column(
+                      children: visible
+                          .map((CustomerConversation item) => Column(
+                                children: <Widget>[
+                                  _conversationTile(item),
+                                  const Divider(height: 1),
+                                ],
+                              ))
+                          .toList(growable: false),
+                    );
+                  }
+                  return ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: visible.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (BuildContext context, int index) {
-                      return _conversationTile(visible[index]);
-                    },
-                  ),
+                    children: <Widget>[
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: constraints.hasBoundedHeight
+                              ? constraints.maxHeight
+                              : 420,
+                        ),
+                        child: state,
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
           ),
         ],
       ),
@@ -754,14 +821,18 @@ class _StaffCustomerMessagingPageState extends State<StaffCustomerMessagingPage>
                     _messageError!,
                     () => _openConversation(conversation),
                   )
-                : ListView.builder(
-                    key: const ValueKey<String>('wc3c-message-list'),
-                    controller: _messageScrollController,
-                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
-                    itemCount: _messages.length,
-                    itemBuilder: (BuildContext context, int index) {
-                      return _messageBubble(_messages[index]);
-                    },
+                : RefreshIndicator(
+                    onRefresh: () => _refreshMessagesOnce(conversation.id),
+                    child: ListView.builder(
+                      key: const ValueKey<String>('wc3c-message-list'),
+                      controller: _messageScrollController,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
+                      itemCount: _messages.length,
+                      itemBuilder: (BuildContext context, int index) {
+                        return _messageBubble(_messages[index]);
+                      },
+                    ),
                   ),
           ),
           const Divider(height: 1),

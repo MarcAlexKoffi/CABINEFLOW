@@ -333,7 +333,7 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
   }
 
   Future<void> _openDetails(AgentDirectoryEntry agent, Map<String, AgentZone> zoneById, List<AgentZone> zones) async {
-    if (widget.user.permissions.canManageAgents && agent.profile != null) {
+    if (widget.user.permissions.canManageAgents) {
       await _openManageDialog(agent, zones);
       return;
     }
@@ -358,7 +358,19 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
   }
 
   Future<void> _openManageDialog(AgentDirectoryEntry agent, List<AgentZone> zones) async {
-    final AgentProfile profile = agent.profile!;
+    final AgentProfile profile = agent.profile ?? AgentProfile(
+      userId: agent.userId,
+      agentCode: agent.agentCode,
+      availability: AgentAvailability.unavailable,
+      zoneIds: const <String>[],
+      authorizedNetworks: const <AgentNetwork>[],
+      activeNetworks: const <AgentNetwork>[],
+      orangeCapacity: 0,
+      mtnCapacity: 0,
+      moovCapacity: 0,
+      dailyTransactionLimit: 0,
+      maxTransactionsPerDay: 0,
+    );
     SupabaseStaffProfileRepository? staffRepository;
     StaffProfile? personalProfile;
     if (widget.user.role == UserRole.administrator) {

@@ -367,6 +367,39 @@ class FakeAgentRepository implements AgentRepository {
   }
 
   @override
+  Future<void> updateManagedAgentOperations({
+    required String agentId,
+    required ManagedAgentOperationalUpdate update,
+  }) async {
+    _agents = _agents.map((entry) {
+      if (entry.userId != agentId || entry.profile == null) return entry;
+      final AgentProfile profile = entry.profile!;
+      final List<AgentNetwork> active = profile.activeNetworks
+          .where(update.authorizedNetworks.contains)
+          .toList(growable: false);
+      return AgentDirectoryEntry(
+        userId: entry.userId,
+        name: entry.name,
+        email: entry.email,
+        phoneNumber: entry.phoneNumber,
+        isActive: entry.isActive,
+        profile: profile.copyWith(
+          authorizedNetworks: update.authorizedNetworks,
+          activeNetworks: active,
+          orangeCapacity: update.orangeCapacity,
+          mtnCapacity: update.mtnCapacity,
+          moovCapacity: update.moovCapacity,
+          dailyTransactionLimit: update.dailyTransactionLimit,
+          maxTransactionsPerDay: update.maxTransactionsPerDay,
+          lastCapacityUpdateAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      );
+    }).toList(growable: false);
+    _notify();
+  }
+
+  @override
   Future<String> createZone({
     required String name,
     required String city,

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/theme/customer_app_colors.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_context.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
@@ -24,6 +25,8 @@ class CustomerMessagingPage extends StatefulWidget {
     required this.onOpenOffers,
     required this.onOpenHistory,
     required this.onOpenHelp,
+    this.onInnerViewChanged,
+    this.resetInnerViewToken = 0,
   });
 
   final CustomerMessagingRepository repository;
@@ -35,6 +38,8 @@ class CustomerMessagingPage extends StatefulWidget {
   final VoidCallback onOpenOffers;
   final VoidCallback onOpenHistory;
   final VoidCallback onOpenHelp;
+  final ValueChanged<bool>? onInnerViewChanged;
+  final int resetInnerViewToken;
 
   @override
   State<CustomerMessagingPage> createState() => _CustomerMessagingPageState();
@@ -44,6 +49,7 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
   final TextEditingController _newMessageController = TextEditingController();
   final TextEditingController _replyController = TextEditingController();
   final ScrollController _messageScrollController = ScrollController();
+  final ValueNotifier<int> _mobileInnerRevision = ValueNotifier<int>(0);
 
   StreamSubscription<List<CustomerConversation>>? _conversationSubscription;
   StreamSubscription<List<CustomerMessage>>? _messageSubscription;
@@ -68,13 +74,30 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
   }
 
   @override
+  void didUpdateWidget(covariant CustomerMessagingPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.resetInnerViewToken != widget.resetInnerViewToken &&
+        (_showComposer || _selectedConversation != null)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _closeInnerView(notifyParent: false);
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _conversationSubscription?.cancel();
     _messageSubscription?.cancel();
     _newMessageController.dispose();
     _replyController.dispose();
     _messageScrollController.dispose();
+    _mobileInnerRevision.dispose();
     super.dispose();
+  }
+
+  void _notifyMobileInnerRoute() {
+    if (!mounted) return;
+    _mobileInnerRevision.value += 1;
   }
 
   void _subscribeConversations() {
@@ -100,6 +123,7 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
               _isLoadingConversations = false;
               _conversationError = null;
             });
+            _notifyMobileInnerRoute();
           },
           onError: (Object _, StackTrace _) {
             if (!mounted) return;
@@ -112,7 +136,64 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
         );
   }
 
+  Future<void> _refreshConversationsOnce() async {
+    try {
+      final List<CustomerConversation> conversations =
+          await widget.repository.watchCustomerConversations().first;
+      if (!mounted) return;
+      CustomerConversation? selected = _selectedConversation;
+      final String? selectedId = selected?.id;
+      if (selectedId != null) {
+        for (final CustomerConversation conversation in conversations) {
+          if (conversation.id == selectedId) {
+            selected = conversation;
+            break;
+          }
+        }
+      }
+      setState(() {
+        _conversations = conversations;
+        _selectedConversation = selected;
+        _isLoadingConversations = false;
+        _conversationError = null;
+      });
+      _notifyMobileInnerRoute();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingConversations = false;
+        _conversationError =
+            'La messagerie est momentanément indisponible. Réessayez.';
+      });
+    }
+  }
+
+  Future<void> _refreshMessagesOnce(String conversationId) async {
+    try {
+      final List<CustomerMessage> messages = await widget.repository
+          .watchMessages(conversationId: conversationId)
+          .first;
+      if (!mounted || _selectedConversation?.id != conversationId) return;
+      setState(() {
+        _messages = messages;
+        _isLoadingMessages = false;
+        _messageError = null;
+      });
+      _notifyMobileInnerRoute();
+      _scrollMessagesToBottom();
+    } catch (_) {
+      if (!mounted || _selectedConversation?.id != conversationId) return;
+      setState(() {
+        _messageError = 'Impossible de charger les messages pour le moment.';
+        _isLoadingMessages = false;
+      });
+    }
+  }
+
   void _openConversation(CustomerConversation conversation) {
+    final bool desktop = MediaQuery.sizeOf(context).width >= 900;
+    final bool replaceComposerRoute = !desktop && _showComposer;
+
     setState(() {
       _selectedConversation = conversation;
       _showComposer = false;
@@ -120,6 +201,8 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
       _messageError = null;
       _isLoadingMessages = true;
     });
+    if (desktop) widget.onInnerViewChanged?.call(true);
+
     _messageSubscription?.cancel();
     _messageSubscription = widget.repository
         .watchMessages(conversationId: conversation.id)
@@ -131,6 +214,7 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
               _isLoadingMessages = false;
               _messageError = null;
             });
+            _notifyMobileInnerRoute();
             _scrollMessagesToBottom();
           },
           onError: (Object _, StackTrace _) {
@@ -140,11 +224,22 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
               _messageError =
                   'Impossible de charger les messages pour le moment.';
             });
+            _notifyMobileInnerRoute();
           },
         );
+
+    if (!desktop) {
+      unawaited(
+        _pushMobileConversationRoute(
+          conversationId: conversation.id,
+          replaceCurrentRoute: replaceComposerRoute,
+        ),
+      );
+    }
   }
 
   void _openNewConversation({CustomerOrderReceipt? order}) {
+    final bool desktop = MediaQuery.sizeOf(context).width >= 900;
     _messageSubscription?.cancel();
     _newMessageController.clear();
     setState(() {
@@ -154,9 +249,14 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
       _messageError = null;
       _showComposer = true;
     });
+    if (desktop) {
+      widget.onInnerViewChanged?.call(true);
+    } else {
+      unawaited(_pushMobileComposerRoute());
+    }
   }
 
-  void _closeInnerView() {
+  void _closeInnerView({bool notifyParent = true}) {
     _messageSubscription?.cancel();
     setState(() {
       _selectedConversation = null;
@@ -165,6 +265,86 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
       _messageError = null;
       _showComposer = false;
     });
+    if (notifyParent) widget.onInnerViewChanged?.call(false);
+  }
+
+  Future<void> _pushMobileComposerRoute() async {
+    if (!mounted) return;
+    final NavigatorState navigator = Navigator.of(context);
+    await navigator.push<void>(
+      MaterialPageRoute<void>(
+        settings: const RouteSettings(name: '/customer/messaging/new'),
+        builder: (BuildContext routeContext) => ValueListenableBuilder<int>(
+          valueListenable: _mobileInnerRevision,
+          builder: (_, _, _) {
+            return _buildMobileInnerShell(
+              routeContext: routeContext,
+              child: _buildNewConversation(compact: true),
+            );
+          },
+        ),
+      ),
+    );
+    if (!mounted || !_showComposer) return;
+    _closeInnerView(notifyParent: false);
+  }
+
+  Future<void> _pushMobileConversationRoute({
+    required String conversationId,
+    required bool replaceCurrentRoute,
+  }) async {
+    if (!mounted) return;
+    final NavigatorState navigator = Navigator.of(context);
+    final MaterialPageRoute<void> route = MaterialPageRoute<void>(
+      settings: RouteSettings(
+        name: '/customer/messaging/conversation/$conversationId',
+      ),
+      builder: (BuildContext routeContext) => ValueListenableBuilder<int>(
+        valueListenable: _mobileInnerRevision,
+        builder: (_, _, _) {
+          return _buildMobileInnerShell(
+            routeContext: routeContext,
+            child: _buildConversationDetail(compact: true),
+          );
+        },
+      ),
+    );
+
+    if (replaceCurrentRoute) {
+      await navigator.pushReplacement<void, void>(route);
+    } else {
+      await navigator.push<void>(route);
+    }
+
+    if (!mounted || _selectedConversation?.id != conversationId) return;
+    _closeInnerView(notifyParent: false);
+  }
+
+  Widget _buildMobileInnerShell({
+    required BuildContext routeContext,
+    required Widget child,
+  }) {
+    void leaveMessaging(VoidCallback destination) {
+      Navigator.of(routeContext).pop();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        destination();
+      });
+    }
+
+    return IzyTelShell(
+      title: 'Messagerie IzyTel',
+      onBack: () => Navigator.of(routeContext).maybePop(),
+      maxContentWidth: 1180,
+      bottomNavigationBar: IzyTelBottomNavigation(
+        current: IzyTelCustomerDestination.help,
+        onHome: () => leaveMessaging(widget.onOpenHome),
+        onOffers: () => leaveMessaging(widget.onOpenOffers),
+        onHistory: () => leaveMessaging(widget.onOpenHistory),
+        onHelp: () => leaveMessaging(widget.onOpenHelp),
+      ),
+      child: child,
+    );
   }
 
   Future<void> _createConversation() async {
@@ -176,6 +356,7 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
     }
 
     setState(() => _isCreating = true);
+    _notifyMobileInnerRoute();
     try {
       final CustomerOrderReceipt? order = _selectedOrder;
       final CustomerConversation conversation = await widget.repository
@@ -192,14 +373,22 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
       _newMessageController.clear();
       IzyTelFeedback.success(context, 'Conversation envoyée à IzyTel.');
       _openConversation(conversation);
-    } catch (error) {
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'CustomerMessaging.createConversation',
+        error,
+        stackTrace: stackTrace,
+      );
       if (!mounted) return;
       IzyTelFeedback.error(
         context,
         'Impossible d’envoyer la conversation pour le moment.',
       );
     } finally {
-      if (mounted) setState(() => _isCreating = false);
+      if (mounted) {
+        setState(() => _isCreating = false);
+        _notifyMobileInnerRoute();
+      }
     }
   }
 
@@ -214,6 +403,7 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
     }
 
     setState(() => _isSending = true);
+    _notifyMobileInnerRoute();
     try {
       await widget.repository.sendClientMessage(
         conversationId: conversation.id,
@@ -235,16 +425,25 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
           _isLoadingMessages = false;
           _messageError = null;
         });
+        _notifyMobileInnerRoute();
       } catch (_) {
         // Le message est déjà enregistré côté serveur. Si la relecture REST
         // ponctuelle échoue, le stream courant ou son fallback le récupérera.
       }
       _scrollMessagesToBottom();
-    } catch (error) {
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'CustomerMessaging.sendClientMessage',
+        error,
+        stackTrace: stackTrace,
+      );
       if (!mounted) return;
       IzyTelFeedback.error(context, 'Impossible d’envoyer le message.');
     } finally {
-      if (mounted) setState(() => _isSending = false);
+      if (mounted) {
+        setState(() => _isSending = false);
+        _notifyMobileInnerRoute();
+      }
     }
   }
 
@@ -259,8 +458,11 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
     });
   }
 
-  void _handleShellBack(bool desktop) {
-    if (!desktop && (_showComposer || _selectedConversation != null)) {
+  void _handleShellBack() {
+    // Sur desktop le fil/composer reste dans le split-view. Sur mobile ces
+    // ecrans sont de vraies routes et ne passent donc jamais par ce callback.
+    final bool desktop = MediaQuery.sizeOf(context).width >= 900;
+    if (desktop && (_showComposer || _selectedConversation != null)) {
       _closeInnerView();
       return;
     }
@@ -270,9 +472,9 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
   @override
   Widget build(BuildContext context) {
     final bool desktop = MediaQuery.sizeOf(context).width >= 900;
-    return IzyTelShell(
+    final Widget shell = IzyTelShell(
       title: 'Messagerie IzyTel',
-      onBack: () => _handleShellBack(desktop),
+      onBack: _handleShellBack,
       maxContentWidth: 1180,
       actions: desktop
           ? <Widget>[
@@ -323,12 +525,8 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
             );
           }
 
-          if (_showComposer) {
-            return _buildNewConversation(compact: true);
-          }
-          if (_selectedConversation != null) {
-            return _buildConversationDetail(compact: true);
-          }
+          // Mobile: la liste reste la route de base. Le composer et le fil
+          // sont de vraies routes Flutter poussees au-dessus de celle-ci.
           return Padding(
             padding: const EdgeInsets.fromLTRB(18, 22, 18, 30),
             child: _buildConversationList(),
@@ -336,6 +534,8 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
         },
       ),
     );
+
+    return shell;
   }
 
   Widget _buildDesktopDetail() {
@@ -398,34 +598,67 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    'Vos conversations',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 3),
-                  const Text(
-                    'Écrivez à IzyTel sans quitter l’application.',
-                    style: TextStyle(
-                      color: CustomerAppColors.onSurfaceVariant,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: <Color>[Colors.white, CustomerAppColors.primarySoft],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: CustomerAppColors.primaryContainer),
+            boxShadow: const <BoxShadow>[
+              BoxShadow(
+                color: Color(0x0D0F172A),
+                blurRadius: 22,
+                offset: Offset(0, 8),
               ),
-            ),
-            const SizedBox(width: 10),
-            IconButton.filled(
-              tooltip: 'Nouvelle conversation',
-              onPressed: _openNewConversation,
-              icon: const Icon(Icons.add_comment_rounded),
-            ),
-          ],
+            ],
+          ),
+          child: Row(
+            children: <Widget>[
+              Container(
+                width: 46,
+                height: 46,
+                decoration: const BoxDecoration(
+                  color: CustomerAppColors.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.support_agent_rounded,
+                  color: CustomerAppColors.primary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Assistance IzyTel',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 3),
+                    const Text(
+                      'Un Manager de votre zone vous répond directement dans IzyTel.',
+                      style: TextStyle(
+                        color: CustomerAppColors.onSurfaceVariant,
+                        fontSize: 12.5,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              _PremiumNewConversationButton(
+                onPressed: _openNewConversation,
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 18),
         Expanded(child: _buildConversationListBody()),
@@ -434,41 +667,62 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
   }
 
   Widget _buildConversationListBody() {
+    Widget state;
     if (_isLoadingConversations) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_conversationError != null) {
-      return _MessagingState(
+      state = const Center(child: CircularProgressIndicator());
+    } else if (_conversationError != null) {
+      state = _MessagingState(
         icon: Icons.cloud_off_rounded,
         title: 'Messagerie indisponible',
         message: _conversationError!,
         actionLabel: 'Réessayer',
         onAction: _subscribeConversations,
       );
-    }
-    if (_conversations.isEmpty) {
-      return _MessagingState(
+    } else if (_conversations.isEmpty) {
+      state = _MessagingState(
         icon: Icons.mark_chat_unread_outlined,
         title: 'Aucune conversation',
         message:
             'Vous pouvez écrire à IzyTel pour une question générale ou lier votre message à une commande.',
         actionLabel: 'Écrire à IzyTel',
+        actionIcon: Icons.add_rounded,
+        filledAction: true,
         onAction: _openNewConversation,
+      );
+    } else {
+      state = Column(
+        children: _conversations
+            .map(
+              (CustomerConversation conversation) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _ConversationCard(
+                  conversation: conversation,
+                  selected: conversation.id == _selectedConversation?.id,
+                  onTap: () => _openConversation(conversation),
+                ),
+              ),
+            )
+            .toList(growable: false),
       );
     }
 
+    // Toujours scrollable, y compris à vide : le pull-to-refresh fonctionne
+    // dans tous les états de la messagerie.
     return RefreshIndicator(
-      onRefresh: () async => _subscribeConversations(),
-      child: ListView.separated(
-        physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: _conversations.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (BuildContext context, int index) {
-          final CustomerConversation conversation = _conversations[index];
-          return _ConversationCard(
-            conversation: conversation,
-            selected: conversation.id == _selectedConversation?.id,
-            onTap: () => _openConversation(conversation),
+      onRefresh: _refreshConversationsOnce,
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          return ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.zero,
+            children: <Widget>[
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.hasBoundedHeight ? constraints.maxHeight : 360,
+                ),
+                child: state,
+              ),
+            ],
           );
         },
       ),
@@ -596,7 +850,11 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
             14,
           ),
           decoration: const BoxDecoration(
-            color: Colors.white,
+            gradient: LinearGradient(
+              colors: <Color>[Colors.white, CustomerAppColors.primarySoft],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
             border: Border(
               bottom: BorderSide(color: CustomerAppColors.outlineSoft),
             ),
@@ -695,27 +953,93 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
   }
 
   Widget _buildMessages(CustomerConversation conversation) {
+    Widget state;
     if (_isLoadingMessages) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_messageError != null) {
-      return _MessagingState(
+      state = const Center(child: CircularProgressIndicator());
+    } else if (_messageError != null) {
+      state = _MessagingState(
         icon: Icons.cloud_off_rounded,
         title: 'Messages indisponibles',
         message: _messageError!,
         actionLabel: 'Réessayer',
         onAction: () => _openConversation(conversation),
       );
+    } else {
+      state = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: _messages
+            .map((CustomerMessage message) => _MessageBubble(message: message))
+            .toList(growable: false),
+      );
     }
 
-    return ListView.builder(
-      key: ValueKey<String>('wc3b-thread-${conversation.id}'),
-      controller: _messageScrollController,
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 22),
-      itemCount: _messages.length,
-      itemBuilder: (BuildContext context, int index) {
-        return _MessageBubble(message: _messages[index]);
-      },
+    return RefreshIndicator(
+      onRefresh: () => _refreshMessagesOnce(conversation.id),
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          return ListView(
+            key: ValueKey<String>('wc3b-thread-${conversation.id}'),
+            controller: _messageScrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 22),
+            children: <Widget>[
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.hasBoundedHeight ? constraints.maxHeight : 360,
+                ),
+                child: state,
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+}
+
+class _PremiumNewConversationButton extends StatelessWidget {
+  const _PremiumNewConversationButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Nouvelle conversation',
+      child: Tooltip(
+        message: 'Nouvelle conversation',
+        child: Material(
+          color: CustomerAppColors.primary,
+          borderRadius: BorderRadius.circular(15),
+          elevation: 0,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(15),
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: const <BoxShadow>[
+                  BoxShadow(
+                    color: Color(0x1F1D4ED8),
+                    blurRadius: 16,
+                    offset: Offset(0, 6),
+                  ),
+                ],
+              ),
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.add_rounded,
+                color: Colors.white,
+                size: 30,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -742,6 +1066,20 @@ class _ConversationCard extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
+              Container(
+                width: 34,
+                height: 34,
+                decoration: const BoxDecoration(
+                  color: CustomerAppColors.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.forum_rounded,
+                  size: 17,
+                  color: CustomerAppColors.primary,
+                ),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   conversation.isOrderLinked
@@ -1039,14 +1377,29 @@ class _ReplyComposer extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    IconButton.filled(
+                    IconButton(
                       key: const ValueKey<String>('wc3b-send-message'),
                       tooltip: 'Envoyer',
                       onPressed: isSending ? null : onSend,
+                      style: IconButton.styleFrom(
+                        backgroundColor: CustomerAppColors.primary,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor:
+                            CustomerAppColors.primaryContainer,
+                        disabledForegroundColor:
+                            CustomerAppColors.onSurfaceVariant,
+                        minimumSize: const Size(48, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                      ),
                       icon: isSending
                           ? const SizedBox.square(
                               dimension: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
                           : const Icon(Icons.send_rounded),
                     ),
@@ -1199,6 +1552,8 @@ class _MessagingState extends StatelessWidget {
     required this.title,
     required this.message,
     this.actionLabel,
+    this.actionIcon,
+    this.filledAction = false,
     this.onAction,
   });
 
@@ -1206,6 +1561,8 @@ class _MessagingState extends StatelessWidget {
   final String title;
   final String message;
   final String? actionLabel;
+  final IconData? actionIcon;
+  final bool filledAction;
   final VoidCallback? onAction;
 
   @override
@@ -1216,8 +1573,17 @@ class _MessagingState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Icon(icon, size: 42, color: CustomerAppColors.outline),
-            const SizedBox(height: 13),
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: CustomerAppColors.primarySoft,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: CustomerAppColors.primaryContainer),
+              ),
+              child: Icon(icon, size: 34, color: CustomerAppColors.primary),
+            ),
+            const SizedBox(height: 16),
             Text(
               title,
               textAlign: TextAlign.center,
@@ -1239,7 +1605,18 @@ class _MessagingState extends StatelessWidget {
             ),
             if (actionLabel != null && onAction != null) ...<Widget>[
               const SizedBox(height: 16),
-              OutlinedButton(onPressed: onAction, child: Text(actionLabel!)),
+              if (filledAction)
+                FilledButton.icon(
+                  onPressed: onAction,
+                  icon: Icon(actionIcon ?? Icons.arrow_forward_rounded),
+                  label: Text(actionLabel!),
+                )
+              else
+                OutlinedButton.icon(
+                  onPressed: onAction,
+                  icon: Icon(actionIcon ?? Icons.refresh_rounded),
+                  label: Text(actionLabel!),
+                ),
             ],
           ],
         ),

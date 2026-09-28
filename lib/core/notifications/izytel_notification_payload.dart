@@ -8,6 +8,8 @@ class IzyTelNotificationPayload {
     this.route,
     this.issueId,
     this.supportRequestId,
+    this.conversationId,
+    this.zoneId,
     this.rawData = const <String, String>{},
   });
 
@@ -19,9 +21,14 @@ class IzyTelNotificationPayload {
   final String? route;
   final String? issueId;
   final String? supportRequestId;
+  final String? conversationId;
+  final String? zoneId;
   final Map<String, String> rawData;
 
   bool get targetsOrder => orderId != null || orderReference != null;
+
+  bool get targetsConversation =>
+      conversationId != null || route == 'customer_messaging';
 
   String get displayMessage =>
       body ?? title ?? 'Nouvelle notification IzyTel.';
@@ -49,6 +56,8 @@ class IzyTelNotificationPayload {
       route: valueOf('route'),
       issueId: valueOf('issueId'),
       supportRequestId: valueOf('supportRequestId'),
+      conversationId: valueOf('conversationId'),
+      zoneId: valueOf('zoneId'),
       rawData: Map<String, String>.unmodifiable(normalizedData),
     );
   }

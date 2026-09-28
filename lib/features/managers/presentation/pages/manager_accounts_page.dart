@@ -56,15 +56,17 @@ class _ManagerAccountsPageState extends State<ManagerAccountsPage> {
   List<TerritoryManager> _filtered(List<TerritoryManager> managers) {
     final String query = _query.trim().toLowerCase();
     if (query.isEmpty) return managers;
-    return managers.where((TerritoryManager manager) {
-      return <String>[
-        manager.displayName,
-        manager.email,
-        manager.phoneNumber,
-        manager.secondaryPhone,
-        manager.city,
-      ].any((String value) => value.toLowerCase().contains(query));
-    }).toList(growable: false);
+    return managers
+        .where((TerritoryManager manager) {
+          return <String>[
+            manager.displayName,
+            manager.email,
+            manager.phoneNumber,
+            manager.secondaryPhone,
+            manager.city,
+          ].any((String value) => value.toLowerCase().contains(query));
+        })
+        .toList(growable: false);
   }
 
   Future<void> _openManager(TerritoryManager manager) async {
@@ -92,160 +94,172 @@ class _ManagerAccountsPageState extends State<ManagerAccountsPage> {
       ),
       body: FutureBuilder<List<TerritoryManager>>(
         future: _future,
-        builder: (
-          BuildContext context,
-          AsyncSnapshot<List<TerritoryManager>> snapshot,
-        ) {
-          if (!snapshot.hasData &&
-              snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData) {
-            return _ManagerLoadError(onRetry: _reload);
-          }
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<List<TerritoryManager>> snapshot,
+            ) {
+              if (!snapshot.hasData &&
+                  snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (!snapshot.hasData) {
+                return _ManagerLoadError(onRetry: _reload);
+              }
 
-          final List<TerritoryManager> all = snapshot.data!;
-          final List<TerritoryManager> managers = _filtered(all);
-          final int active = all
-              .where((TerritoryManager manager) => manager.accountActive)
-              .length;
-          final int available = all
-              .where((TerritoryManager manager) => manager.canReceiveZone)
-              .length;
+              final List<TerritoryManager> all = snapshot.data!;
+              final List<TerritoryManager> managers = _filtered(all);
+              final int active = all
+                  .where((TerritoryManager manager) => manager.accountActive)
+                  .length;
+              final int available = all
+                  .where((TerritoryManager manager) => manager.canReceiveZone)
+                  .length;
 
-          return RefreshIndicator(
-            onRefresh: _reload,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-              children: <Widget>[
-                const IzyTelPageHeader(
-                  title: 'Comptes Managers',
-                  subtitle:
-                      'Consulte les informations, le statut et les coordonnées de chaque Manager.',
-                ),
-                const SizedBox(height: IzyTelSpacing.lg),
-                Row(
+              return RefreshIndicator(
+                onRefresh: _reload,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                   children: <Widget>[
-                    Expanded(
-                      child: _MetricCard(
-                        label: 'Managers',
-                        value: '${all.length}',
-                        icon: Symbols.supervisor_account_rounded,
-                        color: IzyTelColors.primary,
+                    const IzyTelPageHeader(
+                      title: 'Comptes Managers',
+                      subtitle:
+                          'Consulte les informations, le statut et les coordonnées de chaque Manager.',
+                    ),
+                    const SizedBox(height: IzyTelSpacing.lg),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: _MetricCard(
+                            label: 'Managers',
+                            value: '${all.length}',
+                            icon: Symbols.supervisor_account_rounded,
+                            color: IzyTelColors.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _MetricCard(
+                            label: 'Actifs',
+                            value: '$active',
+                            icon: Symbols.verified_rounded,
+                            color: IzyTelColors.success,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _MetricCard(
+                            label: 'Disponibles',
+                            value: '$available',
+                            icon: Symbols.task_alt_rounded,
+                            color: IzyTelColors.moov,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: IzyTelSpacing.lg),
+                    TextField(
+                      controller: _searchController,
+                      onChanged: (String value) =>
+                          setState(() => _query = value),
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Symbols.search_rounded),
+                        hintText: 'Rechercher un Manager',
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _MetricCard(
-                        label: 'Actifs',
-                        value: '$active',
-                        icon: Symbols.verified_rounded,
-                        color: IzyTelColors.success,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _MetricCard(
-                        label: 'Disponibles',
-                        value: '$available',
-                        icon: Symbols.task_alt_rounded,
-                        color: IzyTelColors.moov,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: IzyTelSpacing.lg),
-                TextField(
-                  controller: _searchController,
-                  onChanged: (String value) => setState(() => _query = value),
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Symbols.search_rounded),
-                    hintText: 'Rechercher un Manager',
-                  ),
-                ),
-                const SizedBox(height: IzyTelSpacing.lg),
-                if (managers.isEmpty)
-                  const IzyTelSurface(
-                    padding: EdgeInsets.all(IzyTelSpacing.lg),
-                    child: Text('Aucun Manager ne correspond à cette recherche.'),
-                  )
-                else
-                  ...managers.map(
-                    (TerritoryManager manager) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: IzyTelSurface(
-                        onTap: () => _openManager(manager),
-                        padding: const EdgeInsets.all(14),
-                        child: Row(
-                          children: <Widget>[
-                            StaffProfileAvatar(
-                              firebaseUid: manager.firebaseUid,
-                              displayName: manager.displayName,
-                              knownAvatarPath: manager.avatarPath,
-                              size: 46,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
-                                  Text(
-                                    manager.displayName,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleSmall
-                                        ?.copyWith(fontWeight: FontWeight.w800),
+                    const SizedBox(height: IzyTelSpacing.lg),
+                    if (managers.isEmpty)
+                      const IzyTelSurface(
+                        padding: EdgeInsets.all(IzyTelSpacing.lg),
+                        child: Text(
+                          'Aucun Manager ne correspond à cette recherche.',
+                        ),
+                      )
+                    else
+                      ...managers.map(
+                        (TerritoryManager manager) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: IzyTelSurface(
+                            onTap: () => _openManager(manager),
+                            padding: const EdgeInsets.all(14),
+                            child: Row(
+                              children: <Widget>[
+                                StaffProfileAvatar(
+                                  firebaseUid: manager.firebaseUid,
+                                  displayName: manager.displayName,
+                                  knownAvatarPath: manager.avatarPath,
+                                  size: 46,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Text(
+                                        manager.displayName,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        manager.contactLabel,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: IzyTelColors.textSecondary,
+                                            ),
+                                      ),
+                                      if (manager.city
+                                          .trim()
+                                          .isNotEmpty) ...<Widget>[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          manager.city,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: IzyTelColors.textMuted,
+                                              ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    manager.contactLabel,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
-                                        ?.copyWith(color: IzyTelColors.textSecondary),
-                                  ),
-                                  if (manager.city.trim().isNotEmpty) ...<Widget>[
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      manager.city,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(color: IzyTelColors.textMuted),
-                                    ),
-                                  ],
-                                ],
-                              ),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                  manager.accountActive
+                                      ? Symbols.verified_rounded
+                                      : Symbols.block_rounded,
+                                  color: manager.accountActive
+                                      ? IzyTelColors.success
+                                      : IzyTelColors.error,
+                                ),
+                                const Icon(
+                                  Symbols.chevron_right_rounded,
+                                  color: IzyTelColors.textMuted,
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            Icon(
-                              manager.accountActive
-                                  ? Symbols.verified_rounded
-                                  : Symbols.block_rounded,
-                              color: manager.accountActive
-                                  ? IzyTelColors.success
-                                  : IzyTelColors.error,
-                            ),
-                            const Icon(
-                              Symbols.chevron_right_rounded,
-                              color: IzyTelColors.textMuted,
-                            ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-              ],
-            ),
-          );
-        },
+                  ],
+                ),
+              );
+            },
       ),
     );
   }
-
 }
 
 class _MetricCard extends StatelessWidget {
@@ -272,17 +286,17 @@ class _MetricCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
           ),
           Text(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: IzyTelColors.textSecondary,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: IzyTelColors.textSecondary),
           ),
         ],
       ),

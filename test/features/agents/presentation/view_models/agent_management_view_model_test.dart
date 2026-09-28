@@ -50,4 +50,23 @@ void main() {
 
     viewModel.dispose();
   });
+
+  // WC9: l'actualisation manuelle doit etre ponctuelle et finir sans recreer
+  // durablement l'etat de chargement du repertoire Manager.
+  test('actualise le repertoire Agents sans spinner persistant', () async {
+    final FakeAgentRepository repository = FakeAgentRepository();
+    final AgentManagementViewModel viewModel = AgentManagementViewModel(
+      repository: repository,
+    );
+
+    await viewModel.start();
+    await viewModel.refresh();
+
+    expect(viewModel.isLoading, isFalse);
+    expect(viewModel.errorMessage, isNull);
+    expect(viewModel.agents, isNotEmpty);
+    expect(viewModel.zones, isNotEmpty);
+
+    viewModel.dispose();
+  });
 }

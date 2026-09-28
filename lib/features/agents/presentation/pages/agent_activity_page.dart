@@ -199,7 +199,7 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
                 .length;
 
             return RefreshIndicator(
-              onRefresh: _viewModel.start,
+              onRefresh: _viewModel.refresh,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(

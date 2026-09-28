@@ -1016,6 +1016,10 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
         return BackofficeUsersPage(
           currentUser: widget.user,
           repository: widget.userRepository,
+          onManageManager: (_) =>
+              _selectDestination(BackofficeDestination.managers),
+          onManageAgent: (_) =>
+              _selectDestination(BackofficeDestination.agents),
         );
       case BackofficeDestination.offers:
         final AdminOfferRepository? offersRepository = widget.adminOfferRepository;

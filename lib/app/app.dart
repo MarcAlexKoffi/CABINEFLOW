@@ -11,6 +11,7 @@ import 'package:cabine_flow/core/theme/app_theme.dart';
 import 'package:cabine_flow/features/auth/data/repositories/fake_auth_repository.dart';
 import 'package:cabine_flow/features/auth/data/repositories/firebase_auth_repository.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:cabine_flow/features/auth/presentation/pages/login_page.dart';
@@ -215,15 +216,40 @@ class CabineFlowApp extends StatelessWidget {
             return MaterialPageRoute<void>(
               settings: settings,
               builder: (BuildContext context) {
+                // Les repositories opérationnels sont construits avec le
+                // viewer courant afin qu'un Manager reste strictement dans
+                // son périmètre territorial. Les injections de tests gardent
+                // naturellement la priorité.
+                final DashboardRepository shellDashboardRepository =
+                    arguments.isManager &&
+                        dashboardRepository == null &&
+                        isFirebaseInitialized &&
+                        SupabaseBootstrap.isInitialized
+                    ? HybridDashboardRepository(viewer: arguments)
+                    : effectiveDashboardRepository;
+                final OrdersRepository shellOrdersRepository =
+                    arguments.isManager &&
+                        ordersRepository == null &&
+                        isFirebaseInitialized &&
+                        SupabaseBootstrap.isInitialized
+                    ? HybridOrdersRepository(viewer: arguments)
+                    : effectiveOrdersRepository;
+                final AgentRepository shellAgentRepository =
+                    arguments.isManager &&
+                        agentRepository == null &&
+                        isFirebaseInitialized
+                    ? FirestoreAgentRepository(viewer: arguments)
+                    : effectiveAgentRepository;
+
                 return MainShellPage(
                   user: arguments,
                   authRepository: effectiveAuthRepository,
-                  dashboardRepository: effectiveDashboardRepository,
-                  ordersRepository: effectiveOrdersRepository,
+                  dashboardRepository: shellDashboardRepository,
+                  ordersRepository: shellOrdersRepository,
                   offerCatalogRepository: effectiveOfferCatalogRepository,
                   adminOfferRepository: effectiveAdminOfferRepository,
                   paymentLinkRepository: effectivePaymentLinkRepository,
-                  agentRepository: effectiveAgentRepository,
+                  agentRepository: shellAgentRepository,
                   commissionRepository: effectiveCommissionRepository,
                 );
               },

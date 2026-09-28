@@ -2023,10 +2023,10 @@ grant execute on function private.izytel_wc3_notify_customer_order(text,text,tex
 revoke execute on function private.izytel_wc5_notify_completed_order_trigger() from public, anon, authenticated;
 
 revoke execute on function public.izytel_wc5_create_territory_zone(text,text,text,double precision,double precision,text,double precision,boolean,boolean) from public, anon;
-grant execute on function public.izytel_wc5_create_territory_zone(text,text,text,double precision,double precision,text,double precision,boolean,boolean) to authenticated, service_role;
+grant execute on function public.izytel_wc5_create_territory_zone(text,text,text,double precision,double precision,text,double precision,boolean,boolean) to anon, authenticated, service_role;
 
 revoke execute on function public.izytel_wc5_update_territory_zone(text,text,text,text,double precision,double precision,text,double precision,boolean,boolean) from public, anon;
-grant execute on function public.izytel_wc5_update_territory_zone(text,text,text,text,double precision,double precision,text,double precision,boolean,boolean) to authenticated, service_role;
+grant execute on function public.izytel_wc5_update_territory_zone(text,text,text,text,double precision,double precision,text,double precision,boolean,boolean) to anon, authenticated, service_role;
 
 revoke execute on function public.izytel_wc5_create_conversation(text,text,text,text,text,double precision,double precision) from public, anon;
 grant execute on function public.izytel_wc5_create_conversation(text,text,text,text,text,double precision,double precision) to authenticated, service_role;

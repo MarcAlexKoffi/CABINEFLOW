@@ -40,7 +40,7 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
       if (mounted) setState(() {});
     });
     _viewModel = AgentManagementViewModel(repository: widget.repository);
-    _viewModel.start();
+    unawaited(_viewModel.start());
   }
 
   @override
@@ -410,7 +410,7 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
             ].where((Object? value) => value != null).length;
 
             return RefreshIndicator(
-              onRefresh: _viewModel.start,
+              onRefresh: _viewModel.refresh,
               color: IzyTelColors.primary,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -425,7 +425,7 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
                     subtitle: canManageAgents
                         ? 'Pilote la disponibilité, les réseaux et les capacités de l’équipe.'
                         : widget.user.isManager
-                            ? 'Consulte les profils de tes Agents et ajuste uniquement leurs capacités réseau.'
+                            ? 'Gère les quotas, les réseaux autorisés et les capacités de tes Agents de zone.'
                             : 'Supervise la disponibilité, les réseaux, les zones et les capacités de l’équipe.',
                     actions: [IzyTelAvatar(name: widget.user.name, size: 42)],
                   ),

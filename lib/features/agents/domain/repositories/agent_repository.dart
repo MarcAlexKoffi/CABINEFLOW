@@ -47,6 +47,13 @@ abstract class AgentRepository {
     String? reason,
   });
 
+  /// Gestion operationnelle d'un Agent par son Manager de zone.
+  /// Le backend autorise uniquement quotas, reseaux autorises et capacites.
+  Future<void> updateManagedAgentOperations({
+    required String agentId,
+    required ManagedAgentOperationalUpdate update,
+  });
+
   Future<String> createZone({
     required String name,
     required String city,

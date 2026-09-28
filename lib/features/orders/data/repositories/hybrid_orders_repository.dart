@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
 import 'package:cabine_flow/features/finances/data/repositories/supabase_phase5_finance_repository.dart';
+import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/orders/data/repositories/firestore_orders_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/supabase_phase4_assignment_repository.dart';
 import 'package:cabine_flow/features/orders/data/repositories/supabase_order_proof_repository.dart';
@@ -34,6 +36,7 @@ class HybridOrdersRepository
     SupabaseOrderProofRepository? proofRepository,
     SupabasePhase5FinanceRepository? phase5FinanceRepository,
     FirebaseAuth? firebaseAuth,
+    AppUser? viewer,
   }) : _firestore =
            firestoreRepository ??
            FirestoreOrdersRepository(
@@ -43,7 +46,8 @@ class HybridOrdersRepository
        _phase4 = phase4Repository ?? SupabasePhase4AssignmentRepository(),
        _proofs = proofRepository ?? SupabaseOrderProofRepository(),
        _phase5Finance = phase5FinanceRepository ?? SupabasePhase5FinanceRepository(),
-       _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance;
+       _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
+       _viewer = viewer;
 
   static const int _maximumBacklogOrders = 50;
 
@@ -52,6 +56,9 @@ class HybridOrdersRepository
   final SupabaseOrderProofRepository _proofs;
   final SupabasePhase5FinanceRepository _phase5Finance;
   final FirebaseAuth _firebaseAuth;
+  final AppUser? _viewer;
+
+  bool get _isManager => _viewer?.isManager ?? false;
   final AutomaticAssignmentSelector _selector =
       const AutomaticAssignmentSelector();
 
@@ -71,8 +78,11 @@ class HybridOrdersRepository
     // Firestore reste la source primaire des declarations de paiement pre-sync.
     // Cette lecture doit donc rester stricte : si elle devient reellement
     // inaccessible, l'ecran doit le signaler plutot que d'afficher un faux vide.
-    final List<QueueOrder> legacyOrders = await _firestore
+    List<QueueOrder> legacyOrders = await _firestore
         .fetchPaymentTrackingOrders();
+    if (_isManager) {
+      legacyOrders = await _filterLegacyOrdersToManagerScope(legacyOrders);
+    }
 
     try {
       final List<Phase4AssignmentSnapshot> snapshots = await _phase4
@@ -107,6 +117,7 @@ class HybridOrdersRepository
     required DateTime paidAt,
     String? paymentReference,
   }) async {
+    await _assertManagerCanAccessLegacyOrder(orderId);
     final QueueOrder confirmed = await _firestore.confirmPayment(
       orderId: orderId,
       paidAt: paidAt,
@@ -140,6 +151,11 @@ class HybridOrdersRepository
 
   @override
   Future<List<QueueOrder>> fetchPaidQueue() async {
+    if (_isManager) {
+      final List<Phase4AssignmentSnapshot> snapshots = await _phase4
+          .fetchAllForStaff();
+      return _canonicalOrders(snapshots);
+    }
     List<QueueOrder> legacyOrders = const <QueueOrder>[];
     Object? legacyError;
     StackTrace? legacyStackTrace;
@@ -177,6 +193,9 @@ class HybridOrdersRepository
 
   @override
   Stream<List<QueueOrder>> watchPaidQueue() {
+    if (_isManager) {
+      return _phase4.watchAllForStaff().map(_canonicalOrders);
+    }
     return _combineStaffOrderStream(_firestore.watchPaidQueue());
   }
 
@@ -245,6 +264,12 @@ class HybridOrdersRepository
 
   @override
   Future<void> synchronizeAutomaticAssignmentBacklog() async {
+    // Le balayage global Firestore est une responsabilité Admin. Un Manager
+    // ne doit jamais parcourir les commandes d'autres zones, même pour les
+    // synchroniser. Les commandes de sa zone sont synchronisées au fil des
+    // actions ciblées (paiement / affectation / traitement).
+    if (_isManager) return;
+
     final List<QueueOrder> firebaseOrders = await _firestore.fetchPaidQueue();
 
     final List<AutomaticAssignmentAgent> baseCandidates =
@@ -495,6 +520,11 @@ class HybridOrdersRepository
     Phase4AssignmentSnapshot? canonical = await _phase4.fetchOrder(orderId);
     QueueOrder? legacyOrder;
     if (canonical == null) {
+      if (_isManager) {
+        throw StateError(
+          'Cette commande ne fait pas partie de votre périmètre territorial.',
+        );
+      }
       legacyOrder = await _firestore.fetchOrderById(orderId: orderId);
       if (legacyOrder.status != QueueOrderStatus.paidReady ||
           !legacyOrder.isFundedForProcessing) {
@@ -541,6 +571,17 @@ class HybridOrdersRepository
     final AutomaticAssignmentAgent? target = _findAgent(agents, targetAgentId);
     if (target == null) {
       throw StateError('Le profil opérationnel Supabase de cet agent est introuvable.');
+    }
+    if (_isManager) {
+      final bool sameTerritory = await _phase4.managerAssignmentAllowed(
+        orderId: order.id,
+        agentId: targetAgentId,
+      );
+      if (!sameTerritory) {
+        throw StateError(
+          'Cet Agent n’appartient pas à votre périmètre territorial.',
+        );
+      }
     }
     final bool targetIsEligible = await _phase4.isAgentEligibleForOrder(
       agentId: targetAgentId,
@@ -979,6 +1020,14 @@ class HybridOrdersRepository
   Future<QueueOrder> prepareFailedOrderForReassignment({
     required String orderId,
   }) async {
+    if (_isManager) {
+      final Phase4AssignmentSnapshot? visible = await _phase4.fetchOrder(orderId);
+      if (visible == null) {
+        throw StateError(
+          'Cette commande ne fait pas partie de votre périmètre territorial.',
+        );
+      }
+    }
     final Phase4AssignmentSnapshot reopened =
         await _phase4.prepareFailedForReassignment(orderId);
     return reopened.toQueueOrder();
@@ -986,6 +1035,12 @@ class HybridOrdersRepository
 
   @override
   Future<List<QueueOrder>> fetchOrderHistory() async {
+    if (_isManager) {
+      final List<Phase4AssignmentSnapshot> snapshots = await _phase4
+          .fetchAllForStaff();
+      return _canonicalOrders(snapshots);
+    }
+
     List<QueueOrder> firebaseOrders = const <QueueOrder>[];
     Object? firebaseError;
     StackTrace? firebaseStackTrace;
@@ -1024,6 +1079,9 @@ class HybridOrdersRepository
 
   @override
   Stream<List<QueueOrder>> watchOrderHistory() {
+    if (_isManager) {
+      return _phase4.watchAllForStaff().map(_canonicalOrders);
+    }
     // Le centre des commandes echouees et l'historique staff doivent rester
     // fonctionnels meme si Firestore legacy est momentanement indisponible.
     // Les lignes Supabase Phase 4 sont suffisantes pour construire les cartes
@@ -1073,6 +1131,12 @@ class HybridOrdersRepository
       }
     }
 
+    if (_isManager) {
+      throw StateError(
+        'Cette commande n’est pas disponible dans le périmètre territorial du Manager.',
+      );
+    }
+
     // Orders that have not entered Phase 4 yet remain readable from the
     // legacy/customer store until their paidReady synchronization occurs.
     return _firestore.fetchOrderById(orderId: orderId);
@@ -1106,8 +1170,10 @@ class HybridOrdersRepository
 
     controller.onListen = () {
       legacySubscription = legacyStream.listen(
-        (List<QueueOrder> value) {
-          legacyOrders = value;
+        (List<QueueOrder> value) async {
+          legacyOrders = _isManager
+              ? await _filterLegacyOrdersToManagerScope(value)
+              : value;
           legacyReady = true;
           emit();
         },
@@ -1150,6 +1216,51 @@ class HybridOrdersRepository
     };
 
     return controller.stream;
+  }
+
+  Future<void> _assertManagerCanAccessLegacyOrder(String orderId) async {
+    if (!_isManager) return;
+    final Set<String> visibleIds = await _phase4.fetchVisibleLegacyOrderIds();
+    if (!visibleIds.contains(orderId.trim())) {
+      throw StateError(
+        'Cette commande ne fait pas partie de votre périmètre territorial.',
+      );
+    }
+  }
+
+  Future<List<QueueOrder>> _filterLegacyOrdersToManagerScope(
+    List<QueueOrder> orders,
+  ) async {
+    if (!_isManager || orders.isEmpty) return orders;
+    try {
+      final Set<String> visibleIds = await _phase4.fetchVisibleLegacyOrderIds();
+      return List<QueueOrder>.unmodifiable(
+        orders.where((QueueOrder order) => visibleIds.contains(order.id)),
+      );
+    } catch (error, stackTrace) {
+      // Fail closed : une panne du scope territorial ne doit jamais élargir
+      // la visibilité du Manager aux commandes globales Firestore.
+      IzyTelLog.backendError(
+        'WC6.manager-legacy-scope',
+        error,
+        stackTrace: stackTrace,
+      );
+      return const <QueueOrder>[];
+    }
+  }
+
+  List<QueueOrder> _canonicalOrders(
+    List<Phase4AssignmentSnapshot> snapshots,
+  ) {
+    final List<QueueOrder> result = snapshots
+        .where((Phase4AssignmentSnapshot item) => !item.legacyStateUnresolved)
+        .map((Phase4AssignmentSnapshot item) => item.toQueueOrder())
+        .toList(growable: false)
+      ..sort(
+        (QueueOrder first, QueueOrder second) =>
+            second.createdAt.compareTo(first.createdAt),
+      );
+    return List<QueueOrder>.unmodifiable(result);
   }
 
   List<QueueOrder> _paymentTrackingOrders(List<QueueOrder> orders) {

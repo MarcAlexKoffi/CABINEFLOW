@@ -11,10 +11,14 @@ class BackofficeUsersPage extends StatefulWidget {
     super.key,
     required this.currentUser,
     required this.repository,
+    this.onManageManager,
+    this.onManageAgent,
   });
 
   final AppUser currentUser;
   final BackofficeUserRepository repository;
+  final ValueChanged<BackofficeUserAccount>? onManageManager;
+  final ValueChanged<BackofficeUserAccount>? onManageAgent;
 
   @override
   State<BackofficeUsersPage> createState() => _BackofficeUsersPageState();
@@ -262,6 +266,26 @@ class _BackofficeUsersPageState extends State<BackofficeUsersPage> {
             ],
           ),
           actions: <Widget>[
+            if (user.role == BackofficeAccountRole.manager &&
+                widget.onManageManager != null)
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  widget.onManageManager!(user);
+                },
+                icon: const Icon(Symbols.supervisor_account_rounded),
+                label: const Text('Gérer dans Comptes Managers'),
+              ),
+            if (user.role == BackofficeAccountRole.agent &&
+                widget.onManageAgent != null)
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  widget.onManageAgent!(user);
+                },
+                icon: const Icon(Symbols.badge_rounded),
+                label: const Text('Gérer dans Agents'),
+              ),
             FilledButton.icon(
               onPressed: () => Navigator.of(dialogContext).pop(),
               icon: const Icon(Symbols.check_rounded),
