@@ -12,6 +12,7 @@ import 'package:cabine_flow/features/orders/domain/repositories/orders_repositor
 import 'package:cabine_flow/features/orders/presentation/view_models/orders_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/orders_widgets.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/agent_assignment_page.dart';
@@ -397,7 +398,7 @@ class _OrdersPageState extends State<OrdersPage> {
               ),
               const Divider(height: 1, color: IzyTelColors.outline),
               Expanded(
-                child: RefreshIndicator(
+                child: IzyTelRefreshIndicator(
                   onRefresh: _viewModel.loadQueue,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),

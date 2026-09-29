@@ -8,6 +8,7 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/features/orders/presentation/view_models/agent_assignment_view_model.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:flutter/material.dart';
 
 class AgentAssignmentPage extends StatefulWidget {
@@ -109,8 +110,8 @@ class _AgentAssignmentPageState extends State<AgentAssignmentPage> {
         child: ListenableBuilder(
           listenable: _viewModel,
           builder: (BuildContext context, Widget? child) {
-            return RefreshIndicator(
-              onRefresh: _viewModel.start,
+            return IzyTelRefreshIndicator(
+              onRefresh: _viewModel.refresh,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
@@ -129,7 +130,10 @@ class _AgentAssignmentPageState extends State<AgentAssignmentPage> {
                     style: TextStyle(color: IzyTelColors.textSecondary),
                   ),
                   const SizedBox(height: 22),
-                  _OrderSummary(order: _viewModel.order),
+                  _OrderSummary(
+                    order: _viewModel.order,
+                    zoneLabel: _viewModel.orderZoneLabel,
+                  ),
                   const SizedBox(height: 24),
                   Row(
                     children: [
@@ -178,9 +182,10 @@ class _AgentAssignmentPageState extends State<AgentAssignmentPage> {
                       child: Center(child: CircularProgressIndicator()),
                     )
                   else if (_viewModel.candidates.isEmpty)
-                    const _MessageCard(
-                      message:
-                          'Aucun agent n’est encore autorisé pour ce réseau. Vérifie les profils agents dans Administration.',
+                    _MessageCard(
+                      message: _viewModel.canAssignCanonically
+                          ? 'Aucun agent n’est actuellement éligible pour ce réseau et cette zone.'
+                          : 'Affectation bloquée tant que la zone canonique de la commande n’est pas disponible.',
                     )
                   else
                     ..._viewModel.candidates.map(
@@ -204,19 +209,21 @@ class _AgentAssignmentPageState extends State<AgentAssignmentPage> {
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: IzyTelColors.outline),
                     ),
-                    child: const Row(
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.info_outline_rounded,
                           color: IzyTelColors.primary,
                           size: 19,
                         ),
-                        SizedBox(width: 10),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'La compatibilité est calculée avec la disponibilité, le réseau actif et la capacité déclarée. La commande ne contient pas encore de zone client, donc la zone n’est pas utilisée pour bloquer une affectation à ce stade.',
-                            style: TextStyle(
+                            _viewModel.hasCanonicalOrderZone
+                                ? 'La compatibilité tient compte de la zone de la commande, de la disponibilité, du réseau actif et de la capacité déclarée. Seuls les agents rattachés à cette zone peuvent être affectés.'
+                                : 'La zone canonique de cette commande n’est pas encore disponible. Actualise avant toute affectation manuelle afin d’éviter une affectation hors territoire.',
+                            style: const TextStyle(
                               color: IzyTelColors.textSecondary,
                               fontSize: 11,
                               height: 1.4,
@@ -237,9 +244,10 @@ class _AgentAssignmentPageState extends State<AgentAssignmentPage> {
 }
 
 class _OrderSummary extends StatelessWidget {
-  const _OrderSummary({required this.order});
+  const _OrderSummary({required this.order, required this.zoneLabel});
 
   final QueueOrder order;
+  final String zoneLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -274,10 +282,10 @@ class _OrderSummary extends StatelessWidget {
           value: formatCfa(order.amount),
         ),
         const SizedBox(height: 10),
-        const _SummaryTile(
+        _SummaryTile(
           icon: Icons.location_on_outlined,
           label: 'ZONE',
-          value: 'Non renseignée pour cette commande',
+          value: zoneLabel,
         ),
         if (order.isAssignedToAgent) ...[
           const SizedBox(height: 10),

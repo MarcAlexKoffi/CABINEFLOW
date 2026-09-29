@@ -48,6 +48,8 @@ abstract class OrdersRepository {
     required MobileNetwork network,
   });
 
+  Future<List<QueueOrder>> fetchAssignedOrders({required String agentId});
+
   Stream<List<QueueOrder>> watchAssignedOrders({required String agentId});
 
   Future<QueueOrder> acceptAgentAssignment({

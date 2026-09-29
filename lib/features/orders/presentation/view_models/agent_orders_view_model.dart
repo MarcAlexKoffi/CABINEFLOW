@@ -39,6 +39,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
   String? _errorMessage;
   bool _errorIsQueueLoad = false;
   bool _isLoading = true;
+  Future<void>? _refreshFuture;
 
   AgentOrdersTab get selectedTab => _selectedTab;
   AgentProfile? get agentProfile => _agentProfile;
@@ -256,6 +257,69 @@ class AgentOrdersViewModel extends ChangeNotifier {
             },
           );
     }
+  }
+
+  Future<void> refresh() {
+    final Future<void>? current = _refreshFuture;
+    if (current != null) return current;
+
+    final Future<void> operation = _refreshOnce();
+    _refreshFuture = operation;
+    return operation.whenComplete(() {
+      if (identical(_refreshFuture, operation)) {
+        _refreshFuture = null;
+      }
+    });
+  }
+
+  Future<void> _refreshOnce() async {
+    const Duration timeout = Duration(seconds: 4);
+    List<QueueOrder>? assigned;
+    List<QueueOrder>? refused;
+
+    await Future.wait<void>(<Future<void>>[
+      () async {
+        try {
+          assigned = await ordersRepository
+              .fetchAssignedOrders(agentId: agentId)
+              .timeout(timeout);
+        } catch (error, stackTrace) {
+          IzyTelLog.backendError(
+            'AgentOrders.refresh-assigned',
+            error,
+            stackTrace: stackTrace,
+          );
+        }
+      }(),
+      () async {
+        if (ordersRepository is! AgentAssignmentHistoryRepository) return;
+        try {
+          refused = await (ordersRepository as AgentAssignmentHistoryRepository)
+              .fetchAgentRefusedOrders(agentId: agentId)
+              .timeout(timeout);
+        } catch (error, stackTrace) {
+          IzyTelLog.backendError(
+            'AgentOrders.refresh-refused',
+            error,
+            stackTrace: stackTrace,
+          );
+        }
+      }(),
+    ]);
+
+    if (assigned != null) {
+      _orders = assigned!
+          .where((QueueOrder order) => order.assignedAgentId == agentId)
+          .toList(growable: false);
+      _syncSelectedTabToAvailableQueue();
+      _isLoading = false;
+      _errorMessage = null;
+      _errorIsQueueLoad = false;
+    }
+    if (refused != null) {
+      _refusedHistoryOrders = refused!;
+    }
+    notifyListeners();
   }
 
   Future<void> _resolveAvatar(

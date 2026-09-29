@@ -174,16 +174,26 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
       _rechargeError = null;
     });
     try {
-      final AgentRechargeHistoryPageData page = await repository.fetchPage(
-        agentId: widget.user.id,
-        cursor: _rechargeCursor,
-        filter: _rechargeFilter,
-        pageSize: 50,
-      );
-      final AgentRechargeHistorySummary summary = await repository.fetchSummary(
-        agentId: widget.user.id,
-        filter: _rechargeFilter,
-      );
+      final List<Object> values = await Future.wait<Object>(<Future<Object>>[
+        repository
+            .fetchPage(
+              agentId: widget.user.id,
+              cursor: _rechargeCursor,
+              filter: _rechargeFilter,
+              pageSize: 50,
+            )
+            .timeout(const Duration(seconds: 4)),
+        repository
+            .fetchSummary(
+              agentId: widget.user.id,
+              filter: _rechargeFilter,
+            )
+            .timeout(const Duration(seconds: 4)),
+      ]);
+      final AgentRechargeHistoryPageData page =
+          values[0] as AgentRechargeHistoryPageData;
+      final AgentRechargeHistorySummary summary =
+          values[1] as AgentRechargeHistorySummary;
       if (!mounted) return;
       setState(() {
         _recharges = page.items;
@@ -311,10 +321,10 @@ class _AgentHistoryPageState extends State<AgentHistoryPage> {
                   )
                   .toList(growable: false);
 
-              return RefreshIndicator(
+              return IzyTelRefreshIndicator(
                 onRefresh: _tab == 4
                     ? () => _loadRecharges(resetPagination: true)
-                    : _viewModel.start,
+                    : _viewModel.refresh,
                 color: IzyTelColors.primary,
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),

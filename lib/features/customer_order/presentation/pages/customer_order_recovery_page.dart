@@ -88,7 +88,7 @@ class _CustomerOrderRecoveryPageState extends State<CustomerOrderRecoveryPage> {
       bottomNavigationBar: desktop
           ? null
           : IzyTelBottomNavigation(
-              current: IzyTelCustomerDestination.history,
+              current: IzyTelCustomerDestination.help,
               onHome: widget.onOpenHome,
               onOffers: widget.onOpenOffers,
               onHistory: widget.onOpenHistory,

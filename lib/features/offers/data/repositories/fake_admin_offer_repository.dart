@@ -13,6 +13,9 @@ class FakeAdminOfferRepository implements AdminOfferRepository {
       StreamController<List<AdminOffer>>.broadcast();
 
   @override
+  Future<List<AdminOffer>> fetchOffers() async => List<AdminOffer>.unmodifiable(_offers);
+
+  @override
   Stream<List<AdminOffer>> watchOffers() {
     late final StreamController<List<AdminOffer>> controller;
     controller = StreamController<List<AdminOffer>>(

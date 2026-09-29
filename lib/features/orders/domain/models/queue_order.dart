@@ -66,6 +66,7 @@ class QueueOrder {
     required this.status,
     this.source = OrderSource.operatorApp,
     this.customerAuthUid,
+    this.zoneId,
     this.paymentStatus = OrderPaymentStatus.pending,
     this.originalWhatsappMessage,
     this.internalNotes,
@@ -108,6 +109,7 @@ class QueueOrder {
 
   final OrderSource source;
   final String? customerAuthUid;
+  final String? zoneId;
 
   final String clientName;
   final String clientWhatsappPhone;
@@ -187,6 +189,7 @@ class QueueOrder {
   QueueOrder copyWith({
     QueueOrderStatus? status,
     OrderPaymentStatus? paymentStatus,
+    String? zoneId,
     DateTime? paidAt,
     DateTime? paymentRequestSentAt,
     DateTime? paymentDeclaredAt,
@@ -229,6 +232,7 @@ class QueueOrder {
       reference: reference,
       source: source,
       customerAuthUid: customerAuthUid,
+      zoneId: zoneId ?? this.zoneId,
       clientName: clientName,
       clientWhatsappPhone: clientWhatsappPhone,
       network: network,

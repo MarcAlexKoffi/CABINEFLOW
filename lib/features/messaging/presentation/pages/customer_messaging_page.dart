@@ -26,7 +26,11 @@ class CustomerMessagingPage extends StatefulWidget {
     required this.onOpenHistory,
     required this.onOpenHelp,
     this.onInnerViewChanged,
+    this.onInnerRouteChanged,
     this.resetInnerViewToken = 0,
+    this.useExternalHistory = false,
+    this.externalInnerActive = false,
+    this.externalInnerDetail,
   });
 
   final CustomerMessagingRepository repository;
@@ -39,7 +43,11 @@ class CustomerMessagingPage extends StatefulWidget {
   final VoidCallback onOpenHistory;
   final VoidCallback onOpenHelp;
   final ValueChanged<bool>? onInnerViewChanged;
+  final ValueChanged<String?>? onInnerRouteChanged;
   final int resetInnerViewToken;
+  final bool useExternalHistory;
+  final bool externalInnerActive;
+  final String? externalInnerDetail;
 
   @override
   State<CustomerMessagingPage> createState() => _CustomerMessagingPageState();
@@ -70,18 +78,63 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
   @override
   void initState() {
     super.initState();
+    if (widget.useExternalHistory &&
+        widget.externalInnerActive &&
+        widget.externalInnerDetail == 'new') {
+      _showComposer = true;
+    }
     _subscribeConversations();
   }
 
   @override
   void didUpdateWidget(covariant CustomerMessagingPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.resetInnerViewToken != widget.resetInnerViewToken &&
+    if (!widget.useExternalHistory &&
+        oldWidget.resetInnerViewToken != widget.resetInnerViewToken &&
         (_showComposer || _selectedConversation != null)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _closeInnerView(notifyParent: false);
       });
     }
+
+    if (widget.useExternalHistory &&
+        (oldWidget.externalInnerActive != widget.externalInnerActive ||
+            oldWidget.externalInnerDetail != widget.externalInnerDetail)) {
+      _restoreExternalInnerView();
+    }
+  }
+
+  void _restoreExternalInnerView() {
+    if (!widget.useExternalHistory) return;
+    final String? detail = widget.externalInnerDetail?.trim();
+    if (!widget.externalInnerActive || detail == null || detail.isEmpty) {
+      return;
+    }
+    if (detail == 'new') {
+      if (!_showComposer || _selectedConversation != null) {
+        setState(() {
+          _showComposer = true;
+          _selectedConversation = null;
+          _messages = const <CustomerMessage>[];
+          _messageError = null;
+        });
+      }
+      return;
+    }
+    _restoreExternalConversation(detail);
+  }
+
+  void _restoreExternalConversation(String conversationId) {
+    CustomerConversation? match;
+    for (final CustomerConversation conversation in _conversations) {
+      if (conversation.id == conversationId) {
+        match = conversation;
+        break;
+      }
+    }
+    if (match == null) return;
+    if (_selectedConversation?.id == match.id && !_showComposer) return;
+    _selectConversation(match, notifyNavigation: false);
   }
 
   @override
@@ -123,6 +176,12 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
               _isLoadingConversations = false;
               _conversationError = null;
             });
+            if (widget.useExternalHistory && widget.externalInnerActive) {
+              final String? detail = widget.externalInnerDetail?.trim();
+              if (detail != null && detail.isNotEmpty && detail != 'new') {
+                _restoreExternalConversation(detail);
+              }
+            }
             _notifyMobileInnerRoute();
           },
           onError: (Object _, StackTrace _) {
@@ -191,7 +250,16 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
   }
 
   void _openConversation(CustomerConversation conversation) {
-    final bool desktop = MediaQuery.sizeOf(context).width >= 900;
+    _selectConversation(conversation, notifyNavigation: true);
+  }
+
+  void _selectConversation(
+    CustomerConversation conversation, {
+    required bool notifyNavigation,
+  }) {
+    final bool desktop = notifyNavigation
+        ? MediaQuery.sizeOf(context).width >= 900
+        : true;
     final bool replaceComposerRoute = !desktop && _showComposer;
 
     setState(() {
@@ -201,7 +269,13 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
       _messageError = null;
       _isLoadingMessages = true;
     });
-    if (desktop) widget.onInnerViewChanged?.call(true);
+    if (notifyNavigation) {
+      if (widget.useExternalHistory) {
+        widget.onInnerRouteChanged?.call(conversation.id);
+      } else if (desktop) {
+        widget.onInnerViewChanged?.call(true);
+      }
+    }
 
     _messageSubscription?.cancel();
     _messageSubscription = widget.repository
@@ -228,7 +302,7 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
           },
         );
 
-    if (!desktop) {
+    if (!desktop && !widget.useExternalHistory && notifyNavigation) {
       unawaited(
         _pushMobileConversationRoute(
           conversationId: conversation.id,
@@ -249,7 +323,9 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
       _messageError = null;
       _showComposer = true;
     });
-    if (desktop) {
+    if (widget.useExternalHistory) {
+      widget.onInnerRouteChanged?.call('new');
+    } else if (desktop) {
       widget.onInnerViewChanged?.call(true);
     } else {
       unawaited(_pushMobileComposerRoute());
@@ -265,7 +341,13 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
       _messageError = null;
       _showComposer = false;
     });
-    if (notifyParent) widget.onInnerViewChanged?.call(false);
+    if (notifyParent) {
+      if (widget.useExternalHistory) {
+        widget.onInnerRouteChanged?.call(null);
+      } else {
+        widget.onInnerViewChanged?.call(false);
+      }
+    }
   }
 
   Future<void> _pushMobileComposerRoute() async {
@@ -459,10 +541,19 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
   }
 
   void _handleShellBack() {
-    // Sur desktop le fil/composer reste dans le split-view. Sur mobile ces
-    // ecrans sont de vraies routes et ne passent donc jamais par ce callback.
     final bool desktop = MediaQuery.sizeOf(context).width >= 900;
-    if (desktop && (_showComposer || _selectedConversation != null)) {
+    final bool hasInnerView = _showComposer || _selectedConversation != null;
+
+    if (widget.useExternalHistory) {
+      // Sur le Web, la pile navigateur est l'unique source de verite.
+      // Un seul Retour doit faire detail -> liste -> surface precedente.
+      widget.onBack();
+      return;
+    }
+
+    // Fallback historique hors Web : le split-view desktop ferme localement
+    // son detail, tandis que les routes mobiles sont depilees par Navigator.
+    if (desktop && hasInnerView) {
       _closeInnerView();
       return;
     }
@@ -525,11 +616,25 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
             );
           }
 
-          // Mobile: la liste reste la route de base. Le composer et le fil
-          // sont de vraies routes Flutter poussees au-dessus de celle-ci.
+          // Web mobile : le navigateur gere toute la pile. Le fil et le
+          // composer restent donc dans cette surface et sont affiches selon
+          // externalInnerActive. Hors Web, les routes Flutter historiques
+          // restent disponibles pour les usages/tests natifs.
+          final Widget mobileContent;
+          if (widget.useExternalHistory && widget.externalInnerActive) {
+            if (_showComposer) {
+              mobileContent = _buildNewConversation(compact: true);
+            } else if (_selectedConversation != null) {
+              mobileContent = _buildConversationDetail(compact: true);
+            } else {
+              mobileContent = _buildConversationList();
+            }
+          } else {
+            mobileContent = _buildConversationList();
+          }
           return Padding(
             padding: const EdgeInsets.fromLTRB(18, 22, 18, 30),
-            child: _buildConversationList(),
+            child: mobileContent,
           );
         },
       ),
@@ -539,12 +644,19 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
   }
 
   Widget _buildDesktopDetail() {
+    if (widget.useExternalHistory && !widget.externalInnerActive) {
+      return _buildDesktopEmptyState();
+    }
     if (_showComposer) {
       return _buildNewConversation(compact: false);
     }
     if (_selectedConversation != null) {
       return _buildConversationDetail(compact: false);
     }
+    return _buildDesktopEmptyState();
+  }
+
+  Widget _buildDesktopEmptyState() {
     return IzyTelCard(
       showShadow: false,
       child: Center(

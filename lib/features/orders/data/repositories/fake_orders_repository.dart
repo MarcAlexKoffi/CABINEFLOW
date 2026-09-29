@@ -394,6 +394,24 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
   }
 
   @override
+  Future<List<QueueOrder>> fetchAssignedOrders({required String agentId}) async {
+    await _delay(120);
+    _orders ??= _createInitialOrders();
+    final List<QueueOrder> orders = _orders!
+        .where((QueueOrder order) {
+          return order.assignedAgentId == agentId &&
+              order.assignmentStatus != OrderAssignmentStatus.unassigned;
+        })
+        .toList(growable: true);
+    orders.sort((QueueOrder first, QueueOrder second) {
+      final DateTime firstDate = first.assignedAt ?? first.createdAt;
+      final DateTime secondDate = second.assignedAt ?? second.createdAt;
+      return secondDate.compareTo(firstDate);
+    });
+    return List<QueueOrder>.unmodifiable(orders);
+  }
+
+  @override
   Stream<List<QueueOrder>> watchAssignedOrders({
     required String agentId,
   }) async* {

@@ -116,7 +116,7 @@ class _ManagerAccountsPageState extends State<ManagerAccountsPage> {
                   .where((TerritoryManager manager) => manager.canReceiveZone)
                   .length;
 
-              return RefreshIndicator(
+              return IzyTelRefreshIndicator(
                 onRefresh: _reload,
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),

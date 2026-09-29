@@ -15,7 +15,6 @@ import 'package:cabine_flow/features/auth/domain/models/staff_profile.dart';
 import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
 import 'package:cabine_flow/features/partners/data/repositories/supabase_partner_order_repository.dart';
 import 'package:cabine_flow/features/partners/domain/models/partner_order_models.dart';
-import 'package:cabine_flow/features/navigation/presentation/widgets/izytel_mobile_back_scope.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:flutter/foundation.dart';
@@ -44,6 +43,8 @@ class _PartnerShellPageState extends State<PartnerShellPage>
     with WidgetsBindingObserver {
   int _selectedIndex = 0;
   bool _isLoggingOut = false;
+  DateTime? _lastBackPressAt;
+  bool _handlingBack = false;
   StreamSubscription<IzyTelNotificationPayload>? _notificationOpened;
   StreamSubscription<IzyTelNotificationPayload>? _notificationForeground;
   final List<GlobalKey<NavigatorState>> _navigatorKeys =
@@ -128,6 +129,7 @@ class _PartnerShellPageState extends State<PartnerShellPage>
   }
 
   void _selectTab(int index) {
+    _lastBackPressAt = null;
     if (index == _selectedIndex) {
       _popTabToRoot(index);
       return;
@@ -136,6 +138,7 @@ class _PartnerShellPageState extends State<PartnerShellPage>
   }
 
   void _openRootTab(int index) {
+    _lastBackPressAt = null;
     _popTabToRoot(index);
     if (index == _selectedIndex) return;
     setState(() => _selectedIndex = index);
@@ -200,6 +203,43 @@ class _PartnerShellPageState extends State<PartnerShellPage>
     }
   }
 
+  Future<void> _handleBack() async {
+    if (_handlingBack) return;
+    _handlingBack = true;
+    try {
+      final NavigatorState? current = _navigatorKeys[_selectedIndex].currentState;
+
+      if (current != null && current.canPop()) {
+        _lastBackPressAt = null;
+        await current.maybePop();
+        return;
+      }
+
+      if (_selectedIndex != 0) {
+        _selectTab(0);
+        return;
+      }
+
+      final DateTime now = DateTime.now();
+      if (_lastBackPressAt == null ||
+          now.difference(_lastBackPressAt!) > const Duration(seconds: 2)) {
+        _lastBackPressAt = now;
+        if (mounted) {
+          IzyTelFeedback.show(
+            context,
+            'Appuie encore une fois pour quitter IzyTel.',
+          );
+        }
+        return;
+      }
+
+      await SystemNavigator.pop();
+    } finally {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      _handlingBack = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = <Widget>[
@@ -233,13 +273,10 @@ class _PartnerShellPageState extends State<PartnerShellPage>
       ),
     ];
 
-    return IzyTelMobileBackScope(
-      activeNavigatorKey: _navigatorKeys[_selectedIndex],
-      isHomeTab: _selectedIndex == 0,
-      onReturnHome: () {
-        if (mounted && _selectedIndex != 0) {
-          setState(() => _selectedIndex = 0);
-        }
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (!didPop) unawaited(_handleBack());
       },
       child: Scaffold(
         backgroundColor: IzyTelColors.background,
@@ -381,7 +418,7 @@ class _PartnerHomePageState extends State<_PartnerHomePage> {
                 .where((PartnerOrderSnapshot order) => order.isCompleted)
                 .length;
 
-            return RefreshIndicator(
+            return IzyTelRefreshIndicator(
               onRefresh: () async => _refresh(),
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -799,7 +836,7 @@ class _PartnerOrdersPageState extends State<_PartnerOrdersPage> {
           ? 'Cabiniste'
           : displayName.trim().split(RegExp(r'\s+')).first;
 
-      return RefreshIndicator(
+      return IzyTelRefreshIndicator(
         onRefresh: () async => _reload(),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -953,7 +990,7 @@ class _PartnerHistoryPageState extends State<_PartnerHistoryPage> {
       backgroundColor: IzyTelColors.background,
       body: SafeArea(
         bottom: false,
-        child: RefreshIndicator(
+        child: IzyTelRefreshIndicator(
           onRefresh: () async => _reload(),
           child: FutureBuilder<List<PartnerAssignmentHistoryItem>>(
             future: _future,
@@ -2918,7 +2955,7 @@ class _PartnerFinancePageState extends State<_PartnerFinancePage> {
             return _PartnerErrorState(onRetry: _reload);
           }
           final PartnerFinanceSnapshot finance = snapshot.data!;
-          return RefreshIndicator(
+          return IzyTelRefreshIndicator(
             onRefresh: () async => _reload(),
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -3236,7 +3273,7 @@ class _PartnerProfilePageState extends State<_PartnerProfilePage> {
       backgroundColor: IzyTelColors.background,
       body: SafeArea(
         bottom: false,
-        child: RefreshIndicator(
+        child: IzyTelRefreshIndicator(
           onRefresh: _load,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),

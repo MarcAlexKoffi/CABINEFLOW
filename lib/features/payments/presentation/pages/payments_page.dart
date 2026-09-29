@@ -11,6 +11,7 @@ import 'package:cabine_flow/features/payments/presentation/view_models/payments_
 import 'package:cabine_flow/features/payments/presentation/widgets/payments_widgets.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cabine_flow/shared/widgets/izytel_period_filter.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -245,7 +246,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
               ),
               const Divider(height: 1, color: IzyTelColors.outline),
               Expanded(
-                child: RefreshIndicator(
+                child: IzyTelRefreshIndicator(
                   onRefresh: _viewModel.loadPayments,
                   color: IzyTelColors.primary,
                   child: ListView(

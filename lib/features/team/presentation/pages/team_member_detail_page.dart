@@ -712,7 +712,7 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
           }
           final TeamMemberDetail detail = snapshot.data!.detail;
           final TeamScopeSnapshot scope = snapshot.data!.scope;
-          return RefreshIndicator(
+          return IzyTelRefreshIndicator(
             onRefresh: _reload,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),

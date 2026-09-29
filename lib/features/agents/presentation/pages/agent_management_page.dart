@@ -409,7 +409,7 @@ class _AgentManagementPageState extends State<AgentManagementPage> {
               _viewModel.activeFilter,
             ].where((Object? value) => value != null).length;
 
-            return RefreshIndicator(
+            return IzyTelRefreshIndicator(
               onRefresh: _viewModel.refresh,
               color: IzyTelColors.primary,
               child: ListView(

@@ -112,7 +112,7 @@ class AgentHomePage extends StatelessWidget {
                                   issue.status == 'acknowledged';
                             }).length;
 
-                            return RefreshIndicator(
+                            return IzyTelRefreshIndicator(
                               onRefresh: () async {
                                 await Future<void>.delayed(
                                   const Duration(milliseconds: 220),

@@ -1,6 +1,8 @@
 import 'package:cabine_flow/features/offers/domain/models/admin_offer.dart';
 
 abstract class AdminOfferRepository {
+  Future<List<AdminOffer>> fetchOffers();
+
   Stream<List<AdminOffer>> watchOffers();
 
   Future<String> createOffer(AdminOfferDraft draft);

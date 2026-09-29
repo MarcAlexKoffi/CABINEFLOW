@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:flutter/material.dart';
@@ -727,6 +730,95 @@ class IzyTelMenuRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+
+/// Pull-to-refresh borne pour l'application mobile IzyTel.
+///
+/// Les pages temps reel ne doivent jamais maintenir la roue visible pendant
+/// une annulation de stream, un polling ou un retry backend trop long. Cette
+/// enveloppe conserve le RefreshIndicator Flutter natif mais borne uniquement
+/// l'attente visuelle. L'operation deja lancee peut terminer en arriere-plan ;
+/// un second geste ne duplique pas la meme operation tant qu'elle est en cours.
+class IzyTelRefreshIndicator extends StatefulWidget {
+  const IzyTelRefreshIndicator({
+    super.key,
+    required this.child,
+    required this.onRefresh,
+    this.color,
+    this.backgroundColor,
+    this.displacement = 40.0,
+    this.edgeOffset = 0.0,
+    this.strokeWidth = RefreshProgressIndicator.defaultStrokeWidth,
+    this.triggerMode = RefreshIndicatorTriggerMode.onEdge,
+    this.notificationPredicate = defaultScrollNotificationPredicate,
+    this.semanticsLabel,
+    this.semanticsValue,
+    this.elevation = 2.0,
+    this.visualTimeout = const Duration(seconds: 5),
+  });
+
+  final Widget child;
+  final RefreshCallback onRefresh;
+  final Color? color;
+  final Color? backgroundColor;
+  final double displacement;
+  final double edgeOffset;
+  final double strokeWidth;
+  final RefreshIndicatorTriggerMode triggerMode;
+  final ScrollNotificationPredicate notificationPredicate;
+  final String? semanticsLabel;
+  final String? semanticsValue;
+  final double elevation;
+
+  /// Duree maximale pendant laquelle la roue reste visible.
+  final Duration visualTimeout;
+
+  @override
+  State<IzyTelRefreshIndicator> createState() => _IzyTelRefreshIndicatorState();
+}
+
+class _IzyTelRefreshIndicatorState extends State<IzyTelRefreshIndicator> {
+  Future<void>? _inFlight;
+
+  Future<void> _refresh() async {
+    final Future<void> raw = _inFlight ??= Future<void>.sync(widget.onRefresh)
+        .whenComplete(() {
+          _inFlight = null;
+        });
+
+    try {
+      await raw.timeout(widget.visualTimeout);
+    } on TimeoutException {
+      IzyTelLog.debug('MobileRefresh.visual-timeout');
+      // La tache continue en arriere-plan. Seule la roue est liberee afin que
+      // l'interface ne semble jamais gelee.
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'MobileRefresh.failure',
+        error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      color: widget.color,
+      backgroundColor: widget.backgroundColor,
+      displacement: widget.displacement,
+      edgeOffset: widget.edgeOffset,
+      strokeWidth: widget.strokeWidth,
+      triggerMode: widget.triggerMode,
+      notificationPredicate: widget.notificationPredicate,
+      semanticsLabel: widget.semanticsLabel,
+      semanticsValue: widget.semanticsValue,
+      elevation: widget.elevation,
+      child: widget.child,
     );
   }
 }

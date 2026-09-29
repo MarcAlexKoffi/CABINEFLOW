@@ -129,6 +129,7 @@ class Phase4AssignmentSnapshot {
       reference: orderReference,
       source: source,
       customerAuthUid: customerAuthUid ?? legacy?.customerAuthUid,
+      zoneId: zoneId ?? legacy?.zoneId,
       clientName: clientName,
       clientWhatsappPhone: clientWhatsappPhone,
       network: network,

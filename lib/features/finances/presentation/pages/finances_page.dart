@@ -483,7 +483,7 @@ class _FinancesPageState extends State<FinancesPage> {
                                 total + item.receivedAmount,
                           );
 
-                      return RefreshIndicator(
+                      return IzyTelRefreshIndicator(
                         onRefresh: _refreshManagerFinance,
                         color: IzyTelColors.primary,
                         child: ListView(

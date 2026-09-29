@@ -325,7 +325,7 @@ class _DashboardPageState extends State<DashboardPage> {
           backgroundColor: IzyTelColors.background,
           body: SafeArea(
             bottom: false,
-            child: RefreshIndicator(
+            child: IzyTelRefreshIndicator(
               onRefresh: _viewModel.loadDashboard,
               color: IzyTelColors.primary,
               child: ListView(

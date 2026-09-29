@@ -281,7 +281,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
             ),
             const Divider(height: 1, color: IzyTelColors.outline),
             Expanded(
-              child: RefreshIndicator(
+              child: IzyTelRefreshIndicator(
                 onRefresh: _refreshAll,
                 color: IzyTelColors.primary,
                 child: ListView(

@@ -90,7 +90,7 @@ class _TeamPerformancePageState extends State<TeamPerformancePage> {
             );
           }
           final TeamPerformanceSnapshot data = snapshot.data!;
-          return RefreshIndicator(
+          return IzyTelRefreshIndicator(
             onRefresh: _reload,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),

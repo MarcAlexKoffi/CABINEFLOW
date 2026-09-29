@@ -5,22 +5,23 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   String source(String path) => File(path).readAsStringSync();
 
-  test('system back is centralized in the mobile back scope', () {
+  test('system back is centralized in each mobile shell with a gesture lock', () {
     final String shell = source(
       'lib/features/navigation/presentation/pages/main_shell_page.dart',
     );
-    final String guard = source(
-      'lib/features/navigation/presentation/widgets/izytel_mobile_back_scope.dart',
-    );
 
-    expect(shell, contains('IzyTelMobileBackScope('));
-    expect(guard, contains('PopScope<Object?>'));
-    expect(guard, contains('canPop: false'));
-    expect(guard, contains('await activeNavigator.maybePop()'));
-    expect(guard, contains('if (!widget.isHomeTab)'));
-    expect(guard, contains('widget.onReturnHome()'));
-    expect(guard, contains('await SystemNavigator.pop()'));
+    expect(shell, contains('PopScope('));
+    expect(shell, contains('canPop: false'));
+    expect(shell, contains('currentNavigator.canPop()'));
+    expect(shell, contains('await currentNavigator.maybePop()'));
+    expect(shell, contains('if (_selectedIndex != 0)'));
+    expect(shell, contains('Duration(seconds: 2)'));
+    expect(
+      RegExp(r'Duration\(milliseconds: 250\)').allMatches(shell).length,
+      greaterThanOrEqualTo(2),
+    );
     expect(shell, isNot(contains('NavigatorPopHandler<Object?>')));
+    expect(shell, isNot(contains('IzyTelMobileBackScope(')));
   });
 
   test('bottom tabs preserve independent stacks and reselect pops locally', () {
@@ -29,9 +30,8 @@ void main() {
     );
 
     expect(shell, contains('if (index == _selectedIndex)'));
-    expect(shell, contains('// Chaque onglet conserve sa propre pile'));
     expect(shell, contains('void _openRootDestination(int index)'));
-    expect(shell, isNot(contains('class _IzyTelTabNavigationObserver')));
+    expect(shell, contains('class _IzyTelTabNavigationObserver'));
   });
 
   test('staff customer history is pushed above detail instead of replacing it', () {

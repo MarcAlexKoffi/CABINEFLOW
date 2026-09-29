@@ -172,7 +172,7 @@ class _AdminActivityJournalPageState extends State<AdminActivityJournalPage> {
                         )
                         .length;
 
-                    return RefreshIndicator(
+                    return IzyTelRefreshIndicator(
                       onRefresh: () async => setState(() {}),
                       color: IzyTelColors.primary,
                       child: ListView(

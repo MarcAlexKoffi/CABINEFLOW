@@ -23,20 +23,18 @@ void main() {
       expect(messaging, isNot(contains('PopScope(')));
     });
 
-    test('Mobile staff: le retour Android passe par le garde mobile commun', () {
+    test('Mobile staff: le retour Android est transactionnel dans le shell', () {
       final String shell = File(
         'lib/features/navigation/presentation/pages/main_shell_page.dart',
       ).readAsStringSync();
-      final String guard = File(
-        'lib/features/navigation/presentation/widgets/izytel_mobile_back_scope.dart',
-      ).readAsStringSync();
 
-      expect(shell, contains('IzyTelMobileBackScope('));
-      expect(guard, contains('PopScope<Object?>'));
-      expect(guard, contains('canPop: false'));
-      expect(guard, contains('await activeNavigator.maybePop()'));
-      expect(guard, contains('onPopInvokedWithResult: (bool didPop, Object? result)'));
+      expect(shell, contains('PopScope('));
+      expect(shell, contains('canPop: false'));
+      expect(shell, contains('currentNavigator.canPop()'));
+      expect(shell, contains('await currentNavigator.maybePop()'));
+      expect(shell, contains('Duration(milliseconds: 250)'));
       expect(shell, isNot(contains('NavigatorPopHandler<Object?>')));
+      expect(shell, isNot(contains('IzyTelMobileBackScope(')));
     });
 
     test('Profil Agent: le pull-to-refresh ne redemarre plus les streams', () {

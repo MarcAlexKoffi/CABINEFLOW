@@ -110,7 +110,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> {
               children: [
                 _HistoryTopBar(user: widget.user, onBack: widget.onBack),
                 Expanded(
-                  child: RefreshIndicator(
+                  child: IzyTelRefreshIndicator(
                     onRefresh: _viewModel.loadHistory,
                     color: IzyTelColors.primary,
                     child: ListView(

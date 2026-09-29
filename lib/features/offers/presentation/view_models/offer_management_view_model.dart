@@ -91,6 +91,24 @@ class OfferManagementViewModel extends ChangeNotifier {
     );
   }
 
+  Future<void> refresh() async {
+    try {
+      final List<AdminOffer> offers = await _repository
+          .fetchOffers()
+          .timeout(const Duration(seconds: 4));
+      _offers = offers;
+      _isLoading = false;
+      _errorMessage = null;
+      notifyListeners();
+    } catch (_) {
+      if (_offers.isEmpty) {
+        _errorMessage =
+            'Impossible d’actualiser les offres. Vérifie ta connexion puis réessaie.';
+        notifyListeners();
+      }
+    }
+  }
+
   void updateSearch(String value) {
     if (_searchQuery == value) return;
     _searchQuery = value;

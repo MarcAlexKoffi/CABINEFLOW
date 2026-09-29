@@ -22,7 +22,7 @@ class SupabaseAdminOfferRepository implements AdminOfferRepository {
 
   @override
   Stream<List<AdminOffer>> watchOffers() async* {
-    yield await _fetchOffers();
+    yield await fetchOffers();
 
     try {
       final String? token = await FirebaseAuth.instance.currentUser?.getIdToken();
@@ -91,7 +91,8 @@ class SupabaseAdminOfferRepository implements AdminOfferRepository {
     );
   }
 
-  Future<List<AdminOffer>> _fetchOffers() async {
+  @override
+  Future<List<AdminOffer>> fetchOffers() async {
     final dynamic response = await _client.from(tableName).select();
     final List<Map<String, dynamic>> rows = <Map<String, dynamic>>[
       if (response is List)

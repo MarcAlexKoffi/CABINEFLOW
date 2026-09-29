@@ -136,7 +136,7 @@ class _AgentIssueCenterPageState extends State<AgentIssueCenterPage> {
                             )
                             .length;
 
-                        return RefreshIndicator(
+                        return IzyTelRefreshIndicator(
                           onRefresh: () async => setState(() {}),
                           color: IzyTelColors.primary,
                           child: ListView(

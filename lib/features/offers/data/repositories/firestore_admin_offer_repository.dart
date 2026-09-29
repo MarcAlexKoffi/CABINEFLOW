@@ -13,6 +13,15 @@ class FirestoreAdminOfferRepository implements AdminOfferRepository {
       _firestore.collection('offers');
 
   @override
+  Future<List<AdminOffer>> fetchOffers() async {
+    final QuerySnapshot<Map<String, dynamic>> snap = await _offers.get();
+    final List<AdminOffer> offers =
+        snap.docs.map(_fromDocument).whereType<AdminOffer>().toList()
+          ..sort(_compareOffers);
+    return List<AdminOffer>.unmodifiable(offers);
+  }
+
+  @override
   Stream<List<AdminOffer>> watchOffers() {
     return _offers.snapshots().map((QuerySnapshot<Map<String, dynamic>> snap) {
       final List<AdminOffer> offers =

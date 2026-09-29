@@ -69,7 +69,7 @@ class _CabinisteFinanceSupervisionPageState
             return _ErrorState(onRetry: _reload, error: snapshot.error);
           }
           final CabinisteFinanceSnapshot data = snapshot.data!;
-          return RefreshIndicator(
+          return IzyTelRefreshIndicator(
             onRefresh: _reload,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -351,7 +351,7 @@ class _CabinisteFinanceDetailPageState
             return _ErrorState(onRetry: _reload, error: snapshot.error);
           }
           final CabinisteFinanceHistory data = snapshot.data!;
-          return RefreshIndicator(
+          return IzyTelRefreshIndicator(
             onRefresh: _reload,
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),

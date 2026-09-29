@@ -109,7 +109,7 @@ class _SupportRequestCenterPageState extends State<SupportRequestCenterPage> {
                     .length;
                 final List<SupportRequest> visible = _filter(all);
 
-                return RefreshIndicator(
+                return IzyTelRefreshIndicator(
                   onRefresh: () async => setState(() {}),
                   color: IzyTelColors.primary,
                   child: ListView(

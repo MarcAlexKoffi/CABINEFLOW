@@ -58,7 +58,7 @@ class _ManagerPilotagePageState extends State<ManagerPilotagePage> {
             );
           }
           final ControlSnapshot snapshot = async.data!;
-          return RefreshIndicator(
+          return IzyTelRefreshIndicator(
             onRefresh: _refresh,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),

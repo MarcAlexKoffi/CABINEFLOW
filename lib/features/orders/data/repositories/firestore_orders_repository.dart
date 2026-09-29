@@ -899,6 +899,30 @@ class FirestoreOrdersRepository
   }
 
   @override
+  Future<List<QueueOrder>> fetchAssignedOrders({required String agentId}) async {
+    final String cleanedAgentId = agentId.trim();
+    if (cleanedAgentId.isEmpty) return const <QueueOrder>[];
+
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _ordersCollection
+        .where('assignedAgentId', isEqualTo: cleanedAgentId)
+        .limit(maximumLoadedOrders)
+        .get();
+    final List<QueueOrder> orders = snapshot.docs
+        .map(_mapDocument)
+        .where((QueueOrder order) {
+          return order.assignedAgentId == cleanedAgentId &&
+              order.assignmentStatus != OrderAssignmentStatus.unassigned;
+        })
+        .toList(growable: true);
+    orders.sort((QueueOrder first, QueueOrder second) {
+      final DateTime firstDate = first.assignedAt ?? first.createdAt;
+      final DateTime secondDate = second.assignedAt ?? second.createdAt;
+      return secondDate.compareTo(firstDate);
+    });
+    return List<QueueOrder>.unmodifiable(orders);
+  }
+
+  @override
   Stream<List<QueueOrder>> watchAssignedOrders({required String agentId}) {
     final String cleanedAgentId = agentId.trim();
     if (cleanedAgentId.isEmpty) {

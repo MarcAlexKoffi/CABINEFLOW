@@ -329,8 +329,8 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
               final List<QueueOrder> queue = _viewModel.visibleOrders;
               final AgentOrdersTab selectedTab = _viewModel.selectedTab;
 
-              return RefreshIndicator(
-                onRefresh: _viewModel.start,
+              return IzyTelRefreshIndicator(
+                onRefresh: _viewModel.refresh,
                 color: IzyTelColors.primary,
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),

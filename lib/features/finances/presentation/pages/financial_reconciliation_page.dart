@@ -369,7 +369,7 @@ class _FinancialReconciliationPageState
                                     'Les contrôles de cohérence apparaîtront ici au fur et à mesure des transactions.',
                               ),
                             )
-                          : RefreshIndicator(
+                          : IzyTelRefreshIndicator(
                               onRefresh: () async {
                                 final Future<
                                   List<FinancialReconciliationResult>

@@ -531,7 +531,7 @@ class _StaffCustomerMessagingPageState extends State<StaffCustomerMessagingPage>
           ),
           const Divider(height: 1),
           Expanded(
-            child: RefreshIndicator(
+            child: IzyTelRefreshIndicator(
               onRefresh: _refreshInboxOnce,
               child: LayoutBuilder(
                 builder: (BuildContext context, BoxConstraints constraints) {
@@ -821,7 +821,7 @@ class _StaffCustomerMessagingPageState extends State<StaffCustomerMessagingPage>
                     _messageError!,
                     () => _openConversation(conversation),
                   )
-                : RefreshIndicator(
+                : IzyTelRefreshIndicator(
                     onRefresh: () => _refreshMessagesOnce(conversation.id),
                     child: ListView.builder(
                       key: const ValueKey<String>('wc3c-message-list'),

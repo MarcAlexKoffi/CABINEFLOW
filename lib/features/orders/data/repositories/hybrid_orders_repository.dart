@@ -667,6 +667,33 @@ class HybridOrdersRepository
   }
 
   @override
+  Future<List<QueueOrder>> fetchAssignedOrders({required String agentId}) async {
+    final String cleanedAgentId = agentId.trim();
+    if (cleanedAgentId.isEmpty) return const <QueueOrder>[];
+
+    List<QueueOrder> firebaseOrders = const <QueueOrder>[];
+    try {
+      firebaseOrders = await _firestore.fetchAssignedOrders(
+        agentId: cleanedAgentId,
+      );
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'Phase3.agent-refresh-legacy',
+        error,
+        stackTrace: stackTrace,
+      );
+    }
+
+    final Phase4AgentAssignmentState phase4State = await _phase4
+        .fetchAgentAssignmentState(cleanedAgentId);
+    return _mergeAgentOrders(
+      agentId: cleanedAgentId,
+      firebaseOrders: firebaseOrders,
+      phase4State: phase4State,
+    );
+  }
+
+  @override
   Stream<List<QueueOrder>> watchAssignedOrders({required String agentId}) {
     final String cleanedAgentId = agentId.trim();
     if (cleanedAgentId.isEmpty) {
@@ -801,6 +828,11 @@ class HybridOrdersRepository
         return secondDate.compareTo(firstDate);
       });
     return List<QueueOrder>.unmodifiable(orders);
+  }
+
+  @override
+  Future<List<QueueOrder>> fetchAgentRefusedOrders({required String agentId}) {
+    return _phase4.fetchAgentRefusedOrders(agentId.trim());
   }
 
   @override

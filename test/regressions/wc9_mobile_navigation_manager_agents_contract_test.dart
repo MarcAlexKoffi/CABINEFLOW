@@ -3,46 +3,62 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('WC9 - navigation mobile globale et Agents Manager resilient', () {
-    test('shell Agent et Manager utilisent le garde mobile commun', () {
+  group('WC9/WC10.1 - navigation mobile globale et Agents Manager resilient', () {
+    test('shell Agent et Manager restaurent la politique Retour mobile eprouvee', () {
       final String shell = File(
         'lib/features/navigation/presentation/pages/main_shell_page.dart',
       ).readAsStringSync();
-      final String guard = File(
-        'lib/features/navigation/presentation/widgets/izytel_mobile_back_scope.dart',
-      ).readAsStringSync();
 
-      expect(RegExp(r'IzyTelMobileBackScope\(').allMatches(shell).length, greaterThanOrEqualTo(2));
-      expect(guard, contains('PopScope<Object?>'));
-      expect(guard, contains('canPop: false'));
-      expect(guard, contains('await activeNavigator.maybePop()'));
-      expect(guard, contains('if (!widget.isHomeTab)'));
-      expect(guard, contains('widget.onReturnHome()'));
-      expect(guard, contains('await SystemNavigator.pop()'));
+      expect(
+        RegExp(r'return PopScope\(').allMatches(shell).length,
+        greaterThanOrEqualTo(2),
+      );
+      expect(shell, contains('canPop: false'));
+      expect(
+        RegExp(r'Future<void> _handleSystemBack\(\)').allMatches(shell).length,
+        greaterThanOrEqualTo(2),
+      );
       expect(shell, isNot(contains('NavigatorPopHandler<Object?>')));
+      expect(shell, contains('currentNavigator.canPop()'));
+      expect(shell, contains('await currentNavigator.maybePop()'));
+      expect(shell, contains("if (_selectedIndex != 0)"));
+      expect(shell, contains("setState(() => _selectedIndex = 0)"));
+      expect(shell, contains('DateTime? _lastBackPressAt'));
+      expect(shell, contains('Duration(seconds: 2)'));
+      expect(shell, contains('Appuie encore une fois pour quitter IzyTel.'));
+      expect(shell, contains('await SystemNavigator.pop()'));
+      expect(shell, contains('_IzyTelTabNavigationObserver'));
+      expect(shell, isNot(contains('IzyTelMobileBackScope(')));
     });
 
-    test('barre mobile preserve les piles de navigation entre onglets', () {
+    test('barre mobile desarme la sortie et ramene la destination a sa racine', () {
       final String shell = File(
         'lib/features/navigation/presentation/pages/main_shell_page.dart',
       ).readAsStringSync();
 
-      expect(shell, contains('if (index == _selectedIndex)'));
-      expect(shell, contains('// Chaque onglet conserve sa propre pile'));
+      expect(shell, contains('void _disarmExit()'));
+      expect(shell, contains('_disarmExit();\n    _popTabToRoot(index);'));
       expect(shell, contains('void _openRootDestination(int index)'));
+      expect(shell, contains('_selectDestination(index);'));
+      expect(shell, contains('observers: <NavigatorObserver>[_tabNavigatorObservers[index]]'));
     });
 
-
-    test('Cabiniste suit la meme politique de retour et de piles par onglet', () {
+    test('Cabiniste suit la meme arborescence et double Retour depuis Accueil', () {
       final String partner = File(
         'lib/features/partners/presentation/pages/partner_shell_page.dart',
       ).readAsStringSync();
 
-      expect(partner, contains('IzyTelMobileBackScope('));
-      expect(partner, contains('isHomeTab: _selectedIndex == 0'));
-      expect(partner, contains('setState(() => _selectedIndex = 0)'));
-      expect(partner, contains('void _openRootTab(int index)'));
-      expect(partner, isNot(contains('Appuie encore une fois pour quitter IzyTel.')));
+      expect(partner, contains('Future<void> _handleBack() async'));
+      expect(partner, isNot(contains('NavigatorPopHandler<Object?>')));
+      expect(partner, contains('current.canPop()'));
+      expect(partner, contains('await current.maybePop()'));
+      expect(partner, contains("if (_selectedIndex != 0)"));
+      expect(partner, contains('_selectTab(0);'));
+      expect(partner, contains('DateTime? _lastBackPressAt'));
+      expect(partner, contains('Duration(seconds: 2)'));
+      expect(partner, contains('Appuie encore une fois pour quitter IzyTel.'));
+      expect(partner, contains('await SystemNavigator.pop()'));
+      expect(partner, isNot(contains('IzyTelMobileBackScope(')));
     });
 
     test('Agents Manager: refresh borne sans restart permanent des streams', () {

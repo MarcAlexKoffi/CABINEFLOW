@@ -77,6 +77,7 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
   bool _suppressHistoryRecording = false;
   bool _initialLocationPromptShown = false;
   bool _messagingRouteActive = false;
+  bool _recoveryRouteActive = false;
   bool _messagingInnerActive = false;
   int _messagingInnerResetToken = 0;
   CustomerWebHistoryEntry? _messagingReturnEntry;
@@ -415,7 +416,52 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
 
   void _openRecovery() {
     _viewModel.clearRecoveryError();
-    _navigateTo(_CustomerSurface.recovery);
+    unawaited(_pushRecoveryRoute());
+  }
+
+  Future<void> _pushRecoveryRoute() async {
+    if (!mounted || _recoveryRouteActive) return;
+
+    _recoveryRouteActive = true;
+    try {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          settings: const RouteSettings(name: '/customer/recovery'),
+          builder: (BuildContext routeContext) {
+            void leaveTo(_CustomerSurface target) {
+              Navigator.of(routeContext).pop();
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                _navigateTo(target);
+              });
+            }
+
+            void showRecoveredOrder() {
+              Navigator.of(routeContext).pop();
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                _showRecoveredOrder();
+              });
+            }
+
+            return CustomerOrderRecoveryPage(
+              viewModel: _viewModel,
+              onBack: () => Navigator.of(routeContext).maybePop(),
+              onRecovered: showRecoveredOrder,
+              onOpenHome: () => leaveTo(_CustomerSurface.home),
+              onOpenOffers: () => leaveTo(_CustomerSurface.catalog),
+              onOpenHistory: () => leaveTo(_CustomerSurface.history),
+              onOpenHelp: () => leaveTo(_CustomerSurface.help),
+            );
+          },
+        ),
+      );
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _recoveryRouteActive = false;
+      });
+    }
   }
 
   void _openCatalog() => _navigateTo(_CustomerSurface.catalog);
@@ -427,22 +473,58 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
     _navigateTo(_CustomerSurface.order);
   }
 
-  void _requestBack() {
+  CustomerWebHistoryEntry? _resolveBackTarget() {
     if (_navigationStack.length <= 1) {
+      return null;
+    }
+
+    // La confirmation est terminale : un Retour ne doit jamais rouvrir
+    // le paiement ou un formulaire deja valide. On revient a la derniere
+    // surface principale qui precedait le parcours de commande.
+    if (_surface == _CustomerSurface.order &&
+        _viewModel.currentStep == CustomerOrderViewModel.totalSteps) {
+      for (int index = _navigationStack.length - 2; index >= 0; index--) {
+        final CustomerWebHistoryEntry candidate = _navigationStack[index];
+        if (candidate.location != _CustomerSurface.order.name) {
+          return candidate;
+        }
+      }
+    }
+
+    return _navigationStack[_navigationStack.length - 2];
+  }
+
+  int _findNavigationEntryIndex(CustomerWebHistoryEntry entry) {
+    for (int index = _navigationStack.length - 1; index >= 0; index--) {
+      if (_navigationStack[index].matches(entry)) {
+        return index;
+      }
+    }
+    return -1;
+  }
+
+  void _requestBack() {
+    final CustomerWebHistoryEntry? previous = _resolveBackTarget();
+    if (previous == null) {
       if (_surface != _CustomerSurface.home) {
         _replaceWithHome();
       }
       return;
     }
 
-    if (_webHistory.supported) {
-      _webHistory.back();
-      return;
-    }
-
-    final CustomerWebHistoryEntry previous =
-        _navigationStack[_navigationStack.length - 2];
+    // Un bouton Retour de l'interface doit etre deterministe et immediat.
+    // Il ne depend plus de window.history.back(), qui peut sauter plusieurs
+    // entrees sur Chrome Android/PWA lorsque Flutter et l'History API ont
+    // manipule la meme URL. Le brouillon reste intact : seule l'etape visible
+    // est restauree.
     _restoreHistoryEntry(previous);
+
+    if (_webHistory.supported) {
+      // On aligne l'entree navigateur courante sur l'ecran visible. Le
+      // gestionnaire popstate ci-dessous sait ignorer un eventuel doublon
+      // lors du prochain Retour navigateur/Android.
+      _webHistory.replace(previous);
+    }
   }
 
   void _replaceWithHome() {
@@ -519,16 +601,12 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
   void _handleBrowserHistoryPop(CustomerWebHistoryEntry? entry) {
     if (!mounted) return;
 
-    // Une route Flutter dediee gere toute la pile de la messagerie. Le
-    // popstate du navigateur qui ferme cette route ne doit surtout pas etre
-    // interprete une seconde fois par l'ancien historique des surfaces, sinon
-    // Aide est sautee et l'utilisateur retombe directement sur Accueil.
-    if (_messagingRouteActive) return;
+    // Messagerie et recuperation sont de vraies routes Flutter. Pendant leur
+    // depilage, le Navigator est l'unique consommateur du geste Retour.
+    if (_messagingRouteActive || _recoveryRouteActive) return;
 
-    // Le navigateur Android peut parfois remonter une entree plus ancienne
-    // que celle attendue lorsqu'une PWA/Flutter manipule le meme URL. Pendant
-    // la messagerie, on protege donc explicitement le parcours :
-    // fil/composer -> liste Messagerie -> ecran d'origine exact.
+    // Compatibilite avec l'ancienne surface Messagerie si elle est restauree
+    // depuis un historique deja existant.
     if (_surface == _CustomerSurface.messaging) {
       if (_messagingInnerActive) {
         final CustomerWebHistoryEntry listEntry = _entryFor(
@@ -549,16 +627,64 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
       }
     }
 
-    if (entry == null) return;
+    final CustomerWebHistoryEntry? current = _navigationStack.isEmpty
+        ? null
+        : _navigationStack.last;
+    final CustomerWebHistoryEntry? expectedPrevious = _resolveBackTarget();
 
-    // A confirmed order is terminal. Browser back must never reopen the
-    // payment form. Skip older order-step entries until the previous main
-    // surface (history, home, offers, etc.) is reached.
-    if (_surface == _CustomerSurface.order &&
-        _viewModel.currentStep == CustomerOrderViewModel.totalSteps &&
+    if (entry == null) {
+      // Certaines versions de Chrome/PWA peuvent renvoyer un state nul.
+      // Le retour reste alors base sur notre pile applicative, une seule
+      // etape a la fois, puis on repare l'historique navigateur.
+      if (expectedPrevious != null) {
+        _restoreHistoryEntry(expectedPrevious);
+        _webHistory.push(expectedPrevious);
+      }
+      return;
+    }
+
+    // Une commande confirmee est terminale. Le Retour navigateur peut traverser
+    // les anciennes entrees de commande, mais elles ne sont jamais reaffichees.
+    if (current != null &&
+        current.location == _CustomerSurface.order.name &&
+        current.step == CustomerOrderViewModel.totalSteps &&
         entry.location == _CustomerSurface.order.name &&
         entry.step < CustomerOrderViewModel.totalSteps) {
       _webHistory.back();
+      return;
+    }
+
+    // Un Retour explicite de l'interface utilise replaceState pour afficher
+    // immediatement l'etape precedente. Il peut donc laisser deux entrees
+    // navigateur consecutives qui decrivent le meme ecran. On saute ce doublon
+    // sans faire reculer une seconde fois la pile IzyTel.
+    if (current != null && entry.matches(current)) {
+      if (expectedPrevious != null) {
+        _webHistory.back();
+      }
+      return;
+    }
+
+    if (expectedPrevious != null && entry.matches(expectedPrevious)) {
+      _restoreHistoryEntry(expectedPrevious);
+      return;
+    }
+
+    final int entryIndex = _findNavigationEntryIndex(entry);
+    if (entryIndex < 0) {
+      // L'entree n'est plus dans la pile courante : c'est typiquement un
+      // Retour avant suivi d'un Avancer navigateur. On restaure cette entree
+      // plutot que de la confondre avec un nouveau Retour.
+      _restoreHistoryEntry(entry);
+      return;
+    }
+
+    if (expectedPrevious != null) {
+      // Le navigateur a saute plusieurs entrees (symptome observe sur Chrome
+      // Android). IzyTel ne suit pas ce saut : il recule exactement d'un niveau
+      // et recree une entree coherente pour le prochain geste Retour.
+      _restoreHistoryEntry(expectedPrevious);
+      _webHistory.push(expectedPrevious);
       return;
     }
 

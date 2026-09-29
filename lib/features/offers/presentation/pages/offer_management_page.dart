@@ -127,8 +127,8 @@ class _OfferManagementPageState extends State<OfferManagementPage> {
                 _viewModel.serviceFilter != null ||
                 _viewModel.statusFilter != OfferStatusFilter.all;
 
-            return RefreshIndicator(
-              onRefresh: () async => _viewModel.start(),
+            return IzyTelRefreshIndicator(
+              onRefresh: _viewModel.refresh,
               color: IzyTelColors.primary,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),

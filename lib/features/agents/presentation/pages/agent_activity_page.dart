@@ -198,7 +198,7 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
             issue.status == 'acknowledged')
                 .length;
 
-            return RefreshIndicator(
+            return IzyTelRefreshIndicator(
               onRefresh: _viewModel.refresh,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),

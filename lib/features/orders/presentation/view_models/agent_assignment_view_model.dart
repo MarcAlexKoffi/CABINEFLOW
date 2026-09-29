@@ -59,13 +59,19 @@ class AgentAssignmentViewModel extends ChangeNotifier {
   bool _canonicalStateVerified = true;
   bool _reservedRefreshInFlight = false;
   bool _reservedRefreshPending = false;
+  bool _refreshInFlight = false;
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String? get assigningAgentId => _assigningAgentId;
 
+  bool get canAssignCanonically =>
+      _canonicalStateVerified && hasCanonicalOrderZone;
+
   List<AgentAssignmentCandidate> get candidates {
-    if (isManager && !_canonicalStateVerified) {
+    // Fail closed for both Admin and Manager. A manual assignment without the
+    // canonical Phase 4 zone could send a Yakro order to an Abidjan agent.
+    if (!canAssignCanonically) {
       return const <AgentAssignmentCandidate>[];
     }
     final AgentNetwork requiredNetwork = _agentNetwork(order.network);
@@ -99,6 +105,9 @@ class AgentAssignmentViewModel extends ChangeNotifier {
         reason = 'Indisponible';
       } else if (!profile.activeNetworks.contains(requiredNetwork)) {
         reason = 'Réseau désactivé';
+      } else if (hasCanonicalOrderZone &&
+          !profile.zoneIds.contains(order.zoneId!.trim())) {
+        reason = 'Hors zone de la commande';
       } else if (capacity < order.amount) {
         reason = 'Capacité insuffisante';
       }
@@ -137,39 +146,34 @@ class AgentAssignmentViewModel extends ChangeNotifier {
   int get assignableCount =>
       candidates.where((item) => item.isAssignable).length;
 
+  String get orderZoneLabel {
+    final String zoneId = order.zoneId?.trim() ?? '';
+    if (zoneId.isEmpty) {
+      return 'Zone non disponible';
+    }
+
+    for (final AgentZone zone in _zones) {
+      if (zone.id == zoneId) return zone.displayLabel;
+    }
+
+    // La zone canonique vient de Supabase. Si le flux des libelles de zones
+    // tarde a arriver, on evite d'afficher a tort « non renseignee ».
+    return 'Zone affectee';
+  }
+
+  bool get hasCanonicalOrderZone => (order.zoneId?.trim().isNotEmpty ?? false);
+
   Future<void> start() async {
     _errorMessage = null;
     _isLoading = true;
-    _canonicalStateVerified = true;
+    _canonicalStateVerified = false;
     notifyListeners();
 
-    // La liste Admin peut momentanement afficher la vue Firebase de secours si
-    // Supabase etait indisponible au premier poll. Avant d'autoriser une
-    // affectation, on recharge donc la commande via le repository d'historique
-    // hybride afin de recuperer l'etat Phase 4 canonique le plus recent.
-    final Object repository = ordersRepository;
-    if (repository is OrderHistoryRepository) {
-      try {
-        order = await repository.fetchOrderById(orderId: order.id);
-      } catch (error, stackTrace) {
-        IzyTelLog.backendError(
-          'AgentAssignment.refresh-order',
-          error,
-          stackTrace: stackTrace,
-        );
-        // Pour un Manager, une affectation manuelle ne doit jamais partir d'un
-        // snapshot Firestore potentiellement obsolète. Si Phase 4 n'est pas
-        // lisible (par exemple STAFF_REQUIRED), on bloque l'action au lieu de
-        // présenter de faux agents « disponibles ».
-        if (isManager) {
-          _canonicalStateVerified = false;
-          _errorMessage = _friendlyError(error);
-          _isLoading = false;
-          notifyListeners();
-          return;
-        }
-      }
-    }
+    // Toujours recharger la ligne Phase 4 avant de proposer une affectation.
+    // Firestore peut encore contenir une commande payée qui n'a pas fini sa
+    // synchronisation Supabase ; dans ce cas l'Admin comme le Manager doivent
+    // être bloqués plutôt que de voir tous les Agents comme compatibles.
+    await _refreshCanonicalOrder();
 
     await _agentsSubscription?.cancel();
     await _zonesSubscription?.cancel();
@@ -215,6 +219,53 @@ class AgentAssignmentViewModel extends ChangeNotifier {
             notifyListeners();
           },
         );
+  }
+
+  Future<void> refresh() async {
+    if (_refreshInFlight || _isDisposed) return;
+    _refreshInFlight = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      // Ne jamais annuler/recréer les streams lors d'un pull-to-refresh. Les
+      // streams de comptage sont des boucles de polling et leur cancel peut
+      // attendre un délai de retry, ce qui maintenait le RefreshIndicator à
+      // l'écran pendant de longues secondes.
+      await _refreshCanonicalOrder();
+      await _refreshReservedAmounts();
+    } finally {
+      _refreshInFlight = false;
+      if (!_isDisposed) notifyListeners();
+    }
+  }
+
+  Future<void> _refreshCanonicalOrder() async {
+    final Object repository = ordersRepository;
+    if (repository is! OrderHistoryRepository) {
+      _canonicalStateVerified = hasCanonicalOrderZone;
+      if (!_canonicalStateVerified) {
+        _errorMessage =
+            'La zone canonique de cette commande n’est pas encore disponible. '             'L’affectation reste bloquée jusqu’à la synchronisation Supabase.';
+      }
+      return;
+    }
+
+    try {
+      order = await repository.fetchOrderById(orderId: order.id);
+      _canonicalStateVerified = hasCanonicalOrderZone;
+      if (!_canonicalStateVerified) {
+        _errorMessage =
+            'La commande est encore visible dans la file historique, mais sa '             'zone Phase 4 n’est pas encore synchronisée. Actualise dans '             'quelques secondes avant toute affectation.';
+      }
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'AgentAssignment.refresh-order',
+        error,
+        stackTrace: stackTrace,
+      );
+      _canonicalStateVerified = false;
+      _errorMessage = _friendlyError(error);
+    }
   }
 
   Future<void> _refreshReservedAmounts() async {
@@ -270,7 +321,7 @@ class AgentAssignmentViewModel extends ChangeNotifier {
   Future<bool> assign(AgentAssignmentCandidate candidate) async {
     if (_assigningAgentId != null ||
         !candidate.isAssignable ||
-        (isManager && !_canonicalStateVerified)) {
+        !canAssignCanonically) {
       return false;
     }
 
