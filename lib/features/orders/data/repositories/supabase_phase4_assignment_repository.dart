@@ -1,5 +1,4 @@
-import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
-import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
+import 'package:cabine_flow/core/supabase/supabase_realtime_refetch.dart';
 import 'package:cabine_flow/features/orders/domain/models/automatic_assignment.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -297,7 +296,7 @@ class SupabasePhase4AssignmentRepository {
   static const String ordersTable = 'phase4_assignment_orders';
   static const String plansTable = 'phase4_assignment_plans';
   static const String historyTable = 'phase4_assignment_history';
-  static const Duration pollInterval = Duration(seconds: 3);
+  static const Duration fallbackPollInterval = Duration(seconds: 30);
 
   final SupabaseClient _client;
 
@@ -651,40 +650,19 @@ class SupabasePhase4AssignmentRepository {
     return _snapshotsFromRows(rows);
   }
 
-  Stream<List<Phase4AssignmentSnapshot>> watchAllForStaff() async* {
-    List<Phase4AssignmentSnapshot>? lastSuccessful;
-    int consecutiveFailures = 0;
-    while (true) {
-      try {
-        final List<Phase4AssignmentSnapshot> value = await fetchAllForStaff();
-        lastSuccessful = value;
-        consecutiveFailures = 0;
-        yield value;
-      } catch (error, stackTrace) {
-        // Une coupure reseau ou un jeton Supabase momentanement indisponible ne
-        // doit jamais tuer le flux pour toute la session. Sans ce retry, les
-        // ecrans Admin restaient ensuite en mode Firebase-only meme lorsque
-        // Supabase redevenait joignable, d'ou les statuts d'affectation qui
-        // semblaient revenir en arriere.
-        IzyTelLog.backendError(
-          'Phase4Assignment.staff-watch',
-          error,
-          stackTrace: stackTrace,
-        );
-        if (!BackendFailurePolicy.canRetryRead(error)) {
-          Error.throwWithStackTrace(error, stackTrace);
-        }
-        consecutiveFailures += 1;
-        yield lastSuccessful ?? const <Phase4AssignmentSnapshot>[];
-      }
-      await Future<void>.delayed(
-        BackendFailurePolicy.retryDelay(
-          baseDelay: pollInterval,
-          consecutiveFailures: consecutiveFailures,
+  Stream<List<Phase4AssignmentSnapshot>> watchAllForStaff() =>
+      SupabaseRealtimeRefetch.watch<List<Phase4AssignmentSnapshot>>(
+        client: _client,
+        fetch: fetchAllForStaff,
+        label: 'Phase4Assignment.staff-watch',
+        signals: const <SupabaseRealtimeSignal>[
+        SupabaseRealtimeSignal(
+          table: ordersTable,
+          primaryKey: <String>['order_id'],
         ),
+      ],
+        fallbackInterval: fallbackPollInterval,
       );
-    }
-  }
 
   Future<List<Phase4AssignmentSnapshot>> fetchAgentAssignments(
     String agentId,
@@ -737,39 +715,23 @@ class SupabasePhase4AssignmentRepository {
 
   Stream<Phase4AgentAssignmentState> watchAgentAssignmentState(
     String agentId,
-  ) async* {
-    Phase4AgentAssignmentState? lastSuccessful;
-    int consecutiveFailures = 0;
-    while (true) {
-      try {
-        final Phase4AgentAssignmentState value =
-            await fetchAgentAssignmentState(agentId);
-        lastSuccessful = value;
-        consecutiveFailures = 0;
-        yield value;
-      } catch (error, stackTrace) {
-        IzyTelLog.backendError(
-          'Phase4Assignment.agent-watch',
-          error,
-          stackTrace: stackTrace,
-        );
-        if (!BackendFailurePolicy.canRetryRead(error)) {
-          Error.throwWithStackTrace(error, stackTrace);
-        }
-        consecutiveFailures += 1;
-        yield lastSuccessful ?? const Phase4AgentAssignmentState(
-          currentAssignments: <Phase4AssignmentSnapshot>[],
-          knownPhase4OrderIds: <String>{},
-        );
-      }
-      await Future<void>.delayed(
-        BackendFailurePolicy.retryDelay(
-          baseDelay: pollInterval,
-          consecutiveFailures: consecutiveFailures,
+  ) =>
+      SupabaseRealtimeRefetch.watch<Phase4AgentAssignmentState>(
+        client: _client,
+        fetch: () => fetchAgentAssignmentState(agentId),
+        label: 'Phase4Assignment.agent-watch',
+        signals: const <SupabaseRealtimeSignal>[
+        SupabaseRealtimeSignal(
+          table: ordersTable,
+          primaryKey: <String>['order_id'],
         ),
+        SupabaseRealtimeSignal(
+          table: historyTable,
+          primaryKey: <String>['id'],
+        ),
+      ],
+        fallbackInterval: fallbackPollInterval,
       );
-    }
-  }
 
   Stream<List<Phase4AssignmentSnapshot>> watchAgentAssignments(String agentId) {
     return watchAgentAssignmentState(
@@ -795,36 +757,19 @@ class SupabasePhase4AssignmentRepository {
 
   Stream<List<Phase4AssignmentHistorySnapshot>> watchAgentAssignmentHistory(
     String agentId,
-  ) async* {
-    List<Phase4AssignmentHistorySnapshot>? lastSuccessful;
-    int consecutiveFailures = 0;
-    while (true) {
-      try {
-        final List<Phase4AssignmentHistorySnapshot> value =
-            await fetchAgentAssignmentHistory(agentId);
-        lastSuccessful = value;
-        consecutiveFailures = 0;
-        yield value;
-      } catch (error, stackTrace) {
-        IzyTelLog.backendError(
-          'Phase4Assignment.agent-history',
-          error,
-          stackTrace: stackTrace,
-        );
-        if (!BackendFailurePolicy.canRetryRead(error)) {
-          Error.throwWithStackTrace(error, stackTrace);
-        }
-        consecutiveFailures += 1;
-        yield lastSuccessful ?? const <Phase4AssignmentHistorySnapshot>[];
-      }
-      await Future<void>.delayed(
-        BackendFailurePolicy.retryDelay(
-          baseDelay: pollInterval,
-          consecutiveFailures: consecutiveFailures,
+  ) =>
+      SupabaseRealtimeRefetch.watch<List<Phase4AssignmentHistorySnapshot>>(
+        client: _client,
+        fetch: () => fetchAgentAssignmentHistory(agentId),
+        label: 'Phase4Assignment.agent-history',
+        signals: const <SupabaseRealtimeSignal>[
+        SupabaseRealtimeSignal(
+          table: historyTable,
+          primaryKey: <String>['id'],
         ),
+      ],
+        fallbackInterval: fallbackPollInterval,
       );
-    }
-  }
 
   Future<List<Phase4RefusalHistorySnapshot>> fetchAgentRefusalHistory(
     String agentId,
@@ -845,36 +790,19 @@ class SupabasePhase4AssignmentRepository {
 
   Stream<List<Phase4RefusalHistorySnapshot>> watchAgentRefusalHistory(
     String agentId,
-  ) async* {
-    List<Phase4RefusalHistorySnapshot>? lastSuccessful;
-    int consecutiveFailures = 0;
-    while (true) {
-      try {
-        final List<Phase4RefusalHistorySnapshot> value =
-            await fetchAgentRefusalHistory(agentId);
-        lastSuccessful = value;
-        consecutiveFailures = 0;
-        yield value;
-      } catch (error, stackTrace) {
-        IzyTelLog.backendError(
-          'Phase4Assignment.refusal-history',
-          error,
-          stackTrace: stackTrace,
-        );
-        if (!BackendFailurePolicy.canRetryRead(error)) {
-          Error.throwWithStackTrace(error, stackTrace);
-        }
-        consecutiveFailures += 1;
-        yield lastSuccessful ?? const <Phase4RefusalHistorySnapshot>[];
-      }
-      await Future<void>.delayed(
-        BackendFailurePolicy.retryDelay(
-          baseDelay: pollInterval,
-          consecutiveFailures: consecutiveFailures,
+  ) =>
+      SupabaseRealtimeRefetch.watch<List<Phase4RefusalHistorySnapshot>>(
+        client: _client,
+        fetch: () => fetchAgentRefusalHistory(agentId),
+        label: 'Phase4Assignment.refusal-history',
+        signals: const <SupabaseRealtimeSignal>[
+        SupabaseRealtimeSignal(
+          table: historyTable,
+          primaryKey: <String>['id'],
         ),
+      ],
+        fallbackInterval: fallbackPollInterval,
       );
-    }
-  }
 
   Future<List<QueueOrder>> fetchAgentRefusedOrders(String agentId) async {
     final String id = agentId.trim();
@@ -891,35 +819,19 @@ class SupabasePhase4AssignmentRepository {
         .toList(growable: false);
   }
 
-  Stream<List<QueueOrder>> watchAgentRefusedOrders(String agentId) async* {
-    List<QueueOrder>? lastSuccessful;
-    int consecutiveFailures = 0;
-    while (true) {
-      try {
-        final List<QueueOrder> value = await fetchAgentRefusedOrders(agentId);
-        lastSuccessful = value;
-        consecutiveFailures = 0;
-        yield value;
-      } catch (error, stackTrace) {
-        IzyTelLog.backendError(
-          'Phase4Assignment.refused-orders',
-          error,
-          stackTrace: stackTrace,
-        );
-        if (!BackendFailurePolicy.canRetryRead(error)) {
-          Error.throwWithStackTrace(error, stackTrace);
-        }
-        consecutiveFailures += 1;
-        yield lastSuccessful ?? const <QueueOrder>[];
-      }
-      await Future<void>.delayed(
-        BackendFailurePolicy.retryDelay(
-          baseDelay: pollInterval,
-          consecutiveFailures: consecutiveFailures,
+  Stream<List<QueueOrder>> watchAgentRefusedOrders(String agentId) =>
+      SupabaseRealtimeRefetch.watch<List<QueueOrder>>(
+        client: _client,
+        fetch: () => fetchAgentRefusedOrders(agentId),
+        label: 'Phase4Assignment.refused-orders',
+        signals: const <SupabaseRealtimeSignal>[
+        SupabaseRealtimeSignal(
+          table: historyTable,
+          primaryKey: <String>['id'],
         ),
+      ],
+        fallbackInterval: fallbackPollInterval,
       );
-    }
-  }
 
   Future<Phase4AssignmentPlan?> fetchPlan(String orderId) async {
     final String id = orderId.trim();

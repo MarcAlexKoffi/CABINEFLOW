@@ -31,17 +31,17 @@ void main() {
     expect(user.firestoreCompatibilityRole, 'supervisor');
   });
 
-  test('Manager garde les operations sans acces aux finances sensibles', () {
+  test('Manager garde les operations et traite le support sans acces aux finances sensibles', () {
     const UserPermissions permissions = UserPermissions.manager;
 
     expect(permissions.canAssignOrders, isTrue);
     expect(permissions.canConfirmPayments, isTrue);
     expect(permissions.canResolveAgentIssues, isTrue);
     expect(permissions.canViewOperationalFinances, isFalse);
-    expect(permissions.canProcessSupportRequests, isFalse);
+    expect(permissions.canProcessSupportRequests, isTrue);
     expect(permissions.canManageAgents, isFalse);
     expect(permissions.canManageOffers, isFalse);
-    expect(permissions.canManageFailedOrders, isFalse);
+    expect(permissions.canManageFailedOrders, isTrue);
     expect(permissions.canManageRefunds, isFalse);
     expect(permissions.canManageFinanceSettings, isFalse);
     expect(permissions.canRunPhase5Backfill, isFalse);

@@ -30,6 +30,15 @@ class SupplierFinancePage extends StatefulWidget {
 
 class _SupplierFinancePageState extends State<SupplierFinancePage> {
   bool _busy = false;
+  late final Stream<List<FinanceSupplier>> _suppliersStream;
+  late final Stream<List<SupplierAccount>> _supplierAccountsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _suppliersStream = widget.repository.watchSuppliers();
+    _supplierAccountsStream = widget.repository.watchSupplierAccounts();
+  }
 
   bool get _canManageSuppliers =>
       widget.user.permissions.canManageFinanceSettings || widget.user.isManager;
@@ -570,14 +579,14 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
         ],
       ),
       body: StreamBuilder<List<FinanceSupplier>>(
-        stream: widget.repository.watchSuppliers(),
+        stream: _suppliersStream,
         builder:
             (
               BuildContext context,
               AsyncSnapshot<List<FinanceSupplier>> supplierSnapshot,
             ) {
               return StreamBuilder<List<SupplierAccount>>(
-                stream: widget.repository.watchSupplierAccounts(),
+                stream: _supplierAccountsStream,
                 builder:
                     (
                       BuildContext context,

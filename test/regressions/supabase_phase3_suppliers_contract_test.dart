@@ -22,7 +22,9 @@ void main() {
     expect(page, contains('HybridFinanceOperationsRepository()'));
     expect(supabase, contains("tableName = 'finance_suppliers'"));
     expect(supabase, contains(".eq('is_deleted', false)"));
-    expect(supabase, contains('Duration(seconds: 4)'));
+    expect(supabase, contains('SupabaseRealtimeRefetch.watch'));
+    expect(supabase, contains("table: 'finance_change_feed'"));
+    expect(supabase, isNot(contains('Duration(seconds: 4)')));
     expect(hybrid, contains('_supplierRegistry.watchSuppliers()'));
     expect(hybrid, contains('_supplierRegistry.updateSupplier('));
     expect(hybrid, contains('_supplierRegistry.setSupplierActive('));

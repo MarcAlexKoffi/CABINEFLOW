@@ -76,8 +76,8 @@ void main() {
       );
 
       expect(repository, contains("rpc('izytel_finance_snapshot')"));
-      expect(repository, contains("from('finance_change_feed')"));
-      expect(repository, contains("stream(primaryKey: const <String>['id'])"));
+      expect(repository, contains('SupabaseRealtimeRefetch.watch'));
+      expect(repository, contains("table: 'finance_change_feed'"));
       expect(realtime, contains('alter publication supabase_realtime add table public.finance_change_feed'));
       expect(phase5Realtime, contains("'phase4_assignment_orders'"));
       expect(phase5Realtime, contains("'phase5_supplier_payments'"));

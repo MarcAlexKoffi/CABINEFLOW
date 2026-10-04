@@ -19,6 +19,9 @@ void main() {
       final String phase5 = source(
         'lib/features/finances/data/repositories/supabase_phase5_finance_repository.dart',
       );
+      final String realtime = source(
+        'lib/core/supabase/supabase_realtime_refetch.dart',
+      );
 
       expect(policy, contains("'unavailable'"));
       expect(policy, contains("'PGRST000'"));
@@ -26,8 +29,10 @@ void main() {
       expect(policy, isNot(contains("'42501'")));
 
       expect(orders, contains('BackendFailurePolicy.canRetryRead(error)'));
-      expect(phase4, contains('BackendFailurePolicy.canRetryRead(error)'));
-      expect(phase5, contains('BackendFailurePolicy.canRetryRead(error)'));
+      expect(phase4, contains('SupabaseRealtimeRefetch.watch'));
+      expect(phase5, contains('SupabaseRealtimeRefetch.watch'));
+      expect(realtime, contains('BackendFailurePolicy.canRetryRead(error)'));
+      expect(realtime, contains('Error.throwWithStackTrace(error, stackTrace)'));
     });
 
     test('les logs sensibles ne recopient plus les valeurs metier', () {

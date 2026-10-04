@@ -1,5 +1,4 @@
-import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
-import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
+import 'package:cabine_flow/core/supabase/supabase_realtime_refetch.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -9,12 +8,6 @@ class SupabaseAgentIssueRepository {
     : _client = client ?? Supabase.instance.client;
 
   static const String tableName = 'agent_issues';
-
-  // Temporaire pendant la phase hybride Firebase Auth -> Supabase.
-  // La Data API Supabase est stable avec le JWT Firebase, alors que le canal
-  // Realtime peut se fermer apres la premiere lecture. Un polling leger garde
-  // les ecrans Agent/Admin synchronises sans faire disparaitre les donnees.
-  static const Duration _pollInterval = Duration(seconds: 4);
 
   final SupabaseClient _client;
 
@@ -31,46 +24,25 @@ class SupabaseAgentIssueRepository {
     return _watchIssues();
   }
 
-  Stream<List<AgentIssue>> _watchIssues({String? agentId}) async* {
-    List<AgentIssue>? lastSuccessful;
-    int consecutiveFailures = 0;
-
-    while (true) {
-      try {
-        final List<Map<String, dynamic>> rows = agentId == null
-            ? await _client.from(tableName).select()
-            : await _client.from(tableName).select().eq('agent_id', agentId);
-
-        final List<AgentIssue> issues = _issuesFromRows(rows);
-        lastSuccessful = issues;
-        consecutiveFailures = 0;
-        yield issues;
-      } catch (error, stackTrace) {
-        IzyTelLog.backendError(
-          'SupabaseAgentIssues.watch',
-          error,
-          stackTrace: stackTrace,
-        );
-
-        if (!BackendFailurePolicy.canRetryRead(error)) {
-          Error.throwWithStackTrace(error, stackTrace);
-        }
-
-        // Une panne reseau transitoire ne ferme plus le stream. Si une valeur
-        // fiable existe deja, elle reste affichee jusqu'a la reconnexion.
-        consecutiveFailures += 1;
-        if (lastSuccessful != null) {
-          yield lastSuccessful;
-        }
-      }
-
-      await Future<void>.delayed(
-        BackendFailurePolicy.retryDelay(
-          baseDelay: _pollInterval,
-          consecutiveFailures: consecutiveFailures,
+  Stream<List<AgentIssue>> _watchIssues({String? agentId}) {
+    return SupabaseRealtimeRefetch.watch<List<AgentIssue>>(
+      client: _client,
+      fetch: () => _fetchIssues(agentId: agentId),
+      label: 'SupabaseAgentIssues.watch',
+      signals: const <SupabaseRealtimeSignal>[
+        SupabaseRealtimeSignal(
+          table: tableName,
+          primaryKey: <String>['id'],
         ),
-      );
-    }
+      ],
+    );
+  }
+
+  Future<List<AgentIssue>> _fetchIssues({String? agentId}) async {
+    final List<Map<String, dynamic>> rows = agentId == null
+        ? await _client.from(tableName).select()
+        : await _client.from(tableName).select().eq('agent_id', agentId);
+    return _issuesFromRows(rows);
   }
 
   Future<void> createIssue({

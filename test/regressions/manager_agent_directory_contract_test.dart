@@ -37,7 +37,7 @@ void main() {
     expect(page, contains("label: const Text('Ajouter un agent')"));
   });
 
-  test('fiche Agent bloque toutes les commandes Admin en lecture seule', () {
+  test('fiche Agent garde identite et territoire Admin-only mais autorise la gestion operationnelle Manager', () {
     final String detail = read(
       'lib/features/agents/presentation/pages/agent_detail_page.dart',
     );
@@ -46,8 +46,13 @@ void main() {
     expect(detail, contains("widget.readOnly ? 'Supervision Agent' : 'Profil Agent'"));
     expect(detail, contains('readOnly: widget.readOnly'));
     expect(detail, contains('onSelected: widget.readOnly'));
-    expect(detail, contains('onChanged: widget.readOnly'));
+    expect(detail, contains('bool get _canEditOperationalSettings'));
+    expect(detail, contains('!widget.readOnly || widget.viewer.isManager'));
+    expect(detail, contains('readOnly: !_canEditOperationalSettings'));
+    expect(detail, contains('onChanged: !_canEditOperationalSettings'));
     expect(detail, contains('if (!widget.readOnly) ...['));
+    expect(detail, contains('if (widget.readOnly && widget.viewer.isManager) ...['));
+    expect(detail, contains('updateManagedAgentOperations('));
   });
 
   test('M4 ne demande aucun nouveau droit Manager sensible', () {

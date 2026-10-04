@@ -1,7 +1,4 @@
-import 'dart:async';
-
-import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
-import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
+import 'package:cabine_flow/core/supabase/supabase_realtime_refetch.dart';
 import 'package:cabine_flow/features/agents/domain/models/agent_models.dart';
 import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
 import 'package:cabine_flow/features/finances/domain/models/finance_operations_models.dart';
@@ -20,7 +17,7 @@ class SupabasePhase5FinanceRepository {
   SupabasePhase5FinanceRepository({SupabaseClient? client})
       : _client = client ?? Supabase.instance.client;
 
-  static const Duration pollInterval = Duration(seconds: 3);
+  static const Duration fallbackPollInterval = Duration(seconds: 60);
   static const int agentHistoryLimit = 250;
   static const int staffHistoryLimit = 2000;
 
@@ -199,35 +196,19 @@ class SupabasePhase5FinanceRepository {
     );
   }
 
-  Stream<AgentCommissionSummary> watchAgentCommissionSummary() async* {
-    AgentCommissionSummary? lastSuccessful;
-    int consecutiveFailures = 0;
-    while (true) {
-      try {
-        final AgentCommissionSummary value = await fetchAgentCommissionSummary();
-        lastSuccessful = value;
-        consecutiveFailures = 0;
-        yield value;
-      } catch (error, stackTrace) {
-        IzyTelLog.backendError(
-          'Phase5.commission-summary',
-          error,
-          stackTrace: stackTrace,
-        );
-        if (!BackendFailurePolicy.canRetryRead(error)) {
-          Error.throwWithStackTrace(error, stackTrace);
-        }
-        consecutiveFailures += 1;
-        if (lastSuccessful != null) yield lastSuccessful;
-      }
-      await Future<void>.delayed(
-        BackendFailurePolicy.retryDelay(
-          baseDelay: pollInterval,
-          consecutiveFailures: consecutiveFailures,
-        ),
+  Stream<AgentCommissionSummary> watchAgentCommissionSummary() =>
+      SupabaseRealtimeRefetch.watch<AgentCommissionSummary>(
+        client: _client,
+        fetch: fetchAgentCommissionSummary,
+        label: 'Phase5.commission-summary',
+        signals: const <SupabaseRealtimeSignal>[
+          SupabaseRealtimeSignal(
+            table: 'finance_change_feed',
+            primaryKey: <String>['id'],
+          ),
+        ],
+        fallbackInterval: fallbackPollInterval,
       );
-    }
-  }
 
   Future<void> mirrorCommissionPayout(CommissionPayout payout) async {
     await _client.rpc(
@@ -338,53 +319,54 @@ class SupabasePhase5FinanceRepository {
   }
 
   Stream<List<CommissionEntry>> watchCommissions({String? agentId}) =>
-      _poll(() => fetchCommissions(agentId: agentId), 'commissions');
-  Stream<List<CommissionPayout>> watchCommissionPayouts({String? agentId}) =>
-      _poll(() => fetchCommissionPayouts(agentId: agentId), 'commission-payouts');
-  Stream<List<CommissionAccount>> watchCommissionAccounts({String? agentId}) =>
-      _poll(() => fetchCommissionAccounts(agentId: agentId), 'commission-accounts');
-  Stream<List<NetworkTransaction>> watchNetworkMovements({String? agentId}) =>
-      _poll(() => fetchNetworkMovements(agentId: agentId), 'network-movements');
-  Stream<List<SupplierAccount>> watchSupplierAccounts() =>
-      _poll(fetchSupplierAccounts, 'supplier-accounts');
-  Stream<List<SupplierRecharge>> watchSupplierRecharges() =>
-      _poll(fetchSupplierRecharges, 'supplier-recharges');
-  Stream<List<SupplierPayment>> watchSupplierPayments() =>
-      _poll(fetchSupplierPayments, 'supplier-payments');
-
-  Stream<List<T>> _poll<T>(Future<List<T>> Function() fetch, String label) async* {
-    List<T>? lastSuccessful;
-    int consecutiveFailures = 0;
-    while (true) {
-      try {
-        final List<T> value = await fetch();
-        lastSuccessful = value;
-        consecutiveFailures = 0;
-        yield value;
-      } catch (error, stackTrace) {
-        // Un jeton Supabase momentanement refuse (par exemple un leger
-        // decalage d'horloge lors d'un renouvellement JWT) ou une coupure
-        // reseau ne doit jamais fermer definitivement le StreamBuilder.
-        // On conserve la derniere vue connue et le polling reprendra au tour
-        // suivant. Au premier echec, une liste vide garde l'ecran utilisable.
-        IzyTelLog.backendError(
-          'Phase5.$label',
-          error,
-          stackTrace: stackTrace,
-        );
-        if (!BackendFailurePolicy.canRetryRead(error)) {
-          Error.throwWithStackTrace(error, stackTrace);
-        }
-        consecutiveFailures += 1;
-        yield lastSuccessful ?? <T>[];
-      }
-      await Future<void>.delayed(
-        BackendFailurePolicy.retryDelay(
-          baseDelay: pollInterval,
-          consecutiveFailures: consecutiveFailures,
-        ),
+      _watchFinanceChanges(
+        () => fetchCommissions(agentId: agentId),
+        'commissions',
       );
-    }
+
+  Stream<List<CommissionPayout>> watchCommissionPayouts({String? agentId}) =>
+      _watchFinanceChanges(
+        () => fetchCommissionPayouts(agentId: agentId),
+        'commission-payouts',
+      );
+
+  Stream<List<CommissionAccount>> watchCommissionAccounts({String? agentId}) =>
+      _watchFinanceChanges(
+        () => fetchCommissionAccounts(agentId: agentId),
+        'commission-accounts',
+      );
+
+  Stream<List<NetworkTransaction>> watchNetworkMovements({String? agentId}) =>
+      _watchFinanceChanges(
+        () => fetchNetworkMovements(agentId: agentId),
+        'network-movements',
+      );
+
+  Stream<List<SupplierAccount>> watchSupplierAccounts() =>
+      _watchFinanceChanges(fetchSupplierAccounts, 'supplier-accounts');
+
+  Stream<List<SupplierRecharge>> watchSupplierRecharges() =>
+      _watchFinanceChanges(fetchSupplierRecharges, 'supplier-recharges');
+
+  Stream<List<SupplierPayment>> watchSupplierPayments() =>
+      _watchFinanceChanges(fetchSupplierPayments, 'supplier-payments');
+
+  Stream<T> _watchFinanceChanges<T>(
+    Future<T> Function() fetch,
+    String label,
+  ) {
+    return SupabaseRealtimeRefetch.watch<T>(
+      client: _client,
+      fetch: fetch,
+      label: 'Phase5.$label',
+      signals: const <SupabaseRealtimeSignal>[
+        SupabaseRealtimeSignal(
+          table: 'finance_change_feed',
+          primaryKey: <String>['id'],
+        ),
+      ],
+      fallbackInterval: fallbackPollInterval,
+    );
   }
 
   CommissionEntry? _commission(Map<String, dynamic> row) {

@@ -39,7 +39,9 @@ void main() {
       expect(shell, contains('void _disarmExit()'));
       expect(shell, contains('_disarmExit();\n    _popTabToRoot(index);'));
       expect(shell, contains('void _openRootDestination(int index)'));
-      expect(shell, contains('_selectDestination(index);'));
+      expect(shell, contains('_popTabToRoot(index);'));
+      expect(shell, contains('if (index == _selectedIndex) return;'));
+      expect(shell, contains('setState(() => _selectedIndex = index);'));
       expect(shell, contains('observers: <NavigatorObserver>[_tabNavigatorObservers[index]]'));
     });
 

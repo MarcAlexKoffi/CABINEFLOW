@@ -134,16 +134,22 @@ void main() {
     expect(block, contains('_firestore.fetchOrderProof'));
   });
 
-  test('les pollers Phase 4 conservent la derniere valeur en panne transitoire', () {
+  test('les watchers Phase 4 conservent la derniere valeur en panne transitoire', () {
     final String supabase = read(
       'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
     );
-    expect(supabase, contains('BackendFailurePolicy.canRetryRead'));
-    expect(supabase, contains('BackendFailurePolicy.retryDelay'));
-    expect(
-      supabase,
-      contains('yield lastSuccessful ?? const <Phase4AssignmentSnapshot>[];'),
+    final String realtime = read(
+      'lib/core/supabase/supabase_realtime_refetch.dart',
     );
+
+    // WC15 centralise la resilience dans SupabaseRealtimeRefetch au lieu de
+    // dupliquer BackendFailurePolicy dans chaque repository.
+    expect(supabase, contains('SupabaseRealtimeRefetch.watch'));
+    expect(supabase, contains('fallbackInterval: fallbackPollInterval'));
+    expect(realtime, contains('BackendFailurePolicy.canRetryRead'));
+    expect(realtime, contains('BackendFailurePolicy.retryDelay'));
+    expect(realtime, contains('if (hasLastSuccessful)'));
+    expect(realtime, contains('yield lastSuccessful as T;'));
   });
 
   test('snapshot Phase 4 construit une commande Agent complete', () {

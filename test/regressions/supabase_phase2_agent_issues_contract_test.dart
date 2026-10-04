@@ -69,9 +69,11 @@ void main() {
       'lib/features/agents/data/repositories/supabase_agent_issue_repository.dart',
     );
 
-    expect(repository, contains('_pollInterval'));
+    expect(repository, contains('SupabaseRealtimeRefetch.watch'));
+    expect(repository, contains("static const String tableName = 'agent_issues'"));
+    expect(repository, contains('table: tableName'));
     expect(repository, contains('.select()'));
-    expect(repository, contains('lastSuccessful'));
-    expect(repository, isNot(contains('.stream(primaryKey:')));
+    expect(repository, isNot(contains('_pollInterval')));
+    expect(repository, isNot(contains('Duration(seconds: 4)')));
   });
 }

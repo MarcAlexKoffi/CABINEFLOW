@@ -27,13 +27,27 @@ class AgentCommissionsPage extends StatefulWidget {
 
 class _AgentCommissionsPageState extends State<AgentCommissionsPage> {
   IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
+  late final Stream<List<CommissionEntry>> _commissionsStream;
+  late final Stream<List<CommissionPayout>> _payoutsStream;
+  late final Stream<AgentCommissionSummary?> _summaryStream;
 
   @override
-  Widget build(BuildContext context) {
+  void initState() {
+    super.initState();
     final AgentCommissionSummaryRepository? summaryRepository =
         widget.repository is AgentCommissionSummaryRepository
         ? widget.repository as AgentCommissionSummaryRepository
         : null;
+    _commissionsStream = widget.repository.watchCommissions(
+      agentId: widget.user.id,
+    );
+    _payoutsStream = widget.repository.watchPayouts(agentId: widget.user.id);
+    _summaryStream = summaryRepository?.watchAgentCommissionSummary() ??
+        Stream<AgentCommissionSummary?>.value(null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: IzyTelColors.background,
       appBar: AppBar(
@@ -50,14 +64,13 @@ class _AgentCommissionsPageState extends State<AgentCommissionsPage> {
         ),
       ),
       body: StreamBuilder<List<CommissionEntry>>(
-        stream: widget.repository.watchCommissions(agentId: widget.user.id),
+        stream: _commissionsStream,
         builder: (context, commissionSnapshot) {
           return StreamBuilder<List<CommissionPayout>>(
-            stream: widget.repository.watchPayouts(agentId: widget.user.id),
+            stream: _payoutsStream,
             builder: (context, payoutSnapshot) {
               return StreamBuilder<AgentCommissionSummary?>(
-                stream: summaryRepository?.watchAgentCommissionSummary() ??
-                    Stream<AgentCommissionSummary?>.value(null),
+                stream: _summaryStream,
                 builder: (context, summarySnapshot) {
                   if ((commissionSnapshot.connectionState ==
                               ConnectionState.waiting &&

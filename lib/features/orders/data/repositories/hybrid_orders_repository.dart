@@ -62,6 +62,11 @@ class HybridOrdersRepository
   final AutomaticAssignmentSelector _selector =
       const AutomaticAssignmentSelector();
 
+  static const Duration _assignmentCandidateCacheTtl = Duration(seconds: 1);
+  Future<List<AutomaticAssignmentAgent>>? _assignmentCandidateFetch;
+  List<AutomaticAssignmentAgent>? _assignmentCandidateCache;
+  DateTime? _assignmentCandidateFetchedAt;
+
 
   @override
   Future<QueueOrder> createOrder({required CreateOrderRequest request}) {
@@ -617,7 +622,7 @@ class HybridOrdersRepository
   @override
   Future<Map<String, int>> fetchActiveAssignmentCounts() async {
     final List<AutomaticAssignmentAgent> candidates =
-        await _phase4.fetchAssignmentCandidates();
+        await _fetchAssignmentCandidatesCached();
     return Map<String, int>.unmodifiable(<String, int>{
       for (final AutomaticAssignmentAgent agent in candidates)
         agent.agentId: agent.activeAssignmentCount,
@@ -625,34 +630,18 @@ class HybridOrdersRepository
   }
 
   @override
-  Stream<Map<String, int>> watchActiveAssignmentCounts() async* {
-    Map<String, int>? lastSuccessful;
-    int consecutiveFailures = 0;
-    while (true) {
-      try {
-        final Map<String, int> value = await fetchActiveAssignmentCounts();
-        lastSuccessful = value;
-        consecutiveFailures = 0;
-        yield value;
-      } catch (error, stackTrace) {
-        IzyTelLog.backendError(
-          'Phase4.active-counts',
-          error,
-          stackTrace: stackTrace,
-        );
-        if (!BackendFailurePolicy.canRetryRead(error)) {
-          Error.throwWithStackTrace(error, stackTrace);
+  Stream<Map<String, int>> watchActiveAssignmentCounts() {
+    return _phase4.watchAllForStaff().map(
+      (List<Phase4AssignmentSnapshot> snapshots) {
+        final Map<String, int> counts = <String, int>{};
+        for (final Phase4AssignmentSnapshot snapshot in snapshots) {
+          final String? agentId = snapshot.assignedAgentId;
+          if (agentId == null || !snapshot.reservesCapacityInSupabase) continue;
+          counts[agentId] = (counts[agentId] ?? 0) + 1;
         }
-        consecutiveFailures += 1;
-        if (lastSuccessful != null) yield lastSuccessful;
-      }
-      await Future<void>.delayed(
-        BackendFailurePolicy.retryDelay(
-          baseDelay: SupabasePhase4AssignmentRepository.pollInterval,
-          consecutiveFailures: consecutiveFailures,
-        ),
-      );
-    }
+        return Map<String, int>.unmodifiable(counts);
+      },
+    );
   }
 
   @override
@@ -661,9 +650,39 @@ class HybridOrdersRepository
     required MobileNetwork network,
   }) async {
     final List<AutomaticAssignmentAgent> candidates =
-        await _phase4.fetchAssignmentCandidates();
+        await _fetchAssignmentCandidatesCached();
     final AutomaticAssignmentAgent? agent = _findAgent(candidates, agentId);
     return agent?.reservedFor(network) ?? 0;
+  }
+
+  Future<List<AutomaticAssignmentAgent>> _fetchAssignmentCandidatesCached() {
+    final DateTime now = DateTime.now();
+    final List<AutomaticAssignmentAgent>? cached = _assignmentCandidateCache;
+    final DateTime? fetchedAt = _assignmentCandidateFetchedAt;
+    if (cached != null &&
+        fetchedAt != null &&
+        now.difference(fetchedAt) <= _assignmentCandidateCacheTtl) {
+      return Future<List<AutomaticAssignmentAgent>>.value(cached);
+    }
+
+    final Future<List<AutomaticAssignmentAgent>>? inFlight =
+        _assignmentCandidateFetch;
+    if (inFlight != null) return inFlight;
+
+    late final Future<List<AutomaticAssignmentAgent>> request;
+    request = _phase4.fetchAssignmentCandidates().then(
+      (List<AutomaticAssignmentAgent> value) {
+        _assignmentCandidateCache = value;
+        _assignmentCandidateFetchedAt = DateTime.now();
+        return value;
+      },
+    ).whenComplete(() {
+      if (identical(_assignmentCandidateFetch, request)) {
+        _assignmentCandidateFetch = null;
+      }
+    });
+    _assignmentCandidateFetch = request;
+    return request;
   }
 
   @override

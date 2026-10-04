@@ -35,6 +35,25 @@ class CommissionManagementPage extends StatefulWidget {
 class _CommissionManagementPageState extends State<CommissionManagementPage> {
   CommissionPeriod _period = CommissionPeriod.thisMonth;
   _CommissionAgentFilter _filter = _CommissionAgentFilter.all;
+  late final Stream<List<AgentDirectoryEntry>> _agentsStream;
+  late final Stream<List<CommissionEntry>> _commissionsStream;
+  late final Stream<List<CommissionPayout>> _payoutsStream;
+  late final Stream<List<CommissionAccount>> _accountsStream;
+  late final Stream<List<AgentAssignmentMetric>> _assignmentMetricsStream;
+  late final Stream<List<AgentProcessingMetric>> _processingMetricsStream;
+  late final Stream<List<AgentOrderMetric>> _orderMetricsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _agentsStream = widget.agentRepository.watchAgents();
+    _commissionsStream = widget.repository.watchCommissions();
+    _payoutsStream = widget.repository.watchPayouts();
+    _accountsStream = widget.repository.watchAccounts();
+    _assignmentMetricsStream = widget.repository.watchAssignmentMetrics();
+    _processingMetricsStream = widget.repository.watchProcessingMetrics();
+    _orderMetricsStream = widget.repository.watchOrderMetrics();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,21 +73,21 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
         ),
       ),
       body: StreamBuilder<List<AgentDirectoryEntry>>(
-        stream: widget.agentRepository.watchAgents(),
+        stream: _agentsStream,
         builder:
             (
               BuildContext context,
               AsyncSnapshot<List<AgentDirectoryEntry>> agentSnapshot,
             ) {
               return StreamBuilder<List<CommissionEntry>>(
-                stream: widget.repository.watchCommissions(),
+                stream: _commissionsStream,
                 builder:
                     (
                       BuildContext context,
                       AsyncSnapshot<List<CommissionEntry>> commissionSnapshot,
                     ) {
                       return StreamBuilder<List<CommissionPayout>>(
-                        stream: widget.repository.watchPayouts(),
+                        stream: _payoutsStream,
                         builder:
                             (
                               BuildContext context,
@@ -76,7 +95,7 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
                               payoutSnapshot,
                             ) {
                               return StreamBuilder<List<CommissionAccount>>(
-                                stream: widget.repository.watchAccounts(),
+                                stream: _accountsStream,
                                 builder:
                                     (
                                       BuildContext context,
@@ -86,8 +105,7 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
                                       return StreamBuilder<
                                         List<AgentAssignmentMetric>
                                       >(
-                                        stream: widget.repository
-                                            .watchAssignmentMetrics(),
+                                        stream: _assignmentMetricsStream,
                                         builder:
                                             (
                                               BuildContext context,
@@ -99,8 +117,7 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
                                               return StreamBuilder<
                                                 List<AgentProcessingMetric>
                                               >(
-                                                stream: widget.repository
-                                                    .watchProcessingMetrics(),
+                                                stream: _processingMetricsStream,
                                                 builder:
                                                     (
                                                       BuildContext context,
@@ -114,9 +131,7 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
                                                       return StreamBuilder<
                                                         List<AgentOrderMetric>
                                                       >(
-                                                        stream: widget
-                                                            .repository
-                                                            .watchOrderMetrics(),
+                                                        stream: _orderMetricsStream,
                                                         builder:
                                                             (
                                                               BuildContext

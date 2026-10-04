@@ -76,12 +76,15 @@ void main() {
     final String repository = read(
       'lib/features/finances/data/repositories/supabase_phase5_finance_repository.dart',
     );
-    final int start = repository.indexOf('Stream<List<T>> _poll<T>');
-    final int end = repository.indexOf('CommissionEntry? _commission', start);
-    final String poll = repository.substring(start, end);
+    final String realtime = read(
+      'lib/core/supabase/supabase_realtime_refetch.dart',
+    );
 
-    expect(poll, contains('yield lastSuccessful ?? <T>[];'));
-    expect(poll, isNot(contains('rethrow;')));
+    expect(repository, contains('SupabaseRealtimeRefetch.watch'));
+    expect(repository, contains('fallbackPollInterval = Duration(seconds: 60)'));
+    expect(realtime, contains('BackendFailurePolicy.canRetryRead(error)'));
+    expect(realtime, contains('yield lastSuccessful as T;'));
+    expect(realtime, contains('consecutiveFailures'));
   });
 
   test('un ancien profil Agent sans nom ne bloque plus le backfill des capacites', () {

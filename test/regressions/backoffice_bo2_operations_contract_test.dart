@@ -11,8 +11,10 @@ void main() {
       expect(app, contains('FirestoreOrdersRepository()'));
       expect(app, contains('FirestoreAgentRepository()'));
       expect(app, contains('SupabaseBootstrap.isInitialized'));
-      expect(app, contains('ordersRepository: widget.ordersRepository'));
-      expect(app, contains('agentRepository: widget.agentRepository'));
+      expect(app, contains('ordersRepository: effectiveOrders'));
+      expect(app, contains('agentRepository: effectiveAgents'));
+      expect(app, contains('ordersRepository: shellOrders'));
+      expect(app, contains('agentRepository: shellAgents'));
     });
 
     test('les quatre destinations BO-2 ne sont plus des placeholders', () {

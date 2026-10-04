@@ -78,18 +78,23 @@ class _FinancesPageState extends State<FinancesPage> {
   SupabaseTeamSupervisionRepository? _teamRepository;
   Future<TeamPerformanceSnapshot>? _teamPerformanceFuture;
 
+  late final Stream<List<QueueOrder>> _ordersStream;
+  late final Stream<List<RefundCase>> _refundsStream;
+  late final Stream<List<CommissionAccount>> _commissionAccountsStream;
+  late final Stream<List<CommissionPayout>> _commissionPayoutsStream;
+  late final Stream<List<CustomerCreditSettlement>> _creditSettlementsStream;
+  late final Stream<List<SupplierPayment>> _supplierPaymentsStream;
+  late final Stream<List<FinanceExpense>> _expensesStream;
+  late final Stream<List<NetworkTransaction>> _networkTransactionsStream;
+  late final Stream<List<SupplierAccount>> _supplierAccountsStream;
+  late final Stream<List<SupplierRecharge>> _supplierRechargesStream;
+
   OrderHistoryRepository? get _historyRepository {
     final OrdersRepository repository = widget.ordersRepository;
     if (repository is OrderHistoryRepository) {
       return repository as OrderHistoryRepository;
     }
     return null;
-  }
-
-  Stream<List<QueueOrder>> get _ordersStream {
-    final OrderHistoryRepository? history = _historyRepository;
-    return history?.watchOrderHistory() ??
-        widget.ordersRepository.watchPaymentTrackingOrders();
   }
 
   @override
@@ -113,21 +118,34 @@ class _FinancesPageState extends State<FinancesPage> {
         _teamRepository = SupabaseTeamSupervisionRepository();
         _teamPerformanceFuture = _teamRepository!.fetchPerformance();
       }
-      return;
+    } else {
+      _refundRepository = createOperationalRefundRepository();
+      _networkFinanceRepository = Firebase.apps.isNotEmpty
+          ? (SupabaseBootstrap.isInitialized
+                ? HybridNetworkFinanceRepository()
+                : FirestoreNetworkFinanceRepository())
+          : FakeNetworkFinanceRepository();
+      _financeOperationsRepository = Firebase.apps.isNotEmpty
+          ? (SupabaseBootstrap.isInitialized
+                ? HybridFinanceOperationsRepository()
+                : FirestoreFinanceOperationsRepository())
+          : FakeFinanceOperationsRepository();
+      _commissionRepository = widget.commissionRepository;
     }
 
-    _refundRepository = createOperationalRefundRepository();
-    _networkFinanceRepository = Firebase.apps.isNotEmpty
-        ? (SupabaseBootstrap.isInitialized
-              ? HybridNetworkFinanceRepository()
-              : FirestoreNetworkFinanceRepository())
-        : FakeNetworkFinanceRepository();
-    _financeOperationsRepository = Firebase.apps.isNotEmpty
-        ? (SupabaseBootstrap.isInitialized
-              ? HybridFinanceOperationsRepository()
-              : FirestoreFinanceOperationsRepository())
-        : FakeFinanceOperationsRepository();
-    _commissionRepository = widget.commissionRepository;
+    final OrderHistoryRepository? history = _historyRepository;
+    _ordersStream = history?.watchOrderHistory() ??
+        widget.ordersRepository.watchPaymentTrackingOrders();
+    _refundsStream = _refundRepository.watchAll();
+    _commissionAccountsStream = _commissionRepository.watchAccounts();
+    _commissionPayoutsStream = _commissionRepository.watchPayouts();
+    _creditSettlementsStream =
+        _financeOperationsRepository.watchCustomerCreditSettlements();
+    _supplierPaymentsStream = _financeOperationsRepository.watchSupplierPayments();
+    _expensesStream = _financeOperationsRepository.watchExpenses();
+    _networkTransactionsStream = _networkFinanceRepository.watchTransactions();
+    _supplierAccountsStream = _financeOperationsRepository.watchSupplierAccounts();
+    _supplierRechargesStream = _financeOperationsRepository.watchSupplierRecharges();
   }
 
   @override
@@ -397,19 +415,19 @@ class _FinancesPageState extends State<FinancesPage> {
           AsyncSnapshot<TeamPerformanceSnapshot> performanceSnapshot,
         ) {
           return StreamBuilder<List<CommissionAccount>>(
-            stream: _commissionRepository.watchAccounts(),
+            stream: _commissionAccountsStream,
             builder: (
               BuildContext context,
               AsyncSnapshot<List<CommissionAccount>> commissionSnapshot,
             ) {
               return StreamBuilder<List<SupplierAccount>>(
-                stream: _financeOperationsRepository.watchSupplierAccounts(),
+                stream: _supplierAccountsStream,
                 builder: (
                   BuildContext context,
                   AsyncSnapshot<List<SupplierAccount>> supplierAccountSnapshot,
                 ) {
                   return StreamBuilder<List<SupplierRecharge>>(
-                    stream: _financeOperationsRepository.watchSupplierRecharges(),
+                    stream: _supplierRechargesStream,
                     builder: (
                       BuildContext context,
                       AsyncSnapshot<List<SupplierRecharge>> rechargeSnapshot,
@@ -709,17 +727,17 @@ class _FinancesPageState extends State<FinancesPage> {
         stream: _ordersStream,
         builder: (BuildContext context, AsyncSnapshot<List<QueueOrder>> orderSnapshot) {
           return StreamBuilder<List<RefundCase>>(
-            stream: _refundRepository.watchAll(),
+            stream: _refundsStream,
             builder: (BuildContext context, AsyncSnapshot<List<RefundCase>> refundSnapshot) {
               return StreamBuilder<List<CommissionAccount>>(
-                stream: _commissionRepository.watchAccounts(),
+                stream: _commissionAccountsStream,
                 builder:
                     (
                       BuildContext context,
                       AsyncSnapshot<List<CommissionAccount>> accountSnapshot,
                     ) {
                       return StreamBuilder<List<CommissionPayout>>(
-                        stream: _commissionRepository.watchPayouts(),
+                        stream: _commissionPayoutsStream,
                         builder:
                             (
                               BuildContext context,
@@ -729,8 +747,7 @@ class _FinancesPageState extends State<FinancesPage> {
                               return StreamBuilder<
                                 List<CustomerCreditSettlement>
                               >(
-                                stream: _financeOperationsRepository
-                                    .watchCustomerCreditSettlements(),
+                                stream: _creditSettlementsStream,
                                 builder:
                                     (
                                       BuildContext context,
@@ -742,8 +759,7 @@ class _FinancesPageState extends State<FinancesPage> {
                                       return StreamBuilder<
                                         List<SupplierPayment>
                                       >(
-                                        stream: _financeOperationsRepository
-                                            .watchSupplierPayments(),
+                                        stream: _supplierPaymentsStream,
                                         builder:
                                             (
                                               BuildContext context,
@@ -755,9 +771,7 @@ class _FinancesPageState extends State<FinancesPage> {
                                               return StreamBuilder<
                                                 List<FinanceExpense>
                                               >(
-                                                stream:
-                                                    _financeOperationsRepository
-                                                        .watchExpenses(),
+                                                stream: _expensesStream,
                                                 builder:
                                                     (
                                                       BuildContext context,
@@ -769,8 +783,7 @@ class _FinancesPageState extends State<FinancesPage> {
                                                       return StreamBuilder<
                                                         List<NetworkTransaction>
                                                       >(
-                                                        stream: _networkFinanceRepository
-                                                            .watchTransactions(),
+                                                        stream: _networkTransactionsStream,
                                                         builder:
                                                             (
                                                               BuildContext

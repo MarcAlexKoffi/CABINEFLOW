@@ -12,10 +12,14 @@ void main() {
         'lib/features/customer_order/presentation/view_models/customer_order_view_model.dart',
       ).readAsStringSync();
 
-      expect(page, contains('suggestedBeneficiaryNumbers'));
+      expect(page, contains('suggestedBeneficiaryContacts'));
+      expect(page, contains('FrequentBeneficiaryContact'));
       expect(page, isNot(contains('CustomerBeneficiaryTarget')));
       expect(page, isNot(contains('_confirmationController')));
-      expect(viewModel, contains('beneficiarySuggestionMinimumOrders = 2'));
+      expect(viewModel, contains('_countsForBeneficiarySuggestion(order)'));
+      expect(viewModel, contains('keys.take(6)'));
+      expect(viewModel, contains('usageCount: counts[key]!'));
+      expect(viewModel, contains('selectSuggestedBeneficiaryContact'));
       expect(viewModel, contains('selectSuggestedBeneficiary'));
     });
 

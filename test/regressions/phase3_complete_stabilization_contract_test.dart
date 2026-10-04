@@ -6,24 +6,29 @@ void main() {
   String read(String path) => File(path).readAsStringSync();
 
   group('Phase 3 complete - stabilisation technique', () {
-    test('les pollers appliquent un backoff et se remettent apres succes', () {
+    test('les flux Realtime appliquent un backoff de secours et se remettent apres succes', () {
       final String policy = read('lib/core/resilience/backend_failure_policy.dart');
-      final List<String> pollers = <String>[
+      final String realtime = read('lib/core/supabase/supabase_realtime_refetch.dart');
+      final List<String> realtimeRepositories = <String>[
         'lib/features/agents/data/repositories/supabase_agent_issue_repository.dart',
         'lib/features/finances/data/repositories/supabase_supplier_registry_repository.dart',
         'lib/features/finances/data/repositories/supabase_phase5_finance_repository.dart',
         'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
-        'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
       ];
 
       expect(policy, contains('retryDelay('));
       expect(policy, contains('retryIdempotent<T>'));
       expect(policy, contains('canRetryRead(error)'));
-      for (final String path in pollers) {
-        final String source = read(path);
-        expect(source, contains('consecutiveFailures'));
-        expect(source, contains('BackendFailurePolicy.retryDelay('));
+      expect(realtime, contains('consecutiveFailures'));
+      expect(realtime, contains('BackendFailurePolicy.retryDelay('));
+      expect(realtime, contains('consecutiveFailures = 0'));
+      for (final String path in realtimeRepositories) {
+        expect(read(path), contains('SupabaseRealtimeRefetch.watch'), reason: path);
       }
+      expect(
+        read('lib/features/orders/data/repositories/hybrid_orders_repository.dart'),
+        contains('BackendFailurePolicy.canRetryRead(error)'),
+      );
     });
 
     test('Firestore mobile garde un cache persistant sans imposer le cache Web', () {

@@ -1,5 +1,4 @@
-import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
-import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
+import 'package:cabine_flow/core/supabase/supabase_realtime_refetch.dart';
 import 'package:cabine_flow/features/finances/domain/models/finance_operations_models.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -9,40 +8,20 @@ class SupabaseSupplierRegistryRepository {
     : _client = client ?? Supabase.instance.client;
 
   static const String tableName = 'finance_suppliers';
-  static const Duration _pollInterval = Duration(seconds: 4);
-
   final SupabaseClient _client;
 
-  Stream<List<FinanceSupplier>> watchSuppliers() async* {
-    List<FinanceSupplier>? lastSuccessful;
-    int consecutiveFailures = 0;
-
-    while (true) {
-      try {
-        final List<FinanceSupplier> suppliers = await fetchSuppliers();
-        lastSuccessful = suppliers;
-        consecutiveFailures = 0;
-        yield suppliers;
-      } catch (error, stackTrace) {
-        IzyTelLog.backendError(
-          'SupabaseSuppliers.watch',
-          error,
-          stackTrace: stackTrace,
-        );
-        if (!BackendFailurePolicy.canRetryRead(error)) {
-          Error.throwWithStackTrace(error, stackTrace);
-        }
-        consecutiveFailures += 1;
-        if (lastSuccessful != null) yield lastSuccessful;
-      }
-      await Future<void>.delayed(
-        BackendFailurePolicy.retryDelay(
-          baseDelay: _pollInterval,
-          consecutiveFailures: consecutiveFailures,
-        ),
+  Stream<List<FinanceSupplier>> watchSuppliers() =>
+      SupabaseRealtimeRefetch.watch<List<FinanceSupplier>>(
+        client: _client,
+        fetch: fetchSuppliers,
+        label: 'SupabaseSuppliers.watch',
+        signals: const <SupabaseRealtimeSignal>[
+          SupabaseRealtimeSignal(
+            table: 'finance_change_feed',
+            primaryKey: <String>['id'],
+          ),
+        ],
       );
-    }
-  }
 
   Future<List<FinanceSupplier>> fetchSuppliers({
     bool includeDeleted = false,

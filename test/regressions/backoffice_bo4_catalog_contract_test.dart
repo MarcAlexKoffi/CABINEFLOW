@@ -35,7 +35,7 @@ void main() {
 
       expect(source, contains("tableName = 'catalog_offers'"));
       expect(source, contains("stream(primaryKey: const <String>['id'])"));
-      expect(source, contains('yield await _fetchOffers()'));
+      expect(source, contains('yield await fetchOffers()'));
       expect(source, contains('izytel_create_catalog_offer'));
       expect(source, contains('izytel_update_catalog_offer'));
       expect(source, contains('izytel_set_catalog_offer_active'));

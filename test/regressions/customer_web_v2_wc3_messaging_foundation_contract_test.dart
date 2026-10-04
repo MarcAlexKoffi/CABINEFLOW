@@ -60,8 +60,8 @@ void main() {
       expect(hardeningMigration, contains('owner_firebase_uid'));
     });
 
-    test('le repository Flutter utilise seulement les RPC WC3 pour écrire', () {
-      expect(supabaseRepository, contains("'izytel_wc3_create_conversation'"));
+    test('le repository Flutter utilise WC5 pour creer puis les RPC WC3 pour le cycle conversation', () {
+      expect(supabaseRepository, contains("'izytel_wc5_create_conversation'"));
       expect(supabaseRepository, contains("'izytel_wc3_send_client_message'"));
       expect(supabaseRepository, contains("'izytel_wc3_take_conversation'"));
       expect(supabaseRepository, contains("'izytel_wc3_send_manager_message'"));

@@ -34,7 +34,7 @@ void main() {
 
     expect(shell, contains('bool _handlingBack = false;'));
     expect(shell, contains('current.canPop()'));
-    expect(shell, contains('current.pop();'));
+    expect(shell, contains('await current.maybePop();'));
     expect(shell, contains('if (_selectedIndex != 0)'));
     expect(shell, contains('_selectTab(0);'));
     expect(shell, contains('Appuie encore une fois pour quitter IzyTel.'));

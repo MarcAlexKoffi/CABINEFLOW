@@ -35,7 +35,7 @@ void main() {
     );
   });
 
-  test('Dashboard ouvre la supervision des demandes sans droit ecriture', () {
+  test('Dashboard ouvre les demandes et le Manager peut les traiter sans administrer les remboursements', () {
     final String dashboard = compact(
       read('lib/features/dashboard/presentation/pages/dashboard_page.dart'),
     );
@@ -52,7 +52,7 @@ void main() {
       contains('widget.user.permissions.canViewSupportRequests ? widget.onOpenMore : null'),
     );
     expect(manager, contains('canViewSupportRequests: true'));
-    expect(manager, contains('canProcessSupportRequests: false'));
+    expect(manager, contains('canProcessSupportRequests: true'));
     expect(manager, contains('canManageRefunds: false'));
   });
 }

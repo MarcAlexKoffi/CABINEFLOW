@@ -1,10 +1,7 @@
-import 'dart:async';
-
 import 'package:cabine_flow/backoffice/domain/models/backoffice_finance_snapshot.dart';
 import 'package:cabine_flow/backoffice/domain/repositories/backoffice_finance_repository.dart';
-import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/supabase/supabase_realtime_refetch.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseBackofficeFinanceRepository implements BackofficeFinanceRepository {
@@ -14,44 +11,30 @@ class SupabaseBackofficeFinanceRepository implements BackofficeFinanceRepository
   final SupabaseClient _client;
 
   @override
-  Stream<BackofficeFinanceSnapshot> watchSnapshot() async* {
-    BackofficeFinanceSnapshot last = await fetchSnapshot();
-    yield last;
-
-    try {
-      final String? token = await FirebaseAuth.instance.currentUser?.getIdToken();
-      await _client.realtime.setAuth(token);
-      final Stream<List<Map<String, dynamic>>> feed = _client
-          .from('finance_change_feed')
-          .stream(primaryKey: const <String>['id']);
-      int? lastRevision;
-      await for (final List<Map<String, dynamic>> rows in feed) {
-        final int revision = rows.isEmpty ? -1 : financeInt(rows.first['revision']);
-        if (lastRevision == revision) {
-          continue;
-        }
-        lastRevision = revision;
-        last = await fetchSnapshot();
-        yield last;
-      }
-    } catch (error, stackTrace) {
-      IzyTelLog.backendError(
-        'SupabaseBackofficeFinanceRepository.Realtime',
-        error,
-        stackTrace: stackTrace,
+  Stream<BackofficeFinanceSnapshot> watchSnapshot() =>
+      SupabaseRealtimeRefetch.watch<BackofficeFinanceSnapshot>(
+        client: _client,
+        fetch: fetchSnapshot,
+        label: 'SupabaseBackofficeFinanceRepository.snapshot',
+        signals: const <SupabaseRealtimeSignal>[
+          SupabaseRealtimeSignal(
+            table: 'finance_change_feed',
+            primaryKey: <String>['id'],
+          ),
+        ],
       );
-      // Le snapshot REST déjà affiché reste valide. L'utilisateur peut aussi
-      // forcer une actualisation depuis la page financière.
-    }
-  }
 
   @override
   Future<BackofficeFinanceSnapshot> fetchSnapshot() async {
-    final dynamic response = await _client.rpc('izytel_finance_snapshot');
-    final dynamic cabinisteResponse = await _client.rpc(
-      'izytel_admin_cabiniste_finance_snapshot',
-      params: const <String, dynamic>{'p_partner_id': null},
-    );
+    final List<dynamic> responses = await Future.wait<dynamic>(<Future<dynamic>>[
+      _client.rpc('izytel_finance_snapshot'),
+      _client.rpc(
+        'izytel_admin_cabiniste_finance_snapshot',
+        params: const <String, dynamic>{'p_partner_id': null},
+      ),
+    ]);
+    final dynamic response = responses[0];
+    final dynamic cabinisteResponse = responses[1];
     final Map<String, dynamic>? map = financeMap(response);
     if (map == null) {
       throw StateError('Le snapshot financier Supabase est invalide.');

@@ -138,7 +138,7 @@ void main() {
       expect(recovered, isFalse);
       expect(
         viewModel.recoveryErrorMessage,
-        'Commande introuvable ou informations incorrectes. Vérifiez la référence et le numéro WhatsApp saisis.',
+        'Commande introuvable ou informations incorrectes. Vérifiez la référence et les informations de récupération saisies.',
       );
 
       viewModel.dispose();

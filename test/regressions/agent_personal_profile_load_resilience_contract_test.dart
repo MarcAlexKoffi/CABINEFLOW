@@ -9,9 +9,7 @@ void main() {
     ).readAsStringSync();
 
     final int hydrate = source.indexOf('_hydrateFromSignedInUser();');
-    final int profileRead = source.indexOf(
-      'repository.fetchProfile(widget.user.id)',
-    );
+    final int profileRead = source.indexOf('.fetchProfile(');
 
     expect(hydrate, greaterThanOrEqualTo(0));
     expect(profileRead, greaterThan(hydrate));
@@ -49,7 +47,10 @@ void main() {
       'supabase_agent_personal_profile_repository.dart',
     ).readAsStringSync();
 
-    expect(profilePage, contains('repository.fetchProfile(widget.user.id)'));
+    expect(profilePage, contains('.fetchProfile('));
+    expect(profilePage, contains('widget.user.id'));
+    expect(profilePage, contains('unawaited(_loadMediaInBackground('));
+    expect(profilePage, contains('.fetchMedia('));
     expect(
       profilePage,
       isNot(contains(".collection('agentPersonalProfiles')")),
