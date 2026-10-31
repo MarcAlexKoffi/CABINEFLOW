@@ -219,7 +219,9 @@ begin
     'offers',coalesce((select jsonb_agg(jsonb_build_object('id',c.id,'network',c.network,'service',private.ussd_service(c.operation_type),
       'title',c.title,'binding',to_jsonb(b)) order by c.display_order,c.id)
       from public.catalog_offers c left join public.ussd_offer_bindings b on b.offer_id=c.id
-      where c.deleted_at is null),'[]'::jsonb));
+      where c.deleted_at is null and (coalesce(private.is_izytel_finance_admin(),false) or exists(
+        select 1 from public.ussd_order_contexts ctx join public.phase4_assignment_orders o on o.order_id=ctx.order_id
+        where ctx.offer_id=c.id and private.ussd_zone(o.zone_id)))),'[]'::jsonb));
 end $$;
 
 create function private.ussd_save_family(p_network text,p_service text,p_label text) returns uuid

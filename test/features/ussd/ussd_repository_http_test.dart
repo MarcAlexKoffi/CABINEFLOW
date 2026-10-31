@@ -5,6 +5,7 @@ import 'package:cabine_flow/features/orders/data/repositories/supabase_phase4_as
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'ussd_test_doubles.dart';
 
 void main() {
   late HttpServer server;
@@ -82,6 +83,36 @@ void main() {
       expect(result.available, isFalse);
       expect(calls.single.path, '/rest/v1/rpc/izytel_ussd_resolve');
       expect(calls.single.body, {'p_order_id': 'synthetic-order'});
+    },
+  );
+  test(
+    'malformed configuration fails in the read Future for an explicit retry state',
+    () async {
+      response = {'rules': [], 'families': 'invalid-shape', 'offers': []};
+      await expectLater(
+        SupabaseUssdRepository(client: client).configuration(),
+        throwsA(isA<FormatException>()),
+      );
+    },
+  );
+  test(
+    'malformed available context is rejected before rendering the card',
+    () async {
+      final config = await UssdTestRepository().configuration();
+      final rule = Map<String, dynamic>.from(
+        (config['rules'] as List).first as Map,
+      )..['status'] = 'active';
+      response = {
+        'status': 'available',
+        'reason': '',
+        'rule': rule,
+        'code': '*999#',
+        'context': {'network': 42},
+      };
+      await expectLater(
+        SupabaseUssdRepository(client: client).resolve('synthetic-order'),
+        throwsA(isA<FormatException>()),
+      );
     },
   );
   test(

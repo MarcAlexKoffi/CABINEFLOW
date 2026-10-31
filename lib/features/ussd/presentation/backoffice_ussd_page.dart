@@ -593,6 +593,7 @@ class _RuleEditor extends StatefulWidget {
 
 class _RuleEditorState extends State<_RuleEditor> {
   final _form = GlobalKey<FormState>();
+  String? _associationError;
   late String _network = widget.rule?.network ?? 'moov',
       _service = widget.rule?.service ?? 'internetSubscription',
       _scope = widget.rule?.scope ?? 'both',
@@ -623,6 +624,26 @@ class _RuleEditorState extends State<_RuleEditor> {
 
   void _save() {
     if (!_form.currentState!.validate()) return;
+    if ((_offer.isNotEmpty &&
+            !widget.offers.any(
+              (o) =>
+                  o['id'] == _offer &&
+                  o['network'] == _network &&
+                  o['service'] == _service,
+            )) ||
+        (_family.isNotEmpty &&
+            !widget.families.any(
+              (f) =>
+                  f['id'] == _family &&
+                  f['network'] == _network &&
+                  f['service'] == _service,
+            ))) {
+      setState(
+        () => _associationError =
+            'L’association n’est plus disponible. Choisissez une autre offre/famille ou une règle générique.',
+      );
+      return;
+    }
     final from = DateTime.parse(_from.text),
         until = DateTime.tryParse(_until.text);
     if (until != null && !until.isAfter(from)) return;
@@ -691,6 +712,13 @@ class _RuleEditorState extends State<_RuleEditor> {
                   const Text(
                     'Enregistrer désactive la version active et crée un brouillon. Une nouvelle validation SIM sera requise.',
                   ),
+                if (_associationError != null)
+                  Text(
+                    _associationError!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
                 _select('Réseau', _network, ussdNetworks, (v) {
                   _network = v;
                   _family = '';
@@ -706,6 +734,9 @@ class _RuleEditorState extends State<_RuleEditor> {
                   _family,
                   {
                     '': 'Aucune / générique',
+                    if (_family.isNotEmpty &&
+                        !families.any((f) => f['id'] == _family))
+                      _family: 'Famille indisponible (à remplacer)',
                     for (final f in families)
                       f['id'] as String: f['label'] as String,
                   },
@@ -716,6 +747,9 @@ class _RuleEditorState extends State<_RuleEditor> {
                 ),
                 _select('Offre', _offer, {
                   '': 'Toutes / générique',
+                  if (_offer.isNotEmpty &&
+                      !offers.any((o) => o['id'] == _offer))
+                    _offer: 'Offre indisponible (à remplacer)',
                   for (final f in offers)
                     f['id'] as String: f['title'] as String,
                 }, (v) => _offer = v),

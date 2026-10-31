@@ -1,4 +1,4 @@
-﻿package com.izytel.app
+package com.izytel.app
 
 import android.content.Context
 import io.flutter.embedding.android.FlutterActivity

@@ -232,5 +232,11 @@ try {
     const calls=await create({network:'mtn',service:'callBundle',ussd_template:'*999*1#'});await activate(calls);
     await identity('test-agent');const r=await rpc('resolve',['mixed-order']);assert.equal(r.rule.id,mix);assert.equal(r.code,'*999*2#');
   });
+  await test('Manager cannot read operator-code bindings for unrelated offers',async()=>{
+    await identity('test-admin');await rpc('save_binding',['other-offer',null,'9999',1]);
+    await identity('test-manager');const configuration=await rpc('configuration');
+    assert.ok(configuration.offers.some(o=>o.id==='synthetic-offer'));
+    assert.ok(!configuration.offers.some(o=>o.id==='other-offer'||o.id==='synthetic-orange'));
+  });
   console.log(`SQL SUMMARY: ${passed} passed, 0 failed; in-memory synthetic database only.`);
 } finally {await db.close();}

@@ -18,18 +18,33 @@ class UssdResolution {
   final bool mismatch;
   final int? validForMs;
   bool get available => status == 'available' && rule != null && code != null;
-  factory UssdResolution.fromJson(Map<String, dynamic> row) => UssdResolution(
-    status: row['status'] as String? ?? 'unavailable',
-    reason: row['reason'] as String? ?? 'unavailable',
-    rule: row['rule'] is Map
-        ? UssdRule.fromJson(Map<String, dynamic>.from(row['rule'] as Map))
-        : null,
-    code: row['code'] as String?,
-    context: Map<String, dynamic>.from(row['context'] as Map? ?? const {}),
-    mismatch: row['network_mismatch'] == true,
-    attemptId: row['attempt_id'] as String?,
-    validForMs: (row['valid_for_ms'] as num?)?.toInt(),
-  );
+  factory UssdResolution.fromJson(Map<String, dynamic> row) {
+    final result = UssdResolution(
+      status: row['status'] as String? ?? 'unavailable',
+      reason: row['reason'] as String? ?? 'unavailable',
+      rule: row['rule'] is Map
+          ? UssdRule.fromJson(Map<String, dynamic>.from(row['rule'] as Map))
+          : null,
+      code: row['code'] as String?,
+      context: Map<String, dynamic>.from(row['context'] as Map? ?? const {}),
+      mismatch: row['network_mismatch'] == true,
+      attemptId: row['attempt_id'] as String?,
+      validForMs: (row['valid_for_ms'] as num?)?.toInt(),
+    );
+    if (result.status == 'available') {
+      if (!result.available || result.rule!.status != 'active') {
+        throw const FormatException('invalid_ussd_resolution');
+      }
+      UssdEngine.validateCode(result.code!);
+      for (final key in ['network', 'service', 'offer_label', 'beneficiary']) {
+        final value = result.context[key];
+        if (value != null && value is! String) {
+          throw const FormatException('invalid_ussd_context');
+        }
+      }
+    }
+    return result;
+  }
 }
 
 abstract class UssdRepository {

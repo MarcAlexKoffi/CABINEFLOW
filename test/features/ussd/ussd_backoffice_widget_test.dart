@@ -97,4 +97,42 @@ void main() {
     await tester.pumpAndSettle();
     expect(repo.statusChanges, 1);
   });
+  testWidgets(
+    'a deleted catalogue offer leaves the editor usable and requires explicit reassociation',
+    (tester) async {
+      final repo = _DeletedOfferRepository();
+      await mount(tester, repo, UserRole.administrator);
+      await tester.ensureVisible(
+        find.byTooltip('Modifier (remet en brouillon)'),
+      );
+      await tester.tap(find.byTooltip('Modifier (remet en brouillon)'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Offre indisponible (à remplacer)'), findsOneWidget);
+      await tester.tap(find.text('Enregistrer en brouillon'));
+      await tester.pumpAndSettle();
+      expect(repo.saved, isNull);
+      expect(
+        find.textContaining('L’association n’est plus disponible'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Offre indisponible (à remplacer)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Toutes / générique').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Enregistrer en brouillon'));
+      await tester.pumpAndSettle();
+      expect(repo.saved?['offer_id'], isNull);
+      expect(repo.saved, isNotNull);
+    },
+  );
+}
+
+class _DeletedOfferRepository extends UssdTestRepository {
+  @override
+  Future<Map<String, dynamic>> configuration() async {
+    final result = await super.configuration();
+    ((result['rules'] as List).first as Map)['offer_id'] = 'deleted-offer';
+    return result;
+  }
 }

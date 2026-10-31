@@ -78,8 +78,37 @@ class SupabaseUssdRepository implements UssdRepository {
   }
 
   @override
-  Future<Map<String, dynamic>> configuration() async =>
-      _map(await _rpc('izytel_ussd_configuration'));
+  Future<Map<String, dynamic>> configuration() async {
+    final result = _map(await _rpc('izytel_ussd_configuration'));
+    // Validate inside the Future, so a schema mismatch becomes a retry state
+    // rather than an exception in the widget's build method.
+    for (final key in ['rules', 'families', 'offers']) {
+      if (result[key] is! List) {
+        throw const FormatException('invalid_ussd_configuration');
+      }
+      for (final row in result[key] as List) {
+        if (row is! Map) {
+          throw const FormatException('invalid_ussd_configuration');
+        }
+        if (key == 'rules') {
+          UssdRule.fromJson(Map<String, dynamic>.from(row));
+        } else {
+          for (final name in [
+            'id',
+            'network',
+            'service',
+            key == 'families' ? 'label' : 'title',
+          ]) {
+            if (row[name] is! String) {
+              throw const FormatException('invalid_ussd_configuration');
+            }
+          }
+        }
+      }
+    }
+    return result;
+  }
+
   @override
   Future<void> saveRule(
     Map<String, dynamic> payload, {
