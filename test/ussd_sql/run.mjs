@@ -66,7 +66,9 @@ try {
   await test('family and offer IDs reuse catalogue associations',async()=>{
     family=await rpc('save_family',['moov','internetSubscription','Famille synthétique']);
     await rpc('save_binding',['synthetic-offer',family,'00123',2]);
-    const bad=await rpc('save_family',['orange','calls','Autre famille']);
+    await rpc('register_order_context',['order-agent','synthetic-offer']);
+    await rpc('register_order_context',['order-cabiniste','synthetic-offer']);
+    const bad=await rpc('save_family',['orange','callBundle','Autre famille']);
     await assert.rejects(()=>rpc('save_binding',['synthetic-offer',bad,'1',1]),/invalid_association/);
   });
   await test('generic offer-code variable cannot be activated without offer context',async()=>{
@@ -98,7 +100,7 @@ try {
     await identity('test-admin','postgres');const before=(await db.query('select to_jsonb(o) as row from public.phase4_assignment_orders o order by order_id')).rows;
     const capacities=(await db.query('select * from public.phase5_agent_capacities order by agent_id')).rows;
     await identity('test-agent');const r=await rpc('resolve',['order-agent']);attempt=await prepare('order-agent',r,'attempt-1');
-    assert.ok(attempt.attempt_id);await rpc('record_result',[attempt.attempt_id,'dialer_opened',null]);
+    assert.ok(attempt.attempt_id);assert.ok(attempt.valid_for_ms>0 && attempt.valid_for_ms<=10000);await rpc('record_result',[attempt.attempt_id,'dialer_opened',null]);
     const duplicate=await prepare('order-agent',r,'attempt-1');assert.equal(duplicate.reason,'duplicate_attempt');
     await identity('test-admin','postgres');assert.deepEqual((await db.query('select to_jsonb(o) as row from public.phase4_assignment_orders o order by order_id')).rows,before);
     assert.deepEqual((await db.query('select * from public.phase5_agent_capacities order by agent_id')).rows,capacities);
@@ -131,7 +133,7 @@ try {
     await identity('test-agent');assert.equal((await rpc('resolve',['order-agent'])).rule.id,generic);
   });
   await test('manager reads only relevant rule scope and cannot launch',async()=>{
-    await identity('test-admin');const id=await create({network:'orange',service:'calls'});await activate(id);
+    await identity('test-admin');const id=await create({network:'orange',service:'callBundle'});await activate(id);
     await identity('test-manager');assert.ok(!(await rpc('configuration')).rules.some(r=>r.id===id));await denied(()=>rpc('resolve',['order-agent']));
     await identity('test-manager-b');assert.ok((await rpc('configuration')).rules.some(r=>r.id===id));
   });
@@ -157,6 +159,78 @@ try {
     await identity('test-agent');assert.equal((await rpc('resolve',['order-agent'])).reason,'order_not_processable');
     await identity('test-admin','postgres');await db.exec("update public.phase4_assignment_orders set order_status='inProgress' where order_id='order-agent'");
     await identity('test-admin');await disable(generic);await identity('test-agent');assert.equal((await rpc('resolve',['order-agent'])).reason,'no_rule');
+  });
+  for(const uid of ['test-manager','test-agent','test-cabiniste','test-customer']) {
+    await test(`${uid}: all configuration mutations and version histories are protected`,async()=>{
+      await identity(uid);await denied(()=>rpc('save_family',['moov','internetSubscription','Interdit']));
+      await denied(()=>rpc('save_binding',['synthetic-offer',family,'1',1]));
+      await denied(()=>rpc('set_status',[generic,1,'active','test']));
+      await denied(()=>rpc('history',[generic]));await denied(()=>rpc('binding_history',['synthetic-offer']));
+    });
+  }
+  await test('staff-synchronized offer identity outranks customer registry and labels are never matched',async()=>{
+    await identity('test-admin');await activate(generic);await activate(exact);
+    await identity('test-admin','postgres');
+    await db.exec("insert into public.phase4_assignment_orders select 'legacy-order',network,operation_type,amount,beneficiary_phone,offer_label,order_status,payment_status,assignment_state,assigned_agent_id,assigned_cabiniste_id,zone_id from public.phase4_assignment_orders where order_id='order-agent'; insert into public.customer_order_recovery_registry values('legacy-order','synthetic-offer')");
+    await identity('test-agent');assert.equal((await rpc('resolve',['legacy-order'])).rule.id,generic);
+    await denied(()=>rpc('register_order_context',['legacy-order','synthetic-offer']));
+    await identity('test-admin');await rpc('register_order_context',['legacy-order','synthetic-offer']);
+    await identity('test-agent');assert.equal((await rpc('resolve',['legacy-order'])).rule.id,exact);
+  });
+  await test('Manager cannot register another territory order context',async()=>{
+    await identity('test-manager');await denied(()=>rpc('register_order_context',['order-zone-b','synthetic-orange']));
+  });
+  await test('network mismatch warns without changing confirmed order network',async()=>{
+    await identity('test-admin','postgres');await db.exec("update public.phase4_assignment_orders set beneficiary_phone='0707070707' where order_id='order-agent'");
+    await identity('test-agent');const r=await rpc('resolve',['order-agent']);assert.equal(r.network_mismatch,true);assert.equal(r.context.network,'moov');
+    await identity('test-admin','postgres');await db.exec("update public.phase4_assignment_orders set beneficiary_phone='+2250101010101' where order_id='order-agent'");
+  });
+  await test('inactive Cabiniste and revoked network authorizations cannot execute',async()=>{
+    await identity('test-admin','postgres');await db.exec("update public.partner_accounts set status='inactive'");
+    await identity('test-cabiniste');await denied(()=>rpc('resolve',['order-cabiniste']));
+    await identity('test-admin','postgres');await db.exec("update public.partner_accounts set status='active'; update public.phase5_agent_capacities set authorized_networks=array['orange'] where agent_id='test-agent'");
+    await identity('test-agent');await denied(()=>rpc('resolve',['order-agent']));
+    await identity('test-admin','postgres');await db.exec("update public.phase5_agent_capacities set authorized_networks=array['orange','mtn','moov'] where agent_id='test-agent'");
+  });
+  await test('ambiguous double assignment refuses both actors',async()=>{
+    await identity('test-admin','postgres');await db.exec("update public.phase4_assignment_orders set assigned_cabiniste_id='00000000-0000-4000-8000-000000000001' where order_id='order-agent'");
+    for(const uid of ['test-agent','test-cabiniste']){await identity(uid);await denied(()=>rpc('resolve',['order-agent']));}
+    await identity('test-admin','postgres');await db.exec("update public.phase4_assignment_orders set assigned_cabiniste_id=null where order_id='order-agent'");
+  });
+  await test('staff role cannot execute with a leftover active Agent profile',async()=>{
+    await identity('test-admin','postgres');await db.exec("insert into public.izytel_staff_access values('test-agent','manager',true)");
+    await identity('test-agent');await denied(()=>rpc('resolve',['order-agent']));
+    await identity('test-admin','postgres');await db.exec("delete from public.izytel_staff_access where firebase_uid='test-agent'");
+  });
+  await test('report privacy validation also catches formatted phone numbers',async()=>{
+    await identity('test-agent');await assert.rejects(()=>rpc('report',['order-agent',null,null,'other','+225 01 01 01 01 01']),/sensitive_report_content/);
+  });
+  await test('unimplemented business SMS service remains a draft',async()=>{
+    await identity('test-admin');const id=await create({service:'sms',ussd_template:'*999#'});
+    await assert.rejects(()=>activate(id),/unsupported_order_service/);assert.equal((await current(id)).status,'draft');
+  });
+  await test('binding revisions are immutable and retrievable for historical logs',async()=>{
+    await identity('test-admin');await disable(exact);await rpc('save_binding',['synthetic-offer',family,'456',1]);
+    const history=await rpc('binding_history',['synthetic-offer']);assert.equal(history.length,2);
+    assert.equal(history[0].offer_code,'456');assert.equal(history[1].offer_code,'00123');
+    await denied(()=>db.exec("delete from public.ussd_binding_versions"));
+  });
+  await test('a report cannot reference a different offer shortcut',async()=>{
+    await identity('test-admin','postgres');await db.exec("insert into public.catalog_offers(id,network,service,operation_type,title) values('other-offer','moov','internetSubscription','internetSubscription','Autre offre fictive')");
+    await identity('test-admin');const id=await create({offer_id:'other-offer'});
+    await identity('test-agent');await assert.rejects(()=>rpc('report',['order-agent',id,1,'wrong_offer','test']),/invalid_association/);
+  });
+  await test('prepare rate is bounded without repeated opening outcomes',async()=>{
+    await identity('test-agent');const r=await rpc('resolve',['order-agent']);
+    for(let i=0;i<9;i++){assert.ok((await prepare('order-agent',r,'burst-'+i)).attempt_id);}
+    await assert.rejects(()=>prepare('order-agent',r,'burst-overflow'),/USSD_RATE_LIMIT/);
+  });
+  await test('Appels and mixed bundles use stable operation IDs despite shared catalogue service',async()=>{
+    await identity('test-admin','postgres');
+    await db.exec("insert into public.catalog_offers(id,network,service,operation_type,title) values('mixed-offer','mtn','calls','mixedBundle','Libelle fictif'); insert into public.phase4_assignment_orders values('mixed-order','mtn','mixedBundle',1000,'0505050505','Appels fictifs','inProgress','confirmed','accepted','test-agent',null,'zone-a')");
+    await identity('test-admin');const mix=await create({network:'mtn',service:'mixedBundle',ussd_template:'*999*2#'});await activate(mix);
+    const calls=await create({network:'mtn',service:'callBundle',ussd_template:'*999*1#'});await activate(calls);
+    await identity('test-agent');const r=await rpc('resolve',['mixed-order']);assert.equal(r.rule.id,mix);assert.equal(r.code,'*999*2#');
   });
   console.log(`SQL SUMMARY: ${passed} passed, 0 failed; in-memory synthetic database only.`);
 } finally {await db.close();}

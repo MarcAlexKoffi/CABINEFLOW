@@ -135,6 +135,9 @@ class SupabaseUssdRepository implements UssdRepository {
   Future<List<Map<String, dynamic>>> history(String ruleId) async =>
       _list(await _rpc('izytel_ussd_history', {'p_rule_id': ruleId}));
   @override
+  Future<List<Map<String, dynamic>>> bindingHistory(String offerId) async =>
+      _list(await _rpc('izytel_ussd_binding_history', {'p_offer_id': offerId}));
+  @override
   Future<List<Map<String, dynamic>>> logs({int offset = 0}) async =>
       _list(await _rpc('izytel_ussd_logs', {'p_offset': offset}));
   @override

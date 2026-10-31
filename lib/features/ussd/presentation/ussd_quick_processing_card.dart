@@ -18,12 +18,14 @@ class UssdQuickProcessingCard extends StatefulWidget {
     required this.beneficiary,
     required this.amount,
     required this.processable,
+    this.initiallyExpanded = true,
     this.repository,
     this.dialer,
   });
   final String orderId, network, offerLabel, beneficiary;
   final int amount;
   final bool processable;
+  final bool initiallyExpanded;
   final UssdRepository? repository;
   final UssdDialer? dialer;
   @override
@@ -40,6 +42,7 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
   String? _message;
   bool _loading = true, _busy = false;
   bool _confirming = false;
+  late bool _expanded;
   int _generation = 0;
 
   @override
@@ -47,8 +50,13 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
     super.initState();
     _repository = widget.repository ?? createUssdRepository();
     _dialer = widget.dialer ?? const AndroidUssdDialer();
+    _expanded = widget.initiallyExpanded;
     WidgetsBinding.instance.addObserver(this);
-    unawaited(_load());
+    if (_expanded) {
+      unawaited(_load());
+    } else {
+      _loading = false;
+    }
   }
 
   @override
@@ -71,13 +79,19 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
       _resolution = null;
       _lastResolution = null;
       _repository = widget.repository ?? createUssdRepository();
-      unawaited(_load());
+      if (_expanded) {
+        unawaited(_load());
+      } else {
+        _loading = false;
+      }
     }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && !_busy) unawaited(_load());
+    if (state == AppLifecycleState.resumed && !_busy && _expanded) {
+      unawaited(_load());
+    }
   }
 
   Future<void> _load() async {
@@ -213,11 +227,25 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
       }
       final requestId =
           '${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(1 << 32)}';
+      final preparationClock = Stopwatch()..start();
       final prepared = await _repository.prepare(orderId, fresh, requestId);
       if (!mounted || generation != _generation) return;
       if (!prepared.available ||
           !_same(prepared, fresh) ||
           prepared.attemptId == null) {
+        throw const UssdValidationException('rule_changed');
+      }
+      // Consume a short server lease including request/response time. This is
+      // conservative and independent of the phone's wall-clock/timezone.
+      if (prepared.validForMs == null ||
+          preparationClock.elapsedMilliseconds >= prepared.validForMs!) {
+        try {
+          await _repository.recordResult(
+            prepared.attemptId!,
+            'failed',
+            'interrupted',
+          );
+        } catch (_) {}
         throw const UssdValidationException('rule_changed');
       }
       UssdEngine.validateCode(prepared.code!);
@@ -251,8 +279,8 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
       if (!mounted || generation != _generation) return;
       setState(() {
         _resolution = null;
-            _message = error is UssdValidationException
-                ? _unavailable(error.code)
+        _message = error is UssdValidationException
+            ? _unavailable(error.code)
             : UssdEngine.manualMessage;
       });
     } finally {
@@ -268,7 +296,9 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
 
   String _unavailable(String reason) {
     final message = UssdEngine.message(reason);
-    return message == UssdEngine.manualMessage ? message : '$message ${UssdEngine.manualMessage}';
+    return message == UssdEngine.manualMessage
+        ? message
+        : '$message ${UssdEngine.manualMessage}';
   }
 
   Future<void> _report() async {
@@ -283,14 +313,14 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
     setState(() => _busy = true);
     try {
       await _repository.report(orderId, _lastResolution, report.$1, report.$2);
-      if (mounted) {
+      if (mounted && generation == _generation) {
         setState(
           () => _message =
               'Signalement transmis au centre de supervision. Le traitement manuel reste disponible.',
         );
       }
     } catch (_) {
-      if (mounted) {
+      if (mounted && generation == _generation) {
         setState(
           () => _message =
               'Signalement indisponible. Réessayez ou contactez votre Manager.',
@@ -309,75 +339,91 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
         !_busy &&
         widget.processable;
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Traitement rapide',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text('Réseau / SIM requis : ${_network(_resolution?.context['network'] as String? ?? widget.network)}'),
-            Text(_resolution?.context['offer_label'] as String? ?? widget.offerLabel),
-            Text('Bénéficiaire : ${_resolution?.context['beneficiary'] ?? widget.beneficiary}'),
-            Text('Montant de commande : ${_resolution?.context['amount'] ?? widget.amount} FCFA'),
-            if (_loading || (_busy && !_confirming))
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 10),
-                child: LinearProgressIndicator(),
-              ),
-            if (_resolution?.available == true) ...[
-              const SizedBox(height: 10),
-              Text(_resolution!.code!),
-              Text('Version ${_resolution!.rule!.version}'),
-              if (_resolution!.mismatch)
-                const Text(
-                  UssdEngine.mismatchMessage,
-                  style: TextStyle(color: IzyTelColors.warning),
-                ),
-            ],
-            if (_message != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(_message!, key: const ValueKey('ussd-message')),
-              ),
-            if (!_dialer.supported)
-              const Text(
-                'L’ouverture du composeur est disponible sur Android.',
-              ),
-            const SizedBox(height: 10),
-            FilledButton.icon(
-              onPressed: available && _dialer.supported
-                  ? () => _execute(copy: false)
-                  : null,
-              icon: const Icon(Icons.dialpad),
-              label: const Text('Lancer l’opération'),
-            ),
-            OutlinedButton.icon(
-              onPressed: available ? () => _execute(copy: true) : null,
-              icon: const Icon(Icons.copy),
-              label: const Text('Copier le code'),
-            ),
-            Wrap(
-              spacing: 8,
-              children: [
-                TextButton(
-                  onPressed: _busy || _loading ? null : _load,
-                  child: const Text('Actualiser le raccourci'),
-                ),
-                TextButton(
-                  onPressed: _busy || !widget.processable ? null : _report,
-                  child: const Text('Signaler un problème'),
-                ),
-              ],
-            ),
-            const Text(
-              'Les actions habituelles de traitement et de preuve restent disponibles.',
-            ),
-          ],
+      child: ExpansionTile(
+        initiallyExpanded: widget.initiallyExpanded,
+        title: Text(
+          'Traitement rapide',
+          style: Theme.of(context).textTheme.titleMedium,
         ),
+        subtitle: Text('Réseau / SIM requis : ${_network(widget.network)}'),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        onExpansionChanged: (expanded) {
+          _expanded = expanded;
+          if (expanded && !_busy) unawaited(_load());
+        },
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Réseau / SIM requis : ${_network(_resolution?.context['network'] as String? ?? widget.network)}',
+              ),
+              Text(
+                _resolution?.context['offer_label'] as String? ??
+                    widget.offerLabel,
+              ),
+              Text(
+                'Bénéficiaire : ${_resolution?.context['beneficiary'] ?? widget.beneficiary}',
+              ),
+              Text(
+                'Montant de commande : ${_resolution?.context['amount'] ?? widget.amount} FCFA',
+              ),
+              if (_loading || (_busy && !_confirming))
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 10),
+                  child: LinearProgressIndicator(),
+                ),
+              if (_resolution?.available == true) ...[
+                const SizedBox(height: 10),
+                Text(_resolution!.code!),
+                Text('Version ${_resolution!.rule!.version}'),
+                if (_resolution!.mismatch)
+                  const Text(
+                    UssdEngine.mismatchMessage,
+                    style: TextStyle(color: IzyTelColors.warning),
+                  ),
+              ],
+              if (_message != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(_message!, key: const ValueKey('ussd-message')),
+                ),
+              if (!_dialer.supported)
+                const Text(
+                  'L’ouverture du composeur est disponible sur Android.',
+                ),
+              const SizedBox(height: 10),
+              FilledButton.icon(
+                onPressed: available && _dialer.supported
+                    ? () => _execute(copy: false)
+                    : null,
+                icon: const Icon(Icons.dialpad),
+                label: const Text('Lancer l’opération'),
+              ),
+              OutlinedButton.icon(
+                onPressed: available ? () => _execute(copy: true) : null,
+                icon: const Icon(Icons.copy),
+                label: const Text('Copier le code'),
+              ),
+              Wrap(
+                spacing: 8,
+                children: [
+                  TextButton(
+                    onPressed: _busy || _loading ? null : _load,
+                    child: const Text('Actualiser le raccourci'),
+                  ),
+                  TextButton(
+                    onPressed: _busy || !widget.processable ? null : _report,
+                    child: const Text('Signaler un problème'),
+                  ),
+                ],
+              ),
+              const Text(
+                'Les actions habituelles de traitement et de preuve restent disponibles.',
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

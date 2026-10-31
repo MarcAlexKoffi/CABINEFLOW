@@ -5,7 +5,7 @@
 create table public.ussd_offer_families (
   id uuid primary key default gen_random_uuid(),
   network text not null check (network in ('orange','mtn','moov')),
-  service text not null check (service in ('internetSubscription','calls','unitTransfer','sms','mixedBundle','other')),
+  service text not null check (service in ('internetSubscription','callBundle','unitTransfer','sms','mixedBundle','other')),
   label text not null check (length(btrim(label)) between 1 and 100),
   created_by text not null, created_at timestamptz not null default now(),
   unique(network,service,label)
@@ -31,7 +31,7 @@ create table public.ussd_order_contexts (
 create table public.ussd_execution_rules (
   id uuid primary key default gen_random_uuid(),
   network text not null check (network in ('orange','mtn','moov')),
-  service text not null check (service in ('internetSubscription','calls','unitTransfer','sms','mixedBundle','other')),
+  service text not null check (service in ('internetSubscription','callBundle','unitTransfer','sms','mixedBundle','other')),
   family_id uuid references public.ussd_offer_families(id),
   offer_id text references public.catalog_offers(id),
   actor_scope text not null check (actor_scope in ('agent','cabiniste','both')),
@@ -139,12 +139,15 @@ create function private.ussd_zone(p_zone text) returns boolean language sql stab
       coalesce(private.izytel_wc5_manager_owns_zone(p_zone,(select auth.jwt()->>'sub')),false)));
 $$;
 create function private.ussd_service(p_operation text) returns text language sql immutable set search_path='' as $$
-  select case p_operation when 'callBundle' then 'calls' when 'mixedBundle' then 'calls' else p_operation end;
+  select p_operation;
 $$;
 create function private.ussd_actor(p_order public.phase4_assignment_orders) returns text
 language plpgsql stable security definer set search_path='' as $$
 declare v_uid text := private.ussd_uid();
 begin
+  if coalesce(private.izytel_current_staff_role(),'') in ('admin','manager','supervisor','operator') then
+    raise exception 'USSD_ASSIGNED_ACTOR_REQUIRED' using errcode='42501';
+  end if;
   if p_order.assigned_cabiniste_id is null and p_order.assigned_agent_id = v_uid and exists(select 1 from public.phase5_agent_capacities a
     where a.agent_id=v_uid and a.is_active=true and p_order.network=any(a.authorized_networks)) then return 'agent'; end if;
   if exists(select 1 from public.partner_accounts p where p.id=p_order.assigned_cabiniste_id
@@ -200,11 +203,10 @@ create function private.ussd_rule_visible(r public.ussd_execution_rules) returns
 language sql stable security definer set search_path='' as $$
   select coalesce(private.is_izytel_finance_admin(),false) or exists (
     select 1 from public.phase4_assignment_orders o
-    left join public.customer_order_recovery_registry c on c.order_id=o.order_id
     left join public.ussd_order_contexts ctx on ctx.order_id=o.order_id
-    left join public.ussd_offer_bindings b on b.offer_id=coalesce(c.offer_id,ctx.offer_id)
+    left join public.ussd_offer_bindings b on b.offer_id=ctx.offer_id
     where private.ussd_zone(o.zone_id) and o.network=r.network and private.ussd_service(o.operation_type)=r.service
-      and (r.offer_id is null or r.offer_id=coalesce(c.offer_id,ctx.offer_id))
+      and (r.offer_id is null or r.offer_id=ctx.offer_id)
       and (r.family_id is null or r.family_id=b.family_id));
 $$;
 
@@ -214,7 +216,7 @@ begin
   return jsonb_build_object('rules',coalesce((select jsonb_agg(to_jsonb(r) order by r.updated_at desc)
     from public.ussd_execution_rules r where private.ussd_rule_visible(r)),'[]'::jsonb),
     'families',coalesce((select jsonb_agg(to_jsonb(f) order by f.label) from public.ussd_offer_families f),'[]'::jsonb),
-    'offers',coalesce((select jsonb_agg(jsonb_build_object('id',c.id,'network',c.network,'service',c.service,
+    'offers',coalesce((select jsonb_agg(jsonb_build_object('id',c.id,'network',c.network,'service',private.ussd_service(c.operation_type),
       'title',c.title,'binding',to_jsonb(b)) order by c.display_order,c.id)
       from public.catalog_offers c left join public.ussd_offer_bindings b on b.offer_id=c.id
       where c.deleted_at is null),'[]'::jsonb));
@@ -236,10 +238,10 @@ begin
   perform pg_advisory_xact_lock(9261031);
   select * into strict c from public.catalog_offers where id=p_offer_id and deleted_at is null;
   if p_family_id is not null and not exists(select 1 from public.ussd_offer_families f
-    where f.id=p_family_id and f.network=c.network and f.service=c.service) then raise exception 'invalid_association'; end if;
+    where f.id=p_family_id and f.network=c.network and f.service=private.ussd_service(c.operation_type)) then raise exception 'invalid_association'; end if;
   select * into b from public.ussd_offer_bindings where offer_id=p_offer_id;
   if exists(select 1 from public.ussd_execution_rules r where r.status='active' and r.network=c.network
-    and r.service=c.service and (r.offer_id=p_offer_id or r.family_id in (b.family_id,p_family_id))) then
+    and r.service=private.ussd_service(c.operation_type) and (r.offer_id=p_offer_id or r.family_id in (b.family_id,p_family_id))) then
     raise exception 'active_binding_in_use';
   end if;
   insert into public.ussd_offer_bindings(offer_id,family_id,offer_code,quantity,updated_by)
@@ -278,7 +280,7 @@ begin
     where f.id=r.family_id and f.network=r.network and f.service=r.service) then raise exception 'invalid_association'; end if;
   if r.offer_id is not null and not exists(select 1 from public.catalog_offers c
     left join public.ussd_offer_bindings b on b.offer_id=c.id where c.id=r.offer_id and c.deleted_at is null
-    and c.network=r.network and c.service=r.service and (r.family_id is null or b.family_id=r.family_id)) then raise exception 'invalid_association'; end if;
+    and c.network=r.network and private.ussd_service(c.operation_type)=r.service and (r.family_id is null or b.family_id=r.family_id)) then raise exception 'invalid_association'; end if;
   insert into public.ussd_rule_versions values(r.id,r.version,to_jsonb(r));
   return r.id;
 end $$;
@@ -293,21 +295,22 @@ begin
   if p_status is null or p_status not in ('active','disabled') then raise exception 'invalid_status'; end if;
   if p_status='active' then
     vars:=private.ussd_template(r.ussd_template);
+    if r.service='sms' and not exists(select 1 from public.catalog_offers c where c.operation_type='sms' and c.deleted_at is null) then raise exception 'unsupported_order_service'; end if;
     if r.family_id is not null and not exists(select 1 from public.ussd_offer_families f
       where f.id=r.family_id and f.network=r.network and f.service=r.service) then raise exception 'invalid_association'; end if;
     if r.offer_id is not null and not exists(select 1 from public.catalog_offers c
       left join public.ussd_offer_bindings b on b.offer_id=c.id where c.id=r.offer_id and c.deleted_at is null
-      and c.network=r.network and c.service=r.service and (r.family_id is null or b.family_id=r.family_id)) then raise exception 'invalid_association'; end if;
+      and c.network=r.network and private.ussd_service(c.operation_type)=r.service and (r.family_id is null or b.family_id=r.family_id)) then raise exception 'invalid_association'; end if;
     if length(btrim(coalesce(p_sim_type,''))) not between 1 and 100
       or p_sim_type ~ '[0-9]([[:space:].()+-]*[0-9]){7,}' then raise exception 'sim_validation_required'; end if;
     if r.effective_until is not null and r.effective_until<=clock_timestamp() then raise exception 'expired_rule'; end if;
     if ('offer_code'=any(vars) or 'quantity'=any(vars)) then
       if r.offer_id is null and r.family_id is null then raise exception 'missing_offer_context'; end if;
       if not exists(select 1 from public.catalog_offers c left join public.ussd_offer_bindings b on b.offer_id=c.id
-        where c.deleted_at is null and c.network=r.network and c.service=r.service
+        where c.deleted_at is null and c.network=r.network and private.ussd_service(c.operation_type)=r.service
         and (r.offer_id is null or c.id=r.offer_id) and (r.family_id is null or b.family_id=r.family_id)) then raise exception 'missing_offer_context'; end if;
       if exists(select 1 from public.catalog_offers c left join public.ussd_offer_bindings b on b.offer_id=c.id
-        where c.deleted_at is null and c.network=r.network and c.service=r.service
+        where c.deleted_at is null and c.network=r.network and private.ussd_service(c.operation_type)=r.service
         and (r.offer_id is null or c.id=r.offer_id) and (r.family_id is null or b.family_id=r.family_id)
         and (('offer_code'=any(vars) and b.offer_code is null) or ('quantity'=any(vars) and b.quantity is null))) then raise exception 'missing_offer_context'; end if;
     end if;
@@ -350,8 +353,9 @@ begin
   v_actor:=private.ussd_actor(o);
   if o.order_status<>'inProgress' or o.assignment_state<>'accepted' or o.payment_status not in ('confirmed','credit') then
     return jsonb_build_object('status','unavailable','reason','order_not_processable'); end if;
-  select coalesce(c.offer_id,ctx.offer_id) into v_offer from public.phase4_assignment_orders a
-    left join public.customer_order_recovery_registry c on c.order_id=a.order_id
+  -- Only the staff-synchronized identity is trusted. A customer recovery record
+  -- is not a substitute for the canonical operational offer association.
+  select ctx.offer_id into v_offer from public.phase4_assignment_orders a
     left join public.ussd_order_contexts ctx on ctx.order_id=a.order_id where a.order_id=o.order_id;
   -- Stale or inconsistent offer metadata is never used for an exact/family rule.
   if v_offer is not null and not exists(select 1 from public.catalog_offers c
@@ -385,7 +389,7 @@ end $$;
 
 create function private.ussd_prepare(p_order_id text,p_rule_id uuid,p_version integer,p_context jsonb,p_request_id text)
 returns jsonb language plpgsql security definer set search_path='' as $$
-declare v_uid text := private.ussd_uid(); o public.phase4_assignment_orders; v jsonb; v_log public.ussd_execution_logs;
+declare v_uid text := private.ussd_uid(); o public.phase4_assignment_orders; v jsonb; v_log public.ussd_execution_logs; v_deadline timestamptz;
 begin
   -- Serialize activation/disable/binding edits against preparing a launch.
   perform pg_advisory_xact_lock(9261031);
@@ -403,7 +407,9 @@ begin
     offer_id,binding_version,request_id)
   values(p_order_id,p_rule_id,p_version,v_uid,private.ussd_actor(o),o.network,v->'context'->>'service',o.zone_id,
     v->'context'->>'offer_id',(v->'context'->>'binding_version')::integer,p_request_id) returning * into v_log;
-  return v || jsonb_build_object('attempt_id',v_log.id);
+  v_deadline:=least(clock_timestamp()+interval '10 seconds',coalesce((v->'rule'->>'effective_until')::timestamptz,'infinity'::timestamptz));
+  return v || jsonb_build_object('attempt_id',v_log.id,'valid_for_ms',
+    greatest(0,floor(extract(epoch from (v_deadline-clock_timestamp()))*1000)::integer));
 end $$;
 
 create function private.ussd_record_result(p_attempt_id uuid,p_status text,p_error_code text) returns void
@@ -420,16 +426,23 @@ end $$;
 
 create function private.ussd_report(p_order_id text,p_rule_id uuid,p_version integer,p_reason text,p_note text) returns uuid
 language plpgsql security definer set search_path='' as $$
-declare v_uid text := private.ussd_uid(); o public.phase4_assignment_orders; v_actor text; v_id uuid;
+declare v_uid text := private.ussd_uid(); o public.phase4_assignment_orders; v_actor text; v_id uuid; v_offer text; v_family uuid;
 begin
   select * into strict o from public.phase4_assignment_orders where order_id=p_order_id;
   v_actor:=private.ussd_actor(o);
+  select ctx.offer_id,b.family_id into v_offer,v_family from public.ussd_order_contexts ctx
+    left join public.ussd_offer_bindings b on b.offer_id=ctx.offer_id where ctx.order_id=p_order_id;
   if (select count(*) from public.ussd_reports where actor_uid=v_uid and created_at>clock_timestamp()-interval '1 minute')>=5 then raise exception 'USSD_RATE_LIMIT'; end if;
   if coalesce(p_note,'') ~ '[0-9]([[:space:].()+-]*[0-9]){7,}' or regexp_replace(coalesce(p_note,''),'[[:space:]]','','g') ~ '\*[0-9*]+#' then raise exception 'sensitive_report_content'; end if;
   if p_rule_id is not null and not exists(select 1 from public.ussd_rule_versions rv
     where rv.rule_id=p_rule_id and rv.version=p_version and rv.snapshot->>'network'=o.network
     and rv.snapshot->>'service'=private.ussd_service(o.operation_type)
-    and rv.snapshot->>'actor_scope' in (v_actor,'both')) then raise exception 'invalid_association'; end if;
+    and rv.snapshot->>'actor_scope' in (v_actor,'both') and (
+      exists(select 1 from public.ussd_execution_logs l where l.order_id=p_order_id and l.actor_uid=v_uid
+        and l.rule_id=p_rule_id and l.rule_version=p_version)
+      or ((rv.snapshot->>'offer_id' is null or rv.snapshot->>'offer_id'=v_offer)
+        and (rv.snapshot->>'family_id' is null or rv.snapshot->>'family_id'=v_family::text))
+    )) then raise exception 'invalid_association'; end if;
   insert into public.ussd_reports(order_id,rule_id,rule_version,actor_uid,actor_type,zone_id,network,reason,note)
     values(p_order_id,p_rule_id,p_version,v_uid,v_actor,o.zone_id,o.network,p_reason,coalesce(p_note,'')) returning id into v_id;
   insert into public.ussd_report_events(report_id,status,note,actor_uid) values(v_id,'open','',v_uid);
@@ -455,6 +468,11 @@ begin
   select * into strict r from public.ussd_execution_rules where id=p_rule_id;
   if not private.ussd_rule_visible(r) then raise exception 'USSD_ZONE_REQUIRED' using errcode='42501'; end if;
   return coalesce((select jsonb_agg(snapshot order by version desc) from public.ussd_rule_versions where rule_id=p_rule_id),'[]'::jsonb);
+end $$;
+create function private.ussd_binding_history(p_offer_id text) returns jsonb language plpgsql security definer set search_path='' as $$
+begin
+  perform private.ussd_admin();
+  return coalesce((select jsonb_agg(snapshot order by version desc) from public.ussd_binding_versions where offer_id=p_offer_id),'[]'::jsonb);
 end $$;
 create function private.ussd_logs(p_offset integer) returns jsonb language plpgsql security definer set search_path='' as $$
 begin
@@ -489,6 +507,7 @@ create function public.izytel_ussd_record_result(p_attempt_id uuid,p_status text
 create function public.izytel_ussd_report(p_order_id text,p_rule_id uuid,p_version integer,p_reason text,p_note text) returns uuid language sql set search_path='' as $$ select private.ussd_report(p_order_id,p_rule_id,p_version,p_reason,p_note); $$;
 create function public.izytel_ussd_review_report(p_report_id uuid,p_status text,p_note text) returns void language sql set search_path='' as $$ select private.ussd_review_report(p_report_id,p_status,p_note); $$;
 create function public.izytel_ussd_history(p_rule_id uuid) returns jsonb language sql set search_path='' as $$ select private.ussd_history(p_rule_id); $$;
+create function public.izytel_ussd_binding_history(p_offer_id text) returns jsonb language sql set search_path='' as $$ select private.ussd_binding_history(p_offer_id); $$;
 create function public.izytel_ussd_logs(p_offset integer default 0) returns jsonb language sql set search_path='' as $$ select private.ussd_logs(p_offset); $$;
 create function public.izytel_ussd_reports(p_offset integer default 0) returns jsonb language sql set search_path='' as $$ select private.ussd_reports(p_offset); $$;
 
@@ -501,7 +520,7 @@ begin
     execute format('revoke all on function %s from public,anon,authenticated',r.signature);
     if r.nspname='public' or r.proname in ('ussd_configuration','ussd_save_family','ussd_save_binding','ussd_save_rule',
       'ussd_set_status','ussd_register_order_context','ussd_resolve','ussd_prepare','ussd_record_result',
-      'ussd_report','ussd_review_report','ussd_history','ussd_logs','ussd_reports') then
+      'ussd_report','ussd_review_report','ussd_history','ussd_binding_history','ussd_logs','ussd_reports') then
       execute format('grant execute on function %s to anon,authenticated',r.signature);
     end if;
   end loop;

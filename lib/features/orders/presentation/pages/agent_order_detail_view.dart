@@ -461,6 +461,7 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
               _ReferenceProgress(order: order),
               SizedBox(height: 18 * referenceScale),
               UssdQuickProcessingCard(
+                initiallyExpanded: false,
                 key: ValueKey('ussd-${order.id}'),
                 orderId: order.id, network: order.network.name,
                 offerLabel: order.offerLabel, beneficiary: order.beneficiaryPhone,

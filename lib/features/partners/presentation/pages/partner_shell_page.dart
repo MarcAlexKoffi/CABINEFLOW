@@ -1495,6 +1495,7 @@ class _PartnerOrderDetailPageState extends State<PartnerOrderDetailPage> {
                   _PartnerReferenceProgress(order: order),
                   SizedBox(height: 18 * referenceScale),
                   UssdQuickProcessingCard(
+                    initiallyExpanded: false,
                     key: ValueKey('ussd-${order.orderId}'),
                     orderId: order.orderId, network: order.network,
                     offerLabel: order.offerLabel, beneficiary: order.beneficiaryPhone,

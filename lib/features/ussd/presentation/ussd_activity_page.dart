@@ -2,6 +2,27 @@ import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/ussd/data/supabase_ussd_repository.dart';
 import 'package:cabine_flow/features/ussd/domain/ussd_repository.dart';
 import 'package:flutter/material.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
+
+const _labels = {
+  'incorrect_code': 'Code incorrect',
+  'expired_code': 'Code expiré',
+  'wrong_offer': 'Mauvaise offre',
+  'operator_menu_changed': 'Menu opérateur modifié',
+  'other': 'Autre',
+  'open': 'Ouvert',
+  'in_progress': 'Pris en charge',
+  'escalated': 'Transmis à l’Administrateur',
+  'resolved': 'Résolu',
+  'prepared': 'Ouverture préparée, résultat non reçu',
+  'dialer_opened': 'Composeur ouvert (résultat télécom à déclarer)',
+  'failed': 'Échec de l’ouverture du composeur',
+  'agent': 'Agent',
+  'cabiniste': 'Cabiniste',
+  'dialer_unavailable': 'Composeur indisponible',
+  'interrupted': 'Préparation interrompue',
+};
+String _label(Object? value) => _labels[value] ?? value?.toString() ?? '—';
 
 class UssdActivityPage extends StatefulWidget {
   const UssdActivityPage({
@@ -32,7 +53,13 @@ class _UssdActivityPageState extends State<UssdActivityPage> {
   Future<List<Map<String, dynamic>>> _fetch() => widget.reports
       ? _repository.reports(offset: _offset)
       : _repository.logs(offset: _offset);
-  void _reload() => setState(() => _future = _fetch());
+  void _reload() {
+    final future = _fetch();
+    setState(() {
+      _future = future;
+    });
+  }
+
   Future<void> _review(Map<String, dynamic> report) async {
     final result = await showDialog<(String, String)>(
       context: context,
@@ -49,12 +76,9 @@ class _UssdActivityPageState extends State<UssdActivityPage> {
       if (mounted) _reload();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Mise à jour indisponible. Vérifiez votre périmètre et réessayez.',
-            ),
-          ),
+        IzyTelFeedback.error(
+          context,
+          'Mise à jour indisponible. Vérifiez votre périmètre et réessayez.',
         );
       }
     } finally {
@@ -123,7 +147,7 @@ class _UssdActivityPageState extends State<UssdActivityPage> {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          'Commande ${r['order_id']} · ${r['network']} · ${r['actor_type']}',
+                                          'Commande ${r['order_id']} · ${r['network']} · ${_label(r['actor_type'])}',
                                           style: Theme.of(
                                             context,
                                           ).textTheme.titleSmall,
@@ -136,7 +160,7 @@ class _UssdActivityPageState extends State<UssdActivityPage> {
                                         ),
                                         if (widget.reports) ...[
                                           Text(
-                                            'Motif : ${r['reason']} · Statut : ${r['status']}',
+                                            'Motif : ${_label(r['reason'])} · Statut : ${_label(r['status'])}',
                                           ),
                                           if ((r['note'] as String? ?? '')
                                               .isNotEmpty)
@@ -150,7 +174,7 @@ class _UssdActivityPageState extends State<UssdActivityPage> {
                                           for (final e
                                               in (r['events'] as List? ?? []))
                                             Text(
-                                              '${e['occurred_at']} · ${e['status']} · ${e['note']}',
+                                              '${e['occurred_at']} · ${_label(e['status'])} · ${e['note']}',
                                             ),
                                           TextButton(
                                             onPressed: _busy
@@ -162,7 +186,7 @@ class _UssdActivityPageState extends State<UssdActivityPage> {
                                           ),
                                         ] else ...[
                                           Text(
-                                            'Ouverture : ${r['launch_status']} · ${r['error_code'] ?? 'aucune erreur déclarée'}',
+                                            'Ouverture : ${_label(r['launch_status'])} · ${r['error_code'] == null ? 'aucune erreur déclarée' : _label(r['error_code'])}',
                                           ),
                                           Text(
                                             'Version association offre : ${r['binding_version'] ?? '—'}',

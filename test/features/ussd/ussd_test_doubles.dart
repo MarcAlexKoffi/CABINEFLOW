@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cabine_flow/features/ussd/domain/ussd_engine.dart';
 import 'package:cabine_flow/features/ussd/domain/ussd_repository.dart';
 import 'package:cabine_flow/features/ussd/platform/ussd_dialer.dart';
@@ -21,6 +22,7 @@ UssdResolution syntheticResolution({
   bool mismatch = false,
   int version = 2,
   String? attemptId,
+  int validForMs = 10000,
   String beneficiary = '0101010101',
 }) => UssdResolution(
   status: 'available',
@@ -29,6 +31,7 @@ UssdResolution syntheticResolution({
   code: '*999*$beneficiary#',
   mismatch: mismatch,
   attemptId: attemptId,
+  validForMs: validForMs,
   context: {
     'network': 'moov',
     'service': 'internetSubscription',
@@ -46,6 +49,7 @@ class UssdTestRepository implements UssdRepository {
   int? reportedVersion;
   Map<String, dynamic>? saved;
   int statusChanges = 0;
+  int leaseMs = 10000;
   @override
   Future<UssdResolution> resolve(String orderId) async {
     resolutions++;
@@ -66,6 +70,7 @@ class UssdTestRepository implements UssdRepository {
             mismatch: response.mismatch,
             version: response.rule!.version,
             attemptId: 'synthetic-attempt',
+            validForMs: leaseMs,
           );
   }
 
@@ -139,6 +144,7 @@ class UssdTestRepository implements UssdRepository {
 
 class UssdTestDialer implements UssdDialer {
   int opens = 0;
+  Completer<void>? pending;
   bool fail = false;
   @override
   bool supported = true;
@@ -146,5 +152,6 @@ class UssdTestDialer implements UssdDialer {
   Future<void> open(String code) async {
     opens++;
     if (fail) throw StateError('synthetic no dialer');
+    await pending?.future;
   }
 }

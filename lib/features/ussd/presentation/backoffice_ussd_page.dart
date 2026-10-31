@@ -5,14 +5,15 @@ import 'package:cabine_flow/features/ussd/domain/ussd_engine.dart';
 import 'package:cabine_flow/features/ussd/domain/ussd_repository.dart';
 import 'package:cabine_flow/features/ussd/presentation/ussd_activity_page.dart';
 import 'package:flutter/material.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 
 const ussdNetworks = {'orange': 'Orange', 'mtn': 'MTN', 'moov': 'Moov Africa'};
 const ussdServices = {
   'internetSubscription': 'Internet',
-  'calls': 'Appels / mix du catalogue',
+  'callBundle': 'Appels',
   'unitTransfer': 'Recharge / transfert d’unités',
   'sms': 'SMS',
-  'mixedBundle': 'Mix (service dédié)',
+  'mixedBundle': 'Offres mixtes',
   'other': 'Autre',
 };
 const ussdScopes = {
@@ -59,7 +60,13 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
     super.dispose();
   }
 
-  void _reload() => setState(() => _future = _repository.configuration());
+  void _reload() {
+    final future = _repository.configuration();
+    setState(() {
+      _future = future;
+    });
+  }
+
   List<Map<String, dynamic>> _rows(Object? value) => (value as List? ?? [])
       .map((e) => Map<String, dynamic>.from(e as Map))
       .toList();
@@ -77,9 +84,11 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
     }
   }
 
-  void _notice(String text) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  void _notice(String text) => IzyTelFeedback.error(context, text);
   String _error(Object error) {
+    if (error is TimeoutException) {
+      return 'Réponse non reçue. Actualisez avant de réessayer pour éviter un doublon.';
+    }
     final text = error.toString();
     for (final code in [
       'ambiguous_rule',
@@ -101,7 +110,10 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
     if (text.contains('sim_validation_required')) {
       return 'Une validation humaine sur la SIM concernée est obligatoire.';
     }
-    return 'Action indisponible. Vérifiez les autorisations, la connexion et l’installation du module serveur.';
+    if (text.contains('unsupported_order_service')) {
+      return 'Ce service n’est pas encore proposé aux commandes. Conservez la règle en brouillon.';
+    }
+    return 'Action indisponible. Vérifiez votre connexion et vos droits d’accès, puis réessayez.';
   }
 
   Future<void> _edit(Map<String, dynamic> data, [UssdRule? rule]) async {
@@ -218,6 +230,7 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
       builder: (_) => _BindingEditor(
         offers: _rows(data['offers']),
         families: _rows(data['families']),
+        onHistory: _bindingHistory,
       ),
     );
     if (value != null && mounted) {
@@ -237,6 +250,54 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
     ),
   );
 
+  void _bindingHistory(String offerId) {
+    final future = _repository.bindingHistory(offerId);
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Historique de l’association offre'),
+        content: SizedBox(
+          width: 600,
+          height: 400,
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: future,
+            builder: (_, snapshot) {
+              if (snapshot.hasError) {
+                return const Text('Historique indisponible.');
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.data!.isEmpty) {
+                return const Text('Aucune association enregistrée.');
+              }
+              return ListView(
+                children: snapshot.data!
+                    .map(
+                      (r) => ListTile(
+                        title: Text(
+                          'V${r['version']} · code offre : ${r['offer_code'] ?? 'absent'} · quantité : ${r['quantity'] ?? 'absente'}',
+                        ),
+                        subtitle: Text(
+                          'Famille : ${r['family_id'] ?? 'aucune'}\n${r['updated_at']} · ${r['updated_by']}',
+                        ),
+                      ),
+                    )
+                    .toList(),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>>(
     future: _future,
@@ -248,7 +309,7 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
             children: [
               const Text('Raccourcis USSD indisponibles.'),
               const Text(
-                'Le module serveur doit être installé et la session autorisée.',
+                'Vérifiez votre connexion et vos droits d’accès, puis réessayez.',
               ),
               OutlinedButton(
                 onPressed: _reload,
@@ -475,11 +536,12 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
                                                   : Icons.play_circle_outline,
                                             ),
                                           ),
-                                        if (_admin) IconButton(
-                                          tooltip: 'Historique',
-                                          onPressed: () => _history(r),
-                                          icon: const Icon(Icons.history),
-                                        ),
+                                        if (_admin)
+                                          IconButton(
+                                            tooltip: 'Historique',
+                                            onPressed: () => _history(r),
+                                            icon: const Icon(Icons.history),
+                                          ),
                                       ],
                                     ),
                                   ),
@@ -956,8 +1018,13 @@ class _FamilyEditorState extends State<_FamilyEditor> {
 }
 
 class _BindingEditor extends StatefulWidget {
-  const _BindingEditor({required this.offers, required this.families});
+  const _BindingEditor({
+    required this.offers,
+    required this.families,
+    required this.onHistory,
+  });
   final List<Map<String, dynamic>> offers, families;
+  final ValueChanged<String> onHistory;
   @override
   State<_BindingEditor> createState() => _BindingEditorState();
 }
@@ -1005,6 +1072,12 @@ class _BindingEditorState extends State<_BindingEditor> {
               children: [
                 const Text(
                   'Les associations utilisent les identifiants du catalogue. Désactivez les règles concernées avant toute modification. Le code et la quantité doivent être vérifiés avant réactivation.',
+                ),
+                TextButton(
+                  onPressed: _offer == null
+                      ? null
+                      : () => widget.onHistory(_offer!),
+                  child: const Text('Historique de cette association'),
                 ),
                 DropdownButtonFormField<String>(
                   initialValue: _offer,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cabine_flow/features/ussd/domain/ussd_engine.dart';
 import 'package:cabine_flow/features/ussd/domain/ussd_repository.dart';
 import 'package:cabine_flow/features/ussd/presentation/ussd_quick_processing_card.dart';
@@ -12,6 +13,7 @@ void main() {
     UssdTestRepository repo,
     UssdTestDialer dialer, {
     bool processable = true,
+    bool initiallyExpanded = true,
     double width = 400,
   }) async {
     tester.view.physicalSize = Size(width, 950);
@@ -30,6 +32,7 @@ void main() {
                 beneficiary: '0101010101',
                 amount: 1000,
                 processable: processable,
+                initiallyExpanded: initiallyExpanded,
                 repository: repo,
                 dialer: dialer,
               ),
@@ -52,6 +55,27 @@ void main() {
   }
 
   testWidgets(
+    'collapsed production section loads only when opened and refreshes on reopening',
+    (tester) async {
+      final repo = UssdTestRepository(), dialer = UssdTestDialer();
+      await mount(tester, repo, dialer, initiallyExpanded: false);
+      expect(repo.resolutions, 0);
+      expect(find.text('Lancer l’opération'), findsNothing);
+      await tester.tap(find.text('Traitement rapide'));
+      await tester.pumpAndSettle();
+      expect(repo.resolutions, 1);
+      expect(find.text('Lancer l’opération'), findsOneWidget);
+      await tester.tap(find.text('Traitement rapide'));
+      await tester.pumpAndSettle();
+      repo.response = syntheticResolution(version: 3);
+      await tester.tap(find.text('Traitement rapide'));
+      await tester.pumpAndSettle();
+      expect(repo.resolutions, 2);
+      expect(find.text('Version 3'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'never opens before explicit confirmation; returning keeps business actions',
     (tester) async {
       final repo = UssdTestRepository(), dialer = UssdTestDialer();
@@ -68,6 +92,42 @@ void main() {
       expect(repo.lastStatus, 'dialer_opened');
       expect(find.text('Terminer avec preuve'), findsOneWidget);
       expect(find.textContaining('Déclarez le résultat réel'), findsOneWidget);
+    },
+  );
+  testWidgets('rapid repeated taps cannot open two dialers', (tester) async {
+    final repo = UssdTestRepository(),
+        dialer = UssdTestDialer()..pending = Completer<void>();
+    await mount(tester, repo, dialer);
+    await launch(tester);
+    await tester.tap(find.text('Confirmer et ouvrir'));
+    await tester.pump();
+    await tester.pump();
+    expect(dialer.opens, 1);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Lancer l’opération'),
+          )
+          .onPressed,
+      isNull,
+    );
+    dialer.pending!.complete();
+    await tester.pumpAndSettle();
+    expect(repo.preparations, 1);
+    expect(repo.recordings, 1);
+  });
+  testWidgets(
+    'expired server preparation lease refuses dialer and records interruption',
+    (tester) async {
+      final repo = UssdTestRepository()..leaseMs = 0, dialer = UssdTestDialer();
+      await mount(tester, repo, dialer);
+      await launch(tester);
+      await tester.tap(find.text('Confirmer et ouvrir'));
+      await tester.pumpAndSettle();
+      expect(dialer.opens, 0);
+      expect(repo.lastStatus, 'failed');
+      expect(repo.lastReason, 'interrupted');
+      expect(find.textContaining('traitement manuel'), findsOneWidget);
     },
   );
   testWidgets('cancel and mismatch warning preserve order network', (
@@ -139,8 +199,9 @@ void main() {
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
       (call) async {
-        if (call.method == 'Clipboard.setData')
+        if (call.method == 'Clipboard.setData') {
           copied = (call.arguments as Map)['text'] as String;
+        }
         return null;
       },
     );
@@ -186,11 +247,11 @@ void main() {
       status: 'unavailable',
       reason: 'no_rule',
     );
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
     expect(repo.resolutions, 2);

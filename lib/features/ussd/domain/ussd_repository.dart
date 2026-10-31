@@ -9,12 +9,14 @@ class UssdResolution {
     this.context = const {},
     this.mismatch = false,
     this.attemptId,
+    this.validForMs,
   });
   final String status, reason;
   final UssdRule? rule;
   final String? code, attemptId;
   final Map<String, dynamic> context;
   final bool mismatch;
+  final int? validForMs;
   bool get available => status == 'available' && rule != null && code != null;
   factory UssdResolution.fromJson(Map<String, dynamic> row) => UssdResolution(
     status: row['status'] as String? ?? 'unavailable',
@@ -26,6 +28,7 @@ class UssdResolution {
     context: Map<String, dynamic>.from(row['context'] as Map? ?? const {}),
     mismatch: row['network_mismatch'] == true,
     attemptId: row['attempt_id'] as String?,
+    validForMs: (row['valid_for_ms'] as num?)?.toInt(),
   );
 }
 
@@ -58,6 +61,7 @@ abstract class UssdRepository {
     int? quantity,
   );
   Future<List<Map<String, dynamic>>> history(String ruleId);
+  Future<List<Map<String, dynamic>>> bindingHistory(String offerId);
   Future<List<Map<String, dynamic>>> logs({int offset = 0});
   Future<List<Map<String, dynamic>>> reports({int offset = 0});
   Future<void> reviewReport(String id, String status, String note);
