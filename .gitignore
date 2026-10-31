@@ -67,3 +67,4 @@ serviceAccount*.json
 node_modules/
 scratch/**/node_modules/
 *.exe
+scratch/**/node_modules/
