@@ -64,3 +64,6 @@ node_modules/
 *.pfx
 service-account*.json
 serviceAccount*.json
+node_modules/
+scratch/**/node_modules/
+*.exe
