@@ -66,6 +66,7 @@ class QueueOrder {
     required this.status,
     this.source = OrderSource.operatorApp,
     this.customerAuthUid,
+    this.offerId,
     this.zoneId,
     this.paymentStatus = OrderPaymentStatus.pending,
     this.originalWhatsappMessage,
@@ -109,6 +110,8 @@ class QueueOrder {
 
   final OrderSource source;
   final String? customerAuthUid;
+  /// Stable catalogue key. Never reconstructed from a commercial label.
+  final String? offerId;
   final String? zoneId;
 
   final String clientName;
@@ -232,6 +235,7 @@ class QueueOrder {
       reference: reference,
       source: source,
       customerAuthUid: customerAuthUid,
+      offerId: offerId,
       zoneId: zoneId ?? this.zoneId,
       clientName: clientName,
       clientWhatsappPhone: clientWhatsappPhone,

@@ -18,7 +18,7 @@ void main() {
 
       for (final String source in <String>[customer, staff]) {
         expect(source, contains('_changeFeedStream'));
-        expect(source, contains('.asBroadcastStream()'));
+        expect(source, contains('.asBroadcastStream('));
         expect(source, contains('await for'));
       }
       expect(

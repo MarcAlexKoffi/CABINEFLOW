@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/resilience/backend_read_stream.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
@@ -13,19 +14,28 @@ class SupabaseBootstrap {
       'sb_publishable_6i0SKdOpBIAdTJj-TdepsA_LyB9dGeX';
 
   static bool _initialized = false;
+  static Future<bool>? _initialization;
   static StreamSubscription<User?>? _firebaseTokenSubscription;
 
   static bool get isInitialized => _initialized;
 
-  static Future<bool> initialize() async {
-    if (_initialized) return true;
+  static Future<bool> initialize() {
+    if (_initialized) return Future<bool>.value(true);
+    return _initialization ??= _initialize().whenComplete(() {
+      _initialization = null;
+    });
+  }
+
+  static Future<bool> _initialize() async {
     try {
       await Supabase.initialize(
         url: url,
         publishableKey: publishableKey,
         debug: kDebugMode,
         accessToken: () async {
-          return FirebaseAuth.instance.currentUser?.getIdToken();
+          return FirebaseAuth.instance.currentUser?.getIdToken().timeout(
+            BackendReadStream.readTimeout,
+          );
         },
       );
       _initialized = true;
@@ -64,8 +74,11 @@ class SupabaseBootstrap {
   static Future<void> _syncRealtimeAuth(User? user) async {
     if (!_initialized) return;
     try {
-      final String? token = await user?.getIdToken();
-      await Supabase.instance.client.realtime.setAuth(token);
+      final String? token = await user?.getIdToken().timeout(
+        BackendReadStream.readTimeout,
+      );
+      final realtime = Supabase.instance.client.realtime;
+      await realtime.setAuth(token).timeout(BackendReadStream.readTimeout);
     } catch (error, stackTrace) {
       // Une panne Realtime ne doit jamais empêcher Firebase Auth, la Data API
       // Supabase ou le reste d'IzyTel de fonctionner.

@@ -13,7 +13,8 @@ void main() {
       expect(source, contains("from(tableName).select()"));
       expect(source, contains("stream(primaryKey: const <String>['id'])"));
       expect(source, contains('SupabaseSupportRequestRepository.Realtime'));
-      expect(source, contains('yield await _fetch'));
+      expect(source, contains('BackendReadStream.watch'));
+      expect(source, contains('fetch: () => _fetch('));
     });
 
     test('Remboursements charge d abord via Data API et ne propage pas une panne Realtime', () {

@@ -21,14 +21,15 @@ void main() {
       'lib/features/messaging/data/repositories/supabase_customer_messaging_repository.dart',
     );
 
+    expect(repository, contains('BackendReadStream.watch'));
     expect(repository, contains('CustomerMessaging.messages-fallback'));
     expect(repository, contains('Duration(seconds: 2)'));
-    expect(repository, contains('yield await _fetchMessages(id)'));
+    expect(repository, contains('fetch: () => _fetchMessages(id)'));
     expect(repository, contains('CustomerMessaging.conversations-fallback'));
     expect(repository, contains('Duration(seconds: 5)'));
     expect(
       repository,
-      contains('yield await _fetchConversations(customerUid: customerUid)'),
+      contains('return _fetchConversations(customerUid: uid)'),
     );
   });
 

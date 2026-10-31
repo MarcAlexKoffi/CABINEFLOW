@@ -10,7 +10,7 @@ void main() {
       ).readAsStringSync();
 
       expect(
-        RegExp(r'return PopScope\(').allMatches(shell).length,
+        RegExp(r'IzyTelBackNavigationBoundary\(').allMatches(shell).length,
         greaterThanOrEqualTo(2),
       );
       expect(shell, contains('canPop: false'));

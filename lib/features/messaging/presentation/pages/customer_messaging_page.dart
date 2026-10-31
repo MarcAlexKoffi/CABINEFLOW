@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/resilience/backend_read_stream.dart';
 import 'package:cabine_flow/core/theme/customer_app_colors.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_context.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_order_receipt.dart';
@@ -155,6 +156,10 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
 
   void _subscribeConversations() {
     _conversationSubscription?.cancel();
+    setState(() {
+      _isLoadingConversations = true;
+      _conversationError = null;
+    });
     _conversationSubscription = widget.repository
         .watchCustomerConversations()
         .listen(
@@ -184,12 +189,12 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
             }
             _notifyMobileInnerRoute();
           },
-          onError: (Object _, StackTrace _) {
+          onError: (Object error, StackTrace _) {
             if (!mounted) return;
             setState(() {
               _isLoadingConversations = false;
-              _conversationError =
-                  'La messagerie est momentanément indisponible. Réessayez.';
+              _conversationError = BackendReadStream.readErrorMessage(error,
+                  fallback: 'La messagerie est momentanément indisponible. Réessayez.');
             });
           },
         );
@@ -282,7 +287,7 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
         .watchMessages(conversationId: conversation.id)
         .listen(
           (List<CustomerMessage> messages) {
-            if (!mounted) return;
+            if (!mounted || _selectedConversation?.id != conversation.id) return;
             setState(() {
               _messages = messages;
               _isLoadingMessages = false;
@@ -291,12 +296,12 @@ class _CustomerMessagingPageState extends State<CustomerMessagingPage> {
             _notifyMobileInnerRoute();
             _scrollMessagesToBottom();
           },
-          onError: (Object _, StackTrace _) {
-            if (!mounted) return;
+          onError: (Object error, StackTrace _) {
+            if (!mounted || _selectedConversation?.id != conversation.id) return;
             setState(() {
               _isLoadingMessages = false;
-              _messageError =
-                  'Impossible de charger les messages pour le moment.';
+              _messageError = BackendReadStream.readErrorMessage(error,
+                  fallback: 'Impossible de charger les messages pour le moment.');
             });
             _notifyMobileInnerRoute();
           },

@@ -43,3 +43,24 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local validation, generated releases and tooling
+/scratch/
+/dist/
+/.firebase/
+/.izytel_backups/
+/supabase/.temp/
+node_modules/
+
+# Local secrets and signing material (examples may be committed)
+.env
+.env.*
+!.env.example
+!.env.*.example
+/android/key.properties
+*.jks
+*.keystore
+*.p12
+*.pfx
+service-account*.json
+serviceAccount*.json

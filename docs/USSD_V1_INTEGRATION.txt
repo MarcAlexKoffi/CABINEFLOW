@@ -1,0 +1,295 @@
+IZYTEL — RACCOURCIS USSD DYNAMIQUES V1
+Livraison locale du 31 octobre 2026
+
+ÉTAT ET PÉRIMÈTRE
+
+Le module est implémenté localement. Aucun code opérateur réel n'est fourni,
+aucune migration n'a été appliquée à la production et aucun déploiement n'a été
+effectué par cette intervention. Les exemples *999... présents dans les tests
+sont exclusivement fictifs. Ils ne doivent jamais devenir des règles actives.
+
+La validation opérationnelle exige encore une base de recette autorisée et des
+téléphones/SIM cabine réels. Les résultats exécutés figurent dans
+scratch/ussd_20261031/VALIDATION.json et dans les journaux associés. Les tests
+automatisés ne constituent pas une mesure de couverture exhaustive ni un test
+du réseau télécom.
+
+Résultats exécutés sur le code livré :
+  flutter analyze --no-pub : aucune anomalie.
+  Suite Flutter complète : 979 tests réussis, aucun échec.
+  Nouveaux tests Flutter USSD : 84 tests réussis.
+  PostgreSQL isolé / PGlite : 69 scénarios réussis, aucun échec.
+  Android debug, Web Client et Back-office Web : compilations réussies.
+  Tests avec JWT réels sur serveur de recette : non exécutés.
+  Téléphones/SIM réels, double SIM et reprise après destruction : non exécutés.
+
+La table USSD était encore absente sur le serveur lors du contrôle final en
+lecture seule. Le droit USAGE du schéma private était déjà accordé aux rôles
+SQL clients : le grant idempotent de la migration ne l'élargit pas sur cet état.
+
+ARCHITECTURE ET SOURCES
+
+lib/features/ussd/domain/ussd_engine.dart
+  Normalisation stricte, préfixes, grammaire, variables numériques autorisées,
+  sélection déterministe pour les prévisualisations et les tests.
+lib/features/ussd/domain/ussd_repository.dart
+  Contrats partagés et résultat de résolution/préparation.
+lib/features/ussd/data/supabase_ussd_repository.dart
+  RPC canoniques, délai maximum de 12 secondes, aucune répétition automatique
+  d'écriture, aucun code de secours local ou opérateur intégré.
+lib/features/ussd/platform/ussd_dialer.dart
+  Canal Android injecté et testable, validation de syntaxe avant passage natif.
+android/app/src/main/kotlin/com/izytel/app/MainActivity.kt
+  ACTION_DIAL + Uri.fromParts("tel", code, null). Le caractère # est encodé par
+  Android. Aucune permission CALL_PHONE ni sélection automatique de SIM ajoutée.
+lib/features/ussd/presentation/ussd_quick_processing_card.dart
+  Section mobile partagée, repliée par défaut dans les vrais détails. Lecture
+  seulement à l'ouverture, actualisation à la réouverture et au retour de l'app.
+  Confirmation humaine, copie fraîche, signalement et secours manuel.
+lib/features/ussd/presentation/backoffice_ussd_page.dart
+  Catalogue > Raccourcis USSD : filtres, brouillons, modifications, test fictif,
+  validation SIM, activation/désactivation, familles, associations et historiques.
+lib/features/ussd/presentation/ussd_activity_page.dart
+  Journaux et supervision des anomalies Agent/Cabiniste, pagination par 50.
+
+Points de raccordement conservant les cycles existants :
+  lib/features/orders/presentation/pages/agent_order_detail_view.dart
+  lib/features/partners/presentation/pages/partner_shell_page.dart
+  lib/backoffice/presentation/pages/backoffice_shell_page.dart
+  lib/backoffice/presentation/pages/team/backoffice_agent_issues_page.dart
+
+app_routes.dart n'a pas besoin de nouvelle route nommée : les détails restent
+dans leurs Navigator existants et le Back-office utilise BackofficeDestination.
+Les protections de retour Android issues de la stabilisation sont conservées.
+
+DONNÉES RÉELLES ET ÉCARTS TRAITÉS
+
+L'audit du schéma existant a confirmé l'absence d'offer_id dans la table
+opérationnelle, et l'absence de famille/code opérateur/quantité dans le catalogue.
+L'offre stable déjà écrite dans Firestore est maintenant conservée par :
+  lib/features/orders/domain/models/queue_order.dart
+  lib/features/orders/data/mappers/firestore_order_mapper.dart
+  lib/features/orders/data/repositories/firestore_orders_repository.dart
+  lib/features/orders/data/repositories/fake_orders_repository.dart
+
+supabase_phase4_assignment_repository.dart conserve la signature de
+phase3_sync_order. Après réussite, une RPC complémentaire idempotente enregistre
+le contexte offre si un identifiant réel est disponible. Son échec ne fait pas
+échouer la synchronisation métier (délai de 3 secondes). Une ancienne commande
+sans contexte vérifié n'est jamais rapprochée d'une offre par son libellé.
+
+L'identité d'offre utilisée par USSD provient uniquement du contexte synchronisé
+par le personnel autorisé. Le registre de récupération client ne remplace pas
+cette association opérationnelle. Aucun backfill de commandes n'est lancé.
+
+Les identifiants réseau sont orange, mtn et moov. Les services USSD s'appuient
+sur les identifiants d'opération existants : internetSubscription, unitTransfer,
+callBundle, mixedBundle, other. Appels et mix restent distincts même lorsque le
+catalogue commercial les regroupe dans service=calls. Aucune logique financière
+ou de création de commande n'est changée.
+
+SMS peut être préparé en brouillon mais ne peut pas être activé tant que le
+modèle de commandes/catalogue ne fournit pas réellement ce service. Le présent
+module n'invente pas un nouveau cycle métier SMS. Cette dépendance est signalée
+explicitement à l'Administrateur.
+
+Les familles possèdent un identifiant stable. Les associations d'offre portent
+un code opérateur numérique et une quantité autorisée par offre, facultatifs,
+sans extraction depuis les libellés. Le montant est celui de la commande ; il
+ne doit pas être confondu avec une marge, une commission ou un tarif opérateur.
+L'Administrateur doit vérifier sa pertinence pour chaque template avant activation.
+
+SCHÉMA SQL PRÉPARÉ, NON APPLIQUÉ
+
+supabase/migrations/20261031005603_ussd_dynamic_shortcuts_v1.sql
+  Créé avec le CLI Supabase, puis rempli et testé uniquement dans PostgreSQL
+  en mémoire (PGlite) avec un schéma minimal et des identités fictives.
+
+Ne pas lancer un db push global : le dépôt possède des migrations historiques
+dont la présence dans le serveur doit être réconciliée avant toute application.
+Le fichier supabase/tests/ussd_preflight.sql contient uniquement des SELECT de
+métadonnées pour vérifier les dépendances, sans lire de commandes réelles.
+
+Neuf nouvelles tables, toutes RLS et RPC-only, sans droit client de lecture,
+écriture directe, suppression ou TRUNCATE :
+  ussd_offer_families, ussd_offer_bindings, ussd_binding_versions,
+  ussd_order_contexts, ussd_execution_rules, ussd_rule_versions,
+  ussd_execution_logs, ussd_reports, ussd_report_events.
+
+Aucune table métier existante n'est modifiée par la migration. Le pont client
+complémentaire ajoute uniquement une ligne de contexte USSD. Aucune commande,
+preuve, capacité, écriture de paiement ou commission n'est créée/modifiée par les
+RPC de lancement, copie, audit ou signalement.
+
+AUTORISATIONS
+
+La session Firebase existante est conservée. Les fonctions utilisent le helper
+de JWT Firebase du projet et les registres/profils serveur actifs. Aucun rôle ou
+UID d'acteur fourni par Flutter ne sert d'autorisation.
+
+Administrateur : écrit les configurations et consulte leurs historiques.
+Manager/supervisor actif : consulte les règles utiles à ses commandes et les
+journaux/signalements de ses zones actives ; il traite ou transmet les anomalies,
+sans modifier les règles ni les associations. Les historiques de configuration
+sont réservés à l'Administrateur.
+Les codes/quantités d'association d'offres hors de son périmètre ne sont pas
+retournés au Manager par la RPC de configuration.
+Agent : profil opérationnel actif, réseau autorisé et commande exclusivement
+attribuée à son UID.
+Cabiniste : compte actif, réseau autorisé et commande exclusivement attribuée à
+son compte partenaire relié à son UID Firebase.
+Client, session absente, compte inactif, attribution ambiguë ou autre commande :
+refus. Un ancien profil Agent encore présent ne permet pas à un Manager/Admin
+de lancer une opération.
+
+Les implémentations privilégiées sont dans private avec search_path vide ; les
+wrappers publics restent SECURITY INVOKER. Les helpers internes ne sont pas
+exécutables par les clients. Les seules entrées accordées vérifient leur rôle
+et leur portée. Les droits sont prévus pour anon ET authenticated car certaines
+sessions Firebase existantes ne portent pas de claim de rôle SQL personnalisé.
+Cette compatibilité n'accorde aucun accès sans JWT projet valide.
+
+SÉLECTION, VALIDATION ET HISTORIQUE
+
+Offre exacte > famille > réseau/service > aucun raccourci. Dans un niveau, la
+plus grande priorité gagne. Une égalité de niveau/priorité est refusée. Les
+dates sont interprétées en UTC : début inclus, fin exclue. Les portées Agent,
+Cabiniste et les deux sont filtrées par le serveur.
+
+Les activations et changements de configuration sont sérialisés par verrou
+transactionnel ; les versions attendues évitent d'écraser une édition concurrente.
+Toute édition remet en brouillon et produit un instantané immuable. Les changements
+de statut sont également versionnés. L'association offre possède son propre
+historique ; elle ne peut pas être changée silencieusement pendant qu'une règle
+active exacte ou familiale en dépend. Désactiver, modifier, vérifier sur SIM,
+puis réactiver.
+
+Les variables sont limitées à msisdn_local, amount, offer_code, quantity.
+Seuls espaces ASCII et tirets sont retirés des numéros. Les formats national,
++225, 00225 et 225 sont acceptés. Les trois préfixes mobiles connus sont 01,
+05 et 07 ; les autres données provoquent un secours manuel. Les codes statiques
+ne nécessitent ni bénéficiaire ni autre variable qu'ils n'utilisent pas.
+La grammaire n'interprète aucun code, URI ou champ exécutable. Les valeurs et la
+taille finale sont bornées. Une donnée d'offre manquante empêche l'activation
+d'un template qui la requiert pour cette offre/famille.
+
+L'activation exige une confirmation humaine et le type de SIM testé. L'auteur,
+la date et la version sont enregistrés. Le logiciel ne prétend pas avoir vérifié
+une SIM : la responsabilité de cette attestation demeure humaine.
+
+PARCOURS MOBILE ET INVARIANTS
+
+Le lancement est proposé après acceptation/démarrage, pour une commande financée
+et réellement en cours. La mise en attente et les autres étapes conservent leurs
+actions existantes ; l'utilisateur doit reprendre le traitement pour utiliser USSD.
+
+Ouvrir la section -> résolution serveur ciblée -> vérifier les données -> nouvelle
+résolution avant confirmation -> confirmation humaine -> préparation serveur
+avec version et contexte attendus -> ticket court -> ACTION_DIAL -> audit séparé.
+
+Le ticket dure au maximum dix secondes et ne dépasse pas la fin de validité de
+la règle. Le client consomme cette durée en incluant le temps réseau mesuré par
+Stopwatch, sans dépendre de l'horloge murale du téléphone. Une préparation trop
+ancienne est refusée. Une révocation après validation serveur et avant l'ouverture
+native reste une très courte fenêtre distribuée ; le ticket borne cette fenêtre
+mais ne constitue pas une garantie d'annulation d'un code déjà transmis au composeur.
+
+Le réseau confirmé de la commande reste la référence. Un préfixe divergent
+déclenche un avertissement de portabilité et une confirmation explicite. Aucune
+modification silencieuse du réseau ni sélection automatique de SIM n'est réalisée.
+L'utilisateur choisit la bonne SIM et confirme lui-même l'appel.
+
+Ouvrir le composeur, revenir dans l'application ou copier le code ne déclare
+jamais une réussite/échec télécom. Les boutons métier et preuves restent les
+seuls moyens existants de déclarer le résultat réel.
+
+Un échec réseau, de permission, de syntaxe, d'association, de validité ou de
+composeur efface le raccourci utilisable et laisse le traitement manuel. Les
+règles ne sont pas persistées pour un usage hors ligne. La copie possède son
+propre contrôle frais après confirmation. Les doubles clics sont bloqués ; une
+requête de préparation répétée avec la même clé n'est pas rejouée.
+
+AUDIT ET SIGNALEMENTS
+
+Les journaux référencent commande, règle/version, association/version, acteur,
+rôle, réseau, service, zone, préparation et résultat d'ouverture. Ils ne stockent
+ni code USSD complet, ni bénéficiaire, ni token. Un résultat d'ouverture vient du
+client et n'est jamais traité comme une preuve télécom. Une ligne préparée sans
+résultat permet de voir une interruption ou un audit non transmis.
+
+Les signalements Agent et Cabiniste sont centralisés dans le volet USSD relié
+au centre de signalements existant et au Catalogue. L'ancien schéma agent_issues
+ne possédant ni acteur Cabiniste ni liaison commande/règle/version, un complément
+USSD typé est ajouté ; aucun nouveau support client parallèle n'est créé.
+La supervision territoriale et l'historique des changements de statut sont
+vérifiés côté serveur. Les notes refusent les numéros longs, y compris espacés,
+et les codes complets. Les demandes ne déclenchent aucune mutation de commande.
+
+PRÉCAUTIONS POUR ORION / AURA / ATLAS / SENTINEL
+
+ORION : réconcilier l'état du serveur et choisir la base de recette avant toute
+application SQL ; ne pas rejouer en bloc les anciennes migrations. Planifier les
+services réellement disponibles et la saisie des métadonnées vérifiées.
+AURA : contrôler la section repliable aux largeurs compactes, la confirmation
+de portabilité/SIM, la lisibilité du code et le maintien des actions métier.
+ATLAS : garder le domaine pur, le dialer injecté et les RPC indépendantes des
+transactions métier. Ne pas remplacer ACTION_DIAL par un appel direct. Conserver
+le contexte de navigation et les protections de retour stabilisées.
+SENTINEL : valider le SQL sur une base de recette issue du schéma réel, avec de
+vrais JWT Firebase de chaque rôle, des comptes désactivés et des commandes de
+territoires différents. Les fixtures locales ne testent pas la vérification
+cryptographique de JWT ni le fonctionnement PostgREST d'une instance déployée.
+
+RECETTE TERRAIN À EXÉCUTER AVANT ACTIVATION
+
+1. Android réel avec une SIM puis deux SIM, Orange/MTN/Moov : conservation du #,
+   application Téléphone par défaut, choix de SIM et confirmation manuelle.
+2. Retour applicatif, bouton Retour, geste prédictif, interruptions/arrière-plan,
+   écran verrouillé et reprise après destruction du processus Android.
+3. Fin de validité, désactivation, édition concurrente, changement d'attribution
+   ou compte désactivé pendant une confirmation : aucun nouveau lancement périmé.
+4. Absence de réseau/composeur, réponse lente, audit non transmis : maintien des
+   actions métier et de la commande, aucun faux succès télécom.
+5. Règles fictives puis codes réellement validés : offre exacte, famille,
+   générique, conflit de priorité et paramètres absents.
+6. Terminaison avec preuve, échec avec analyse Manager, attente/reprise,
+   capacité/commission/remboursement et notifications client : non-régression.
+7. Signalements des deux rôles : Manager de la bonne zone, refus autre zone,
+   transmission Admin, historique et absence de données personnelles inutiles.
+
+Déploiement futur proposé : migration revue sur recette, aucun code actif au
+départ, APK pilote distribué aux seuls Agents retenus, quelques offres Moov
+validées sur SIM, observation des retours puis extension contrôlée. Cabinistes,
+Orange et MTN suivent une recette équivalente. Aucune de ces étapes de production
+n'est réalisée dans cette intervention.
+
+REPRODUCTION DES VÉRIFICATIONS LOCALES
+
+Flutter : flutter analyze --no-pub
+          flutter test --no-pub --reporter expanded
+SQL : npm install --prefix scratch/ussd_20261031/tools --no-save @electric-sql/pglite@0.5.13
+      node test/ussd_sql/run.mjs
+
+Le runner SQL importe PGlite localement et ne possède aucun client réseau. Il
+charge baseline_fixture.sql, la migration USSD et des données synthétiques en
+mémoire. Les tables de base et helpers d'auth sont simulés : compléter par une
+recette autorisée sur le schéma déployé. Ne jamais utiliser les fixtures en production.
+
+Références officielles consultées :
+https://developer.android.com/guide/components/intents-common#Phone
+https://developer.android.com/training/package-visibility/use-cases
+https://supabase.com/docs/guides/auth/third-party/firebase-auth
+https://supabase.com/docs/guides/database/functions
+
+RÉVERSIBILITÉ
+
+Les copies pré-USSD, le manifeste SHA-256 et le script de restauration sont
+dans scratch/ussd_20261031. La restauration locale doit être prévisualisée et
+refuse les fichiers modifiés depuis la validation finale. Elle ne réécrit pas
+l'historique Git et n'effectue aucune opération de base de données.
+Le dossier scratch contient aussi des outils et des artefacts temporaires : ne
+pas l'ajouter globalement à une future livraison source. Un commit externe est
+apparu pendant l'intervention ; cet historique a été conservé.
+Ce checkpoint externe inclut notamment des fichiers d'outillage sous scratch ;
+préparer une sélection source explicite avant une future revue ou publication.
+Le cache d'outillage ne constitue pas une dépendance de l'application Flutter.

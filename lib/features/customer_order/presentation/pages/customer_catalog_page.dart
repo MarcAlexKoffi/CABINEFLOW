@@ -1,4 +1,5 @@
 import 'package:cabine_flow/core/theme/customer_app_colors.dart';
+import 'package:cabine_flow/core/resilience/backend_read_stream.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_offer.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_offer_repository.dart';
@@ -82,6 +83,8 @@ class _CustomerCatalogPageState extends State<CustomerCatalogPage> {
   Future<void> _refreshOffers() async {
     try {
       await widget.offerRepository.watchAllOffers().first;
+    } catch (_) {
+      // The replacement stream below displays the error and exposes Retry.
     } finally {
       if (mounted) {
         setState(() => _offersStream = _watchOffers());
@@ -191,8 +194,10 @@ class _CustomerCatalogPageState extends State<CustomerCatalogPage> {
                         const _CatalogLoading()
                       else if (snapshot.hasError)
                         IzyTelErrorState(
-                          message:
-                              'Impossible de charger les offres pour le moment.',
+                          message: BackendReadStream.readErrorMessage(
+                            snapshot.error!,
+                            fallback: 'Impossible de charger les offres pour le moment.',
+                          ),
                           onRetry: _retry,
                         )
                       else

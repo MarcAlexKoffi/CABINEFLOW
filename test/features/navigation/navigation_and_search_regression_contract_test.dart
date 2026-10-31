@@ -55,7 +55,7 @@ void main() {
 
     expect(
       support,
-      contains('late final Stream<List<SupportRequest>> _requestsStream'),
+      contains('late Stream<List<SupportRequest>> _requestsStream'),
     );
     expect(support, contains('stream: _requestsStream'));
 
