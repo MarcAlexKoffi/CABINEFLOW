@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cabine_flow/features/ussd/presentation/backoffice_ussd_page.dart';
 
 import 'package:cabine_flow/backoffice/domain/repositories/backoffice_user_repository.dart';
 import 'package:cabine_flow/backoffice/data/repositories/fake_territory_repository.dart';
@@ -62,6 +63,7 @@ enum BackofficeDestination {
   agentIssues,
   users,
   offers,
+  ussd,
   finances,
   waveCash,
   commissions,
@@ -120,6 +122,8 @@ extension _BackofficeDestinationX on BackofficeDestination {
         return 'Utilisateurs';
       case BackofficeDestination.offers:
         return 'Offres & tarifs';
+      case BackofficeDestination.ussd:
+        return 'Raccourcis USSD';
       case BackofficeDestination.finances:
         return 'Vue financière';
       case BackofficeDestination.waveCash:
@@ -181,6 +185,8 @@ extension _BackofficeDestinationX on BackofficeDestination {
         return Symbols.manage_accounts_rounded;
       case BackofficeDestination.offers:
         return Symbols.local_offer_rounded;
+      case BackofficeDestination.ussd:
+        return Icons.dialpad;
       case BackofficeDestination.finances:
         return Symbols.account_balance_wallet_rounded;
       case BackofficeDestination.waveCash:
@@ -234,6 +240,7 @@ extension _BackofficeDestinationX on BackofficeDestination {
       case BackofficeDestination.users:
         return _BackofficeSection.administration;
       case BackofficeDestination.offers:
+      case BackofficeDestination.ussd:
         return _BackofficeSection.catalog;
       case BackofficeDestination.finances:
       case BackofficeDestination.waveCash:
@@ -285,6 +292,8 @@ extension _BackofficeDestinationX on BackofficeDestination {
         return user.role == UserRole.administrator;
       case BackofficeDestination.offers:
         return permissions.canManageOffers;
+      case BackofficeDestination.ussd:
+        return user.role == UserRole.administrator || user.isManager;
       case BackofficeDestination.finances:
       case BackofficeDestination.waveCash:
       case BackofficeDestination.commissions:
@@ -1034,6 +1043,8 @@ class _BackofficeShellPageState extends State<BackofficeShellPage> {
           user: widget.user,
           repository: offersRepository,
         );
+      case BackofficeDestination.ussd:
+        return BackofficeUssdPage(user: widget.user);
       case BackofficeDestination.finances:
         return _financeContent(BackofficeFinanceModule.overview);
       case BackofficeDestination.waveCash:

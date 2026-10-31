@@ -1,6 +1,9 @@
 package com.izytel.app
 
 import android.content.Context
+import android.content.Intent
+import android.content.ActivityNotFoundException
+import android.net.Uri
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -11,6 +14,29 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
+            "com.izytel/ussd_dialer").setMethodCallHandler { call, result ->
+            if (call.method != "openDialer") {
+                result.notImplemented()
+                return@setMethodCallHandler
+            }
+            val code = call.argument<String>("code") ?: ""
+            if (code.length > 182 || !Regex("^\\*{1,2}[0-9]+(?:\\*[0-9]+)*#$").matches(code)) {
+                result.error("invalid_template", "Syntaxe USSD invalide.", null)
+                return@setMethodCallHandler
+            }
+            try {
+                // fromParts encodes '#'; ACTION_DIAL always requires the user's
+                // own confirmation in the phone app. Never request CALL_PHONE.
+                startActivity(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", code, null)))
+                result.success(null)
+            } catch (_: ActivityNotFoundException) {
+                result.error("dialer_unavailable", "Composeur indisponible.", null)
+            } catch (_: SecurityException) {
+                result.error("dialer_unavailable", "Composeur inaccessible.", null)
+            }
+        }
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,

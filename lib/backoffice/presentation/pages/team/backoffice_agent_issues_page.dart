@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cabine_flow/features/ussd/presentation/ussd_activity_page.dart';
 
 import 'package:cabine_flow/backoffice/data/repositories/supabase_backoffice_case_pagination_repository.dart';
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
@@ -151,6 +152,12 @@ class _BackofficeAgentIssuesPageState extends State<BackofficeAgentIssuesPage> {
                 ),
                 const SizedBox(height: 14),
                 _scopeBanner(data),
+                Align(alignment: Alignment.centerLeft, child: TextButton.icon(
+                  icon: const Icon(Icons.dialpad),
+                  label: const Text('Signalements USSD · Agents et Cabinistes'),
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) => UssdActivityPage(user: widget.user, reports: true))),
+                )),
                 const SizedBox(height: 14),
                 _metrics(
                   open: data.openCount,
