@@ -1,5 +1,6 @@
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
+import 'package:cabine_flow/core/resilience/backend_read_stream.dart';
 import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
@@ -40,10 +41,10 @@ class FirebaseAuthRepository implements AuthRepository {
         );
       }
 
-      return _resolveAccess(
+      return await _resolveAccess(
         firebaseUser: firebaseUser,
         createPendingProfileWhenMissing: true,
-      );
+      ).timeout(BackendReadStream.readTimeout);
     } on FirebaseAuthException catch (error) {
       if (_isInvalidCredentialError(error.code)) {
         return const AuthLoginResult.invalidCredentials();
@@ -88,10 +89,10 @@ class FirebaseAuthRepository implements AuthRepository {
       // à l'écran de connexion après un simple redémarrage ou une coupure.
       // La lecture du profil Firestore est rejouée en cas d'erreur transitoire
       // puis retombe sur le cache persistant du téléphone si nécessaire.
-      return _resolveAccess(
+      return await _resolveAccess(
         firebaseUser: currentUser,
         createPendingProfileWhenMissing: true,
-      );
+      ).timeout(BackendReadStream.readTimeout);
     } on FirebaseAuthException catch (error) {
       if (error.code == 'user-disabled' || error.code == 'user-not-found') {
         await _safeSignOut();

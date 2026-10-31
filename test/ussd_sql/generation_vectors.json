@@ -1,0 +1,22 @@
+[
+  {"name":"static without beneficiary","template":"*999*2#","expected":"*999*2#"},
+  {"name":"local beneficiary","template":"*999*{{msisdn_local}}#","beneficiary":"01-01-01-01-01","expected":"*999*0101010101#"},
+  {"name":"international beneficiary","template":"*999*{{msisdn_local}}#","beneficiary":"+225 07 07 07 07 07","expected":"*999*0707070707#"},
+  {"name":"numeric variables","template":"*999*{{amount}}*{{offer_code}}*{{quantity}}#","amount":1000,"offer_code":"00123","quantity":2,"expected":"*999*1000*00123*2#"},
+  {"name":"unknown variable","template":"*999*{{secret}}#","error":"unknown_variable"},
+  {"name":"malformed variable","template":"*999*{amount}#","error":"invalid_template"},
+  {"name":"missing number","template":"*999*{{msisdn_local}}#","error":"invalid_beneficiary"},
+  {"name":"letters in number","template":"*999*{{msisdn_local}}#","beneficiary":"abc0101010101","error":"invalid_beneficiary"},
+  {"name":"USSD injection in number","template":"*999*{{msisdn_local}}#","beneficiary":"0101010101*1#","error":"invalid_beneficiary"},
+  {"name":"missing amount","template":"*999*{{amount}}#","error":"missing_amount"},
+  {"name":"zero amount","template":"*999*{{amount}}#","amount":0,"error":"missing_amount"},
+  {"name":"negative amount","template":"*999*{{amount}}#","amount":-1,"error":"missing_amount"},
+  {"name":"large amount","template":"*999*{{amount}}#","amount":100000001,"error":"missing_amount"},
+  {"name":"missing offer code","template":"*999*{{offer_code}}#","error":"missing_offer_code"},
+  {"name":"offer code injection","template":"*999*{{offer_code}}#","offer_code":"1*2","error":"missing_offer_code"},
+  {"name":"missing quantity","template":"*999*{{quantity}}#","error":"missing_quantity"},
+  {"name":"negative quantity","template":"*999*{{quantity}}#","quantity":-2,"error":"missing_quantity"},
+  {"name":"URI syntax","template":"tel:*999#","error":"invalid_template"},
+  {"name":"embedded hash","template":"*999#*2#","error":"invalid_template"},
+  {"name":"newline","template":"*999#\n","error":"invalid_template"}
+]

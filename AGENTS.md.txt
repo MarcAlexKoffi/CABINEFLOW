@@ -1,0 +1,35 @@
+
+# IzyTel — Instructions de développement
+
+## Objectif
+Faire évoluer l'application IzyTel existante sans régression.
+
+## Règles impératives
+- Lire le code réel avant toute modification.
+- Préserver les fonctionnalités déjà validées.
+- Ne pas effectuer de refactoring hors périmètre.
+- Respecter les rôles Agent, Manager et Administrateur.
+- Ne pas autoriser de communication directe Agent–Client.
+- Router les demandes clients vers le Manager.
+- Notifier automatiquement le client après une commande réussie.
+- Soumettre les commandes échouées à l'analyse du Manager.
+- Respecter l'identité visuelle IzyTel existante.
+
+## Sécurité
+- Vérifier les règles Firestore et les autorisations concernées.
+- Ne jamais exposer les clés privées ou les secrets.
+- Ne pas modifier les données de production sans autorisation.
+- Ne pas déclencher de paiement réel pendant les tests.
+- Ne pas déployer automatiquement.
+
+## Méthode
+1. Analyser les fichiers concernés.
+2. Identifier les comportements à conserver.
+3. Proposer un correctif ciblé.
+4. Modifier uniquement le périmètre validé.
+5. Exécuter les vérifications pertinentes.
+6. Présenter les fichiers modifiés et les résultats.
+7. Signaler les risques et les tests non exécutés.
+
+## Livraison
+Toute modification doit être vérifiable et réversible.

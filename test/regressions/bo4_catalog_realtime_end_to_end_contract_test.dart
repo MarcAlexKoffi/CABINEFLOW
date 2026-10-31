@@ -47,7 +47,9 @@ void main() {
       expect(repository, contains('watchAllOffers()'));
       expect(repository, contains('watchOffers({'));
       expect(repository, contains('stream(primaryKey: const <String>[\'id\'])'));
-      expect(repository, contains('final List<CustomerOffer> next = await loader()'));
+      expect(repository, contains('fetch: loader'));
+      expect(repository, contains('BackendReadStream.watch'));
+      expect(repository, contains('refreshSignals: _catalogSignals'));
       expect(contract, contains('Stream<List<CustomerOffer>> watchOffers'));
       expect(contract, contains('Stream<List<CustomerOffer>> watchAllOffers'));
       expect(home, contains('StreamBuilder<List<CustomerOffer>>'));

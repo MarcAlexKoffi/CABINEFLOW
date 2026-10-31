@@ -4,6 +4,7 @@ import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/orders/domain/models/order_proof.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/features/ussd/presentation/ussd_quick_processing_card.dart';
 import 'package:cabine_flow/features/orders/presentation/view_models/agent_orders_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
 import 'package:flutter/foundation.dart';
@@ -458,6 +459,15 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
               _ReferenceOrderSummary(order: order),
               SizedBox(height: 18 * referenceScale),
               _ReferenceProgress(order: order),
+              SizedBox(height: 18 * referenceScale),
+              UssdQuickProcessingCard(
+                key: ValueKey('ussd-${order.id}'),
+                orderId: order.id, network: order.network.name,
+                offerLabel: order.offerLabel, beneficiary: order.beneficiaryPhone,
+                amount: order.amount,
+                processable: order.status == QueueOrderStatus.inProgress &&
+                    order.assignedAgentId == widget.user.id && order.isFundedForProcessing,
+              ),
               SizedBox(height: 18 * referenceScale),
               _DetailMenuCard(
                 rows: [

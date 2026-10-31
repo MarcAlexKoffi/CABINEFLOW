@@ -1,4 +1,5 @@
 import 'package:cabine_flow/core/supabase/supabase_realtime_refetch.dart';
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/features/orders/domain/models/automatic_assignment.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -20,6 +21,7 @@ class Phase4AssignmentSnapshot {
     required this.firebaseCreatedAt,
     required this.updatedAt,
     this.zoneId,
+    this.offerId,
     this.originalWhatsappMessage,
     this.internalNotes,
     this.paymentPayerName,
@@ -60,6 +62,7 @@ class Phase4AssignmentSnapshot {
   final String beneficiaryPhone;
   final OrderOperationType operationType;
   final String offerLabel;
+  final String? offerId;
   final String? originalWhatsappMessage;
   final String? internalNotes;
   final OrderPaymentStatus paymentStatus;
@@ -135,6 +138,7 @@ class Phase4AssignmentSnapshot {
       beneficiaryPhone: beneficiaryPhone,
       operationType: operationType,
       offerLabel: offerLabel,
+      offerId: offerId ?? legacy?.offerId,
       amount: amount,
       originalWhatsappMessage:
           originalWhatsappMessage ?? legacy?.originalWhatsappMessage,
@@ -334,7 +338,19 @@ class SupabasePhase4AssignmentRepository {
         'p_customer_auth_uid': order.customerAuthUid,
       },
     );
-    return _requireSnapshot(raw);
+    final snapshot = _requireSnapshot(raw);
+    // Optional USSD metadata is independent of assignment/payment transitions.
+    // Older servers remain fully usable before the USSD migration is applied.
+    if (order.offerId != null) {
+      try {
+        await _client.rpc('izytel_ussd_register_order_context', params: {
+          'p_order_id': order.id, 'p_offer_id': order.offerId,
+        }).timeout(const Duration(seconds: 3));
+      } catch (error) {
+        IzyTelLog.backendError('USSD.order-context', error);
+      }
+    }
+    return snapshot;
   }
 
   Future<Phase4AssignmentSnapshot> assignRanked({

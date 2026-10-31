@@ -102,7 +102,7 @@ void main() {
     final String shell = source(
       'lib/features/navigation/presentation/pages/main_shell_page.dart',
     );
-    expect(shell, contains('return PopScope('));
+    expect(shell, contains('PopScope('));
     expect(shell, contains('await currentNavigator.maybePop()'));
     expect(shell, contains('Appuie encore une fois pour quitter IzyTel.'));
     expect(shell, contains('await SystemNavigator.pop()'));

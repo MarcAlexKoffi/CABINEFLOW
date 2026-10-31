@@ -1,4 +1,4 @@
-import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/resilience/backend_read_stream.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_offer.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
 import 'package:cabine_flow/features/customer_order/domain/repositories/customer_offer_repository.dart';
@@ -13,19 +13,31 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// signal reste visible même lorsque l'offre désactivée ne l'est plus via RLS.
 class SupabaseCustomerOfferRepository implements CustomerOfferRepository {
   SupabaseCustomerOfferRepository({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client {
-    _changeFeedStream = _client
-        .from(_changeFeedTable)
-        .stream(primaryKey: const <String>['id'])
-        .eq('id', 1)
-        .asBroadcastStream();
-  }
+    : _client = client ?? Supabase.instance.client;
 
   static const String _offersTable = 'catalog_offers';
   static const String _changeFeedTable = 'catalog_change_feed';
 
   final SupabaseClient _client;
-  late final Stream<List<Map<String, dynamic>>> _changeFeedStream;
+  Stream<List<Map<String, dynamic>>>? _changeFeedStream;
+
+  Stream<Object?> _catalogSignals() async* {
+    // Broadcast allows overlapping pages without
+    // Bad state: Stream has already been listened to.
+    final stream = _changeFeedStream ??= _client
+        .from(_changeFeedTable)
+        .stream(primaryKey: const <String>['id'])
+        .eq('id', 1)
+        .asBroadcastStream(
+          onCancel: (subscription) {
+            _changeFeedStream = null;
+            subscription.cancel();
+          },
+        );
+    await for (final rows in stream) {
+      yield rows;
+    }
+  }
 
   @override
   Future<List<CustomerOffer>> fetchOffers({
@@ -46,11 +58,7 @@ class SupabaseCustomerOfferRepository implements CustomerOfferRepository {
         .order('display_order')
         .order('selling_price');
 
-    return _mapRows(
-      response,
-      forcedNetwork: network,
-      forcedType: expectedType,
-    );
+    return _mapRows(response, forcedNetwork: network, forcedType: expectedType);
   }
 
   @override
@@ -58,9 +66,7 @@ class SupabaseCustomerOfferRepository implements CustomerOfferRepository {
     required CustomerService service,
     required MobileNetwork network,
   }) {
-    return _watchRefresh(
-      () => fetchOffers(service: service, network: network),
-    );
+    return _watchRefresh(() => fetchOffers(service: service, network: network));
   }
 
   @override
@@ -81,31 +87,12 @@ class SupabaseCustomerOfferRepository implements CustomerOfferRepository {
 
   Stream<List<CustomerOffer>> _watchRefresh(
     Future<List<CustomerOffer>> Function() loader,
-  ) async* {
-    List<CustomerOffer> previous = await loader();
-    yield previous;
-
-    try {
-      // Une seule souscription Supabase alimente tous les écrans client.
-      // Le flux broadcast évite `Bad state: Stream has already been listened to`
-      // pendant les transitions AnimatedSwitcher où deux pages peuvent se
-      // chevaucher quelques millisecondes.
-      await for (final List<Map<String, dynamic>> _ in _changeFeedStream) {
-        final List<CustomerOffer> next = await loader();
-        if (_sameOffers(previous, next)) {
-          continue;
-        }
-        previous = next;
-        yield next;
-      }
-    } catch (error, stackTrace) {
-      // Le snapshot REST reste exploitable si le WebSocket est indisponible.
-      IzyTelLog.backendError(
-        'SupabaseCustomerOfferRepository.Realtime',
-        error,
-        stackTrace: stackTrace,
-      );
-    }
+  ) {
+    return BackendReadStream.watch(
+      fetch: loader,
+      label: 'CustomerOffers.read',
+      refreshSignals: _catalogSignals,
+    );
   }
 
   List<CustomerOffer> _mapRows(
@@ -183,39 +170,6 @@ class SupabaseCustomerOfferRepository implements CustomerOfferRepository {
       }
     }
     return null;
-  }
-
-  bool _sameOffers(List<CustomerOffer> a, List<CustomerOffer> b) {
-    if (a.length != b.length) {
-      return false;
-    }
-    for (int index = 0; index < a.length; index++) {
-      final CustomerOffer left = a[index];
-      final CustomerOffer right = b[index];
-      if (left.id != right.id ||
-          left.network != right.network ||
-          left.type != right.type ||
-          left.title != right.title ||
-          left.catalogLabel != right.catalogLabel ||
-          left.amount != right.amount ||
-          left.badgeLabel != right.badgeLabel ||
-          !_sameStrings(left.details, right.details)) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  bool _sameStrings(List<String> a, List<String> b) {
-    if (a.length != b.length) {
-      return false;
-    }
-    for (int index = 0; index < a.length; index++) {
-      if (a[index] != b[index]) {
-        return false;
-      }
-    }
-    return true;
   }
 
   int? _int(Object? value) {

@@ -1,4 +1,5 @@
 import 'package:cabine_flow/core/theme/customer_app_colors.dart';
+import 'package:cabine_flow/core/resilience/backend_read_stream.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_offer.dart';
 import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
@@ -37,7 +38,7 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
   late final TextEditingController _transferAmountController;
   late final TextEditingController _customOfferLabelController;
   late final TextEditingController _customOfferAmountController;
-  late final Stream<List<CustomerOffer>> _offersStream;
+  late Stream<List<CustomerOffer>> _offersStream;
   String? _lastCatalogSignature;
 
   CustomerService get _service => widget.viewModel.draft.service!;
@@ -557,9 +558,15 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
         }
 
         if (snapshot.hasError) {
-          return const _OfferLoadMessage(
+          return _OfferLoadMessage(
             icon: Icons.cloud_off_outlined,
-            message: 'Impossible de charger les offres pour le moment.',
+            message: BackendReadStream.readErrorMessage(snapshot.error!,
+                fallback: 'Impossible de charger les offres pour le moment.'),
+            onRetry: () => setState(() {
+              _offersStream = widget.offerRepository.watchOffers(
+                service: _service, network: _network,
+              );
+            }),
           );
         }
 
@@ -789,10 +796,11 @@ class _OfferOptionCard extends StatelessWidget {
 }
 
 class _OfferLoadMessage extends StatelessWidget {
-  const _OfferLoadMessage({required this.icon, required this.message});
+  const _OfferLoadMessage({required this.icon, required this.message, this.onRetry});
 
   final IconData icon;
   final String message;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -811,6 +819,11 @@ class _OfferLoadMessage extends StatelessWidget {
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
+          if (onRetry != null) ...[
+            const SizedBox(height: 12),
+            TextButton.icon(onPressed: onRetry,
+                icon: const Icon(Icons.refresh), label: const Text('Réessayer')),
+          ],
         ],
       ),
     );

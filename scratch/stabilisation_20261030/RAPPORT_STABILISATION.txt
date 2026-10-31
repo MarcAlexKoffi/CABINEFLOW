@@ -1,0 +1,239 @@
+IZYTEL — STABILISATION MOBILE ET WEB
+Intervention du 30 au 31 octobre 2026 — Africa/Abidjan
+Branche : fix/stabilisation-mobile-web-20261030
+
+PERIMETRE ET LIMITES
+
+Corrections locales de navigation Android, chargement des offres, messagerie,
+demandes clients, authentification et resilience des lectures.
+Aucune migration, modification de donnees de production, activation de service,
+modification de permission, installation sur appareil ou publication effectuee.
+Les controles distants ont uniquement consulte des metadonnees Supabase.
+Les regles Firestore/Storage, les SQL/RLS et les dependances n'ont pas ete modifies.
+
+PHASE A — DIAGNOSTIC ET REFERENCE
+
+1. Etat Git initial non propre : suppressions utilisateur et fichiers non suivis.
+   Aucun nettoyage, reset, restauration generale ou ajout au staging effectue.
+2. Reference initiale : 871 tests passes, 1 echec du a PHASE3_COMPLETE_NOTES.md
+   absent. Ce document est reapparu ensuite dans le workspace sans intervention
+   de cette mission. L'echec initial est conserve dans le journal de reference.
+3. SDK : Flutter 3.44.8, Dart 3.12.2.
+4. Navigation : un Navigator par onglet, IndexedStack et PopScope de shell.
+   Les notifications NavigationNotification d'un Navigator imbrique vide peuvent
+   remonter canHandlePop=false au moteur Android malgre le blocage du shell.
+   Le test ajoute reproduisait false avant correction, puis true apres correction.
+5. Le client Supabase utilise le JWT Firebase. Son initialisation locale ne
+   garantit pas que le service distant soit actif.
+6. Le projet Supabase IzyTel a ete observe INACTIVE par l'outil de metadonnees.
+   Une consultation SQL de metadonnees a retourne une base inaccessible.
+   Ce constat explique une indisponibilite commune au catalogue et a la messagerie.
+   Au controle final du 31 octobre, le projet est devenu ACTIVE_HEALTHY sans
+   operation de reactivation de cette mission. Les lectures publiques reussissent :
+   34 offres actives, avec les six combinaisons reseau/type accessibles.
+   Aucun enregistrement de conversations/messages/demandes n'est visible sans
+   session dans les trois lectures de controle effectuees.
+7. Le catalogue actif est Supabase/catalog_offers, avec catalog_change_feed pour
+   les signaux. Aucun remplacement par un catalogue fictif n'a ete ajoute.
+8. Les demandes clients reutilisaient le meme stream apres le bouton Reessayer.
+9. _resolveAccess etait retourne sans await dans le try du depot Firebase Auth :
+   une erreur asynchrone pouvait echapper au traitement prevu.
+
+Journal : scratch/stabilisation_baseline_tests.log.
+
+PHASE B — NAVIGATION MOBILE
+
+Corrections :
+- Frontiere partagee IzyTelBackNavigationBoundary : le shell conserve la gestion
+  du Retour natif lorsqu'un onglet actif ou masque emet une notification vide.
+- Integration dans les shells Staff (Manager/Admin/Operator), Agent et Cabiniste.
+- Priorite a la pile active et aux interceptions internes de la route racine.
+- Une route non courante et un Navigator encore absent ne declenchent pas la sortie.
+- Conservation du verrou contre les callbacks rapproches, des piles des onglets
+  et de la confirmation de sortie deja presente uniquement a l'Accueil.
+- Correction du debordement du texte de disponibilite Agent sur ecran etroit,
+  observe durant les tests de parcours.
+
+Fichiers :
+lib/features/navigation/presentation/widgets/izytel_mobile_back_scope.dart
+lib/features/navigation/presentation/pages/main_shell_page.dart
+lib/features/partners/presentation/pages/partner_shell_page.dart
+lib/features/agents/presentation/pages/agent_home_page.dart
+
+Controles comportementaux :
+- Shells de production Agent, Manager et Administrateur avec depots de test.
+- Shell Cabiniste avec client local isole, stockage memoire et depot de test.
+- Details imbriques, liste parente, retour onglet puis Accueil, double sortie.
+- Changements repetes d'onglets et preservation du detail consulte.
+- Modale sur Navigator racine et callbacks Retour rapproches.
+- Evenements gestuels Flutter : debut, annulation et validation du geste Retour.
+- Notification d'une pile imbriquee vide : Android reste gere par Flutter.
+
+La simulation Flutter du geste n'est pas une recette sur un appareil Android reel.
+Les ouvertures FCM et la restauration native doivent encore etre recettees.
+
+PHASE C — CHARGEMENT DES DONNEES
+
+Ajout de lib/core/resilience/backend_read_stream.dart :
+- Lecture canonique bornee a 15 secondes.
+- Erreur propagee au consommateur, jamais remplacee par une liste vide fictive.
+- Reessai des erreurs transitoires avec delai progressif.
+- Regroupement des signaux et une seule lecture geree simultanement par watcher.
+- Reconnexion des abonnements termines ou en erreur.
+- Controle REST independant du silence ou de la fermeture du WebSocket.
+- Controle lent avec Realtime actif ; repli plus rapide de la messagerie hors
+  Realtime (conversations 5 s, messages 2 s).
+- Annulation des timers et abonnements lors du depart de la page.
+- Messages UI distincts pour panne reseau/delai, session/refus, erreur generique.
+
+Catalogue :
+- Meme table, filtres is_active/network/service, prix et ordre existants.
+- Signal broadcast liberant sa souscription lorsqu'il n'a plus de consommateur.
+- Reessai effectif dans le catalogue ET dans l'etape de selection d'une offre.
+- Filtres Internet, Appels, Orange, MTN et Moov Africa testes.
+
+Messagerie :
+- Meme tables customer_conversations/customer_messages et memes RPC d'ecriture.
+- Attente bornee d'une session Firebase restauree non nulle, sans creer une
+  nouvelle identite pendant la lecture.
+- Transmission et synchronisation Realtime du JWT conservees.
+- Etats de chargement/erreur remis a jour au reessai.
+- Une reponse tardive du fil precedent ne remplace plus le fil selectionne.
+
+Demandes clients :
+- Lecture support_requests conservee ; repli REST lorsque Realtime est indisponible.
+- Reessayer cree un nouveau stream ; taper une recherche reutilise le stream courant.
+
+Fichiers :
+lib/features/customer_order/data/repositories/supabase_customer_offer_repository.dart
+lib/features/customer_order/presentation/pages/customer_catalog_page.dart
+lib/features/customer_order/presentation/pages/customer_offer_page.dart
+lib/features/messaging/data/repositories/supabase_customer_messaging_repository.dart
+lib/features/messaging/presentation/pages/customer_messaging_page.dart
+lib/features/messaging/presentation/pages/staff_customer_messaging_page.dart
+lib/features/support/data/repositories/supabase_support_request_repository.dart
+lib/features/support/presentation/pages/support_request_center_page.dart
+
+Les mecanismes Agent-Client, message systeme de succes, supervision des echecs,
+remboursement et reaffectation conservent leurs regles et leurs RPC.
+Les metadonnees RLS reelles ont pu etre examinees apres le retablissement : RLS
+active sur les cinq tables concernees, SELECT accorde a anon/authenticated et
+politiques de lecture presentes. Cela ne valide pas les parcours avec JWT Client
+ou Manager reel. Un ecart de perimetre Support est decrit ci-dessous.
+
+PHASE D — AUTHENTIFICATION, TESTS ET COMPILATIONS
+
+Authentification : await dans les try de login/refreshCurrentAccess, resolution
+bornee, conservation des resultats unavailable et du traitement des sessions.
+Initialisation Supabase partagee entre appels concurrents ; resolution du JWT et
+setAuth bornes. Aucun claim Firebase n'a ete ajoute ou modifie.
+
+Fichiers :
+lib/features/auth/data/repositories/firebase_auth_repository.dart
+lib/core/supabase/supabase_bootstrap.dart
+
+Nouveaux tests :
+test/core/resilience/backend_read_stream_test.dart
+test/core/resilience/operational_repositories_http_test.dart
+test/features/auth/data/firebase_auth_access_failure_test.dart
+test/features/navigation/mobile_back_platform_regression_test.dart
+test/features/navigation/cabiniste_back_regression_test.dart
+test/features/support/presentation/support_retry_regression_test.dart
+test/features/customer_order/presentation/customer_catalog_retry_filter_test.dart
+
+Les tests HTTP utilisent un serveur loopback et les vrais depots/PostgREST client
+avec des fixtures de test. Ils valident les requetes et transformations, pas les
+permissions d'un serveur Supabase reel. Les tests Firebase utilisent des doubles.
+
+Sept contrats textuels existants ont ete adaptes aux nouvelles formes du code :
+test/features/navigation/navigation_and_search_regression_contract_test.dart
+test/regressions/backoffice_supabase_realtime_fallback_and_dialog_contract_test.dart
+test/regressions/bo4_catalog_realtime_end_to_end_contract_test.dart
+test/regressions/customer_web_responsive_startup_realtime_contract_test.dart
+test/regressions/customer_web_v2_wc3b_live_refresh_contract_test.dart
+test/regressions/phase14_ui_runtime_fixes_contract_test.dart
+test/regressions/wc9_mobile_navigation_manager_agents_contract_test.dart
+Aucun test ni scenario existant n'a ete supprime.
+
+Resultats finaux et commandes : VALIDATION.json, dans ce meme dossier.
+Analyse Flutter : aucun probleme. Suite complete finale : 895 tests passes.
+Compilations finales Android debug, Web Client et Back-office : reussies.
+git diff --check : reussi. Aucun test echoue dans cette derniere execution.
+
+Journaux finaux dans scratch/ :
+stabilisation_analyze.log
+stabilisation_final_tests.log
+stabilisation_android_build.log
+stabilisation_customer_web_build.log
+stabilisation_backoffice_web_build.log
+
+Les builds Web JavaScript ne certifient pas un build Wasm. Le dry run signale les
+usages dart:html existants. Android emet des avertissements d'outillage SDK/Kotlin ;
+la modernisation de ces dependances n'est pas incluse dans cette correction.
+
+RECETTE MANUELLE RESTANTE
+
+Dans un environnement de recette dont les services et permissions sont disponibles :
+1. Agent/Manager/Cabiniste : ouvrir plusieurs onglets et sous-pages, revenir par
+   bouton et geste, fermer les modales, verifier detail -> liste -> Accueil.
+2. Alterner les onglets et retrouver detail, filtres, selection et defilement.
+3. Depuis Accueil seul : premier Retour avertit, second Retour quitte.
+4. Tester coupure reseau, retour au premier plan, session restauree et expiree.
+5. Ouvrir une notification depuis application ouverte et fermee, puis revenir.
+6. Web : verifier les offres publiees et tous les filtres, erreur puis Reessayer.
+7. Client/Manager : conversation zonale, messages, demande client, reponse,
+   reconnexion, refus hors zone et absence de donnees.
+8. Verifier qu'un Agent ne dispose pas de communication libre vers le Client.
+9. Recetter succes/echec, message systeme, supervision, remboursement et reaffectation,
+   sans paiement reel et sans ecriture de test dans la production.
+
+Le service est redevenu actif durant l'intervention. Aucune reactivation ni
+modification sensible n'a ete effectuee par cette mission.
+
+POINTS SERVEUR A VALIDER SEPAREMENT — NON CORRIGES EN PRODUCTION
+
+1. La politique support_requests actuellement observee accepte le proprietaire
+   OU private.is_izytel_finance_staff(). Le helper reconnait admin/manager/supervisor
+   actifs, sans restriction par zone. C'est un acces Staff global observable dans
+   la politique serveur. L'isolation territoriale Manager du Support n'est donc
+   pas garantie par cette politique. private.izytel_wc6_can_manage_order(text)
+   est absent du serveur consulte, bien qu'il soit defini dans la migration locale :
+   supabase/migrations/20260927150000_wc6_manager_territorial_scope.sql
+   Ne pas conclure que l'historique local des migrations est entierement applique.
+   Revoir cette migration et ses dependances avant toute proposition d'application.
+2. Les tables customer_conversations/customer_messages accordent aussi TRUNCATE,
+   REFERENCES et TRIGGER a anon/authenticated. Ces privileges ne sont pas requis
+   par les lectures et RPC Flutter examinees. Une proposition de retrait minimal
+   est preparee dans PROPOSITION_SQL_DROITS_MESSAGERIE_NON_APPLIQUEE.sql.
+   Aucun de ces privileges n'a ete exerce pour tester l'acces.
+3. Les conseillers Supabase signalent des RPC SECURITY DEFINER accessibles aux
+   roles applicatifs, pg_net dans public et des tables RLS sans politique.
+   Ces alertes demandent une revue fonction par fonction ; la compatibilite JWT
+   Firebase utilise effectivement anon dans certains parcours. Ne pas revoquer
+   globalement EXECUTE ou creer des politiques permissives pour faire taire l'outil.
+
+References officielles de remediation :
+https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable
+https://supabase.com/docs/guides/database/database-linter?lint=0014_extension_in_public
+https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy
+
+Ces constats sont separes de la correction locale. Ils ne constituent pas des
+exploitations demontrees ni une autorisation de modifier la production.
+
+RETOUR ARRIERE ET ETAT UTILISATEUR
+
+changes_manifest.json repertorie les 21 fichiers modifies et 8 fichiers crees,
+avec leurs empreintes et les chemins des sauvegardes d'origine dans original/.
+Restore-Stabilisation.ps1 a ete execute en mode APERCU UNIQUEMENT.
+Le script verifie toutes les empreintes avant toute ecriture : il refuse d'ecraser
+un fichier retouche apres livraison ou une sauvegarde alteree.
+
+Depuis la racine du projet :
+  & ./scratch/stabilisation_20261030/Restore-Stabilisation.ps1
+affiche seulement l'apercu. Le parametre -Apply est necessaire pour appliquer
+volontairement ce retour arriere. Ne pas l'utiliser avant d'avoir conserve les
+modifications ulterieures que l'on souhaite garder.
+
+Le retour arriere ne touche ni les suppressions/fichiers utilisateur preexistants,
+ni les serveurs, ni les artefacts de build, ni la branche Git. Aucun commit cree.
+Ne pas inclure automatiquement le dossier scratch/ et les sauvegardes dans un commit.

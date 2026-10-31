@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cabine_flow/features/ussd/presentation/ussd_quick_processing_card.dart';
 
 import 'package:cabine_flow/app/app_routes.dart';
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
@@ -18,6 +19,7 @@ import 'package:cabine_flow/features/partners/domain/models/partner_order_models
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_ui.dart';
 import 'package:flutter/foundation.dart';
+import 'package:cabine_flow/features/navigation/presentation/widgets/izytel_mobile_back_scope.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -204,6 +206,7 @@ class _PartnerShellPageState extends State<PartnerShellPage>
   }
 
   Future<void> _handleBack() async {
+    if (!mounted || ModalRoute.of(context)?.isCurrent == false) return;
     if (_handlingBack) return;
     _handlingBack = true;
     try {
@@ -214,6 +217,13 @@ class _PartnerShellPageState extends State<PartnerShellPage>
         await current.maybePop();
         return;
       }
+
+      if (current == null) return;
+      if (await current.maybePop()) {
+        _lastBackPressAt = null;
+        return;
+      }
+      if (!mounted) return;
 
       if (_selectedIndex != 0) {
         _selectTab(0);
@@ -273,23 +283,25 @@ class _PartnerShellPageState extends State<PartnerShellPage>
       ),
     ];
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (!didPop) unawaited(_handleBack());
-      },
-      child: Scaffold(
-        backgroundColor: IzyTelColors.background,
-        body: IndexedStack(
-          index: _selectedIndex,
-          children: List<Widget>.generate(
-            pages.length,
-            (int index) => _tabNavigator(index, pages[index]),
+    return IzyTelBackNavigationBoundary(
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (bool didPop, Object? result) {
+          if (!didPop) unawaited(_handleBack());
+        },
+        child: Scaffold(
+          backgroundColor: IzyTelColors.background,
+          body: IndexedStack(
+            index: _selectedIndex,
+            children: List<Widget>.generate(
+              pages.length,
+              (int index) => _tabNavigator(index, pages[index]),
+            ),
           ),
-        ),
-        bottomNavigationBar: _PartnerBottomNavigationBar(
-          selectedIndex: _selectedIndex,
-          onSelected: _selectTab,
+          bottomNavigationBar: _PartnerBottomNavigationBar(
+            selectedIndex: _selectedIndex,
+            onSelected: _selectTab,
+          ),
         ),
       ),
     );
@@ -1481,6 +1493,14 @@ class _PartnerOrderDetailPageState extends State<PartnerOrderDetailPage> {
                   _PartnerReferenceOrderSummary(order: order),
                   SizedBox(height: 18 * referenceScale),
                   _PartnerReferenceProgress(order: order),
+                  SizedBox(height: 18 * referenceScale),
+                  UssdQuickProcessingCard(
+                    key: ValueKey('ussd-${order.orderId}'),
+                    orderId: order.orderId, network: order.network,
+                    offerLabel: order.offerLabel, beneficiary: order.beneficiaryPhone,
+                    amount: order.amount,
+                    processable: order.isAccepted && order.isInProgress && order.isFundedForProcessing,
+                  ),
                   SizedBox(height: 18 * referenceScale),
                   _PartnerDetailMenuCard(
                     rows: <_PartnerDetailMenuRowData>[
