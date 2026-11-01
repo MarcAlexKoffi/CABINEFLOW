@@ -34,6 +34,12 @@ $$;
 insert into public.catalog_offers(id,network,service,operation_type,title) values
  ('synthetic-offer','moov','internetSubscription','internetSubscription','Offre fictive'),
  ('synthetic-orange','orange','calls','callBundle','Appels fictifs');
+-- Stable seed IDs, synthetic catalogue metadata only. No production rows copied.
+insert into public.catalog_offers(id,network,service,operation_type,title)
+select id,'moov','calls','callBundle','Libellé synthétique sans correspondance' from unnest(array[
+ 'moov-calls-500','moov-calls-1000','moov-calls-1500','moov-calls-2500','moov-calls-5000']) id;
+insert into public.catalog_offers(id,network,service,operation_type,title)
+values('unrelated-folie-title','moov','calls','callBundle','Moov Folie 70 min');
 insert into public.izytel_staff_access values('test-admin','admin',true),('test-manager','manager',true),('test-manager-b','manager',true);
 insert into public.territory_zones values('zone-a','test-manager',true),('zone-b','test-manager-b',true);
 insert into public.phase5_agent_capacities(agent_id,is_active) values('test-agent',true),('other-agent',true);

@@ -1,4 +1,5 @@
 import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/features/ussd/domain/ussd_engine.dart';
 import 'package:cabine_flow/features/ussd/domain/ussd_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -19,7 +20,15 @@ class SupabaseUssdRepository implements UssdRepository {
     final client = _client;
     if (client == null) throw const UssdValidationException('unavailable');
     // Do not retry writes: a timeout may follow a successful server commit.
-    return await client.rpc(name, params: params).timeout(timeout);
+    try {
+      return await client.rpc(name, params: params).timeout(timeout);
+    } on PostgrestException catch (error) {
+      IzyTelLog.backendError('USSD.Rpc', error);
+      if (error.code == '42501' && error.message == 'USSD_AUTH_REQUIRED') {
+        throw const UssdValidationException('authentication_required');
+      }
+      rethrow;
+    }
   }
 
   Map<String, dynamic> _map(dynamic raw) =>
@@ -118,7 +127,15 @@ class SupabaseUssdRepository implements UssdRepository {
     await _rpc('izytel_ussd_save_rule', {
       'p_rule_id': id,
       'p_expected_version': version,
-      'p_payload': payload,
+      'p_payload': {
+        ...payload,
+        // Legacy USSD V1 does not accept this additive field. Its default is
+        // already order, so existing draft workflows stay compatible.
+        if (payload['purpose'] == 'order') 'purpose': null,
+        'ussd_template': UssdEngine.normalizeTemplate(
+          payload['ussd_template'] as String,
+        ),
+      }..removeWhere((key, value) => key == 'purpose' && value == null),
     });
   }
 
@@ -133,6 +150,27 @@ class SupabaseUssdRepository implements UssdRepository {
       'p_expected_version': rule.version,
       'p_status': status,
       'p_sim_type': simType,
+    });
+  }
+
+  @override
+  Future<void> deleteRule(UssdRule rule) async {
+    await _rpc('izytel_ussd_delete_rule', {
+      'p_rule_id': rule.id,
+      'p_expected_version': rule.version,
+    });
+  }
+
+  @override
+  Future<void> deleteFamily(String familyId) async {
+    await _rpc('izytel_ussd_delete_family', {'p_family_id': familyId});
+  }
+
+  @override
+  Future<void> deleteBinding(String offerId, int version) async {
+    await _rpc('izytel_ussd_delete_binding', {
+      'p_offer_id': offerId,
+      'p_expected_version': version,
     });
   }
 

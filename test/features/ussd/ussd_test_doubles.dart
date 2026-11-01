@@ -50,6 +50,10 @@ class UssdTestRepository implements UssdRepository {
   Map<String, dynamic>? saved;
   int statusChanges = 0;
   int leaseMs = 10000;
+  UssdRule? deletedRule;
+  int ruleDeletions = 0;
+  bool failDeletion = false;
+  Completer<void>? deletionPending;
   @override
   Future<UssdResolution> resolve(String orderId) async {
     resolutions++;
@@ -99,18 +103,19 @@ class UssdTestRepository implements UssdRepository {
   @override
   Future<Map<String, dynamic>> configuration() async => {
     'rules': [
-      {
-        'id': 'synthetic-rule',
-        'version': 2,
-        'network': 'moov',
-        'service': 'internetSubscription',
-        'actor_scope': 'both',
-        'ussd_template': '*999*{{msisdn_local}}#',
-        'priority': 0,
-        'status': 'draft',
-        'effective_from': '2020-01-01T00:00:00Z',
-        'updated_by': 'synthetic-admin',
-      },
+      if (deletedRule == null)
+        {
+          'id': 'synthetic-rule',
+          'version': 2,
+          'network': 'moov',
+          'service': 'internetSubscription',
+          'actor_scope': 'both',
+          'ussd_template': '*999*{{msisdn_local}}#',
+          'priority': 0,
+          'status': 'draft',
+          'effective_from': '2020-01-01T00:00:00Z',
+          'updated_by': 'synthetic-admin',
+        },
     ],
     'families': [],
     'offers': [],
@@ -131,6 +136,14 @@ class UssdTestRepository implements UssdRepository {
     String? simType,
   }) async {
     statusChanges++;
+  }
+
+  @override
+  Future<void> deleteRule(UssdRule rule) async {
+    ruleDeletions++;
+    await deletionPending?.future;
+    if (failDeletion) throw StateError('rule_changed');
+    deletedRule = rule;
   }
 
   @override

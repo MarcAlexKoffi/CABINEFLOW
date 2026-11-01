@@ -78,6 +78,7 @@ void main() {
           amount: v['amount'] as int?,
           offerCode: v['offer_code'] as String?,
           quantity: v['quantity'] as int?,
+          secretCode: v['secret_code'] as String?,
         ),
       );
       if (v['error'] != null) {
@@ -96,6 +97,82 @@ void main() {
       }
     });
   }
+  for (final alias in [
+    'numéro_du_destinataire',
+    'numero_du_destinataire',
+    'NUMÉRO',
+    'numero',
+    'Bénéficiaire',
+    'nume\u0301ro',
+  ]) {
+    test('human beneficiary token normalizes: $alias', () {
+      final input = '*412*2*$alias#';
+      expect(UssdEngine.normalizeTemplate(input), '*412*2*{{msisdn_local}}#');
+      expect(
+        UssdEngine.normalizeTemplate('*412*2*{{$alias}}#'),
+        '*412*2*{{msisdn_local}}#',
+      );
+      expect(
+        UssdEngine.generate(input, const UssdValues(beneficiary: '0101010101')),
+        '*412*2*0101010101#',
+      );
+    });
+  }
+  test('human variables normalize once and preserve canonical digits/hash', () {
+    const input = '*410*numéro*montant*CODE SECRET#';
+    const expected = '*410*{{msisdn_local}}*{{amount}}*{{secret_code}}#';
+    expect(UssdEngine.normalizeTemplate(input), expected);
+    expect(UssdEngine.normalizeTemplate(expected), expected);
+    expect(
+      UssdEngine.normalizeTemplate('*999*code_offre*QUANTITÉ#'),
+      '*999*{{offer_code}}*{{quantity}}#',
+    );
+    expect(
+      UssdEngine.normalizeTemplate('#154*1*0707070707#'),
+      '#154*1*0707070707#',
+    );
+  });
+  test(
+    'normalization never rewrites unknown substrings into valid variables',
+    () {
+      for (final input in [
+        '*412*2*mon_numéro#',
+        '*412*2*numero123#',
+        '*412*2*{{foobar}}#',
+        '*412*2*{{numero}#',
+      ]) {
+        expect(
+          () => UssdEngine.validateTemplate(input),
+          throwsA(isA<UssdValidationException>()),
+        );
+      }
+    },
+  );
+  test('balance utility is never selected as an order shortcut', () {
+    final utility = UssdRule.fromJson({
+      'id': 'balance',
+      'version': 1,
+      'network': 'moov',
+      'service': null,
+      'purpose': 'balance',
+      'actor_scope': 'both',
+      'ussd_template': '*414*{{secret_code}}#',
+      'priority': 100,
+      'status': 'active',
+      'effective_from': '2020-01-01T00:00:00Z',
+    });
+    expect(utility.service, '');
+    expect(
+      UssdRule.select(
+        [utility],
+        network: 'moov',
+        service: '',
+        actor: 'agent',
+        now: DateTime.utc(2026),
+      ),
+      isNull,
+    );
+  });
   test('code and numeric values are bounded', () {
     expect(
       () => UssdEngine.generate(

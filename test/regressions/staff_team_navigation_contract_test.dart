@@ -3,22 +3,26 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  String source(String path) => File(path).readAsStringSync();
+  String source(String path) =>
+      File(path).readAsStringSync().replaceAll('\r\n', '\n');
 
-  test('Admin mobile expose Agents Cabinistes Managers et performance dans Equipe', () {
-    final String more = source(
-      'lib/features/more/presentation/pages/more_page.dart',
-    );
+  test(
+    'Admin mobile expose Agents Cabinistes Managers et performance dans Equipe',
+    () {
+      final String more = source(
+        'lib/features/more/presentation/pages/more_page.dart',
+      );
 
-    expect(more, contains("const _SectionLabel('Équipe')"));
-    expect(more, contains("title: 'Agents'"));
-    expect(more, contains("title: 'Cabinistes'"));
-    expect(more, contains("title: 'Managers'"));
-    expect(more, contains("title: 'Performance équipe'"));
-    expect(more, contains('ManagerAccountsPage(viewer: user)'));
-    expect(more, contains('CabinisteFinanceSupervisionPage(viewer: user)'));
-    expect(more, contains('TeamPerformancePage(user: user)'));
-  });
+      expect(more, contains("const _SectionLabel('Équipe')"));
+      expect(more, contains("title: 'Agents'"));
+      expect(more, contains("title: 'Cabinistes'"));
+      expect(more, contains("title: 'Managers'"));
+      expect(more, contains("title: 'Performance équipe'"));
+      expect(more, contains('ManagerAccountsPage(viewer: user)'));
+      expect(more, contains('CabinisteFinanceSupervisionPage(viewer: user)'));
+      expect(more, contains('TeamPerformancePage(user: user)'));
+    },
+  );
 
   test('page mobile Managers ouvre le dossier detaille commun', () {
     final String managers = source(
@@ -39,20 +43,23 @@ void main() {
     expect(detail, contains("title: 'Rémunération Manager'"));
   });
 
-  test('Back Office rend Cabinistes adjacent a Agents et Managers dans Equipe', () {
-    final String shell = source(
-      'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
-    );
-    final String managers = source(
-      'lib/backoffice/presentation/pages/team/backoffice_managers_page.dart',
-    );
+  test(
+    'Back Office rend Cabinistes adjacent a Agents et Managers dans Equipe',
+    () {
+      final String shell = source(
+        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+      );
+      final String managers = source(
+        'lib/backoffice/presentation/pages/team/backoffice_managers_page.dart',
+      );
 
-    expect(
-      shell,
-      contains('agents,\n  cabinisteFinances,\n  managers,'),
-    );
-    expect(shell, contains("return 'Comptes Managers';"));
-    expect(managers, contains('Comptes Managers et supervision territoriale'));
-    expect(managers, contains('Identité, zone et gains'));
-  });
+      expect(shell, contains('agents,\n  cabinisteFinances,\n  managers,'));
+      expect(shell, contains("return 'Comptes Managers';"));
+      expect(
+        managers,
+        contains('Comptes Managers et supervision territoriale'),
+      );
+      expect(managers, contains('Identité, zone et gains'));
+    },
+  );
 }

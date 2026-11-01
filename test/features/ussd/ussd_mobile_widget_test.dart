@@ -7,6 +7,39 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'ussd_test_doubles.dart';
 
+class _ServerResolvedRepository extends UssdTestRepository {
+  bool changedSecretRevision = false;
+  @override
+  Future<UssdResolution> prepare(
+    String orderId,
+    UssdResolution confirmed,
+    String requestId,
+  ) async {
+    preparations++;
+    return UssdResolution(
+      status: response.status,
+      reason: response.reason,
+      rule: response.rule,
+      code: response.code,
+      context: {
+        ...response.context,
+        if (changedSecretRevision) 'secret_revision': 'moov:agent:2',
+      },
+      attemptId: 'synthetic-attempt',
+      validForMs: leaseMs,
+    );
+  }
+}
+
+class _CapturingDialer extends UssdTestDialer {
+  String? lastCode;
+  @override
+  Future<void> open(String code) async {
+    lastCode = code;
+    await super.open(code);
+  }
+}
+
 void main() {
   Future<void> mount(
     WidgetTester tester,
@@ -53,6 +86,58 @@ void main() {
     await tester.tap(find.text('Lancer l’opération'));
     await tester.pumpAndSettle();
   }
+
+  for (final code in ['#154*1*0101010101#', '*410*0101010101*1000*987654#']) {
+    testWidgets(
+      'dialer receives exact server code including hashes and secret: $code',
+      (tester) async {
+        final repo = _ServerResolvedRepository(), dialer = _CapturingDialer();
+        repo.response = UssdResolution(
+          status: 'available',
+          reason: '',
+          rule: syntheticRule(),
+          code: code,
+          context: {
+            ...syntheticResolution().context,
+            'secret_revision': 'moov:agent:1',
+          },
+        );
+        await mount(tester, repo, dialer);
+        await launch(tester);
+        expect(dialer.opens, 0);
+        await tester.tap(find.text('Confirmer et ouvrir'));
+        await tester.pumpAndSettle();
+        expect(dialer.lastCode, code);
+        expect(repo.statusChanges, 0);
+        expect(find.text('Terminer avec preuve'), findsOneWidget);
+      },
+    );
+  }
+  testWidgets(
+    'secret revision changed during confirmation prevents dialer and preserves manual action',
+    (tester) async {
+      final repo = _ServerResolvedRepository(), dialer = _CapturingDialer();
+      repo.response = UssdResolution(
+        status: 'available',
+        reason: '',
+        rule: syntheticRule(),
+        code: '*410*0101010101*1000*0000#',
+        context: {
+          ...syntheticResolution().context,
+          'secret_revision': 'moov:agent:1',
+        },
+      );
+      await mount(tester, repo, dialer);
+      await launch(tester);
+      repo.changedSecretRevision = true;
+      await tester.tap(find.text('Confirmer et ouvrir'));
+      await tester.pumpAndSettle();
+      expect(dialer.opens, 0);
+      expect(repo.statusChanges, 0);
+      expect(find.textContaining('Le raccourci a changé'), findsOneWidget);
+      expect(find.text('Terminer avec preuve'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'collapsed production section loads only when opened and refreshes on reopening',

@@ -1,0 +1,133 @@
+IZYTEL — SUPPRESSION DES ÉLÉMENTS USSD
+1er novembre 2026
+
+PÉRIMÈTRE
+
+Ajout local à la reprise USSD. L'Administrateur peut supprimer les règles,
+les familles et les associations qu'il gère. Les rôles Manager, Supervisor,
+Agent et Cabiniste ne reçoivent aucun nouveau droit d'écriture.
+Aucun élément réel n'a été supprimé pendant cette intervention.
+Aucun push ou déploiement d'application n'a été effectué.
+Mise à jour après autorisation : les migrations serveur sont désormais appliquées.
+Voir docs/USSD_MIGRATIONS_SERVEUR_20261101.txt pour les versions et contrôles.
+
+PARCOURS DANS LE BACK-OFFICE
+
+- Règle : Catalogue > Raccourcis USSD > Actions > Supprimer.
+  La confirmation affiche l'opérateur, le statut et le template concernés.
+  Une règle active peut être supprimée : l'effet sur les nouveaux lancements
+  est expliqué avant confirmation. Le traitement manuel reste disponible.
+- Famille : Gérer les familles > icône Supprimer > confirmation.
+  Une famille référencée par une règle non supprimée, même en brouillon,
+  ou par une association d'offre ne peut pas être supprimée. Le message
+  explique qu'il faut d'abord retirer ces références.
+- Association : Associer les offres > sélectionner l'offre réelle >
+  Supprimer cette association > confirmation. L'offre du catalogue reste
+  présente. Les règles actives qui dépendent de l'association doivent
+  d'abord être désactivées ou supprimées.
+- Annuler ou fermer la confirmation n'envoie aucune suppression.
+  Pendant une écriture en cours, les autres écritures sont désactivées.
+  Une erreur serveur laisse l'élément visible ; aucun succès n'est simulé.
+
+CONSERVATION ET COHÉRENCE
+
+Les règles et familles sont retirées de la configuration par suppression
+logique : deleted_at/deleted_by. Une règle supprimée est désactivée dans la
+même transaction et sa nouvelle version est historisée. Ses versions
+antérieures, journaux d'exécution et signalements sont conservés.
+Les anciennes RPC d'édition et d'activation ne peuvent pas la ressusciter.
+Une famille supprimée ne peut plus être choisie dans une règle/association.
+Son libellé peut être recréé avec une nouvelle identité stable.
+
+La suppression d'association conserve une version datée avec son auteur
+dans l'historique, puis retire l'association courante. Sa recréation continue
+la numérotation des versions. Une ancienne confirmation ne peut donc pas
+redevenir valide par réutilisation d'un numéro de version.
+
+Les suppressions partagent le verrou transactionnel des préparations USSD.
+La version affichée d'une règle/association est contrôlée avant suppression.
+Les RPC vérifient le JWT Firebase et le rôle Admin vivant avant toute lecture.
+Les wrappers publics restent SECURITY INVOKER, les traitements privilégiés
+restent dans private avec search_path vide. Aucune permission de table ni
+politique RLS n'est élargie. Les fonctions de garde ne sont pas exécutables
+directement par les rôles clients.
+
+Un code déjà transmis au téléphone ne peut pas être retiré rétroactivement.
+L'ouverture du composeur reste explicite ; aucune commande, paiement,
+capacité, preuve ou commission n'est modifiée par cette fonctionnalité.
+
+FICHIERS DE CET AJOUT
+
+  lib/features/ussd/domain/ussd_repository.dart
+  lib/features/ussd/data/supabase_ussd_repository.dart
+  lib/features/ussd/presentation/backoffice_ussd_page.dart
+  lib/features/ussd/presentation/ussd_deletion_dialogs.dart (nouveau)
+  supabase/migrations/20261101003245_ussd_admin_deletion.sql (nouveau)
+  supabase/tests/ussd_reprise_preflight.sql
+  test/features/ussd/ussd_test_doubles.dart
+  test/features/ussd/ussd_backoffice_widget_test.dart
+  test/features/ussd/ussd_repository_http_test.dart
+  test/ussd_sql/run.mjs
+  test/ussd_sql/deletion_cases.mjs (nouveau)
+
+MIGRATION
+
+Fichier créé avec Supabase CLI 2.122.0, après vérification de --version et
+migration new --help. Aucun ancien fichier de migration n'a été réécrit.
+Ordre prévu : V1 déjà installée, puis aliases/secret/draft_catalog, puis
+20261101003245_ussd_admin_deletion.sql. Contrôler l'historique réel de la cible
+avec le préflight SELECT ; ne pas pousser toutes les migrations à l'aveugle.
+
+Après autorisation explicite ultérieure, la migration de suppression a été
+appliquée le 1er novembre 2026, version distante 20261101004648, après la migration
+variables/secrets (20261101004639). Les trois RPC sont installées. Les parcours
+avec les vrais comptes dans l'application restent à valider ; voir le rapport
+serveur pour distinguer ces vérifications des tests locaux.
+
+RECETTE RÉELLE APRÈS APPLICATION AUTORISÉE SUR UNE CIBLE VÉRIFIÉE
+
+1. Admin : créer un brouillon, cliquer Supprimer, puis Annuler ; vérifier sa
+   présence. Confirmer ensuite sa suppression ; actualiser et vérifier son
+   absence. Vérifier la conservation de son historique côté serveur.
+2. Ouvrir la même règle sur deux sessions Admin, la modifier dans la première,
+   puis tenter de supprimer l'ancienne version depuis la seconde : refus.
+3. Créer une famille inutilisée, la supprimer, puis recréer son nom : succès.
+   Essayer avec une famille utilisée par une règle ou association : refus.
+4. Supprimer une association non utilisée par une règle active : l'offre du
+   catalogue reste présente. Recréer l'association et vérifier que sa version
+   dépasse celle de l'ancienne association et de son événement de suppression.
+5. Manager/Agent/Cabiniste : vérifier l'absence de commandes de suppression et
+   le refus des RPC avec de vrais JWT, y compris en appelant directement l'API.
+6. Avec une règle de test active, ouvrir une confirmation sur mobile, supprimer
+   la règle depuis Admin, puis confirmer sur mobile : aucun nouveau lancement
+   ne doit utiliser l'ancienne règle. Ne pas exécuter de transaction télécom.
+
+Les tests automatisés utilisent des identités synthétiques, HTTP loopback,
+un composeur simulé et PostgreSQL PGlite en mémoire. Aucun test de vrais JWT
+PostgREST ni de téléphone/SIM n'est revendiqué pour cet ajout.
+
+RÉSULTATS VÉRIFIÉS
+
+- flutter analyze --no-pub : aucune anomalie.
+- flutter test --no-pub test/features/ussd --reporter expanded : 142 réussis,
+  zéro échec, dont 29 tests d'interface. Les neuf nouveaux tests d'interface
+  couvrent confirmation/annulation, retrait du brouillon, avertissement sur
+  règle active, refus serveur, écritures bloquées pendant chargement, familles
+  et dépendances, associations et petit écran avec texte agrandi.
+- node test/ussd_sql/run.mjs : 111 scénarios réussis, zéro échec. Les 92 scénarios
+  antérieurs passent aussi avec la migration de suppression installée en mémoire.
+- Quatre nouveaux tests HTTP vérifient les paramètres et le JWT de suppression,
+  les versions attendues et l'absence de relance automatique après refus.
+- Les trois échecs initiaux d'interface provenaient de l'attente des animations,
+  du timer de notification et du ciblage d'un Tooltip dans le test. Le harness
+  a été corrigé ; la relance finale complète du dossier USSD passe.
+- La suite Flutter globale et les builds ne sont pas relancés pour cet ajout.
+  Leurs résultats consignés dans le rapport de reprise précèdent ces changements.
+
+Journaux de validation :
+  scratch/ussd_deletion_analyze.log
+  scratch/ussd_deletion_tests.log
+  scratch/ussd_deletion_sql.log
+
+Référence des permissions de fonctions :
+  https://supabase.com/docs/guides/database/functions

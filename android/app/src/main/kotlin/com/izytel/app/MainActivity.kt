@@ -22,7 +22,7 @@ class MainActivity : FlutterActivity() {
                 return@setMethodCallHandler
             }
             val code = call.argument<String>("code") ?: ""
-            if (code.length > 182 || !Regex("^\\*{1,2}[0-9]+(?:\\*[0-9]+)*#$").matches(code)) {
+            if (code.length > 182 || !Regex("^(?:\\*{1,2}|#)[0-9]+(?:\\*[0-9]+)*#$").matches(code)) {
                 result.error("invalid_template", "Syntaxe USSD invalide.", null)
                 return@setMethodCallHandler
             }

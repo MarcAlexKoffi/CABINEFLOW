@@ -50,6 +50,8 @@ dependencies:
   supabase_flutter: ^2.17.2
 
 dev_dependencies:
+  # Offline font responses in the optional USSD visual test harness.
+  http: 1.6.0
   flutter_test:
     sdk: flutter
 

@@ -3,7 +3,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  String read(String path) => File(path).readAsStringSync();
+  String read(String path) =>
+      File(path).readAsStringSync().replaceAll('\r\n', '\n');
 
   test('mobile tabs preserve each nested navigation stack', () {
     final String shell = read(
@@ -13,15 +14,14 @@ void main() {
       shell,
       contains('if (index == _selectedIndex) {\n      _popTabToRoot(index);'),
     );
+    expect(shell, contains('void _openRootDestination(int index)'));
     expect(
       shell,
-      contains('void _openRootDestination(int index)'),
-    );
-    expect(
-      shell,
-      isNot(contains(
-        'void _selectDestination(int index) {\n    _disarmExit();\n    _popTabToRoot(index);\n    if (index == _selectedIndex) return;',
-      )),
+      isNot(
+        contains(
+          'void _selectDestination(int index) {\n    _disarmExit();\n    _popTabToRoot(index);\n    if (index == _selectedIndex) return;',
+        ),
+      ),
     );
   });
 
@@ -63,12 +63,15 @@ void main() {
     );
   });
 
-  test('WC13 migration keeps IzyTel checks while restoring Firebase role compatibility', () {
-    final String sql = read(
-      'supabase/migrations/20260929091500_wc13_phase4_firebase_third_party_role_compatibility.sql',
-    );
-    expect(sql, contains('to anon, authenticated'));
-    expect(sql, contains('phase4 staff inserts zoned orders'));
-    expect(sql, contains('phase4 staff updates zoned orders'));
-  });
+  test(
+    'WC13 migration keeps IzyTel checks while restoring Firebase role compatibility',
+    () {
+      final String sql = read(
+        'supabase/migrations/20260929091500_wc13_phase4_firebase_third_party_role_compatibility.sql',
+      );
+      expect(sql, contains('to anon, authenticated'));
+      expect(sql, contains('phase4 staff inserts zoned orders'));
+      expect(sql, contains('phase4 staff updates zoned orders'));
+    },
+  );
 }

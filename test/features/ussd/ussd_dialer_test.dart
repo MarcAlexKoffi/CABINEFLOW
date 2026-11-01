@@ -29,6 +29,13 @@ void main() {
       expect(calls.single.arguments, {'code': '*999*0101010101#'});
     },
   );
+  test(
+    'Orange leading and closing hashes reach native channel intact',
+    () async {
+      await const AndroidUssdDialer().open('#154*1*0101010101#');
+      expect(calls.single.arguments, {'code': '#154*1*0101010101#'});
+    },
+  );
   for (final code in ['tel:*999#', '*999#;CALL', '*999*abc#', '*999#\n']) {
     test('native channel not invoked for malformed code $code', () async {
       await expectLater(

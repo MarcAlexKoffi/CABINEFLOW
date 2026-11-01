@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:cabine_flow/features/ussd/data/supabase_ussd_repository.dart';
+import 'package:cabine_flow/features/ussd/domain/ussd_engine.dart';
 import 'package:cabine_flow/features/orders/data/repositories/supabase_phase4_assignment_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,10 +15,12 @@ void main() {
   int responseStatus = 200;
   dynamic response;
   bool missingUssd = false;
+  String? authorization;
   setUp(() async {
     calls.clear();
     responseStatus = 200;
     missingUssd = false;
+    authorization = null;
     response = {'status': 'unavailable', 'reason': 'no_rule'};
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     client = SupabaseClient(
@@ -26,6 +29,7 @@ void main() {
       accessToken: () async => 'synthetic-firebase-token',
     );
     server.listen((request) async {
+      authorization = request.headers.value(HttpHeaders.authorizationHeader);
       final raw = await utf8.decoder.bind(request).join();
       calls.add((
         path: request.uri.path,
@@ -83,6 +87,25 @@ void main() {
       expect(result.available, isFalse);
       expect(calls.single.path, '/rest/v1/rpc/izytel_ussd_resolve');
       expect(calls.single.body, {'p_order_id': 'synthetic-order'});
+      expect(authorization, 'Bearer synthetic-firebase-token');
+    },
+  );
+  test(
+    'missing Firebase identity becomes an explicit session error with no retry',
+    () async {
+      responseStatus = 401;
+      response = {'code': '42501', 'message': 'USSD_AUTH_REQUIRED'};
+      await expectLater(
+        SupabaseUssdRepository(client: client).configuration(),
+        throwsA(
+          isA<UssdValidationException>().having(
+            (e) => e.code,
+            'code',
+            'authentication_required',
+          ),
+        ),
+      );
+      expect(calls.length, 1);
     },
   );
   test(
@@ -139,6 +162,81 @@ void main() {
         calls.single.body.keys,
         unorderedEquals(['p_rule_id', 'p_expected_version', 'p_payload']),
       );
+    },
+  );
+  test(
+    'save normalizes human variables and omits legacy order purpose',
+    () async {
+      response = 'synthetic-rule';
+      await SupabaseUssdRepository(client: client).saveRule({
+        'purpose': 'order',
+        'ussd_template': '*410*numéro*montant*code_secret#',
+      });
+      final payload = calls.single.body['p_payload'] as Map;
+      expect(
+        payload['ussd_template'],
+        '*410*{{msisdn_local}}*{{amount}}*{{secret_code}}#',
+      );
+      expect(payload.containsKey('purpose'), isFalse);
+    },
+  );
+  test('balance saves retain their explicit purpose', () async {
+    response = 'synthetic-rule';
+    await SupabaseUssdRepository(client: client).saveRule({
+      'purpose': 'balance',
+      'service': null,
+      'ussd_template': '*414*code secret#',
+    });
+    final payload = calls.single.body['p_payload'] as Map;
+    expect(payload['purpose'], 'balance');
+    expect(payload['service'], isNull);
+    expect(payload['ussd_template'], '*414*{{secret_code}}#');
+  });
+  test(
+    'rule deletion sends the stable ID and confirmed version only',
+    () async {
+      response = null;
+      final rule = syntheticResolution().rule!;
+      await SupabaseUssdRepository(client: client).deleteRule(rule);
+      expect(calls.single.path, '/rest/v1/rpc/izytel_ussd_delete_rule');
+      expect(calls.single.body, {
+        'p_rule_id': rule.id,
+        'p_expected_version': rule.version,
+      });
+      expect(authorization, 'Bearer synthetic-firebase-token');
+    },
+  );
+  test('family deletion sends only its stable ID', () async {
+    response = null;
+    await SupabaseUssdRepository(
+      client: client,
+    ).deleteFamily('synthetic-family');
+    expect(calls.single.path, '/rest/v1/rpc/izytel_ussd_delete_family');
+    expect(calls.single.body, {'p_family_id': 'synthetic-family'});
+  });
+  test('binding deletion preserves optimistic version checking', () async {
+    response = null;
+    await SupabaseUssdRepository(
+      client: client,
+    ).deleteBinding('synthetic-offer', 7);
+    expect(calls.single.path, '/rest/v1/rpc/izytel_ussd_delete_binding');
+    expect(calls.single.body, {
+      'p_offer_id': 'synthetic-offer',
+      'p_expected_version': 7,
+    });
+  });
+  test(
+    'deletion rejection is propagated once without an automatic retry',
+    () async {
+      responseStatus = 403;
+      response = {'message': 'USSD_ADMIN_REQUIRED', 'code': '42501'};
+      await expectLater(
+        SupabaseUssdRepository(
+          client: client,
+        ).deleteRule(syntheticResolution().rule!),
+        throwsA(isA<PostgrestException>()),
+      );
+      expect(calls.length, 1);
     },
   );
   test(

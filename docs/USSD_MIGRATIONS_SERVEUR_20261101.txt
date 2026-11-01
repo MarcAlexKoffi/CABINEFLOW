@@ -1,0 +1,126 @@
+IZYTEL — APPLICATION DES MIGRATIONS USSD AU SERVEUR
+1er novembre 2026, UTC / Africa-Abidjan
+
+RÉSULTAT
+
+Les deux migrations USSD préparées ont été appliquées avec succès sur le
+projet Supabase IzyTel existant, après autorisation explicite de l'utilisateur :
+« vas-y avec la migration serveur ».
+
+La cible a été confirmée avant écriture : IzyTel, région eu-west-3,
+statut ACTIVE_HEALTHY. Aucun nouveau projet ou environnement n'a été créé.
+Aucun push GitHub, fusion ou déploiement d'application n'a été effectué.
+
+CORRESPONDANCE DES FICHIERS ET DE L'HISTORIQUE DISTANT
+
+V1, déjà installée et non réappliquée :
+  fichier local : 20261031005603_ussd_dynamic_shortcuts_v1.sql
+  version distante : 20261031095414
+
+Variables, secret et catalogue de brouillons :
+  fichier local :
+    supabase/migrations/20261031224809_ussd_template_aliases_secret_and_draft_catalog.sql
+  nom distant : ussd_template_aliases_secret_and_draft_catalog
+  version distante : 20261101004639
+  SHA256 du fichier :
+    7c5132cc3f8698d7ef38052dd564a276e8b3708b6ba045c650f9bc7a7e49dbc4
+
+Suppression administrateur :
+  fichier local : supabase/migrations/20261101003245_ussd_admin_deletion.sql
+  nom distant : ussd_admin_deletion
+  version distante : 20261101004648
+  SHA256 du fichier :
+    a78b0eba462a6b58f501856f27f0bfd840fce89737f2b43e13235e358dc5b571
+
+Les fichiers SQL n'ont pas été réécrits. L'outil Supabase apply_migration a
+généré les versions distantes ci-dessus. Les noms et empreintes identifient
+les fichiers correspondants ; ne pas confondre leurs horodatages avec ceux
+de l'historique serveur. Ne pas relancer aveuglément supabase db push ni
+réappliquer ces fichiers. Aucune réparation d'historique n'a été exécutée.
+
+Chaque application a ajouté des limites transactionnelles de verrouillage
+(8 secondes) et d'exécution (60 secondes). Les deux appels ont retourné success.
+Un contrôle du résultat de la première migration a précédé la seconde.
+
+PRÉSERVATION DES DONNÉES
+
+Avant : 5 règles existantes, dont 3 actives ; 8 versions ; 2 journaux d'exécution ;
+1 signalement ; aucune famille ou association USSD.
+
+Après : 17 règles au total, dont les mêmes 3 actives et 12 nouvelles en brouillon ;
+20 versions ; 2 journaux d'exécution ; 1 signalement ; 2 familles ; 5 associations
+Moov Folie avec leurs 5 versions d'historique. Aucune règle supprimée.
+
+Des empreintes ont confirmé l'identité avant/après des cinq règles antérieures
+(hors nouvelles colonnes techniques), de leurs versions, des journaux,
+signalements et événements de signalement. Les définitions et permissions
+des fonctions public/private étrangères au module USSD sont également identiques.
+Ces contrôles n'ont exposé aucune valeur de client ou de secret.
+
+Les 12 règles ajoutées restent TOUTES en brouillon : aucune activation automatique.
+La famille MTN Chic reste sans association d'offre ; aucun mapping automatique
+vers Free Plus n'a été ajouté. Sa validation métier reste nécessaire.
+
+CONTRÔLES SERVEUR RÉUSSIS
+
+- Présence des deux migrations dans l'historique.
+- Présence des trois RPC de suppression :
+    izytel_ussd_delete_rule(uuid,integer)
+    izytel_ussd_delete_family(uuid)
+    izytel_ussd_delete_binding(text,integer)
+- Quatre colonnes de suppression logique et deux triggers de garde installés.
+- RLS activée sur les neuf tables USSD publiques et la table privée du secret.
+  Aucun droit direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE pour anon/authenticated.
+- Les quinze RPC publiques existantes conservent leurs ACL et restent INVOKER.
+  Les trois nouvelles RPC publiques sont INVOKER ; leur traitement privé
+  vérifie le JWT Firebase et le rôle Admin avant toute lecture ou écriture.
+- Les huit nouveaux helpers internes contrôlés ne sont pas exécutables par
+  les rôles clients. Aucun secret réel n'a été lu ou journalisé.
+- Les trois RPC de suppression refusent l'identité anonyme sans JWT avec
+  USSD_AUTH_REQUIRED. Vérification dans une transaction READ ONLY annulée.
+  Aucune suppression réelle n'a été utilisée pour tester l'installation.
+- Génération sur données fictives : alias bénéficiaire, alias montant,
+  syntaxe Orange commençant par #, secret par défaut et code statique : conformes.
+- Notification de rechargement du schéma PostgREST envoyée après installation.
+
+ADVISORS SUPABASE
+
+Comparaison de sécurité avant/après : aucun nouveau WARN ou ERROR.
+Une information RLS Enabled No Policy apparaît pour la nouvelle table
+private.ussd_secret_configuration : RLS active sans politique autorisant les
+clients, et droits directs révoqués. Ce comportement est attendu pour cette
+source privée accessible uniquement aux traitements serveur autorisés.
+
+Des avertissements préexistants hors USSD restent inchangés : extension pg_net
+dans public et fonctions SECURITY DEFINER exécutables par les rôles clients
+(57 constats anon, 59 authenticated). Ils n'ont pas été modifiés dans cette
+intervention. Leur évaluation complète relève d'un audit distinct.
+
+Références des constats :
+  https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy
+  https://supabase.com/docs/guides/database/database-linter?lint=0014_extension_in_public
+  https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable
+  https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable
+
+TESTS ET LIMITES
+
+Les validations locales précédentes demeurent disponibles : 142 tests Flutter
+USSD, 111 scénarios SQL PGlite et analyse Flutter sans anomalie. Elles ne sont
+pas présentées comme des tests de vrais comptes sur le serveur.
+
+Les vrais JWT Admin/Manager/Agent/Cabiniste via PostgREST, les confirmations sur
+téléphone et les SIM physiques restent à vérifier. Aucune opération télécom,
+suppression utilisateur ou transaction financière n'a été exécutée.
+
+Pour tester depuis la version locale de l'application intégrant les boutons :
+1. Actualiser le Back-office et ouvrir Catalogue > Raccourcis USSD.
+2. Créer un brouillon de test, puis Actions > Supprimer > Annuler : il reste.
+3. Confirmer ensuite sa suppression : il disparaît, y compris après actualisation.
+4. Vérifier les familles et associations selon docs/USSD_SUPPRESSION_20261101.txt.
+
+Si l'application utilise encore un ancien bundle, relancer/recompiler la version
+locale mise à jour : la migration serveur n'ajoute pas les boutons à un ancien
+build Flutter. Aucune publication d'application n'est incluse ici.
+
+Preuves de vérification locales, sans informations sensibles :
+  scratch/ussd_server_migrations_20261101.json

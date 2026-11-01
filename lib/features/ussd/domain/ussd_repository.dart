@@ -32,7 +32,9 @@ class UssdResolution {
       validForMs: (row['valid_for_ms'] as num?)?.toInt(),
     );
     if (result.status == 'available') {
-      if (!result.available || result.rule!.status != 'active') {
+      if (!result.available ||
+          result.rule!.status != 'active' ||
+          result.rule!.purpose != 'order') {
         throw const FormatException('invalid_ussd_resolution');
       }
       UssdEngine.validateCode(result.code!);
@@ -68,7 +70,10 @@ abstract class UssdRepository {
     int? version,
   });
   Future<void> setStatus(UssdRule rule, String status, {String? simType});
+  Future<void> deleteRule(UssdRule rule);
   Future<void> saveFamily(String network, String service, String label);
+  Future<void> deleteFamily(String familyId);
+  Future<void> deleteBinding(String offerId, int version);
   Future<void> saveBinding(
     String offerId,
     String? familyId,
