@@ -16,14 +16,24 @@ void main() {
       expect(source, contains('FilteringTextInputFormatter'));
     });
 
-    test('enrichissement Firestore Manager reste limite aux Agents Supabase visibles', () {
-      final String source = File(
-        'lib/features/agents/data/repositories/firestore_agent_repository.dart',
-      ).readAsStringSync();
+    test(
+      'enrichissement Firestore Manager reste limite aux Agents Supabase visibles',
+      () {
+        final String source = File(
+          'lib/features/agents/data/repositories/firestore_agent_repository.dart',
+        ).readAsStringSync();
 
-      expect(source, contains('operationsByAgent.containsKey(doc.id)'));
-      expect(source, contains('if (_isManager)'));
-      expect(source, contains('operations.map((SupabaseAgentOperationalRecord operational)'));
-    });
+        expect(source, contains('operationsByAgent.containsKey(doc.id)'));
+        expect(source, contains('if (_isManager)'));
+        expect(
+          source,
+          matches(
+            RegExp(
+              r'operations\s*\.map\(\s*\(SupabaseAgentOperationalRecord operational\)',
+            ),
+          ),
+        );
+      },
+    );
   });
 }

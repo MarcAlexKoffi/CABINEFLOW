@@ -115,12 +115,7 @@ class _BackofficeUserAdminDialogState extends State<BackofficeUserAdminDialog> {
         if (_repair && error.operationId == null) {
           _error = '${error.message} Référence : $_requestId';
         }
-        if (!_repair &&
-            ![
-              'INVALID_RESPONSE',
-              'ADMIN_OPERATION_FAILED',
-              'IDEMPOTENCY_CONFLICT',
-            ].contains(error.code)) {
+        if (!_repair && !error.requiresSameRequestRetry) {
           _attempt = null;
         }
       });

@@ -18,9 +18,6 @@ void main() {
         update: const AgentOperationalUpdate(
           availability: AgentAvailability.available,
           activeNetworks: <AgentNetwork>[AgentNetwork.orange, AgentNetwork.mtn],
-          orangeCapacity: 35000,
-          mtnCapacity: 18000,
-          moovCapacity: 0,
         ),
       );
 

@@ -35,13 +35,19 @@ void main() {
       expect(migration, isNot(contains('security definer')));
     });
 
-    test('une route Android inattendue recupere la session au lieu dune page morte', () {
-      final String app = read('lib/app/app.dart');
-      expect(app, contains('_createRecoveryRoute'));
-      expect(app, contains("IzyTelLog.debug('[Navigation][route-recovery]')"));
-      expect(app, contains('SplashPage(authRepository: authRepository)'));
-      expect(app, isNot(contains('Impossible d’ouvrir cette page.')));
-    });
+    test(
+      'une route Android inattendue recupere la session au lieu dune page morte',
+      () {
+        final String app = read('lib/app/app.dart');
+        expect(app, contains('_createRecoveryRoute'));
+        expect(
+          app,
+          contains("IzyTelLog.debug('[Navigation][route-recovery]')"),
+        );
+        expect(app, contains('SplashPage(authRepository: authRepository)'));
+        expect(app, isNot(contains('Impossible d’ouvrir cette page.')));
+      },
+    );
 
     test('une erreur temporaire conserve une file Agent deja chargee', () {
       final String viewModel = read(
@@ -54,7 +60,10 @@ void main() {
       expect(viewModel, contains('if (_orders.isEmpty)'));
       expect(viewModel, contains("'AgentOrders.watch-assigned'"));
       expect(viewModel, contains('_errorIsQueueLoad'));
-      expect(viewModel, contains('String get errorTitle => _errorIsQueueLoad'));
+      expect(
+        viewModel,
+        matches(RegExp(r'String get errorTitle\s*=>\s*_errorIsQueueLoad')),
+      );
       expect(viewModel, contains("'Impossible de charger la file'"));
       expect(viewModel, contains("'Action impossible'"));
       expect(page, contains('title: _viewModel.errorTitle'));

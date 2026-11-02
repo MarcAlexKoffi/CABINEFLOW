@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:cabine_flow/backoffice/data/repositories/backoffice_user_administration_repository.dart';
 import 'package:cabine_flow/backoffice/data/repositories/firestore_backoffice_user_repository.dart';
@@ -193,6 +194,62 @@ void main() {
       await repository.send(command);
       await repository.send(command);
       expect(commands, [command, command]);
+    },
+  );
+  for (final failure in <String, Exception>{
+    'SERVICE_UNREACHABLE': http.ClientException('Failed to fetch'),
+    'REQUEST_TIMEOUT': TimeoutException('No response'),
+  }.entries) {
+    test(
+      '${failure.key} preserves the operation reference without retrying automatically',
+      () async {
+        var calls = 0;
+        final repository = BackofficeUserAdministrationRepository(
+          tokenProvider: () async => 'token',
+          httpClient: MockClient((_) async {
+            calls++;
+            throw failure.value;
+          }),
+        );
+        await expectLater(
+          repository.send({'action': 'create', 'requestId': 'same-operation'}),
+          throwsA(
+            isA<UserAdminException>()
+                .having((e) => e.code, 'code', failure.key)
+                .having((e) => e.operationId, 'reference', 'same-operation')
+                .having(
+                  (e) => e.requiresSameRequestRetry,
+                  'same request',
+                  true,
+                ),
+          ),
+        );
+        expect(calls, 1);
+      },
+    );
+  }
+  test(
+    'explicit origin denial identifies the supported local address',
+    () async {
+      final repository = BackofficeUserAdministrationRepository(
+        tokenProvider: () async => 'token',
+        httpClient: MockClient(
+          (_) async =>
+              http.Response('{"ok":false,"error":"ORIGIN_DENIED"}', 403),
+        ),
+      );
+      await expectLater(
+        repository.send({'action': 'create'}),
+        throwsA(
+          isA<UserAdminException>()
+              .having((e) => e.code, 'code', 'ORIGIN_DENIED')
+              .having(
+                (e) => e.message,
+                'local address',
+                contains('http://localhost:8080'),
+              ),
+        ),
+      );
     },
   );
   test('missing Firebase session never calls server', () async {

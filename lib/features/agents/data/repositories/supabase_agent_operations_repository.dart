@@ -152,14 +152,13 @@ class SupabaseAgentOperationsRepository {
           .from(tableName)
           .stream(primaryKey: const <String>['agent_id']);
       await for (final List<Map<String, dynamic>> rows in rowsStream) {
-        final List<SupabaseAgentOperationalRecord> records = rows
-            .map(_recordFromRow)
-            .toList(growable: false)
-          ..sort(
-            (SupabaseAgentOperationalRecord a,
-                    SupabaseAgentOperationalRecord b) =>
-                a.profile.agentCode.compareTo(b.profile.agentCode),
-          );
+        final List<SupabaseAgentOperationalRecord> records =
+            rows.map(_recordFromRow).toList(growable: false)..sort(
+              (
+                SupabaseAgentOperationalRecord a,
+                SupabaseAgentOperationalRecord b,
+              ) => a.profile.agentCode.compareTo(b.profile.agentCode),
+            );
         lastKnown = List<SupabaseAgentOperationalRecord>.unmodifiable(records);
         yield lastKnown;
       }
@@ -210,7 +209,9 @@ class SupabaseAgentOperationsRepository {
   }) async {
     final String uid = (FirebaseAuth.instance.currentUser?.uid ?? '').trim();
     if (uid.isEmpty || uid != agentId.trim()) {
-      throw StateError('La session Agent ne correspond pas au profil a modifier.');
+      throw StateError(
+        'La session Agent ne correspond pas au profil a modifier.',
+      );
     }
     final Object? raw = await _client.rpc(
       'phase3_update_own_agent_operations',
@@ -219,9 +220,6 @@ class SupabaseAgentOperationsRepository {
         'p_active_networks': update.activeNetworks
             .map((AgentNetwork network) => network.name)
             .toList(growable: false),
-        'p_orange': update.orangeCapacity,
-        'p_mtn': update.mtnCapacity,
-        'p_moov': update.moovCapacity,
       },
     );
     return _profileFromRpc(raw, fallbackAgentId: agentId);

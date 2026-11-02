@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -34,6 +35,14 @@ class UserAdminException implements Exception {
   final String code;
   final String? operationId;
   final bool requiresRepair;
+  bool get requiresSameRequestRetry => const {
+    'INVALID_RESPONSE',
+    'ADMIN_OPERATION_FAILED',
+    'IDEMPOTENCY_CONFLICT',
+    'OPERATION_RESULT_UNKNOWN',
+    'SERVICE_UNREACHABLE',
+    'REQUEST_TIMEOUT',
+  }.contains(code);
   @override
   String toString() =>
       '$message${operationId == null ? '' : ' Référence : $operationId'}';
@@ -61,6 +70,12 @@ class UserAdminException implements Exception {
       'Une session Administrateur active est nécessaire. Reconnectez-vous.',
     'INVALID_RESPONSE' =>
       'La réponse du serveur est invalide. Vérifiez l’opération avant de recommencer.',
+    'ORIGIN_DENIED' =>
+      'Cette adresse du Back-office n’est pas autorisée par le service de gestion des utilisateurs. En local, ouvrez http://localhost:8080.',
+    'SERVICE_UNREACHABLE' =>
+      'Le navigateur n’a pas reçu de réponse du service de gestion des utilisateurs. Vérifiez la connexion et l’adresse du Back-office ; en local, ouvrez http://localhost:8080. Le résultat n’est pas confirmé : réessayez la même demande.',
+    'REQUEST_TIMEOUT' =>
+      'Le service de gestion des utilisateurs met trop de temps à répondre. Le résultat n’est pas confirmé : réessayez la même demande.',
     _ => 'L’opération n’a pas abouti ($code).',
   };
 }
@@ -110,17 +125,32 @@ class BackofficeUserAdministrationRepository
     if (token == null || token.trim().isEmpty) {
       throw const UserAdminException('AUTH_REQUIRED');
     }
-    final response = await _http
-        .post(
-          _endpoint,
-          headers: {
-            'Authorization': 'Bearer $token',
-            'apikey': SupabaseBootstrap.publishableKey,
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode(command),
-        )
-        .timeout(const Duration(seconds: 40));
+    final http.Response response;
+    try {
+      response = await _http
+          .post(
+            _endpoint,
+            headers: {
+              'Authorization': 'Bearer $token',
+              'apikey': SupabaseBootstrap.publishableKey,
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(command),
+          )
+          .timeout(const Duration(seconds: 40));
+    } on http.ClientException {
+      // Browser transport failures can be CORS or network failures. They do
+      // not establish whether the server received a mutation.
+      throw UserAdminException(
+        'SERVICE_UNREACHABLE',
+        operationId: command['requestId']?.toString(),
+      );
+    } on TimeoutException {
+      throw UserAdminException(
+        'REQUEST_TIMEOUT',
+        operationId: command['requestId']?.toString(),
+      );
+    }
     Map<String, dynamic> result;
     try {
       final decoded = jsonDecode(response.body);

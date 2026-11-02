@@ -135,40 +135,43 @@ class FirestoreAgentRepository implements AgentRepository {
             for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
                 in latestUsers?.docs ??
                     const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
-              if (!_isManager || operationsByAgent.containsKey(doc.id)) doc.id: doc,
+              if (!_isManager || operationsByAgent.containsKey(doc.id))
+                doc.id: doc,
           };
 
       if (_isManager) {
         // Le registre operationnel Supabase est canonique et deja filtre par
         // RLS sur les zones du Manager. La liste ne doit jamais attendre une
         // seconde source Firestore pour sortir de l'etat de chargement.
-        final List<AgentDirectoryEntry> entries = operations.map((SupabaseAgentOperationalRecord operational) {
-              final Map<String, dynamic>? data =
-                  usersById[operational.agentId]?.data();
-              return AgentDirectoryEntry(
-                userId: operational.agentId,
-                name: data == null
-                    ? operational.agentName
-                    : _string(
-                        data['name'],
-                        fallback: operational.agentName,
-                      ),
-                email: data == null ? '' : _string(data['email']),
-                phoneNumber: data == null
-                    ? ''
-                    : _string(data['phoneNumber']),
-                isActive: operational.isActive,
-                profile: operational.profile,
-              );
-            })
-            .toList(growable: false)
-          ..sort((AgentDirectoryEntry a, AgentDirectoryEntry b) {
-            final int active = b.isActive.toString().compareTo(
-              a.isActive.toString(),
-            );
-            if (active != 0) return active;
-            return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-          });
+        final List<AgentDirectoryEntry> entries =
+            operations
+                .map((SupabaseAgentOperationalRecord operational) {
+                  final Map<String, dynamic>? data =
+                      usersById[operational.agentId]?.data();
+                  return AgentDirectoryEntry(
+                    userId: operational.agentId,
+                    name: data == null
+                        ? operational.agentName
+                        : _string(
+                            data['name'],
+                            fallback: operational.agentName,
+                          ),
+                    email: data == null ? '' : _string(data['email']),
+                    phoneNumber: data == null
+                        ? ''
+                        : _string(data['phoneNumber']),
+                    isActive: operational.isActive,
+                    profile: operational.profile,
+                  );
+                })
+                .toList(growable: false)
+              ..sort((AgentDirectoryEntry a, AgentDirectoryEntry b) {
+                final int active = b.isActive.toString().compareTo(
+                  a.isActive.toString(),
+                );
+                if (active != 0) return active;
+                return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+              });
         controller.add(List<AgentDirectoryEntry>.unmodifiable(entries));
         return;
       }
@@ -176,29 +179,32 @@ class FirestoreAgentRepository implements AgentRepository {
       final QuerySnapshot<Map<String, dynamic>>? users = latestUsers;
       if (users == null) return;
 
-      final List<AgentDirectoryEntry> entries = users.docs
-          .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
-            final Map<String, dynamic> data = doc.data();
-            final SupabaseAgentOperationalRecord? operational =
-                operationsByAgent[doc.id];
-            return AgentDirectoryEntry(
-              userId: doc.id,
-              name: _string(
-                data['name'],
-                fallback: operational?.agentName ?? 'Agent',
-              ),
-              email: _string(data['email']),
-              phoneNumber: _string(data['phoneNumber']),
-              isActive: operational?.isActive ?? data['isActive'] == true,
-              profile: operational?.profile,
-            );
-          })
-          .toList(growable: false)
-        ..sort((AgentDirectoryEntry a, AgentDirectoryEntry b) {
-          final int active = b.isActive.toString().compareTo(a.isActive.toString());
-          if (active != 0) return active;
-          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-        });
+      final List<AgentDirectoryEntry> entries =
+          users.docs
+              .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+                final Map<String, dynamic> data = doc.data();
+                final SupabaseAgentOperationalRecord? operational =
+                    operationsByAgent[doc.id];
+                return AgentDirectoryEntry(
+                  userId: doc.id,
+                  name: _string(
+                    data['name'],
+                    fallback: operational?.agentName ?? 'Agent',
+                  ),
+                  email: _string(data['email']),
+                  phoneNumber: _string(data['phoneNumber']),
+                  isActive: operational?.isActive ?? data['isActive'] == true,
+                  profile: operational?.profile,
+                );
+              })
+              .toList(growable: false)
+            ..sort((AgentDirectoryEntry a, AgentDirectoryEntry b) {
+              final int active = b.isActive.toString().compareTo(
+                a.isActive.toString(),
+              );
+              if (active != 0) return active;
+              return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+            });
       controller.add(List<AgentDirectoryEntry>.unmodifiable(entries));
     }
 
@@ -206,32 +212,32 @@ class FirestoreAgentRepository implements AgentRepository {
       onListen: () {
         operationsSub = SupabaseAgentOperationsRepository()
             .watchAllForStaff()
-            .listen(
-              (List<SupabaseAgentOperationalRecord> records) {
-                latestOperations = records;
-                emit();
-              },
-              onError: controller.addError,
-            );
+            .listen((List<SupabaseAgentOperationalRecord> records) {
+              latestOperations = records;
+              emit();
+            }, onError: controller.addError);
 
         // L'identite Firestore enrichit email/telephone, mais elle n'est plus
         // une dependance de disponibilite pour un Manager.
-        usersSub = _users.where('role', isEqualTo: 'agent').snapshots().listen(
-          (QuerySnapshot<Map<String, dynamic>> snapshot) {
-            latestUsers = snapshot;
-            emit();
-          },
-          onError: (Object error, StackTrace stackTrace) {
-            if (_isManager) {
-              // Supabase suffit pour continuer a travailler sur les Agents de
-              // la zone. Une panne Firestore d'enrichissement ne doit jamais
-              // laisser le Manager devant un spinner infini.
-              emit();
-              return;
-            }
-            controller.addError(error, stackTrace);
-          },
-        );
+        usersSub = _users
+            .where('role', isEqualTo: 'agent')
+            .snapshots()
+            .listen(
+              (QuerySnapshot<Map<String, dynamic>> snapshot) {
+                latestUsers = snapshot;
+                emit();
+              },
+              onError: (Object error, StackTrace stackTrace) {
+                if (_isManager) {
+                  // Supabase suffit pour continuer a travailler sur les Agents de
+                  // la zone. Une panne Firestore d'enrichissement ne doit jamais
+                  // laisser le Manager devant un spinner infini.
+                  emit();
+                  return;
+                }
+                controller.addError(error, stackTrace);
+              },
+            );
       },
       onCancel: () async {
         await usersSub?.cancel();
@@ -541,7 +547,9 @@ class FirestoreAgentRepository implements AgentRepository {
     required StaffAccountSummary account,
   }) async {
     if (SupabaseBootstrap.isInitialized) {
-      await SupabaseAgentOperationsRepository().provisionAgent(account: account);
+      await SupabaseAgentOperationsRepository().provisionAgent(
+        account: account,
+      );
       await _users.doc(account.userId).update(<String, dynamic>{
         'role': 'agent',
         'isActive': true,
@@ -810,75 +818,22 @@ class FirestoreAgentRepository implements AgentRepository {
       );
       return;
     }
-
-    final DocumentReference<Map<String, dynamic>> ref = _profiles.doc(agentId);
-    final Map<AgentNetwork, DocumentReference<Map<String, dynamic>>>
-    adjustmentRefs = <AgentNetwork, DocumentReference<Map<String, dynamic>>>{
-      for (final AgentNetwork network in AgentNetwork.values)
-        network: _networkTransactions.doc(),
-    };
-
-    await _firestore.runTransaction((Transaction transaction) async {
-      final DocumentSnapshot<Map<String, dynamic>> snapshot = await transaction
-          .get(ref);
-      if (!snapshot.exists || snapshot.data() == null) {
+    final ref = _profiles.doc(agentId);
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(ref);
+      final profile = _profileFromSnapshot(snapshot);
+      if (profile == null) {
         throw StateError('Ton profil agent n’est pas encore configuré.');
       }
-      final AgentProfile? profile = _profileFromSnapshot(snapshot);
-      if (profile == null) {
-        throw StateError('Le profil agent est invalide.');
-      }
-      final Map<String, dynamic> current = snapshot.data()!;
-      final List<AgentNetwork> active = update.activeNetworks
-          .where(profile.authorizedNetworks.contains)
-          .toList(growable: false);
-      final Map<AgentNetwork, int> before = <AgentNetwork, int>{
-        AgentNetwork.orange: profile.orangeCapacity,
-        AgentNetwork.mtn: profile.mtnCapacity,
-        AgentNetwork.moov: profile.moovCapacity,
-      };
-      final Map<AgentNetwork, int> after = <AgentNetwork, int>{
-        AgentNetwork.orange: update.orangeCapacity,
-        AgentNetwork.mtn: update.mtnCapacity,
-        AgentNetwork.moov: update.moovCapacity,
-      };
-      final List<AgentNetwork> changed = AgentNetwork.values
-          .where((AgentNetwork network) => before[network] != after[network])
-          .toList(growable: false);
-
-      final Map<String, dynamic> updates = <String, dynamic>{
+      transaction.update(ref, <String, dynamic>{
         'availability': update.availability.firestoreValue,
-        'activeNetworks': active
-            .map((AgentNetwork network) => network.firestoreValue)
+        'activeNetworks': update.activeNetworks
+            .where(profile.authorizedNetworks.contains)
+            .map((network) => network.firestoreValue)
             .toList(growable: false),
-        'orangeCapacity': update.orangeCapacity,
-        'mtnCapacity': update.mtnCapacity,
-        'moovCapacity': update.moovCapacity,
-        'lastCapacityUpdateAt': changed.isEmpty
-            ? current['lastCapacityUpdateAt']
-            : FieldValue.serverTimestamp(),
         'lastSeenAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      for (final AgentNetwork network in changed) {
-        final DocumentReference<Map<String, dynamic>> movementRef =
-            adjustmentRefs[network]!;
-        updates[_movementMarkerField(network)] = movementRef.id;
-        transaction.set(
-          movementRef,
-          _manualCapacityMovementData(
-            network: network,
-            capacityBefore: before[network]!,
-            capacityAfter: after[network]!,
-            agentId: agentId,
-            agentName: null,
-            createdBy: agentId,
-            createdByRole: 'agent',
-          ),
-        );
-      }
-      transaction.update(ref, updates);
+      });
     });
   }
 
@@ -890,9 +845,7 @@ class FirestoreAgentRepository implements AgentRepository {
     String? reason,
   }) async {
     if (!SupabaseBootstrap.isInitialized) {
-      throw StateError(
-        'La gestion Manager des capacités nécessite Supabase.',
-      );
+      throw StateError('La gestion Manager des capacités nécessite Supabase.');
     }
     await SupabaseAgentOperationsRepository().adjustManagerCapacity(
       agentId: agentId,
@@ -908,9 +861,7 @@ class FirestoreAgentRepository implements AgentRepository {
     required ManagedAgentOperationalUpdate update,
   }) async {
     if (!SupabaseBootstrap.isInitialized) {
-      throw StateError(
-        'La gestion operationnelle Manager nécessite Supabase.',
-      );
+      throw StateError('La gestion operationnelle Manager nécessite Supabase.');
     }
     await SupabaseAgentOperationsRepository().updateManagedAgentOperations(
       agentId: agentId,

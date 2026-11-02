@@ -19,7 +19,7 @@ class AdministrationFake implements BackofficeUserAdministration {
     return UserAdminDetails(
       zoneIds: ['centre'],
       authorizedNetworks: ['orange'],
-      email:authEmail,
+      email: authEmail,
     );
   }
 
@@ -74,14 +74,26 @@ Future<void> identity(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('Cabiniste email is read from Auth details and reconnect impact is visible',(tester)async{
-    final fake=AdministrationFake()..authEmail='firebase@example.test';
-    const user=BackofficeUserAccount(id:'uid',name:'Name',email:'',phoneNumber:'01020304',role:BackofficeAccountRole.cabiniste,isActive:true);
-    await open(tester,fake,user:user);
-    final email=tester.widget<TextFormField>(find.byType(TextFormField).at(1));
-    expect(email.controller!.text,'firebase@example.test');
-    expect(find.textContaining('doit se reconnecter'),findsOneWidget);
-  });
+  testWidgets(
+    'Cabiniste email is read from Auth details and reconnect impact is visible',
+    (tester) async {
+      final fake = AdministrationFake()..authEmail = 'firebase@example.test';
+      const user = BackofficeUserAccount(
+        id: 'uid',
+        name: 'Name',
+        email: '',
+        phoneNumber: '01020304',
+        role: BackofficeAccountRole.cabiniste,
+        isActive: true,
+      );
+      await open(tester, fake, user: user);
+      final email = tester.widget<TextFormField>(
+        find.byType(TextFormField).at(1),
+      );
+      expect(email.controller!.text, 'firebase@example.test');
+      expect(find.textContaining('doit se reconnecter'), findsOneWidget);
+    },
+  );
   for (final entry in {
     'admin': 'Administrateur',
     'manager': 'Manager',
@@ -146,6 +158,37 @@ void main() {
     expect(fake.calls.length, 2);
     expect(fake.calls[0], fake.calls[1]);
   });
+  for (final code in ['SERVICE_UNREACHABLE', 'REQUEST_TIMEOUT']) {
+    testWidgets('$code keeps the exact command for a manual retry', (
+      tester,
+    ) async {
+      final fake = AdministrationFake()
+        ..nextError = UserAdminException(
+          code,
+          operationId: 'transport-reference',
+        );
+      const user = BackofficeUserAccount(
+        id: 'uid',
+        name: 'Name',
+        email: 'name@example.test',
+        phoneNumber: '01020304',
+        role: BackofficeAccountRole.agent,
+        isActive: true,
+      );
+      await open(tester, fake, user: user);
+      await tester.tap(find.text('Enregistrer'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('transport-reference'), findsOneWidget);
+      if (code == 'SERVICE_UNREACHABLE') {
+        expect(find.textContaining('http://localhost:8080'), findsOneWidget);
+      }
+      expect(fake.calls.length, 1);
+      await tester.tap(find.text('Réessayer la même demande'));
+      await tester.pumpAndSettle();
+      expect(fake.calls.length, 2);
+      expect(fake.calls[1], fake.calls[0]);
+    });
+  }
   testWidgets(
     'repair requirement blocks repeated submission and shows operation reference',
     (tester) async {

@@ -79,31 +79,6 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
     );
   }
 
-  Future<void> _editCapacity(AgentNetwork network) async {
-    final AgentProfile? profile = _viewModel.profile;
-    if (profile == null) return;
-
-    final int? amount = await showModalBottomSheet<int>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _CapacityEditorSheet(
-        network: network,
-        initialAmount: profile.capacityFor(network),
-      ),
-    );
-    if (amount == null || !mounted) return;
-
-    final bool success = await _viewModel.updateCapacity(network, amount);
-    if (!mounted) return;
-    _showMessage(
-      success
-          ? 'Capacité ${network.label} mise à jour.'
-          : _viewModel.errorMessage ?? 'Modification impossible.',
-    );
-  }
-
   void _openPersonalProfile() {
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
@@ -128,10 +103,12 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
 
   void _openAccountMenu(AgentProfile profile) {
     final int openIssues = _viewModel.issues
-        .where((AgentIssue issue) =>
-            issue.status == 'open' ||
-            issue.status == 'in_progress' ||
-            issue.status == 'acknowledged')
+        .where(
+          (AgentIssue issue) =>
+              issue.status == 'open' ||
+              issue.status == 'in_progress' ||
+              issue.status == 'acknowledged',
+        )
         .length;
     showIzyTelAccountSheet(
       context: context,
@@ -192,10 +169,12 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
             final AgentProfile profile =
                 _viewModel.profile ?? _fallbackProfile();
             final int openIssues = _viewModel.issues
-                .where((AgentIssue issue) =>
-            issue.status == 'open' ||
-            issue.status == 'in_progress' ||
-            issue.status == 'acknowledged')
+                .where(
+                  (AgentIssue issue) =>
+                      issue.status == 'open' ||
+                      issue.status == 'in_progress' ||
+                      issue.status == 'acknowledged',
+                )
                 .length;
 
             return IzyTelRefreshIndicator(
@@ -297,13 +276,6 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
                                     'Modification impossible.',
                               );
                             },
-                            onEditCapacity:
-                                profile.authorizedNetworks.contains(
-                                  AgentNetwork.values[index],
-                                )
-                                ? () =>
-                                      _editCapacity(AgentNetwork.values[index])
-                                : null,
                           ),
                           if (index < AgentNetwork.values.length - 1)
                             const Divider(height: 1),
@@ -329,7 +301,8 @@ class _AgentActivityPageState extends State<AgentActivityPage> {
                         IzyTelMenuRow(
                           icon: Symbols.insights_rounded,
                           title: 'Mon activité détaillée',
-                          subtitle: 'Performances, commandes, capacités et mouvements.',
+                          subtitle:
+                              'Performances, commandes, capacités et mouvements.',
                           iconColor: IzyTelColors.primary,
                           onTap: widget.onOpenActivity,
                         ),
@@ -618,14 +591,12 @@ class _NetworkAvailabilityRow extends StatelessWidget {
     required this.profile,
     required this.isSaving,
     required this.onToggle,
-    required this.onEditCapacity,
   });
 
   final AgentNetwork network;
   final AgentProfile profile;
   final bool isSaving;
   final ValueChanged<bool> onToggle;
-  final VoidCallback? onEditCapacity;
 
   @override
   Widget build(BuildContext context) {
@@ -672,21 +643,16 @@ class _NetworkAvailabilityRow extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 3),
-                GestureDetector(
-                  onTap: onEditCapacity,
-                  child: Text(
-                    authorized
-                        ? '${formatCfa(profile.capacityFor(network))} disponibles • Modifier'
-                        : 'Réseau non autorisé par l’administration',
-                    maxLines: 2,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: authorized
-                          ? IzyTelColors.textSecondary
-                          : IzyTelColors.textMuted,
-                      fontWeight: authorized
-                          ? FontWeight.w600
-                          : FontWeight.w500,
-                    ),
+                Text(
+                  authorized
+                      ? '${formatCfa(profile.capacityFor(network))} disponibles'
+                      : 'Réseau non autorisé par l’administration',
+                  maxLines: 2,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: authorized
+                        ? IzyTelColors.textSecondary
+                        : IzyTelColors.textMuted,
+                    fontWeight: authorized ? FontWeight.w600 : FontWeight.w500,
                   ),
                 ),
               ],
@@ -833,132 +799,6 @@ class _InfoLine extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _CapacityEditorSheet extends StatefulWidget {
-  const _CapacityEditorSheet({
-    required this.network,
-    required this.initialAmount,
-  });
-
-  final AgentNetwork network;
-  final int initialAmount;
-
-  @override
-  State<_CapacityEditorSheet> createState() => _CapacityEditorSheetState();
-}
-
-class _CapacityEditorSheetState extends State<_CapacityEditorSheet> {
-  late final TextEditingController _controller;
-  String? _errorText;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: '${widget.initialAmount}');
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    final String raw = _controller.text.replaceAll(RegExp(r'[^0-9]'), '');
-    final int? value = int.tryParse(raw);
-    if (value == null || value < 0) {
-      setState(() => _errorText = 'Saisis un montant valide.');
-      return;
-    }
-    FocusManager.instance.primaryFocus?.unfocus();
-    Navigator.of(context).pop(value);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final double bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(12, 12, 12, bottomInset + 12),
-        child: Container(
-          padding: const EdgeInsets.all(IzyTelSpacing.lg),
-          decoration: const BoxDecoration(
-            color: IzyTelColors.surface,
-            borderRadius: BorderRadius.all(Radius.circular(IzyTelRadii.sheet)),
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    _NetworkLogo(network: widget.network),
-                    const SizedBox(width: IzyTelSpacing.sm),
-                    Flexible(
-                      fit: FlexFit.tight,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            'Capacité ${widget.network.label}',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(
-                                  color: IzyTelColors.textPrimary,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                          ),
-                          Text(
-                            'Montant actuellement disponible pour traiter les commandes.',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: IzyTelColors.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Symbols.close_rounded),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: IzyTelSpacing.lg),
-                TextField(
-                  controller: _controller,
-                  keyboardType: TextInputType.number,
-                  autofocus: true,
-                  onChanged: (_) {
-                    if (_errorText != null) setState(() => _errorText = null);
-                  },
-                  onSubmitted: (_) => _submit(),
-                  decoration: InputDecoration(
-                    labelText: 'Montant disponible',
-                    suffixText: 'F CFA',
-                    errorText: _errorText,
-                  ),
-                ),
-                const SizedBox(height: IzyTelSpacing.lg),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: FilledButton(
-                    onPressed: _submit,
-                    child: const Text(
-                      'Enregistrer la capacité',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

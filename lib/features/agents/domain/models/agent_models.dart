@@ -232,16 +232,10 @@ class AgentOperationalUpdate {
   const AgentOperationalUpdate({
     required this.availability,
     required this.activeNetworks,
-    required this.orangeCapacity,
-    required this.mtnCapacity,
-    required this.moovCapacity,
   });
 
   final AgentAvailability availability;
   final List<AgentNetwork> activeNetworks;
-  final int orangeCapacity;
-  final int mtnCapacity;
-  final int moovCapacity;
 }
 
 class ManagedAgentOperationalUpdate {

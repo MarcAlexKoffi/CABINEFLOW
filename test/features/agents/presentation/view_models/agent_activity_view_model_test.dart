@@ -4,31 +4,39 @@ import 'package:cabine_flow/features/agents/presentation/view_models/agent_activ
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('agent change sa disponibilité et sa capacité', () async {
-    final FakeAgentRepository repository = FakeAgentRepository();
-    final AgentActivityViewModel viewModel = AgentActivityViewModel(
-      agentId: 'AGENT-001',
-      repository: repository,
-    );
+  test(
+    'agent change sa disponibilité et ses réseaux sans changer le stock',
+    () async {
+      final FakeAgentRepository repository = FakeAgentRepository();
+      final AgentActivityViewModel viewModel = AgentActivityViewModel(
+        agentId: 'AGENT-001',
+        repository: repository,
+      );
 
-    await viewModel.start();
-    await Future<void>.delayed(Duration.zero);
+      await viewModel.start();
+      await Future<void>.delayed(Duration.zero);
 
-    expect(viewModel.profile?.availability, AgentAvailability.available);
+      expect(viewModel.profile?.availability, AgentAvailability.available);
+      final initialStock = viewModel.profile!.orangeCapacity;
 
-    expect(
-      await viewModel.setAvailability(AgentAvailability.unavailable),
-      isTrue,
-    );
-    await Future<void>.delayed(Duration.zero);
-    expect(viewModel.profile?.availability, AgentAvailability.unavailable);
+      expect(
+        await viewModel.setAvailability(AgentAvailability.unavailable),
+        isTrue,
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(viewModel.profile?.availability, AgentAvailability.unavailable);
 
-    expect(await viewModel.updateCapacity(AgentNetwork.orange, 42000), isTrue);
-    await Future<void>.delayed(Duration.zero);
-    expect(viewModel.profile?.orangeCapacity, 42000);
+      expect(await viewModel.toggleNetwork(AgentNetwork.orange, false), isTrue);
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        viewModel.profile?.activeNetworks,
+        isNot(contains(AgentNetwork.orange)),
+      );
+      expect(viewModel.profile?.orangeCapacity, initialStock);
 
-    viewModel.dispose();
-  });
+      viewModel.dispose();
+    },
+  );
 
   test('agent signale un problème', () async {
     final FakeAgentRepository repository = FakeAgentRepository();

@@ -95,7 +95,6 @@ class AgentActivityViewModel extends ChangeNotifier {
     });
   }
 
-
   Future<void> refresh() async {
     // Le pull-to-refresh ne redemarre plus les abonnements Realtime.
     // Redemarrer les streams obligeait a attendre leur annulation et pouvait
@@ -197,9 +196,6 @@ class AgentActivityViewModel extends ChangeNotifier {
       AgentOperationalUpdate(
         availability: value,
         activeNetworks: current.activeNetworks,
-        orangeCapacity: current.orangeCapacity,
-        mtnCapacity: current.mtnCapacity,
-        moovCapacity: current.moovCapacity,
       ),
     );
   }
@@ -215,27 +211,6 @@ class AgentActivityViewModel extends ChangeNotifier {
       AgentOperationalUpdate(
         availability: current.availability,
         activeNetworks: active.toList(growable: false),
-        orangeCapacity: current.orangeCapacity,
-        mtnCapacity: current.mtnCapacity,
-        moovCapacity: current.moovCapacity,
-      ),
-    );
-  }
-
-  Future<bool> updateCapacity(AgentNetwork network, int value) async {
-    final AgentProfile? current = profile;
-    if (current == null || value < 0) return false;
-    return _save(
-      AgentOperationalUpdate(
-        availability: current.availability,
-        activeNetworks: current.activeNetworks,
-        orangeCapacity: network == AgentNetwork.orange
-            ? value
-            : current.orangeCapacity,
-        mtnCapacity: network == AgentNetwork.mtn ? value : current.mtnCapacity,
-        moovCapacity: network == AgentNetwork.moov
-            ? value
-            : current.moovCapacity,
       ),
     );
   }
@@ -251,9 +226,6 @@ class AgentActivityViewModel extends ChangeNotifier {
     profile = previous.copyWith(
       availability: update.availability,
       activeNetworks: update.activeNetworks,
-      orangeCapacity: update.orangeCapacity,
-      mtnCapacity: update.mtnCapacity,
-      moovCapacity: update.moovCapacity,
       updatedAt: DateTime.now(),
     );
     isSaving = true;
