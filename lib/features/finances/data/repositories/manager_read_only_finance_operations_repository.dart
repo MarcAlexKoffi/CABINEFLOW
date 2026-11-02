@@ -3,6 +3,7 @@ import 'package:cabine_flow/features/finances/data/repositories/supabase_phase5_
 import 'package:cabine_flow/features/finances/data/repositories/supabase_supplier_registry_repository.dart';
 import 'package:cabine_flow/features/finances/domain/models/finance_operations_models.dart';
 import 'package:cabine_flow/features/finances/domain/repositories/finance_operations_repository.dart';
+import 'package:cabine_flow/features/finances/domain/services/finance_operation_key.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Finance opérationnelle Manager bornée à ses zones.
@@ -24,6 +25,7 @@ class ManagerReadOnlyFinanceOperationsRepository
   final SupabasePhase5FinanceRepository _phase5;
   final SupabaseSupplierRegistryRepository _suppliers;
   final SupabaseClient _client;
+  final Expando<String> _rechargeKeys = Expando<String>('manager-recharge-intention');
 
   @override
   Stream<List<FinanceSupplier>> watchSuppliers() => _suppliers.watchSuppliers();
@@ -159,7 +161,7 @@ class ManagerReadOnlyFinanceOperationsRepository
         'p_note': draft.note,
         'p_staff_name': staffName.trim(),
         'p_legacy_id': null,
-        'p_operation_key': null,
+        'p_operation_key': _rechargeKeys[draft] ??= createFinanceOperationKey(),
       },
     );
     return '$result'.trim();

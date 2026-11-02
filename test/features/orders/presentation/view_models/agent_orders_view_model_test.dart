@@ -1,9 +1,88 @@
 import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
+import 'package:cabine_flow/features/agents/data/repositories/fake_agent_repository.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/presentation/view_models/agent_orders_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+class _IneligibleOrdersRepository extends FakeOrdersRepository {
+  _IneligibleOrdersRepository() : super(isTest: true);
+
+  int acceptCalls = 0;
+
+  @override
+  Future<QueueOrder> acceptAgentAssignment({
+    required String orderId,
+    required String agentId,
+  }) async {
+    acceptCalls++;
+    throw const PostgrestException(
+      message: 'AGENT_NOT_ELIGIBLE_CURRENT_STATE',
+      code: 'P0001',
+    );
+  }
+}
 
 void main() {
+  test(
+    'a territorial server refusal explains the zone without retrying or hiding the order',
+    () async {
+      final repository = _IneligibleOrdersRepository();
+      final order = (await repository.fetchPaidQueue()).first;
+      await repository.assignToAgent(
+        orderId: order.id,
+        agentId: 'AGENT-001',
+        assignedByUserId: 'ADMIN-001',
+      );
+      final viewModel = AgentOrdersViewModel(
+        agentId: 'AGENT-001',
+        ordersRepository: repository,
+        agentRepository: FakeAgentRepository(),
+      );
+      await viewModel.start();
+      await Future<void>.delayed(Duration.zero);
+
+      final assigned = viewModel.toAcceptOrders.single.copyWith(
+        zoneId: 'outside-agent-zone',
+      );
+      expect(await viewModel.accept(assigned), isFalse);
+      expect(viewModel.errorMessage, contains('zone hors de ton périmètre'));
+      expect(
+        viewModel.errorMessage,
+        isNot(contains('Actualise puis réessaie')),
+      );
+      expect(viewModel.toAcceptCount, 1);
+      expect(repository.acceptCalls, 1);
+      viewModel.dispose();
+    },
+  );
+
+  test(
+    'a server eligibility refusal remains explicit without a loaded profile',
+    () async {
+      final repository = _IneligibleOrdersRepository();
+      final order = (await repository.fetchPaidQueue()).first;
+      await repository.assignToAgent(
+        orderId: order.id,
+        agentId: 'AGENT-001',
+        assignedByUserId: 'ADMIN-001',
+      );
+      final viewModel = AgentOrdersViewModel(
+        agentId: 'AGENT-001',
+        ordersRepository: repository,
+      );
+      await viewModel.start();
+      await Future<void>.delayed(Duration.zero);
+      expect(await viewModel.accept(viewModel.toAcceptOrders.single), isFalse);
+      expect(
+        viewModel.errorMessage,
+        contains('zone, la capacité réservée et les quotas'),
+      );
+      expect(repository.acceptCalls, 1);
+      viewModel.dispose();
+    },
+  );
+
   test('ne charge que les commandes affectées à l’agent', () async {
     final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
     final List<QueueOrder> queue = await repository.fetchPaidQueue();

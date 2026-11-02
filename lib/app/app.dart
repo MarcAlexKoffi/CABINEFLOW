@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cabine_flow/features/auth/presentation/widgets/session_access_boundary.dart';
 
 import 'package:cabine_flow/app/app_routes.dart';
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
@@ -199,10 +200,17 @@ class CabineFlowApp extends StatelessWidget {
               return MaterialPageRoute<void>(
                 settings: settings,
                 builder: (BuildContext context) {
-                  return PartnerShellPage(
+                  return SessionAccessBoundary(
+                    user: arguments,
+                    onAccessChanged: () async {
+                      await effectiveAuthRepository.logout();
+                      if (context.mounted) Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
+                    },
+                    child: PartnerShellPage(
                     user: arguments,
                     authRepository: effectiveAuthRepository,
                     repository: SupabasePartnerOrderRepository(),
+                    ),
                   );
                 },
               );
@@ -241,7 +249,13 @@ class CabineFlowApp extends StatelessWidget {
                     ? FirestoreAgentRepository(viewer: arguments)
                     : effectiveAgentRepository;
 
-                return MainShellPage(
+                return SessionAccessBoundary(
+                  user: arguments,
+                  onAccessChanged: () async {
+                    await effectiveAuthRepository.logout();
+                    if (context.mounted) Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
+                  },
+                  child: MainShellPage(
                   user: arguments,
                   authRepository: effectiveAuthRepository,
                   dashboardRepository: shellDashboardRepository,
@@ -251,6 +265,7 @@ class CabineFlowApp extends StatelessWidget {
                   paymentLinkRepository: effectivePaymentLinkRepository,
                   agentRepository: shellAgentRepository,
                   commissionRepository: effectiveCommissionRepository,
+                  ),
                 );
               },
             );

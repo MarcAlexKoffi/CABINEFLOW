@@ -30,7 +30,8 @@ void main() {
         'lib/backoffice/data/repositories/firestore_backoffice_user_repository.dart',
       ).readAsStringSync();
 
-      expect(source, contains("collection('users').snapshots()"));
+      expect(source, contains("collection('users')"));
+      expect(source, contains('.snapshots()'));
       expect(source, isNot(contains('createUserWithEmailAndPassword')));
       expect(source, isNot(contains('.set(')));
       expect(source, isNot(contains('.update(')));

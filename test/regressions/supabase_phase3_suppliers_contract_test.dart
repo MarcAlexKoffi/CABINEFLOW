@@ -19,7 +19,8 @@ void main() {
     );
 
     expect(page, contains('SupabaseBootstrap.isInitialized'));
-    expect(page, contains('HybridFinanceOperationsRepository()'));
+    expect(page, contains('SupabaseFinanceOperationsRepository()'));
+    expect(page, isNot(contains('HybridFinanceOperationsRepository()')));
     expect(supabase, contains("tableName = 'finance_suppliers'"));
     expect(supabase, contains(".eq('is_deleted', false)"));
     expect(supabase, contains('SupabaseRealtimeRefetch.watch'));

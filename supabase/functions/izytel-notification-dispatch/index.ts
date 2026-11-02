@@ -18,6 +18,7 @@ type OutboxRow = {
   status: string;
   attempt_count: number;
   dispatch_nonce: string;
+  claimed_at: string;
 };
 
 type DeviceRow = {
@@ -79,6 +80,7 @@ async function firebaseAccessToken(account: ServiceAccount): Promise<string> {
 
   const tokenResponse = await fetch(tokenUri, {
     method: "POST",
+    signal: AbortSignal.timeout(15_000),
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
@@ -110,6 +112,7 @@ async function sendFcm(
   const url = `https://fcm.googleapis.com/v1/projects/${encodeURIComponent(account.project_id)}/messages:send`;
   const fcmResponse = await fetch(url, {
     method: "POST",
+    signal: AbortSignal.timeout(15_000),
     headers: {
       "Authorization": `Bearer ${accessToken}`,
       "Content-Type": "application/json",
@@ -122,10 +125,11 @@ async function sendFcm(
           ...fcmData(row.data),
           title: row.title,
           body: row.body,
+          notificationId: row.id,
         },
         android: {
-          priority: "high",
-          notification: { sound: "default" },
+          priority: ["order_assigned", "order_reassigned", "order_manual_required", "order_failed_review"].includes(row.event_type) ? "high" : "normal",
+          notification: { sound: "default", tag: row.id },
         },
       },
     }),
@@ -141,7 +145,6 @@ async function sendFcm(
   }
   const serialized = JSON.stringify(errorPayload ?? {});
   const invalidToken =
-    fcmResponse.status === 404 ||
     serialized.includes("UNREGISTERED") ||
     serialized.includes("registration-token-not-registered");
   const status = errorPayload?.error?.status ?? `HTTP_${fcmResponse.status}`;
@@ -207,7 +210,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: claimed, error: claimError } = await admin.rpc(
     "izytel_claim_notification_batch",
-    { p_limit: 40 },
+    { p_limit: 10 },
   );
   if (claimError) return response({ error: "OUTBOX_CLAIM_FAILED" }, 500);
 
@@ -215,6 +218,18 @@ Deno.serve(async (req: Request) => {
   let sent = 0;
   let skipped = 0;
   let failed = 0;
+
+  const finish = async (row: OutboxRow, values: Record<string, unknown>) => {
+    const { error } = await admin.from("izytel_notification_outbox").update({
+      ...values,
+      updated_at: new Date().toISOString(),
+    }).eq("id", row.id).eq("status", "processing").eq("claimed_at", row.claimed_at);
+    if (error) throw new Error("OUTBOX_STATUS_WRITE_FAILED");
+  };
+  const retry = (row: OutboxRow) => ({
+    status: row.attempt_count >= 5 ? "failed" : "pending",
+    next_attempt_at: new Date(Date.now() + 30_000 * 2 ** Math.min(row.attempt_count, 5)).toISOString(),
+  });
 
   for (const row of rows) {
     const { data: devices, error: deviceError } = await admin
@@ -225,61 +240,81 @@ Deno.serve(async (req: Request) => {
 
     if (deviceError) {
       failed += 1;
-      await admin.from("izytel_notification_outbox").update({
-        status: "failed",
+      await finish(row, {
+        ...retry(row),
         last_error: "DEVICE_LOOKUP_FAILED",
         updated_at: new Date().toISOString(),
-      }).eq("id", row.id);
+      });
       continue;
     }
 
     const activeDevices = (devices ?? []) as DeviceRow[];
     if (activeDevices.length === 0) {
       skipped += 1;
-      await admin.from("izytel_notification_outbox").update({
+      await finish(row, {
         status: "skipped",
         last_error: "NO_ACTIVE_DEVICE",
         updated_at: new Date().toISOString(),
-      }).eq("id", row.id);
+      });
       continue;
     }
 
     let successes = 0;
     const errors: string[] = [];
+    let retryable = false;
+    const { data: delivered, error: deliveryReadError } = await admin
+      .from("izytel_notification_deliveries").select("device_id,status")
+      .eq("outbox_id", row.id);
+    if (deliveryReadError) {
+      await finish(row, { ...retry(row), last_error: "DELIVERY_LOOKUP_FAILED" });
+      failed += 1;
+      continue;
+    }
+    const accepted = new Set((delivered ?? []).filter((d) => d.status === "sent").map((d) => d.device_id));
     for (const device of activeDevices) {
+      if (accepted.has(device.id)) { successes += 1; continue; }
       try {
         const result = await sendFcm(account, accessToken, device.fcm_token, row);
+        const { error: deliveryError } = await admin.from("izytel_notification_deliveries").upsert({
+          outbox_id: row.id, device_id: device.id,
+          status: result.ok ? "sent" : result.invalidToken ? "invalid" : "failed",
+          last_error: result.error ?? null, updated_at: new Date().toISOString(),
+        }, { onConflict: "outbox_id,device_id" });
+        if (deliveryError) throw new Error("DELIVERY_STATUS_WRITE_FAILED");
         if (result.ok) {
           successes += 1;
         } else {
           if (result.invalidToken) {
-            await admin.from("izytel_notification_devices").update({
+            const { error: deactivateError } = await admin.from("izytel_notification_devices").update({
               is_active: false,
               updated_at: new Date().toISOString(),
             }).eq("id", device.id);
+            if (deactivateError) throw new Error("DEVICE_DEACTIVATION_FAILED");
           }
+          if (!result.invalidToken) retryable = true;
           if (result.error) errors.push(result.error);
         }
       } catch (error) {
+        retryable = true;
         errors.push(String(error).slice(0, 240));
       }
     }
 
-    if (successes > 0) {
+    if (successes > 0 && !retryable) {
       sent += 1;
-      await admin.from("izytel_notification_outbox").update({
+      await finish(row, {
         status: "sent",
         sent_at: new Date().toISOString(),
         last_error: errors.length > 0 ? errors.join(" | ").slice(0, 500) : null,
         updated_at: new Date().toISOString(),
-      }).eq("id", row.id);
+      });
     } else {
       failed += 1;
-      await admin.from("izytel_notification_outbox").update({
-        status: "failed",
+      await finish(row, {
+        ...(retryable ? retry(row) : { status: "failed" }),
         last_error: (errors.join(" | ") || "FCM_SEND_FAILED").slice(0, 500),
         updated_at: new Date().toISOString(),
-      }).eq("id", row.id);
+      });
     }
   }
 

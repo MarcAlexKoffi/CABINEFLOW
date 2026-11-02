@@ -5,6 +5,8 @@ import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/finances/domain/models/finance_operations_models.dart';
 import 'package:cabine_flow/features/finances/domain/repositories/finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/presentation/widgets/financial_ui.dart';
+import 'package:cabine_flow/features/finances/presentation/widgets/financial_intent_retry.dart';
+import 'package:cabine_flow/features/finances/data/repositories/supabase_finance_operations_repository.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -105,20 +107,21 @@ class _FinanceExpensesPageState extends State<FinanceExpensesPage> {
         ),
       ),
     );
-    if (submit != true) return;
+    if (submit != true || !mounted) return;
+    final draft = FinanceExpenseDraft(
+      category: category,
+      amount: int.tryParse(amount.text.trim()) ?? 0,
+      description: description.text,
+      channel: channel,
+      reference: reference.text,
+    );
     setState(() => _busy = true);
     try {
-      await widget.repository.recordExpense(
-        draft: FinanceExpenseDraft(
-          category: category,
-          amount: int.tryParse(amount.text.trim()) ?? 0,
-          description: description.text,
-          channel: channel,
-          reference: reference.text,
-        ),
+      await runFinancialIntent(context, () => widget.repository.recordExpense(
+        draft: draft,
         staffId: widget.user.id,
         staffName: widget.user.name,
-      );
+      ), canRetry: widget.repository is SupabaseFinanceOperationsRepository);
       if (mounted) {
         _message('Dépense enregistrée.');
       }

@@ -13,8 +13,7 @@ import 'package:cabine_flow/features/commissions/domain/models/commission_models
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:cabine_flow/features/commissions/presentation/pages/commission_management_page.dart';
 import 'package:cabine_flow/features/finances/data/repositories/fake_finance_operations_repository.dart';
-import 'package:cabine_flow/features/finances/data/repositories/firestore_finance_operations_repository.dart';
-import 'package:cabine_flow/features/finances/data/repositories/hybrid_finance_operations_repository.dart';
+import 'package:cabine_flow/features/finances/data/repositories/supabase_finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/manager_read_only_finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/fake_network_finance_repository.dart';
 import 'package:cabine_flow/features/finances/data/repositories/firestore_network_finance_repository.dart';
@@ -126,9 +125,7 @@ class _FinancesPageState extends State<FinancesPage> {
                 : FirestoreNetworkFinanceRepository())
           : FakeNetworkFinanceRepository();
       _financeOperationsRepository = Firebase.apps.isNotEmpty
-          ? (SupabaseBootstrap.isInitialized
-                ? HybridFinanceOperationsRepository()
-                : FirestoreFinanceOperationsRepository())
+          ? SupabaseFinanceOperationsRepository()
           : FakeFinanceOperationsRepository();
       _commissionRepository = widget.commissionRepository;
     }

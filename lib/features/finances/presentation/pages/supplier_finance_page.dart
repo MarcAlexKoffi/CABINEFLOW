@@ -8,6 +8,9 @@ import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.da
 import 'package:cabine_flow/features/finances/domain/models/finance_operations_models.dart';
 import 'package:cabine_flow/features/finances/domain/repositories/finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/presentation/widgets/financial_ui.dart';
+import 'package:cabine_flow/features/finances/presentation/widgets/financial_intent_retry.dart';
+import 'package:cabine_flow/features/finances/data/repositories/supabase_finance_operations_repository.dart';
+import 'package:cabine_flow/features/finances/data/repositories/manager_read_only_finance_operations_repository.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -305,7 +308,7 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
         ),
       ),
     );
-    if (submit != true) return;
+    if (submit != true || !mounted) return;
     final AgentProfile profile = agent.profile!;
     if (!profile.authorizedNetworks.contains(network)) {
       _message('Cet Agent n’est pas autorisé sur ${network.label}.');
@@ -313,22 +316,18 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
     }
     final int p = int.tryParse(principal.text.trim()) ?? 0;
     final int b = int.tryParse(bonus.text.trim()) ?? 0;
+    final draft = SupplierRechargeDraft(
+      supplierId: supplier.id, supplierName: supplier.name,
+      agentId: agent.userId, agentName: agent.name, network: network,
+      principalAmount: p, bonusAmount: b, amountOwed: p, note: note.text,
+    );
     await _run(
-      () => widget.repository.recordSupplierRecharge(
-        draft: SupplierRechargeDraft(
-          supplierId: supplier.id,
-          supplierName: supplier.name,
-          agentId: agent.userId,
-          agentName: agent.name,
-          network: network,
-          principalAmount: p,
-          bonusAmount: b,
-          amountOwed: p,
-          note: note.text,
-        ),
+      () => runFinancialIntent(context, () => widget.repository.recordSupplierRecharge(
+        draft: draft,
         staffId: widget.user.id,
         staffName: widget.user.name,
-      ),
+      ), canRetry: widget.repository is SupabaseFinanceOperationsRepository ||
+          widget.repository is ManagerReadOnlyFinanceOperationsRepository),
     );
   }
 

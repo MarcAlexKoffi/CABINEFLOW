@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cabine_flow/features/finances/domain/services/finance_operation_key.dart';
 
 import 'package:cabine_flow/backoffice/domain/models/backoffice_finance_snapshot.dart';
 import 'package:cabine_flow/backoffice/domain/repositories/backoffice_finance_repository.dart';
@@ -8,6 +9,7 @@ import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_order_wid
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
+import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
@@ -134,6 +136,7 @@ class BackofficeFinancePage extends StatefulWidget {
 
 class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
   late Stream<BackofficeFinanceSnapshot> _stream;
+  BackofficeFinanceSnapshot? _lastSnapshot;
   bool _busy = false;
   IzyTelPeriodFilterValue _periodFilter = const IzyTelPeriodFilterValue();
   Map<String, dynamic>? _periodHistory;
@@ -151,14 +154,23 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
   @override
   void initState() {
     super.initState();
-    _stream = widget.repository.watchSnapshot();
+    _stream = _watchSnapshot();
+  }
+
+  Stream<BackofficeFinanceSnapshot> _watchSnapshot() {
+    return widget.repository.watchSnapshot().map((snapshot) {
+      _lastSnapshot = snapshot;
+      return snapshot;
+    });
   }
 
   @override
   void didUpdateWidget(covariant BackofficeFinancePage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.repository != widget.repository) {
-      _stream = widget.repository.watchSnapshot();
+    if (oldWidget.repository != widget.repository ||
+        oldWidget.user.id != widget.user.id) {
+      _lastSnapshot = null;
+      _stream = _watchSnapshot();
     }
     if (oldWidget.module != widget.module) {
       _periodRequestSerial += 1;
@@ -170,7 +182,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
   }
 
   void _reload() {
-    setState(() => _stream = widget.repository.watchSnapshot());
+    setState(() => _stream = _watchSnapshot());
     if (_periodFilter.isActive) {
       _loadPeriodHistory();
     }
@@ -306,7 +318,11 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                const Icon(Symbols.warning_rounded, size: 18, color: BackofficePalette.danger),
+                const Icon(
+                  Symbols.warning_rounded,
+                  size: 18,
+                  color: BackofficePalette.danger,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -329,10 +345,12 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
   Future<void> _runAction(
     Future<void> Function() action, {
     required String success,
+    bool canRetry = false,
   }) async {
     if (_busy) {
       return;
     }
+    bool retryRequested = false;
     setState(() => _busy = true);
     try {
       await action();
@@ -345,11 +363,38 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       if (!mounted) {
         return;
       }
-      IzyTelFeedback.error(context, _financeError(error));
+      if (canRetry) {
+        retryRequested =
+            await showBackofficeModal<bool>(
+              context: context,
+              builder: (dialogContext) => BackofficeModalShell(
+                title: 'Opération non confirmée',
+                subtitle: 'Vous pouvez reprendre la même opération.',
+                icon: Symbols.sync_problem_rounded,
+                body: Text(_financeError(error)),
+                actions: <Widget>[
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                    child: const Text('Fermer'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    child: const Text('Réessayer'),
+                  ),
+                ],
+              ),
+            ) ==
+            true;
+      } else {
+        IzyTelFeedback.error(context, _financeError(error));
+      }
     } finally {
       if (mounted) {
         setState(() => _busy = false);
       }
+    }
+    if (retryRequested && mounted) {
+      await _runAction(action, success: success, canRetry: true);
     }
   }
 
@@ -358,6 +403,17 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     return StreamBuilder<BackofficeFinanceSnapshot>(
       stream: _stream,
       builder: (BuildContext context, AsyncSnapshot<BackofficeFinanceSnapshot> async) {
+        if (async.hasData) _lastSnapshot = async.data;
+        final BackendFailureKind? failureKind = async.hasError
+            ? BackendFailurePolicy.classify(async.error!)
+            : null;
+        final bool accessDenied =
+            failureKind == BackendFailureKind.unauthorized ||
+            failureKind == BackendFailureKind.forbidden;
+        final BackofficeFinanceSnapshot? available = accessDenied
+            ? null
+            : (async.data ?? _lastSnapshot);
+        if (accessDenied) _lastSnapshot = null;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
@@ -382,23 +438,57 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
               ),
             ),
             const SizedBox(height: 18),
-            if (!_canManage)
-              _readOnlyBanner()
-            else
-              _canonicalBanner(),
+            if (!_canManage) _readOnlyBanner() else _canonicalBanner(),
             const SizedBox(height: 16),
+            if (available?.generatedAt
+                case final DateTime generatedAt) ...<Widget>[
+              Text(
+                'Dernière lecture réussie : ${_dateLabel(generatedAt)}:${generatedAt.second.toString().padLeft(2, '0')}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+            ],
             if (_supportsPeriodFilter) ...<Widget>[
               _periodFilterPanel(),
               const SizedBox(height: 16),
             ],
-            if (async.connectionState == ConnectionState.waiting && !async.hasData)
+            if (async.connectionState == ConnectionState.waiting &&
+                available == null)
               const _FinanceLoading()
-            else if (async.hasError && !async.hasData)
-              _FinanceErrorState(onRetry: _reload)
-            else if (async.data case final BackofficeFinanceSnapshot snapshot)
-              _moduleBody(snapshot)
-            else
-              _FinanceErrorState(onRetry: _reload),
+            else if (async.hasError && available == null)
+              _FinanceErrorState(
+                message: BackendFailurePolicy.readMessage(
+                  async.error!,
+                  resource: 'les données financières',
+                ),
+                code: BackendFailurePolicy.safeCode(async.error!),
+                onRetry: _reload,
+              )
+            else if (available
+                case final BackofficeFinanceSnapshot snapshot) ...<Widget>[
+              if (async.hasError ||
+                  snapshot.partialIssueCode != null) ...<Widget>[
+                _InfoBanner(
+                  icon: Symbols.warning_amber_rounded,
+                  color: BackofficePalette.warning,
+                  text: async.hasError
+                      ? '${BackendFailurePolicy.readMessage(async.error!, resource: 'les données financières')} Les dernières données valides restent affichées. Code : ${BackendFailurePolicy.safeCode(async.error!)}.'
+                      : 'Les données financières principales sont disponibles, mais une source secondaire est momentanément indisponible. Code : ${snapshot.partialIssueCode}.',
+                  action: OutlinedButton.icon(
+                    onPressed: _reload,
+                    icon: const Icon(Symbols.refresh_rounded, size: 18),
+                    label: const Text('Réessayer'),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              _moduleBody(snapshot),
+            ] else
+              _FinanceErrorState(
+                message: 'Aucun snapshot financier valide n’a été reçu.',
+                code: 'empty-snapshot',
+                onRetry: _reload,
+              ),
           ],
         );
       },
@@ -452,7 +542,8 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
 
   Widget _overview(BackofficeFinanceSnapshot s) {
     final DateTime today = DateTime.now();
-    final int receipts = s.confirmedReceiptsOn(today) + s.creditSettlementsOn(today);
+    final int receipts =
+        s.confirmedReceiptsOn(today) + s.creditSettlementsOn(today);
     final int theoreticalWave = s.waveTheoreticalBalanceOn(today);
     final int expenses = s.expensesOn(today);
     final int refunds = s.refundsOn(today);
@@ -479,28 +570,36 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
             value: formatCfa(s.customerReceivables),
             caption: 'crédits restant à encaisser',
             icon: Symbols.request_quote_rounded,
-            emphasis: s.customerReceivables > 0 ? BackofficePalette.warning : BackofficePalette.success,
+            emphasis: s.customerReceivables > 0
+                ? BackofficePalette.warning
+                : BackofficePalette.success,
           ),
           BackofficeMetricCard(
             label: 'Dette fournisseurs',
             value: formatCfa(s.supplierDebt),
             caption: 'reste à régler',
             icon: Symbols.storefront_rounded,
-            emphasis: s.supplierDebt > 0 ? BackofficePalette.warning : BackofficePalette.success,
+            emphasis: s.supplierDebt > 0
+                ? BackofficePalette.warning
+                : BackofficePalette.success,
           ),
           BackofficeMetricCard(
             label: 'Commissions dues',
             value: formatCfa(s.commissionDebt),
             caption: 'Agents à payer',
             icon: Symbols.savings_rounded,
-            emphasis: s.commissionDebt > 0 ? BackofficePalette.warning : BackofficePalette.success,
+            emphasis: s.commissionDebt > 0
+                ? BackofficePalette.warning
+                : BackofficePalette.success,
           ),
           BackofficeMetricCard(
             label: 'Règlements Cabinistes',
             value: formatCfa(s.cabinisteDebt),
             caption: 'solde Cabinistes à reverser',
             icon: Symbols.handshake_rounded,
-            emphasis: s.cabinisteDebt > 0 ? BackofficePalette.warning : BackofficePalette.success,
+            emphasis: s.cabinisteDebt > 0
+                ? BackofficePalette.warning
+                : BackofficePalette.success,
           ),
           BackofficeMetricCard(
             label: 'Capacité disponible',
@@ -521,13 +620,16 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
             value: formatCfa(refunds),
             caption: 'remboursements clients exécutés',
             icon: Symbols.currency_exchange_rounded,
-            emphasis: refunds > 0 ? BackofficePalette.warning : BackofficePalette.success,
+            emphasis: refunds > 0
+                ? BackofficePalette.warning
+                : BackofficePalette.success,
           ),
         ]),
         const SizedBox(height: 18),
         _section(
           title: 'Synthèse réseau',
-          subtitle: 'Capacité télécom disponible chez les Agents.',
+          subtitle:
+              'Le stock est déduit à la réussite. Le libre est le stock moins les commandes engagées ; une réussite libère aussi leur réservation.',
           child: _networkCapacityCards(s),
         ),
         const SizedBox(height: 18),
@@ -609,8 +711,11 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
             emptyMessage: 'Le premier ajustement apparaîtra ici.',
             builder: (Map<String, dynamic> row) => _FinanceListTile(
               icon: Symbols.account_balance_rounded,
-              title: '${formatCfa(financeInt(row['previous_opening_balance']))} → ${formatCfa(financeInt(row['opening_balance']))}',
-              subtitle: financeString(row['note']).isEmpty ? 'Aucune note' : financeString(row['note']),
+              title:
+                  '${formatCfa(financeInt(row['previous_opening_balance']))} → ${formatCfa(financeInt(row['opening_balance']))}',
+              subtitle: financeString(row['note']).isEmpty
+                  ? 'Aucune note'
+                  : financeString(row['note']),
               trailing: _dateLabel(financeDate(row['effective_at'])),
             ),
           ),
@@ -624,16 +729,48 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       'commission_payouts',
       s.commissionPayouts,
     );
-    final int earned = s.commissionAccounts.fold<int>(0, (int t, Map<String, dynamic> r) => t + financeInt(r['earned_total']));
-    final int paid = s.commissionAccounts.fold<int>(0, (int t, Map<String, dynamic> r) => t + financeInt(r['paid_total']));
+    final int earned = s.commissionAccounts.fold<int>(
+      0,
+      (int t, Map<String, dynamic> r) => t + financeInt(r['earned_total']),
+    );
+    final int paid = s.commissionAccounts.fold<int>(
+      0,
+      (int t, Map<String, dynamic> r) => t + financeInt(r['paid_total']),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         _metricGrid(<Widget>[
-          BackofficeMetricCard(label: 'Acquises', value: formatCfa(earned), caption: 'commissions cumulées', icon: Symbols.trending_up_rounded, emphasis: BackofficePalette.success),
-          BackofficeMetricCard(label: 'Payées', value: formatCfa(paid), caption: 'règlements cumulés', icon: Symbols.payments_rounded),
-          BackofficeMetricCard(label: 'À payer', value: formatCfa(s.commissionDebt), caption: 'solde Agents', icon: Symbols.savings_rounded, emphasis: s.commissionDebt > 0 ? BackofficePalette.warning : BackofficePalette.success),
-          BackofficeMetricCard(label: 'Transactions', value: '${s.commissionAccounts.fold<int>(0, (int t, Map<String, dynamic> r) => t + financeInt(r['earned_transactions']))}', caption: 'ayant généré une commission', icon: Symbols.receipt_long_rounded, emphasis: BackofficePalette.cyan),
+          BackofficeMetricCard(
+            label: 'Acquises',
+            value: formatCfa(earned),
+            caption: 'commissions cumulées',
+            icon: Symbols.trending_up_rounded,
+            emphasis: BackofficePalette.success,
+          ),
+          BackofficeMetricCard(
+            label: 'Payées',
+            value: formatCfa(paid),
+            caption: 'règlements cumulés',
+            icon: Symbols.payments_rounded,
+          ),
+          BackofficeMetricCard(
+            label: 'À payer',
+            value: formatCfa(s.commissionDebt),
+            caption: 'solde Agents',
+            icon: Symbols.savings_rounded,
+            emphasis: s.commissionDebt > 0
+                ? BackofficePalette.warning
+                : BackofficePalette.success,
+          ),
+          BackofficeMetricCard(
+            label: 'Transactions',
+            value:
+                '${s.commissionAccounts.fold<int>(0, (int t, Map<String, dynamic> r) => t + financeInt(r['earned_transactions']))}',
+            caption: 'ayant généré une commission',
+            icon: Symbols.receipt_long_rounded,
+            emphasis: BackofficePalette.cyan,
+          ),
         ]),
         const SizedBox(height: 18),
         _section(
@@ -642,17 +779,25 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
           child: _simpleRows(
             s.commissionAccounts,
             emptyTitle: 'Aucun compte commission',
-            emptyMessage: 'Les commissions apparaîtront après les transactions éligibles.',
+            emptyMessage:
+                'Les commissions apparaîtront après les transactions éligibles.',
             builder: (Map<String, dynamic> row) {
-              final int balance = financeInt(row['earned_total']) - financeInt(row['paid_total']);
+              final int balance =
+                  financeInt(row['earned_total']) -
+                  financeInt(row['paid_total']);
               return _FinanceListTile(
                 icon: Symbols.badge_rounded,
-                title: financeString(row['agent_name']).isEmpty ? 'Agent' : financeString(row['agent_name']),
-                subtitle: '${financeInt(row['earned_transactions'])} transaction(s) · acquis ${formatCfa(financeInt(row['earned_total']))} · payé ${formatCfa(financeInt(row['paid_total']))}',
+                title: financeString(row['agent_name']).isEmpty
+                    ? 'Agent'
+                    : financeString(row['agent_name']),
+                subtitle:
+                    '${financeInt(row['earned_transactions'])} transaction(s) · acquis ${formatCfa(financeInt(row['earned_total']))} · payé ${formatCfa(financeInt(row['paid_total']))}',
                 trailing: formatCfa(balance),
                 action: _canManage && balance > 0
                     ? TextButton(
-                        onPressed: _busy ? null : () => _showCommissionPayoutDialog(row, balance),
+                        onPressed: _busy
+                            ? null
+                            : () => _showCommissionPayoutDialog(row, balance),
                         child: const Text('Payer'),
                       )
                     : null,
@@ -670,7 +815,8 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
             emptyMessage: 'Les règlements Agents seront listés ici.',
             builder: (Map<String, dynamic> row) => _FinanceListTile(
               icon: Symbols.payments_rounded,
-              title: '${financeString(row['agent_name'])} · ${formatCfa(financeInt(row['amount']))}',
+              title:
+                  '${financeString(row['agent_name'])} · ${formatCfa(financeInt(row['amount']))}',
               subtitle: 'Réf. ${financeString(row['payment_reference'])}',
               trailing: _dateLabel(financeDate(row['paid_at'])),
             ),
@@ -736,7 +882,9 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
                 title: displayName.isEmpty ? 'Cabiniste' : displayName,
                 subtitle:
                     '${code.isEmpty ? 'Sans code' : code} · ${financeInt(row['earnedTransactions'])} transaction(s) · acquis ${formatCfa(financeInt(row['earnedTotal']))} · payé ${formatCfa(financeInt(row['paidTotal']))}',
-                trailing: balance > 0 ? formatCfa(balance) : _cabinistePaymentStatusLabel(status),
+                trailing: balance > 0
+                    ? formatCfa(balance)
+                    : _cabinistePaymentStatusLabel(status),
                 action: Wrap(
                   spacing: 4,
                   runSpacing: 4,
@@ -769,16 +917,39 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       'supplier_recharges',
       s.supplierRecharges,
     );
-    final Map<String, Map<String, dynamic>> accounts = <String, Map<String, dynamic>>{
-      for (final Map<String, dynamic> row in s.supplierAccounts) financeString(row['supplier_id']): row,
-    };
+    final Map<String, Map<String, dynamic>> accounts =
+        <String, Map<String, dynamic>>{
+          for (final Map<String, dynamic> row in s.supplierAccounts)
+            financeString(row['supplier_id']): row,
+        };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         _metricGrid(<Widget>[
-          BackofficeMetricCard(label: 'Fournisseurs', value: '${s.suppliers.length}', caption: 'registre actif + suspendu', icon: Symbols.storefront_rounded),
-          BackofficeMetricCard(label: 'Dette totale', value: formatCfa(s.supplierDebt), caption: 'reste à régler', icon: Symbols.account_balance_wallet_rounded, emphasis: s.supplierDebt > 0 ? BackofficePalette.warning : BackofficePalette.success),
-          BackofficeMetricCard(label: 'Approvisionnements', value: '${recharges.length}', caption: _periodFilter.isActive ? 'dans la période' : 'recharges enregistrées', icon: Symbols.add_card_rounded, emphasis: BackofficePalette.cyan),
+          BackofficeMetricCard(
+            label: 'Fournisseurs',
+            value: '${s.suppliers.length}',
+            caption: 'registre actif + suspendu',
+            icon: Symbols.storefront_rounded,
+          ),
+          BackofficeMetricCard(
+            label: 'Dette totale',
+            value: formatCfa(s.supplierDebt),
+            caption: 'reste à régler',
+            icon: Symbols.account_balance_wallet_rounded,
+            emphasis: s.supplierDebt > 0
+                ? BackofficePalette.warning
+                : BackofficePalette.success,
+          ),
+          BackofficeMetricCard(
+            label: 'Approvisionnements',
+            value: '${recharges.length}',
+            caption: _periodFilter.isActive
+                ? 'dans la période'
+                : 'recharges enregistrées',
+            icon: Symbols.add_card_rounded,
+            emphasis: BackofficePalette.cyan,
+          ),
         ]),
         const SizedBox(height: 14),
         if (_canManage)
@@ -786,28 +957,57 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
             spacing: 10,
             runSpacing: 10,
             children: <Widget>[
-              FilledButton.icon(onPressed: _busy ? null : () => _showSupplierDialog(), icon: const Icon(Symbols.add_rounded), label: const Text('Nouveau fournisseur')),
-              OutlinedButton.icon(onPressed: _busy || s.suppliers.where((Map<String, dynamic> r) => r['is_active'] == true).isEmpty ? null : () => _showSupplierRechargeDialog(s), icon: const Icon(Symbols.add_card_rounded), label: const Text('Approvisionner un Agent')),
-              OutlinedButton.icon(onPressed: _busy || s.suppliers.isEmpty ? null : () => _showSupplierPaymentDialog(s), icon: const Icon(Symbols.payments_rounded), label: const Text('Régler un fournisseur')),
+              FilledButton.icon(
+                onPressed: _busy ? null : () => _showSupplierDialog(),
+                icon: const Icon(Symbols.add_rounded),
+                label: const Text('Nouveau fournisseur'),
+              ),
+              OutlinedButton.icon(
+                onPressed:
+                    _busy ||
+                        s.suppliers
+                            .where(
+                              (Map<String, dynamic> r) =>
+                                  r['is_active'] == true,
+                            )
+                            .isEmpty
+                    ? null
+                    : () => _showSupplierRechargeDialog(s),
+                icon: const Icon(Symbols.add_card_rounded),
+                label: const Text('Approvisionner un Agent'),
+              ),
+              OutlinedButton.icon(
+                onPressed: _busy || s.suppliers.isEmpty
+                    ? null
+                    : () => _showSupplierPaymentDialog(s),
+                icon: const Icon(Symbols.payments_rounded),
+                label: const Text('Régler un fournisseur'),
+              ),
             ],
           ),
         const SizedBox(height: 18),
         _section(
           title: 'Registre fournisseurs',
-          subtitle: 'La suppression est logique : tout fournisseur ayant un historique financier reste auditable.',
+          subtitle:
+              'La suppression est logique : tout fournisseur ayant un historique financier reste auditable.',
           child: _simpleRows(
             s.suppliers,
             emptyTitle: 'Aucun fournisseur',
-            emptyMessage: 'Ajoute le premier fournisseur pour enregistrer les approvisionnements.',
+            emptyMessage:
+                'Ajoute le premier fournisseur pour enregistrer les approvisionnements.',
             builder: (Map<String, dynamic> row) {
               final String id = financeString(row['id']);
               final Map<String, dynamic>? account = accounts[id];
-              final int debt = account == null ? 0 : financeInt(account['total_owed']) - financeInt(account['total_paid']);
+              final int debt = account == null
+                  ? 0
+                  : financeInt(account['total_owed']) -
+                        financeInt(account['total_paid']);
               final bool active = row['is_active'] == true;
               return _FinanceListTile(
                 icon: Symbols.storefront_rounded,
                 title: financeString(row['name']),
-                subtitle: '${financeString(row['phone_number']).isEmpty ? 'Sans téléphone' : financeString(row['phone_number'])} · dette ${formatCfa(debt)} · ${active ? 'actif' : 'suspendu'}',
+                subtitle:
+                    '${financeString(row['phone_number']).isEmpty ? 'Sans téléphone' : financeString(row['phone_number'])} · dette ${formatCfa(debt)} · ${active ? 'actif' : 'suspendu'}',
                 trailing: active ? 'Actif' : 'Suspendu',
                 action: _canManage
                     ? PopupMenuButton<String>(
@@ -817,17 +1017,34 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
                             await _showSupplierDialog(row: row);
                           } else if (value == 'toggle') {
                             await _runAction(
-                              () => widget.repository.setSupplierActive(supplierId: id, isActive: !active),
-                              success: active ? 'Fournisseur suspendu.' : 'Fournisseur réactivé.',
+                              () => widget.repository.setSupplierActive(
+                                supplierId: id,
+                                isActive: !active,
+                              ),
+                              success: active
+                                  ? 'Fournisseur suspendu.'
+                                  : 'Fournisseur réactivé.',
                             );
                           } else if (value == 'delete') {
-                            await _confirmDeleteSupplier(id, financeString(row['name']));
+                            await _confirmDeleteSupplier(
+                              id,
+                              financeString(row['name']),
+                            );
                           }
                         },
                         itemBuilder: (_) => <PopupMenuEntry<String>>[
-                          const PopupMenuItem<String>(value: 'edit', child: Text('Modifier')),
-                          PopupMenuItem<String>(value: 'toggle', child: Text(active ? 'Suspendre' : 'Réactiver')),
-                          const PopupMenuItem<String>(value: 'delete', child: Text('Retirer du registre')),
+                          const PopupMenuItem<String>(
+                            value: 'edit',
+                            child: Text('Modifier'),
+                          ),
+                          PopupMenuItem<String>(
+                            value: 'toggle',
+                            child: Text(active ? 'Suspendre' : 'Réactiver'),
+                          ),
+                          const PopupMenuItem<String>(
+                            value: 'delete',
+                            child: Text('Retirer du registre'),
+                          ),
                         ],
                       )
                     : null,
@@ -845,8 +1062,10 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
             emptyMessage: 'Les approvisionnements Agents apparaîtront ici.',
             builder: (Map<String, dynamic> row) => _FinanceListTile(
               icon: Symbols.add_card_rounded,
-              title: '${financeString(row['agent_name'])} · ${_networkLabel(financeString(row['network']))}',
-              subtitle: '${financeString(row['supplier_name'])} · principal ${formatCfa(financeInt(row['principal_amount']))} · bonus ${formatCfa(financeInt(row['bonus_amount']))}',
+              title:
+                  '${financeString(row['agent_name'])} · ${_networkLabel(financeString(row['network']))}',
+              subtitle:
+                  '${financeString(row['supplier_name'])} · principal ${formatCfa(financeInt(row['principal_amount']))} · bonus ${formatCfa(financeInt(row['bonus_amount']))}',
               trailing: _dateLabel(financeDate(row['occurred_at'])),
             ),
           ),
@@ -860,16 +1079,46 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       'credits',
       s.credits,
     );
-    final int openCount = s.credits.where((Map<String, dynamic> row) => financeString(row['status']) != 'settled').length;
-    final int paid = s.credits.fold<int>(0, (int t, Map<String, dynamic> r) => t + financeInt(r['paid_amount']));
-    final int granted = s.credits.fold<int>(0, (int t, Map<String, dynamic> r) => t + financeInt(r['amount']));
+    final int openCount = s.credits
+        .where(
+          (Map<String, dynamic> row) =>
+              financeString(row['status']) != 'settled',
+        )
+        .length;
+    final int paid = s.credits.fold<int>(
+      0,
+      (int t, Map<String, dynamic> r) => t + financeInt(r['paid_amount']),
+    );
+    final int granted = s.credits.fold<int>(
+      0,
+      (int t, Map<String, dynamic> r) => t + financeInt(r['amount']),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         _metricGrid(<Widget>[
-          BackofficeMetricCard(label: 'Crédits accordés', value: formatCfa(granted), caption: '${s.credits.length} dossier(s)', icon: Symbols.request_quote_rounded),
-          BackofficeMetricCard(label: 'Remboursé', value: formatCfa(paid), caption: 'encaissements sur crédits', icon: Symbols.payments_rounded, emphasis: BackofficePalette.success),
-          BackofficeMetricCard(label: 'Reste à payer', value: formatCfa(s.customerReceivables), caption: '$openCount dossier(s) ouvert(s)', icon: Symbols.pending_actions_rounded, emphasis: s.customerReceivables > 0 ? BackofficePalette.warning : BackofficePalette.success),
+          BackofficeMetricCard(
+            label: 'Crédits accordés',
+            value: formatCfa(granted),
+            caption: '${s.credits.length} dossier(s)',
+            icon: Symbols.request_quote_rounded,
+          ),
+          BackofficeMetricCard(
+            label: 'Remboursé',
+            value: formatCfa(paid),
+            caption: 'encaissements sur crédits',
+            icon: Symbols.payments_rounded,
+            emphasis: BackofficePalette.success,
+          ),
+          BackofficeMetricCard(
+            label: 'Reste à payer',
+            value: formatCfa(s.customerReceivables),
+            caption: '$openCount dossier(s) ouvert(s)',
+            icon: Symbols.pending_actions_rounded,
+            emphasis: s.customerReceivables > 0
+                ? BackofficePalette.warning
+                : BackofficePalette.success,
+          ),
         ]),
         const SizedBox(height: 14),
         if (_canManage)
@@ -890,7 +1139,8 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
           child: _simpleRows(
             credits,
             emptyTitle: 'Aucun crédit client sur cette période',
-            emptyMessage: 'Aucune commande n’est actuellement enregistrée à crédit.',
+            emptyMessage:
+                'Aucune commande n’est actuellement enregistrée à crédit.',
             builder: (Map<String, dynamic> row) {
               final int amount = financeInt(row['amount']);
               final int paidAmount = financeInt(row['paid_amount']);
@@ -898,12 +1148,16 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
               final String status = financeString(row['status']);
               return _FinanceListTile(
                 icon: Symbols.person_rounded,
-                title: '${financeString(row['client_name'])} · ${formatCfa(balance)} restant',
-                subtitle: '${financeString(row['order_reference'])} · accordé ${formatCfa(amount)} · remboursé ${formatCfa(paidAmount)} · ${_creditStatusLabel(status)}',
+                title:
+                    '${financeString(row['client_name'])} · ${formatCfa(balance)} restant',
+                subtitle:
+                    '${financeString(row['order_reference'])} · accordé ${formatCfa(amount)} · remboursé ${formatCfa(paidAmount)} · ${_creditStatusLabel(status)}',
                 trailing: _dateLabel(financeDate(row['updated_at'])),
                 action: _canManage && balance > 0
                     ? TextButton(
-                        onPressed: _busy ? null : () => _showCreditSettlementDialog(row, balance),
+                        onPressed: _busy
+                            ? null
+                            : () => _showCreditSettlementDialog(row, balance),
                         child: const Text('Encaisser'),
                       )
                     : null,
@@ -924,37 +1178,79 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     final int todayTotal = s.expensesOn(today);
     final int periodTotal = expenses.fold<int>(
       0,
-      (int total, Map<String, dynamic> row) => total + financeInt(row['amount']),
+      (int total, Map<String, dynamic> row) =>
+          total + financeInt(row['amount']),
     );
     final int periodWave = expenses
-        .where((Map<String, dynamic> row) => financeString(row['payment_channel']) == 'wave')
-        .fold<int>(0, (int total, Map<String, dynamic> row) => total + financeInt(row['amount']));
+        .where(
+          (Map<String, dynamic> row) =>
+              financeString(row['payment_channel']) == 'wave',
+        )
+        .fold<int>(
+          0,
+          (int total, Map<String, dynamic> row) =>
+              total + financeInt(row['amount']),
+        );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         _metricGrid(<Widget>[
-          BackofficeMetricCard(label: 'Dépenses du jour', value: formatCfa(todayTotal), caption: 'tous canaux', icon: Symbols.receipt_rounded, emphasis: BackofficePalette.danger),
-          BackofficeMetricCard(label: _periodFilter.isActive ? 'Dépenses période' : 'Historique chargé', value: formatCfa(periodTotal), caption: '${expenses.length} dépense(s)', icon: Symbols.history_rounded),
-          BackofficeMetricCard(label: _periodFilter.isActive ? 'Wave période' : 'Sorties Wave jour', value: formatCfa(_periodFilter.isActive ? periodWave : s.expensesOn(today, channel: 'wave')), caption: _periodFilter.isActive ? 'charges Wave de la période' : 'charges payées via Wave', icon: Symbols.account_balance_rounded, emphasis: BackofficePalette.warning),
+          BackofficeMetricCard(
+            label: 'Dépenses du jour',
+            value: formatCfa(todayTotal),
+            caption: 'tous canaux',
+            icon: Symbols.receipt_rounded,
+            emphasis: BackofficePalette.danger,
+          ),
+          BackofficeMetricCard(
+            label: _periodFilter.isActive
+                ? 'Dépenses période'
+                : 'Historique chargé',
+            value: formatCfa(periodTotal),
+            caption: '${expenses.length} dépense(s)',
+            icon: Symbols.history_rounded,
+          ),
+          BackofficeMetricCard(
+            label: _periodFilter.isActive
+                ? 'Wave période'
+                : 'Sorties Wave jour',
+            value: formatCfa(
+              _periodFilter.isActive
+                  ? periodWave
+                  : s.expensesOn(today, channel: 'wave'),
+            ),
+            caption: _periodFilter.isActive
+                ? 'charges Wave de la période'
+                : 'charges payées via Wave',
+            icon: Symbols.account_balance_rounded,
+            emphasis: BackofficePalette.warning,
+          ),
         ]),
         const SizedBox(height: 14),
         if (_canManage)
           Align(
             alignment: Alignment.centerLeft,
-            child: FilledButton.icon(onPressed: _busy ? null : _showExpenseDialog, icon: const Icon(Symbols.add_rounded), label: const Text('Enregistrer une dépense')),
+            child: FilledButton.icon(
+              onPressed: _busy ? null : _showExpenseDialog,
+              icon: const Icon(Symbols.add_rounded),
+              label: const Text('Enregistrer une dépense'),
+            ),
           ),
         const SizedBox(height: 18),
         _section(
           title: 'Journal des dépenses',
-          subtitle: 'Les dépenses ne sont jamais écrasées : chaque saisie reste traçable.',
+          subtitle:
+              'Les dépenses ne sont jamais écrasées : chaque saisie reste traçable.',
           child: _simpleRows(
             expenses,
             emptyTitle: 'Aucune dépense sur cette période',
             emptyMessage: 'Les charges IzyTel seront affichées ici.',
             builder: (Map<String, dynamic> row) => _FinanceListTile(
               icon: Symbols.receipt_rounded,
-              title: '${_expenseCategoryLabel(financeString(row['category']))} · ${formatCfa(financeInt(row['amount']))}',
-              subtitle: '${financeString(row['description'])} · ${_channelLabel(financeString(row['payment_channel']))}${financeString(row['payment_reference']).isEmpty ? '' : ' · réf. ${financeString(row['payment_reference'])}'}',
+              title:
+                  '${_expenseCategoryLabel(financeString(row['category']))} · ${formatCfa(financeInt(row['amount']))}',
+              subtitle:
+                  '${financeString(row['description'])} · ${_channelLabel(financeString(row['payment_channel']))}${financeString(row['payment_reference']).isEmpty ? '' : ' · réf. ${financeString(row['payment_reference'])}'}',
               trailing: _dateLabel(financeDate(row['spent_at'])),
             ),
           ),
@@ -1091,15 +1387,42 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         _metricGrid(<Widget>[
-          BackofficeMetricCard(label: 'Contrôles', value: '${checks.length}', caption: 'règles de cohérence', icon: Symbols.rule_rounded),
-          BackofficeMetricCard(label: 'Anomalies', value: '$anomalies', caption: anomalies == 0 ? 'aucun écart détecté' : 'à examiner', icon: anomalies == 0 ? Symbols.check_circle_rounded : Symbols.warning_rounded, emphasis: anomalies == 0 ? BackofficePalette.success : BackofficePalette.danger),
-          BackofficeMetricCard(label: 'Paiements Phase 5', value: '${s.orderPayments.length}', caption: 'lignes rapprochées', icon: Symbols.payments_rounded, emphasis: BackofficePalette.cyan),
-          BackofficeMetricCard(label: 'Remboursements', value: '${s.refunds.length}', caption: 'dossiers financiers', icon: Symbols.currency_exchange_rounded),
+          BackofficeMetricCard(
+            label: 'Contrôles',
+            value: '${checks.length}',
+            caption: 'règles de cohérence',
+            icon: Symbols.rule_rounded,
+          ),
+          BackofficeMetricCard(
+            label: 'Anomalies',
+            value: '$anomalies',
+            caption: anomalies == 0 ? 'aucun écart détecté' : 'à examiner',
+            icon: anomalies == 0
+                ? Symbols.check_circle_rounded
+                : Symbols.warning_rounded,
+            emphasis: anomalies == 0
+                ? BackofficePalette.success
+                : BackofficePalette.danger,
+          ),
+          BackofficeMetricCard(
+            label: 'Paiements Phase 5',
+            value: '${s.orderPayments.length}',
+            caption: 'lignes rapprochées',
+            icon: Symbols.payments_rounded,
+            emphasis: BackofficePalette.cyan,
+          ),
+          BackofficeMetricCard(
+            label: 'Remboursements',
+            value: '${s.refunds.length}',
+            caption: 'dossiers financiers',
+            icon: Symbols.currency_exchange_rounded,
+          ),
         ]),
         const SizedBox(height: 18),
         _section(
           title: 'Matrice de contrôle',
-          subtitle: 'Les contrôles sont calculés à partir du snapshot canonique Supabase.',
+          subtitle:
+              'Les contrôles sont calculés à partir du snapshot canonique Supabase.',
           child: Column(
             children: <Widget>[
               for (int index = 0; index < checks.length; index++) ...<Widget>[
@@ -1115,14 +1438,21 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
           subtitle: 'Toute différence de caisse doit rester justifiée.',
           child: _simpleRows(
             periodClosings
-                .where((Map<String, dynamic> row) => financeInt(row['wave_difference']) != 0)
+                .where(
+                  (Map<String, dynamic> row) =>
+                      financeInt(row['wave_difference']) != 0,
+                )
                 .toList(growable: false),
             emptyTitle: 'Aucun écart de clôture',
-            emptyMessage: 'Les clôtures enregistrées ne présentent actuellement aucun écart Wave.',
+            emptyMessage:
+                'Les clôtures enregistrées ne présentent actuellement aucun écart Wave.',
             builder: (Map<String, dynamic> row) => _FinanceListTile(
               icon: Symbols.warning_rounded,
-              title: '${financeString(row['date_key'])} · écart ${formatCfa(financeInt(row['wave_difference']))}',
-              subtitle: financeString(row['wave_difference_note']).isEmpty ? 'Justification absente' : financeString(row['wave_difference_note']),
+              title:
+                  '${financeString(row['date_key'])} · écart ${formatCfa(financeInt(row['wave_difference']))}',
+              subtitle: financeString(row['wave_difference_note']).isEmpty
+                  ? 'Justification absente'
+                  : financeString(row['wave_difference_note']),
               trailing: financeString(row['closed_by_name']),
             ),
           ),
@@ -1141,9 +1471,27 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         _metricGrid(<Widget>[
-          BackofficeMetricCard(label: 'Mouvements', value: '${movements.length}', caption: 'snapshot consolidé', icon: Symbols.swap_horiz_rounded),
-          BackofficeMetricCard(label: 'Capacité réseau', value: '${networkMovements.length}', caption: 'entrées / sorties télécom', icon: Symbols.toll_rounded, emphasis: BackofficePalette.cyan),
-          BackofficeMetricCard(label: 'Événements ledger', value: _periodFilter.isActive ? '—' : '${s.ledgerEvents.length}', caption: _periodFilter.isActive ? 'hors filtre périodique pour cette étape' : 'journal Phase 5', icon: Symbols.receipt_long_rounded),
+          BackofficeMetricCard(
+            label: 'Mouvements',
+            value: '${movements.length}',
+            caption: 'snapshot consolidé',
+            icon: Symbols.swap_horiz_rounded,
+          ),
+          BackofficeMetricCard(
+            label: 'Capacité réseau',
+            value: '${networkMovements.length}',
+            caption: 'entrées / sorties télécom',
+            icon: Symbols.toll_rounded,
+            emphasis: BackofficePalette.cyan,
+          ),
+          BackofficeMetricCard(
+            label: 'Événements ledger',
+            value: _periodFilter.isActive ? '—' : '${s.ledgerEvents.length}',
+            caption: _periodFilter.isActive
+                ? 'hors filtre périodique pour cette étape'
+                : 'journal Phase 5',
+            icon: Symbols.receipt_long_rounded,
+          ),
         ]),
         const SizedBox(height: 18),
         _section(
@@ -1152,17 +1500,26 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
               ? 'Mouvements correspondant à ${_periodFilter.label}. Le calendrier interroge directement l’historique Supabase.'
               : 'Les 150 mouvements les plus récents, toutes sources financières confondues.',
           child: movements.isEmpty
-              ? const BackofficeEmptyState(icon: Symbols.history_rounded, title: 'Aucun mouvement', message: 'Les mouvements financiers apparaîtront ici.')
+              ? const BackofficeEmptyState(
+                  icon: Symbols.history_rounded,
+                  title: 'Aucun mouvement',
+                  message: 'Les mouvements financiers apparaîtront ici.',
+                )
               : Column(
                   children: <Widget>[
-                    for (int index = 0; index < movements.length && index < 150; index++) ...<Widget>[
+                    for (
+                      int index = 0;
+                      index < movements.length && index < 150;
+                      index++
+                    ) ...<Widget>[
                       _FinanceListTile(
                         icon: movements[index].icon,
                         title: movements[index].title,
                         subtitle: movements[index].subtitle,
                         trailing: _dateLabel(movements[index].at),
                       ),
-                      if (index < movements.length - 1 && index < 149) const Divider(height: 1),
+                      if (index < movements.length - 1 && index < 149)
+                        const Divider(height: 1),
                     ],
                   ],
                 ),
@@ -1178,26 +1535,61 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     );
     final DateTime today = DateTime.now();
     final String key = _dateKey(today);
-    final bool alreadyClosed = s.closings.any((Map<String, dynamic> row) => financeString(row['date_key']) == key);
+    final bool alreadyClosed = s.closings.any(
+      (Map<String, dynamic> row) => financeString(row['date_key']) == key,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         _metricGrid(<Widget>[
-          BackofficeMetricCard(label: 'Clôtures', value: '${closings.length}', caption: _periodFilter.isActive ? 'dans la période' : 'journées figées', icon: Symbols.event_available_rounded),
-          BackofficeMetricCard(label: 'Aujourd’hui', value: alreadyClosed ? 'Clôturé' : 'Ouvert', caption: key, icon: alreadyClosed ? Symbols.lock_rounded : Symbols.lock_open_rounded, emphasis: alreadyClosed ? BackofficePalette.success : BackofficePalette.warning),
-          BackofficeMetricCard(label: 'Wave théorique', value: formatCfa(s.waveTheoreticalBalanceOn(today)), caption: 'avant clôture', icon: Symbols.account_balance_rounded, emphasis: BackofficePalette.cyan),
-          BackofficeMetricCard(label: 'Résultat indicatif', value: formatCfa(s.estimatedOperationalResultOn(today)), caption: 'marge stock estimée - charges - commissions', icon: Symbols.monitoring_rounded),
+          BackofficeMetricCard(
+            label: 'Clôtures',
+            value: '${closings.length}',
+            caption: _periodFilter.isActive
+                ? 'dans la période'
+                : 'journées figées',
+            icon: Symbols.event_available_rounded,
+          ),
+          BackofficeMetricCard(
+            label: 'Aujourd’hui',
+            value: alreadyClosed ? 'Clôturé' : 'Ouvert',
+            caption: key,
+            icon: alreadyClosed
+                ? Symbols.lock_rounded
+                : Symbols.lock_open_rounded,
+            emphasis: alreadyClosed
+                ? BackofficePalette.success
+                : BackofficePalette.warning,
+          ),
+          BackofficeMetricCard(
+            label: 'Wave théorique',
+            value: formatCfa(s.waveTheoreticalBalanceOn(today)),
+            caption: 'avant clôture',
+            icon: Symbols.account_balance_rounded,
+            emphasis: BackofficePalette.cyan,
+          ),
+          BackofficeMetricCard(
+            label: 'Résultat indicatif',
+            value: formatCfa(s.estimatedOperationalResultOn(today)),
+            caption: 'marge stock estimée - charges - commissions',
+            icon: Symbols.monitoring_rounded,
+          ),
         ]),
         const SizedBox(height: 14),
         if (_canManage && !alreadyClosed)
           Align(
             alignment: Alignment.centerLeft,
-            child: FilledButton.icon(onPressed: _busy ? null : () => _showClosingDialog(s), icon: const Icon(Symbols.lock_rounded), label: const Text('Clôturer la journée')),
+            child: FilledButton.icon(
+              onPressed: _busy ? null : () => _showClosingDialog(s),
+              icon: const Icon(Symbols.lock_rounded),
+              label: const Text('Clôturer la journée'),
+            ),
           ),
         const SizedBox(height: 18),
         _section(
           title: 'Historique des clôtures',
-          subtitle: 'Une journée clôturée devient un instantané d’audit immuable dans les écrans financiers.',
+          subtitle:
+              'Une journée clôturée devient un instantané d’audit immuable dans les écrans financiers.',
           child: _simpleRows(
             closings,
             emptyTitle: 'Aucune clôture sur cette période',
@@ -1205,9 +1597,13 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
             builder: (Map<String, dynamic> row) {
               final int difference = financeInt(row['wave_difference']);
               return _FinanceListTile(
-                icon: difference == 0 ? Symbols.check_circle_rounded : Symbols.warning_rounded,
-                title: '${financeString(row['date_key'])} · Wave réel ${formatCfa(financeInt(row['wave_actual_balance']))}',
-                subtitle: 'théorique ${formatCfa(financeInt(row['wave_theoretical_balance']))} · écart ${formatCfa(difference)} · résultat indicatif ${formatCfa(financeInt(row['estimated_profit']))}',
+                icon: difference == 0
+                    ? Symbols.check_circle_rounded
+                    : Symbols.warning_rounded,
+                title:
+                    '${financeString(row['date_key'])} · Wave réel ${formatCfa(financeInt(row['wave_actual_balance']))}',
+                subtitle:
+                    'théorique ${formatCfa(financeInt(row['wave_theoretical_balance']))} · écart ${formatCfa(difference)} · résultat indicatif ${formatCfa(financeInt(row['estimated_profit']))}',
                 trailing: financeString(row['closed_by_name']),
               );
             },
@@ -1242,19 +1638,30 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
   Widget _metricGrid(List<Widget> cards) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final int columns = constraints.maxWidth >= 1180 ? 4 : constraints.maxWidth >= 760 ? 2 : 1;
+        final int columns = constraints.maxWidth >= 1180
+            ? 4
+            : constraints.maxWidth >= 760
+            ? 2
+            : 1;
         const double gap = 10;
-        final double width = (constraints.maxWidth - (columns - 1) * gap) / columns;
+        final double width =
+            (constraints.maxWidth - (columns - 1) * gap) / columns;
         return Wrap(
           spacing: gap,
           runSpacing: gap,
-          children: cards.map((Widget card) => SizedBox(width: width, child: card)).toList(growable: false),
+          children: cards
+              .map((Widget card) => SizedBox(width: width, child: card))
+              .toList(growable: false),
         );
       },
     );
   }
 
-  Widget _section({required String title, required String subtitle, required Widget child}) {
+  Widget _section({
+    required String title,
+    required String subtitle,
+    required Widget child,
+  }) {
     return Container(
       decoration: backofficePanelDecoration(),
       clipBehavior: Clip.antiAlias,
@@ -1286,7 +1693,11 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     required Widget Function(Map<String, dynamic> row) builder,
   }) {
     if (rows.isEmpty) {
-      return BackofficeEmptyState(icon: Symbols.inbox_rounded, title: emptyTitle, message: emptyMessage);
+      return BackofficeEmptyState(
+        icon: Symbols.inbox_rounded,
+        title: emptyTitle,
+        message: emptyMessage,
+      );
     }
     return Column(
       children: <Widget>[
@@ -1328,17 +1739,23 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
               earliest == null || value.isBefore(earliest) ? value : earliest,
         );
     final List<Map<String, dynamic>> unmatchedPayments = s.orderPayments
-        .where((Map<String, dynamic> row) =>
-            !orderIds.contains(financeString(row['order_id'])))
+        .where(
+          (Map<String, dynamic> row) =>
+              !orderIds.contains(financeString(row['order_id'])),
+        )
         .toList(growable: false);
-    final int legacyPayments = unmatchedPayments.where((Map<String, dynamic> row) {
+    final int legacyPayments = unmatchedPayments.where((
+      Map<String, dynamic> row,
+    ) {
       final DateTime? createdAt = financeDate(row['created_at']);
       return canonicalOrderCutoff != null &&
           createdAt != null &&
           createdAt.isBefore(canonicalOrderCutoff);
     }).length;
     final int orphanPayments = unmatchedPayments.length - legacyPayments;
-    final int confirmedWithoutLedger = s.orders.where((Map<String, dynamic> row) {
+    final int confirmedWithoutLedger = s.orders.where((
+      Map<String, dynamic> row,
+    ) {
       return financeString(row['payment_status']) == 'confirmed' &&
           !paymentIds.contains(financeString(row['order_id']));
     }).length;
@@ -1356,16 +1773,22 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
           financeString(order['order_reference']).toUpperCase() !=
               financeString(row['order_reference']).toUpperCase();
     }).length;
-    final List<Map<String, dynamic>> completedRefunds = s.refunds.where((Map<String, dynamic> row) {
-      final String status = financeString(row['status']);
-      return status == 'refunded' || status == 'reconciled';
-    }).toList(growable: false);
-    final int legacyRefundsWithoutCanonicalOrder = completedRefunds.where((Map<String, dynamic> row) {
+    final List<Map<String, dynamic>> completedRefunds = s.refunds
+        .where((Map<String, dynamic> row) {
+          final String status = financeString(row['status']);
+          return status == 'refunded' || status == 'reconciled';
+        })
+        .toList(growable: false);
+    final int legacyRefundsWithoutCanonicalOrder = completedRefunds.where((
+      Map<String, dynamic> row,
+    ) {
       final String orderId = financeString(row['order_id']);
       return !orderById.containsKey(orderId) &&
           financeString(row['legacy_firestore_id']).isNotEmpty;
     }).length;
-    final int refundedMismatch = completedRefunds.where((Map<String, dynamic> row) {
+    final int refundedMismatch = completedRefunds.where((
+      Map<String, dynamic> row,
+    ) {
       final String orderId = financeString(row['order_id']);
       final Map<String, dynamic>? order = orderById[orderId];
       if (order == null) {
@@ -1377,16 +1800,24 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
         .map((Map<String, dynamic> row) => financeString(row['id']))
         .where((String id) => id.isNotEmpty)
         .toSet();
-    final int orphanSupplierAccounts = s.supplierAccounts.where((Map<String, dynamic> row) {
+    final int orphanSupplierAccounts = s.supplierAccounts.where((
+      Map<String, dynamic> row,
+    ) {
       return !supplierIds.contains(financeString(row['supplier_id']));
     }).length;
-    final int supplierNegative = s.supplierAccounts.where((Map<String, dynamic> row) {
+    final int supplierNegative = s.supplierAccounts.where((
+      Map<String, dynamic> row,
+    ) {
       return financeInt(row['total_paid']) > financeInt(row['total_owed']);
     }).length;
-    final int commissionNegative = s.commissionAccounts.where((Map<String, dynamic> row) {
+    final int commissionNegative = s.commissionAccounts.where((
+      Map<String, dynamic> row,
+    ) {
       return financeInt(row['paid_total']) > financeInt(row['earned_total']);
     }).length;
-    final int negativeCapacity = s.agentCapacities.where((Map<String, dynamic> row) {
+    final int negativeCapacity = s.agentCapacities.where((
+      Map<String, dynamic> row,
+    ) {
       return financeInt(row['orange_capacity']) < 0 ||
           financeInt(row['mtn_capacity']) < 0 ||
           financeInt(row['moov_capacity']) < 0;
@@ -1394,7 +1825,9 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     final int closingDifferences = s.closings.where((Map<String, dynamic> row) {
       return financeInt(row['wave_difference']) != 0;
     }).length;
-    final int unjustifiedClosingDifferences = s.closings.where((Map<String, dynamic> row) {
+    final int unjustifiedClosingDifferences = s.closings.where((
+      Map<String, dynamic> row,
+    ) {
       return financeInt(row['wave_difference']) != 0 &&
           financeString(row['wave_difference_note']).length < 3;
     }).length;
@@ -1412,8 +1845,8 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
         title: 'Paiements rattachés aux commandes',
         detail: orphanPayments == 0
             ? legacyPayments == 0
-                ? '${s.orderPayments.length} paiement(s) rattaché(s)'
-                : '${s.orderPayments.length - legacyPayments} paiement(s) courant(s) rattaché(s) · $legacyPayments historique(s) pré-Phase 4 conservé(s)'
+                  ? '${s.orderPayments.length} paiement(s) rattaché(s)'
+                  : '${s.orderPayments.length - legacyPayments} paiement(s) courant(s) rattaché(s) · $legacyPayments historique(s) pré-Phase 4 conservé(s)'
             : '$orphanPayments paiement(s) courant(s) sans commande canonique · $legacyPayments historique(s) pré-Phase 4 ignoré(s)',
       ),
       _FinanceCheck(
@@ -1435,8 +1868,8 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
         title: 'Remboursements cohérents avec les commandes',
         detail: refundedMismatch == 0
             ? legacyRefundsWithoutCanonicalOrder == 0
-                ? 'Statuts commande / remboursement cohérents'
-                : 'Statuts courants cohérents · $legacyRefundsWithoutCanonicalOrder remboursement(s) legacy sans commande Phase 4 conservé(s)'
+                  ? 'Statuts commande / remboursement cohérents'
+                  : 'Statuts courants cohérents · $legacyRefundsWithoutCanonicalOrder remboursement(s) legacy sans commande Phase 4 conservé(s)'
             : '$refundedMismatch remboursement(s) courant(s) avec commande ou statut incohérent · $legacyRefundsWithoutCanonicalOrder legacy ignoré(s)',
       ),
       _FinanceCheck(
@@ -1472,8 +1905,8 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
         title: 'Écarts Wave historiques',
         detail: unjustifiedClosingDifferences == 0
             ? closingDifferences == 0
-                ? 'Toutes les clôtures sont équilibrées'
-                : '$closingDifferences clôture(s) avec écart, toutes justifiées'
+                  ? 'Toutes les clôtures sont équilibrées'
+                  : '$closingDifferences clôture(s) avec écart, toutes justifiées'
             : '$unjustifiedClosingDifferences clôture(s) avec écart sans justification suffisante',
       ),
     ];
@@ -1481,51 +1914,143 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
 
   List<_FinanceMovement> _buildMovements(BackofficeFinanceSnapshot s) {
     final List<_FinanceMovement> values = <_FinanceMovement>[];
-    for (final Map<String, dynamic> row in _periodRows('network_movements', s.networkMovements)) {
+    for (final Map<String, dynamic> row in _periodRows(
+      'network_movements',
+      s.networkMovements,
+    )) {
       final bool incoming = financeString(row['direction']) == 'incoming';
-      values.add(_FinanceMovement(
-        at: financeDate(row['occurred_at']),
-        icon: incoming ? Symbols.south_west_rounded : Symbols.north_east_rounded,
-        title: '${incoming ? 'Entrée' : 'Sortie'} capacité ${_networkLabel(financeString(row['network']))} · ${formatCfa(financeInt(row['amount']))}',
-        subtitle: '${financeString(row['agent_name'])} · ${_movementTypeLabel(financeString(row['movement_type']))}',
-      ));
+      values.add(
+        _FinanceMovement(
+          at: financeDate(row['occurred_at']),
+          icon: incoming
+              ? Symbols.south_west_rounded
+              : Symbols.north_east_rounded,
+          title:
+              '${incoming ? 'Entrée' : 'Sortie'} capacité ${_networkLabel(financeString(row['network']))} · ${formatCfa(financeInt(row['amount']))}',
+          subtitle:
+              '${financeString(row['agent_name'])} · ${_movementTypeLabel(financeString(row['movement_type']))}',
+        ),
+      );
     }
-    for (final Map<String, dynamic> row in _periodRows('supplier_payments', s.supplierPayments)) {
-      values.add(_FinanceMovement(at: financeDate(row['paid_at']), icon: Symbols.storefront_rounded, title: 'Paiement fournisseur · ${formatCfa(financeInt(row['amount']))}', subtitle: '${financeString(row['supplier_name'])} · ${_channelLabel(financeString(row['payment_channel']))}'));
+    for (final Map<String, dynamic> row in _periodRows(
+      'supplier_payments',
+      s.supplierPayments,
+    )) {
+      values.add(
+        _FinanceMovement(
+          at: financeDate(row['paid_at']),
+          icon: Symbols.storefront_rounded,
+          title:
+              'Paiement fournisseur · ${formatCfa(financeInt(row['amount']))}',
+          subtitle:
+              '${financeString(row['supplier_name'])} · ${_channelLabel(financeString(row['payment_channel']))}',
+        ),
+      );
     }
-    for (final Map<String, dynamic> row in _periodRows('commission_payouts', s.commissionPayouts)) {
-      values.add(_FinanceMovement(at: financeDate(row['paid_at']), icon: Symbols.savings_rounded, title: 'Commission Agent · ${formatCfa(financeInt(row['amount']))}', subtitle: '${financeString(row['agent_name'])} · réf. ${financeString(row['payment_reference'])}'));
+    for (final Map<String, dynamic> row in _periodRows(
+      'commission_payouts',
+      s.commissionPayouts,
+    )) {
+      values.add(
+        _FinanceMovement(
+          at: financeDate(row['paid_at']),
+          icon: Symbols.savings_rounded,
+          title: 'Commission Agent · ${formatCfa(financeInt(row['amount']))}',
+          subtitle:
+              '${financeString(row['agent_name'])} · réf. ${financeString(row['payment_reference'])}',
+        ),
+      );
     }
-    for (final Map<String, dynamic> row in _periodRows('credit_settlements', s.creditSettlements)) {
-      values.add(_FinanceMovement(at: financeDate(row['paid_at']), icon: Symbols.request_quote_rounded, title: 'Remboursement crédit · ${formatCfa(financeInt(row['amount']))}', subtitle: '${financeString(row['client_name'])} · ${_channelLabel(financeString(row['payment_channel']))}'));
+    for (final Map<String, dynamic> row in _periodRows(
+      'credit_settlements',
+      s.creditSettlements,
+    )) {
+      values.add(
+        _FinanceMovement(
+          at: financeDate(row['paid_at']),
+          icon: Symbols.request_quote_rounded,
+          title:
+              'Remboursement crédit · ${formatCfa(financeInt(row['amount']))}',
+          subtitle:
+              '${financeString(row['client_name'])} · ${_channelLabel(financeString(row['payment_channel']))}',
+        ),
+      );
     }
-    for (final Map<String, dynamic> row in _periodRows('expenses', s.expenses)) {
-      values.add(_FinanceMovement(at: financeDate(row['spent_at']), icon: Symbols.receipt_rounded, title: 'Dépense · ${formatCfa(financeInt(row['amount']))}', subtitle: '${_expenseCategoryLabel(financeString(row['category']))} · ${financeString(row['description'])}'));
+    for (final Map<String, dynamic> row in _periodRows(
+      'expenses',
+      s.expenses,
+    )) {
+      values.add(
+        _FinanceMovement(
+          at: financeDate(row['spent_at']),
+          icon: Symbols.receipt_rounded,
+          title: 'Dépense · ${formatCfa(financeInt(row['amount']))}',
+          subtitle:
+              '${_expenseCategoryLabel(financeString(row['category']))} · ${financeString(row['description'])}',
+        ),
+      );
     }
     for (final Map<String, dynamic> row in _periodRows('refunds', s.refunds)) {
       final DateTime? at = financeDate(row['refunded_at']);
       if (at == null) {
         continue;
       }
-      values.add(_FinanceMovement(at: at, icon: Symbols.currency_exchange_rounded, title: 'Remboursement client · ${formatCfa(financeInt(row['amount']))}', subtitle: financeString(row['order_reference'])));
+      values.add(
+        _FinanceMovement(
+          at: at,
+          icon: Symbols.currency_exchange_rounded,
+          title:
+              'Remboursement client · ${formatCfa(financeInt(row['amount']))}',
+          subtitle: financeString(row['order_reference']),
+        ),
+      );
     }
-    for (final Map<String, dynamic> row in _periodRows('wave_adjustments', s.waveAdjustments)) {
-      values.add(_FinanceMovement(at: financeDate(row['effective_at']), icon: Symbols.account_balance_rounded, title: 'Ajustement solde Wave · ${formatCfa(financeInt(row['opening_balance']))}', subtitle: financeString(row['note']).isEmpty ? 'Solde d’ouverture' : financeString(row['note'])));
+    for (final Map<String, dynamic> row in _periodRows(
+      'wave_adjustments',
+      s.waveAdjustments,
+    )) {
+      values.add(
+        _FinanceMovement(
+          at: financeDate(row['effective_at']),
+          icon: Symbols.account_balance_rounded,
+          title:
+              'Ajustement solde Wave · ${formatCfa(financeInt(row['opening_balance']))}',
+          subtitle: financeString(row['note']).isEmpty
+              ? 'Solde d’ouverture'
+              : financeString(row['note']),
+        ),
+      );
     }
-    values.sort((_FinanceMovement a, _FinanceMovement b) => (b.at ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(a.at ?? DateTime.fromMillisecondsSinceEpoch(0)));
+    values.sort(
+      (_FinanceMovement a, _FinanceMovement b) =>
+          (b.at ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(
+            a.at ?? DateTime.fromMillisecondsSinceEpoch(0),
+          ),
+    );
     return values;
   }
 
   Future<void> _showWaveOpeningDialog(BackofficeFinanceSnapshot s) async {
-    final TextEditingController amount = TextEditingController(text: s.openingWaveBalance.toString());
+    final TextEditingController amount = TextEditingController(
+      text: s.openingWaveBalance.toString(),
+    );
     final TextEditingController note = TextEditingController();
     final bool? ok = await _showFormDialog(
       title: 'Solde Wave d’ouverture',
-      description: 'Ce montant devient la base de calcul de la caisse théorique. L’ancien solde reste dans l’historique.',
+      description:
+          'Ce montant devient la base de calcul de la caisse théorique. L’ancien solde reste dans l’historique.',
       fields: <Widget>[
-        TextField(controller: amount, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Montant (FCFA)')),
+        TextField(
+          controller: amount,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Montant (FCFA)'),
+        ),
         const SizedBox(height: 12),
-        TextField(controller: note, maxLines: 2, decoration: const InputDecoration(labelText: 'Justification / note')),
+        TextField(
+          controller: note,
+          maxLines: 2,
+          decoration: const InputDecoration(labelText: 'Justification / note'),
+        ),
       ],
     );
     if (ok != true) {
@@ -1536,22 +2061,42 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       _showInputError('Saisis un montant Wave valide.');
       return;
     }
-    await _runAction(() => widget.repository.setWaveOpening(amount: value, note: note.text), success: 'Solde Wave d’ouverture mis à jour.');
+    await _runAction(
+      () => widget.repository.setWaveOpening(amount: value, note: note.text),
+      success: 'Solde Wave d’ouverture mis à jour.',
+    );
   }
 
   Future<void> _showSupplierDialog({Map<String, dynamic>? row}) async {
-    final TextEditingController name = TextEditingController(text: financeString(row?['name']));
-    final TextEditingController phone = TextEditingController(text: financeString(row?['phone_number']));
-    final TextEditingController note = TextEditingController(text: financeString(row?['note']));
+    final TextEditingController name = TextEditingController(
+      text: financeString(row?['name']),
+    );
+    final TextEditingController phone = TextEditingController(
+      text: financeString(row?['phone_number']),
+    );
+    final TextEditingController note = TextEditingController(
+      text: financeString(row?['note']),
+    );
     final bool? ok = await _showFormDialog(
       title: row == null ? 'Nouveau fournisseur' : 'Modifier le fournisseur',
-      description: 'Le fournisseur sera utilisé pour les approvisionnements et les règlements Phase 5.',
+      description:
+          'Le fournisseur sera utilisé pour les approvisionnements et les règlements Phase 5.',
       fields: <Widget>[
-        TextField(controller: name, decoration: const InputDecoration(labelText: 'Nom du fournisseur')),
+        TextField(
+          controller: name,
+          decoration: const InputDecoration(labelText: 'Nom du fournisseur'),
+        ),
         const SizedBox(height: 12),
-        TextField(controller: phone, decoration: const InputDecoration(labelText: 'Téléphone')),
+        TextField(
+          controller: phone,
+          decoration: const InputDecoration(labelText: 'Téléphone'),
+        ),
         const SizedBox(height: 12),
-        TextField(controller: note, maxLines: 3, decoration: const InputDecoration(labelText: 'Note')),
+        TextField(
+          controller: note,
+          maxLines: 3,
+          decoration: const InputDecoration(labelText: 'Note'),
+        ),
       ],
     );
     if (ok != true) {
@@ -1561,16 +2106,21 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       _showInputError('Le nom du fournisseur est obligatoire.');
       return;
     }
-    await _runAction(
-      () async {
-        await widget.repository.saveSupplier(supplierId: row == null ? null : financeString(row['id']), name: name.text, phoneNumber: phone.text, note: note.text);
-      },
-      success: row == null ? 'Fournisseur créé.' : 'Fournisseur mis à jour.',
-    );
+    await _runAction(() async {
+      await widget.repository.saveSupplier(
+        supplierId: row == null ? null : financeString(row['id']),
+        name: name.text,
+        phoneNumber: phone.text,
+        note: note.text,
+      );
+    }, success: row == null ? 'Fournisseur créé.' : 'Fournisseur mis à jour.');
   }
 
   Future<void> _showSupplierRechargeDialog(BackofficeFinanceSnapshot s) async {
-    final List<Map<String, dynamic>> suppliers = s.suppliers.where((Map<String, dynamic> row) => row['is_active'] == true).toList(growable: false);
+    final String operationKey = createFinanceOperationKey();
+    final List<Map<String, dynamic>> suppliers = s.suppliers
+        .where((Map<String, dynamic> row) => row['is_active'] == true)
+        .toList(growable: false);
     if (suppliers.isEmpty || s.agentCapacities.isEmpty) {
       _showInputError('Un fournisseur actif et un Agent sont nécessaires.');
       return;
@@ -1583,29 +2133,73 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     final TextEditingController note = TextEditingController();
     final bool? ok = await _showStatefulFormDialog(
       title: 'Approvisionner un Agent',
-      description: 'Le montant reçu augmente immédiatement la capacité réseau de l’Agent et met à jour le compte fournisseur.',
+      description:
+          'Le montant reçu augmente immédiatement la capacité réseau de l’Agent et met à jour le compte fournisseur.',
       builder: (StateSetter setDialogState) => <Widget>[
-        DropdownButtonFormField<String>(initialValue: supplierId, decoration: const InputDecoration(labelText: 'Fournisseur'), items: suppliers.map((Map<String, dynamic> row) => DropdownMenuItem<String>(value: financeString(row['id']), child: Text(financeString(row['name'])))).toList(growable: false), onChanged: (String? value) {
-          if (value != null) {
-            setDialogState(() => supplierId = value);
-          }
-        }),
+        DropdownButtonFormField<String>(
+          initialValue: supplierId,
+          decoration: const InputDecoration(labelText: 'Fournisseur'),
+          items: suppliers
+              .map(
+                (Map<String, dynamic> row) => DropdownMenuItem<String>(
+                  value: financeString(row['id']),
+                  child: Text(financeString(row['name'])),
+                ),
+              )
+              .toList(growable: false),
+          onChanged: (String? value) {
+            if (value != null) {
+              setDialogState(() => supplierId = value);
+            }
+          },
+        ),
         const SizedBox(height: 12),
-        DropdownButtonFormField<String>(initialValue: agentId, decoration: const InputDecoration(labelText: 'Agent'), items: s.agentCapacities.map((Map<String, dynamic> row) => DropdownMenuItem<String>(value: financeString(row['agent_id']), child: Text(financeString(row['agent_name'])))).toList(growable: false), onChanged: (String? value) {
-          if (value != null) {
-            setDialogState(() => agentId = value);
-          }
-        }),
+        DropdownButtonFormField<String>(
+          initialValue: agentId,
+          decoration: const InputDecoration(labelText: 'Agent'),
+          items: s.agentCapacities
+              .map(
+                (Map<String, dynamic> row) => DropdownMenuItem<String>(
+                  value: financeString(row['agent_id']),
+                  child: Text(financeString(row['agent_name'])),
+                ),
+              )
+              .toList(growable: false),
+          onChanged: (String? value) {
+            if (value != null) {
+              setDialogState(() => agentId = value);
+            }
+          },
+        ),
         const SizedBox(height: 12),
-        DropdownButtonFormField<String>(initialValue: network, decoration: const InputDecoration(labelText: 'Réseau'), items: const <DropdownMenuItem<String>>[DropdownMenuItem(value: 'orange', child: Text('Orange')), DropdownMenuItem(value: 'mtn', child: Text('MTN')), DropdownMenuItem(value: 'moov', child: Text('Moov'))], onChanged: (String? value) {
-          if (value != null) {
-            setDialogState(() => network = value);
-          }
-        }),
+        DropdownButtonFormField<String>(
+          initialValue: network,
+          decoration: const InputDecoration(labelText: 'Réseau'),
+          items: const <DropdownMenuItem<String>>[
+            DropdownMenuItem(value: 'orange', child: Text('Orange')),
+            DropdownMenuItem(value: 'mtn', child: Text('MTN')),
+            DropdownMenuItem(value: 'moov', child: Text('Moov')),
+          ],
+          onChanged: (String? value) {
+            if (value != null) {
+              setDialogState(() => network = value);
+            }
+          },
+        ),
         const SizedBox(height: 12),
-        TextField(controller: principal, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Principal payé / acheté')),
+        TextField(
+          controller: principal,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Principal payé / acheté',
+          ),
+        ),
         const SizedBox(height: 12),
-        TextField(controller: bonus, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Bonus fournisseur')),
+        TextField(
+          controller: bonus,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Bonus fournisseur'),
+        ),
         const SizedBox(height: 8),
         const Align(
           alignment: Alignment.centerLeft,
@@ -1615,7 +2209,11 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
           ),
         ),
         const SizedBox(height: 12),
-        TextField(controller: note, maxLines: 2, decoration: const InputDecoration(labelText: 'Note')),
+        TextField(
+          controller: note,
+          maxLines: 2,
+          decoration: const InputDecoration(labelText: 'Note'),
+        ),
       ],
     );
     if (ok != true) {
@@ -1623,18 +2221,30 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     }
     final int? principalValue = int.tryParse(principal.text.trim());
     final int bonusValue = int.tryParse(bonus.text.trim()) ?? 0;
-    if (principalValue == null ||
-        principalValue <= 0 ||
-        bonusValue < 0) {
+    if (principalValue == null || principalValue <= 0 || bonusValue < 0) {
       _showInputError('Vérifie les montants de l’approvisionnement.');
       return;
     }
-    final Map<String, dynamic> agent = s.agentCapacities.firstWhere((Map<String, dynamic> row) => financeString(row['agent_id']) == agentId);
+    final Map<String, dynamic> agent = s.agentCapacities.firstWhere(
+      (Map<String, dynamic> row) => financeString(row['agent_id']) == agentId,
+    );
     await _runAction(
       () async {
-        await widget.repository.recordSupplierRecharge(supplierId: supplierId, agentId: agentId, agentName: financeString(agent['agent_name']), network: network, principal: principalValue, bonus: bonusValue, amountOwed: principalValue, note: note.text, staffName: widget.user.name);
+        await widget.repository.recordSupplierRecharge(
+          operationKey: operationKey,
+          supplierId: supplierId,
+          agentId: agentId,
+          agentName: financeString(agent['agent_name']),
+          network: network,
+          principal: principalValue,
+          bonus: bonusValue,
+          amountOwed: principalValue,
+          note: note.text,
+          staffName: widget.user.name,
+        );
       },
       success: 'Approvisionnement enregistré et capacité mise à jour.',
+      canRetry: true,
     );
   }
 
@@ -1650,21 +2260,48 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     final TextEditingController note = TextEditingController();
     final bool? ok = await _showStatefulFormDialog(
       title: 'Régler un fournisseur',
-      description: 'Le règlement réduit automatiquement le solde dû au fournisseur.',
+      description:
+          'Le règlement réduit automatiquement le solde dû au fournisseur.',
       builder: (StateSetter setDialogState) => <Widget>[
-        DropdownButtonFormField<String>(initialValue: supplierId, decoration: const InputDecoration(labelText: 'Fournisseur'), items: s.suppliers.map((Map<String, dynamic> row) => DropdownMenuItem<String>(value: financeString(row['id']), child: Text(financeString(row['name'])))).toList(growable: false), onChanged: (String? value) {
-          if (value != null) {
-            setDialogState(() => supplierId = value);
-          }
-        }),
+        DropdownButtonFormField<String>(
+          initialValue: supplierId,
+          decoration: const InputDecoration(labelText: 'Fournisseur'),
+          items: s.suppliers
+              .map(
+                (Map<String, dynamic> row) => DropdownMenuItem<String>(
+                  value: financeString(row['id']),
+                  child: Text(financeString(row['name'])),
+                ),
+              )
+              .toList(growable: false),
+          onChanged: (String? value) {
+            if (value != null) {
+              setDialogState(() => supplierId = value);
+            }
+          },
+        ),
         const SizedBox(height: 12),
-        TextField(controller: amount, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Montant')),
+        TextField(
+          controller: amount,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Montant'),
+        ),
         const SizedBox(height: 12),
-        _channelDropdown(channel, (String value) => setDialogState(() => channel = value)),
+        _channelDropdown(
+          channel,
+          (String value) => setDialogState(() => channel = value),
+        ),
         const SizedBox(height: 12),
-        TextField(controller: reference, decoration: const InputDecoration(labelText: 'Référence paiement')),
+        TextField(
+          controller: reference,
+          decoration: const InputDecoration(labelText: 'Référence paiement'),
+        ),
         const SizedBox(height: 12),
-        TextField(controller: note, maxLines: 2, decoration: const InputDecoration(labelText: 'Note')),
+        TextField(
+          controller: note,
+          maxLines: 2,
+          decoration: const InputDecoration(labelText: 'Note'),
+        ),
       ],
     );
     if (ok != true) {
@@ -1675,27 +2312,50 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       _showInputError('Montant et référence valides obligatoires.');
       return;
     }
-    await _runAction(
-      () async {
-        await widget.repository.recordSupplierPayment(supplierId: supplierId, amount: value, channel: channel, reference: reference.text, note: note.text, staffName: widget.user.name);
-      },
-      success: 'Paiement fournisseur enregistré.',
-    );
+    await _runAction(() async {
+      await widget.repository.recordSupplierPayment(
+        supplierId: supplierId,
+        amount: value,
+        channel: channel,
+        reference: reference.text,
+        note: note.text,
+        staffName: widget.user.name,
+      );
+    }, success: 'Paiement fournisseur enregistré.');
   }
 
-  Future<void> _showCommissionPayoutDialog(Map<String, dynamic> row, int balance) async {
-    final TextEditingController amount = TextEditingController(text: balance.toString());
+  Future<void> _showCommissionPayoutDialog(
+    Map<String, dynamic> row,
+    int balance,
+  ) async {
+    final TextEditingController amount = TextEditingController(
+      text: balance.toString(),
+    );
     final TextEditingController reference = TextEditingController();
     final TextEditingController note = TextEditingController();
     final bool? ok = await _showFormDialog(
       title: 'Payer une commission',
-      description: '${financeString(row['agent_name'])} · solde maximum ${formatCfa(balance)}',
+      description:
+          '${financeString(row['agent_name'])} · solde maximum ${formatCfa(balance)}',
       fields: <Widget>[
-        TextField(controller: amount, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Montant')),
+        TextField(
+          controller: amount,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Montant'),
+        ),
         const SizedBox(height: 12),
-        TextField(controller: reference, decoration: const InputDecoration(labelText: 'Référence Wave / paiement')),
+        TextField(
+          controller: reference,
+          decoration: const InputDecoration(
+            labelText: 'Référence Wave / paiement',
+          ),
+        ),
         const SizedBox(height: 12),
-        TextField(controller: note, maxLines: 2, decoration: const InputDecoration(labelText: 'Note')),
+        TextField(
+          controller: note,
+          maxLines: 2,
+          decoration: const InputDecoration(labelText: 'Note'),
+        ),
       ],
     );
     if (ok != true) {
@@ -1711,12 +2371,16 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       );
       return;
     }
-    await _runAction(
-      () async {
-        await widget.repository.recordCommissionPayout(agentId: financeString(row['agent_id']), agentName: financeString(row['agent_name']), amount: value, reference: reference.text, note: note.text, staffName: widget.user.name);
-      },
-      success: 'Commission Agent enregistrée.',
-    );
+    await _runAction(() async {
+      await widget.repository.recordCommissionPayout(
+        agentId: financeString(row['agent_id']),
+        agentName: financeString(row['agent_name']),
+        amount: value,
+        reference: reference.text,
+        note: note.text,
+        staffName: widget.user.name,
+      );
+    }, success: 'Commission Agent enregistrée.');
   }
 
   Future<void> _showCabinistePayoutDialog(
@@ -1741,18 +2405,23 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     setState(() => _busy = false);
 
     final List<Map<String, dynamic>> periods = financeRows(history['periods'])
-        .where((Map<String, dynamic> period) => financeInt(period['balanceDue']) > 0)
+        .where(
+          (Map<String, dynamic> period) => financeInt(period['balanceDue']) > 0,
+        )
         .toList(growable: false);
     if (periods.isEmpty) {
-      _showInputError('Aucune période Cabiniste avec un solde dû n’a été trouvée.');
+      _showInputError(
+        'Aucune période Cabiniste avec un solde dû n’a été trouvée.',
+      );
       return;
     }
 
     String periodId = financeString(periods.last['periodId']);
     int periodBalance = financeInt(periods.last['balanceDue']);
     String channel = 'wave';
-    final TextEditingController amount =
-        TextEditingController(text: periodBalance.toString());
+    final TextEditingController amount = TextEditingController(
+      text: periodBalance.toString(),
+    );
     final TextEditingController reference = TextEditingController();
     final TextEditingController note = TextEditingController();
 
@@ -1793,7 +2462,8 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
           keyboardType: TextInputType.number,
           decoration: InputDecoration(
             labelText: 'Montant',
-            helperText: 'Maximum pour cette période : ${formatCfa(periodBalance)}',
+            helperText:
+                'Maximum pour cette période : ${formatCfa(periodBalance)}',
           ),
         ),
         const SizedBox(height: 12),
@@ -1803,9 +2473,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
         const SizedBox(height: 12),
         TextField(
           controller: reference,
-          decoration: const InputDecoration(
-            labelText: 'Référence du paiement',
-          ),
+          decoration: const InputDecoration(labelText: 'Référence du paiement'),
         ),
         const SizedBox(height: 12),
         TextField(
@@ -1829,19 +2497,16 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       return;
     }
 
-    await _runAction(
-      () async {
-        await widget.repository.recordCabinistePayout(
-          partnerId: financeString(row['partnerId']),
-          amount: value,
-          channel: channel,
-          reference: reference.text,
-          note: note.text,
-          periodId: periodId,
-        );
-      },
-      success: 'Règlement Cabiniste enregistré.',
-    );
+    await _runAction(() async {
+      await widget.repository.recordCabinistePayout(
+        partnerId: financeString(row['partnerId']),
+        amount: value,
+        channel: channel,
+        reference: reference.text,
+        note: note.text,
+        periodId: periodId,
+      );
+    }, success: 'Règlement Cabiniste enregistré.');
   }
 
   Future<void> _showCabinisteHistoryDialog(Map<String, dynamic> row) async {
@@ -1867,7 +2532,9 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
         financeMap(history['account']) ?? const <String, dynamic>{};
     final List<Map<String, dynamic>> periods = financeRows(history['periods']);
     final List<Map<String, dynamic>> payouts = financeRows(history['payouts']);
-    final List<Map<String, dynamic>> settlements = financeRows(history['settlements']);
+    final List<Map<String, dynamic>> settlements = financeRows(
+      history['settlements'],
+    );
 
     await showBackofficeModal<void>(
       context: context,
@@ -1962,15 +2629,17 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
                   ? const Text('Aucune écriture de règlement.')
                   : Column(
                       children: <Widget>[
-                        for (final Map<String, dynamic> settlement in settlements)
+                        for (final Map<String, dynamic> settlement
+                            in settlements)
                           _FinanceListTile(
                             icon: Symbols.receipt_long_rounded,
                             title:
                                 '${financeString(settlement['orderReference'])} · ${formatCfa(financeInt(settlement['amount']))}',
                             subtitle:
                                 'Période ${financeString(settlement['periodKey'])}',
-                            trailing:
-                                _dateLabel(financeDate(settlement['occurredAt'])),
+                            trailing: _dateLabel(
+                              financeDate(settlement['occurredAt']),
+                            ),
                           ),
                       ],
                     ),
@@ -2008,21 +2677,24 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       return;
     }
 
-    final List<QueueOrder> candidates = source.where((QueueOrder order) {
-      final bool eligibleStatus =
-          order.status == QueueOrderStatus.awaitingPayment ||
-          order.status == QueueOrderStatus.paymentToVerify ||
-          order.status == QueueOrderStatus.expired;
-      final bool paymentSafe =
-          order.paymentStatus != OrderPaymentStatus.confirmed &&
-          order.paymentStatus != OrderPaymentStatus.credit &&
-          order.paymentStatus != OrderPaymentStatus.declared &&
-          (order.paymentReference?.trim().isEmpty ?? true);
-      return eligibleStatus &&
-          paymentSafe &&
-          !order.isFundedForProcessing &&
-          !creditedOrders.contains(order.id);
-    }).take(100).toList(growable: false);
+    final List<QueueOrder> candidates = source
+        .where((QueueOrder order) {
+          final bool eligibleStatus =
+              order.status == QueueOrderStatus.awaitingPayment ||
+              order.status == QueueOrderStatus.paymentToVerify ||
+              order.status == QueueOrderStatus.expired;
+          final bool paymentSafe =
+              order.paymentStatus != OrderPaymentStatus.confirmed &&
+              order.paymentStatus != OrderPaymentStatus.credit &&
+              order.paymentStatus != OrderPaymentStatus.declared &&
+              (order.paymentReference?.trim().isEmpty ?? true);
+          return eligibleStatus &&
+              paymentSafe &&
+              !order.isFundedForProcessing &&
+              !creditedOrders.contains(order.id);
+        })
+        .take(100)
+        .toList(growable: false);
 
     if (candidates.isEmpty) {
       _showInputError(
@@ -2072,10 +2744,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
           alignment: Alignment.centerLeft,
           child: Text(
             'Une commande avec paiement Wave déclaré n’est jamais convertie en crédit automatiquement.',
-            style: TextStyle(
-              fontSize: 12,
-              color: BackofficePalette.warning,
-            ),
+            style: TextStyle(fontSize: 12, color: BackofficePalette.warning),
           ),
         ),
         const SizedBox(height: 12),
@@ -2090,41 +2759,60 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       return;
     }
 
-    await _runAction(
-      () async {
-        await widget.repository.authorizeCreditOrder(
-          order: selected,
-          note: note.text,
+    await _runAction(() async {
+      await widget.repository.authorizeCreditOrder(
+        order: selected,
+        note: note.text,
+      );
+      try {
+        await widget.ordersRepository.tryAutomaticAssignment(
+          orderId: selected.id,
         );
-        try {
-          await widget.ordersRepository.tryAutomaticAssignment(
-            orderId: selected.id,
-          );
-        } on Object {
-          // Le crédit et l'entrée Phase 4 sont déjà atomiques dans Supabase.
-          // Le moteur 9E retentera l'affectation via son backlog si nécessaire.
-        }
-      },
-      success: 'Crédit client autorisé et commande envoyée au traitement.',
-    );
+      } on Object {
+        // Le crédit et l'entrée Phase 4 sont déjà atomiques dans Supabase.
+        // Le moteur 9E retentera l'affectation via son backlog si nécessaire.
+      }
+    }, success: 'Crédit client autorisé et commande envoyée au traitement.');
   }
 
-  Future<void> _showCreditSettlementDialog(Map<String, dynamic> row, int balance) async {
-    final TextEditingController amount = TextEditingController(text: balance.toString());
+  Future<void> _showCreditSettlementDialog(
+    Map<String, dynamic> row,
+    int balance,
+  ) async {
+    final TextEditingController amount = TextEditingController(
+      text: balance.toString(),
+    );
     final TextEditingController reference = TextEditingController();
     final TextEditingController note = TextEditingController();
     String channel = 'wave';
     final bool? ok = await _showStatefulFormDialog(
       title: 'Encaisser un crédit',
-      description: '${financeString(row['client_name'])} · reste ${formatCfa(balance)}',
+      description:
+          '${financeString(row['client_name'])} · reste ${formatCfa(balance)}',
       builder: (StateSetter setDialogState) => <Widget>[
-        TextField(controller: amount, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Montant reçu')),
+        TextField(
+          controller: amount,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Montant reçu'),
+        ),
         const SizedBox(height: 12),
-        _channelDropdown(channel, (String value) => setDialogState(() => channel = value)),
+        _channelDropdown(
+          channel,
+          (String value) => setDialogState(() => channel = value),
+        ),
         const SizedBox(height: 12),
-        TextField(controller: reference, decoration: const InputDecoration(labelText: 'Référence du règlement')),
+        TextField(
+          controller: reference,
+          decoration: const InputDecoration(
+            labelText: 'Référence du règlement',
+          ),
+        ),
         const SizedBox(height: 12),
-        TextField(controller: note, maxLines: 2, decoration: const InputDecoration(labelText: 'Note')),
+        TextField(
+          controller: note,
+          maxLines: 2,
+          decoration: const InputDecoration(labelText: 'Note'),
+        ),
       ],
     );
     if (ok != true) {
@@ -2140,13 +2828,22 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     }
     await _runAction(
       () async {
-        await widget.repository.settleCredit(creditId: financeString(row['id']), amount: value, channel: channel, reference: reference.text, note: note.text);
+        await widget.repository.settleCredit(
+          creditId: financeString(row['id']),
+          amount: value,
+          channel: channel,
+          reference: reference.text,
+          note: note.text,
+        );
       },
-      success: value == balance ? 'Crédit soldé.' : 'Remboursement partiel enregistré.',
+      success: value == balance
+          ? 'Crédit soldé.'
+          : 'Remboursement partiel enregistré.',
     );
   }
 
   Future<void> _showExpenseDialog() async {
+    final String operationKey = createFinanceOperationKey();
     String category = 'fees';
     String channel = 'wave';
     final TextEditingController amount = TextEditingController();
@@ -2154,21 +2851,52 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     final TextEditingController reference = TextEditingController();
     final bool? ok = await _showStatefulFormDialog(
       title: 'Enregistrer une dépense',
-      description: 'Toute dépense est conservée dans le journal financier et impacte la caisse théorique lorsqu’elle est payée via Wave.',
+      description:
+          'Toute dépense est conservée dans le journal financier et impacte la caisse théorique lorsqu’elle est payée via Wave.',
       builder: (StateSetter setDialogState) => <Widget>[
-        DropdownButtonFormField<String>(initialValue: category, decoration: const InputDecoration(labelText: 'Catégorie'), items: _expenseCategories.map((String value) => DropdownMenuItem<String>(value: value, child: Text(_expenseCategoryLabel(value)))).toList(growable: false), onChanged: (String? value) {
-          if (value != null) {
-            setDialogState(() => category = value);
-          }
-        }),
+        DropdownButtonFormField<String>(
+          initialValue: category,
+          decoration: const InputDecoration(labelText: 'Catégorie'),
+          items: _expenseCategories
+              .map(
+                (String value) => DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(_expenseCategoryLabel(value)),
+                ),
+              )
+              .toList(growable: false),
+          onChanged: (String? value) {
+            if (value != null) {
+              setDialogState(() => category = value);
+            }
+          },
+        ),
         const SizedBox(height: 12),
-        TextField(controller: amount, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Montant')),
+        TextField(
+          controller: amount,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Montant'),
+        ),
         const SizedBox(height: 12),
-        TextField(controller: description, maxLines: 2, decoration: const InputDecoration(labelText: 'Description')),
+        TextField(
+          controller: description,
+          maxLines: 2,
+          decoration: const InputDecoration(labelText: 'Description'),
+        ),
         const SizedBox(height: 12),
-        _channelDropdown(channel, (String value) => setDialogState(() => channel = value)),
+        _channelDropdown(
+          channel,
+          (String value) => setDialogState(() => channel = value),
+        ),
         const SizedBox(height: 12),
-        TextField(controller: reference, decoration: InputDecoration(labelText: channel == 'wave' ? 'Référence Wave (obligatoire)' : 'Référence (facultative)')),
+        TextField(
+          controller: reference,
+          decoration: InputDecoration(
+            labelText: channel == 'wave'
+                ? 'Référence Wave (obligatoire)'
+                : 'Référence (facultative)',
+          ),
+        ),
       ],
     );
     if (ok != true) {
@@ -2185,9 +2913,17 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     }
     await _runAction(
       () async {
-        await widget.repository.recordExpense(category: category, amount: value, description: description.text, channel: channel, reference: reference.text);
+        await widget.repository.recordExpense(
+          operationKey: operationKey,
+          category: category,
+          amount: value,
+          description: description.text,
+          channel: channel,
+          reference: reference.text,
+        );
       },
       success: 'Dépense enregistrée.',
+      canRetry: true,
     );
   }
 
@@ -2200,15 +2936,28 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     }
     final DateTime today = DateTime.now();
     final int theoretical = s.waveTheoreticalBalanceOn(today);
-    final TextEditingController actual = TextEditingController(text: theoretical.toString());
+    final TextEditingController actual = TextEditingController(
+      text: theoretical.toString(),
+    );
     final TextEditingController note = TextEditingController();
     final bool? ok = await _showFormDialog(
       title: 'Clôturer ${_dateKey(today)}',
-      description: 'Solde Wave théorique affiché : ${formatCfa(theoretical)}. Saisis le solde réellement constaté. Supabase recalculera les totaux canoniques au moment de la clôture ; un écart non nul exige une justification.',
+      description:
+          'Solde Wave théorique affiché : ${formatCfa(theoretical)}. Saisis le solde réellement constaté. Supabase recalculera les totaux canoniques au moment de la clôture ; un écart non nul exige une justification.',
       fields: <Widget>[
-        TextField(controller: actual, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Solde Wave réel')),
+        TextField(
+          controller: actual,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Solde Wave réel'),
+        ),
         const SizedBox(height: 12),
-        TextField(controller: note, maxLines: 3, decoration: const InputDecoration(labelText: 'Justification / commentaire')),
+        TextField(
+          controller: note,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'Justification / commentaire',
+          ),
+        ),
       ],
       confirmLabel: 'Clôturer',
     );
@@ -2232,12 +2981,9 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       'wave_actual_balance': actualValue,
       'wave_difference_note': note.text.trim(),
     };
-    await _runAction(
-      () async {
-        await widget.repository.createClosing(payload);
-      },
-      success: 'Clôture journalière enregistrée.',
-    );
+    await _runAction(() async {
+      await widget.repository.createClosing(payload);
+    }, success: 'Clôture journalière enregistrée.');
   }
 
   Future<void> _confirmDeleteSupplier(String id, String name) async {
@@ -2276,7 +3022,10 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     if (confirmed != true) {
       return;
     }
-    await _runAction(() => widget.repository.deleteSupplier(id), success: 'Fournisseur retiré du registre.');
+    await _runAction(
+      () => widget.repository.deleteSupplier(id),
+      success: 'Fournisseur retiré du registre.',
+    );
   }
 
   Widget _channelDropdown(String value, ValueChanged<String> onChanged) {
@@ -2317,9 +3066,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
           icon: Symbols.tune_rounded,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              ...fields,
-            ],
+            children: <Widget>[...fields],
           ),
         ),
         actions: <Widget>[
@@ -2345,35 +3092,35 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     return showBackofficeModal<bool>(
       context: context,
       builder: (BuildContext dialogContext) => StatefulBuilder(
-        builder: (BuildContext context, StateSetter setDialogState) => BackofficeModalShell(
-          title: title,
-          subtitle: description,
-          icon: Symbols.edit_note_rounded,
-          maxWidth: 700,
-          closeValue: false,
-          body: BackofficeModalSection(
-            title: 'Informations',
-            subtitle: 'Les champs restent modifiables jusqu’à la validation.',
-            icon: Symbols.tune_rounded,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                ...builder(setDialogState),
+        builder: (BuildContext context, StateSetter setDialogState) =>
+            BackofficeModalShell(
+              title: title,
+              subtitle: description,
+              icon: Symbols.edit_note_rounded,
+              maxWidth: 700,
+              closeValue: false,
+              body: BackofficeModalSection(
+                title: 'Informations',
+                subtitle:
+                    'Les champs restent modifiables jusqu’à la validation.',
+                icon: Symbols.tune_rounded,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[...builder(setDialogState)],
+                ),
+              ),
+              actions: <Widget>[
+                OutlinedButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Annuler'),
+                ),
+                FilledButton.icon(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  icon: const Icon(Symbols.check_rounded),
+                  label: const Text('Enregistrer'),
+                ),
               ],
             ),
-          ),
-          actions: <Widget>[
-            OutlinedButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Annuler'),
-            ),
-            FilledButton.icon(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              icon: const Icon(Symbols.check_rounded),
-              label: const Text('Enregistrer'),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -2384,26 +3131,61 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
 }
 
 class _InfoBanner extends StatelessWidget {
-  const _InfoBanner({required this.icon, required this.color, required this.text});
+  const _InfoBanner({
+    required this.icon,
+    required this.color,
+    required this.text,
+    this.action,
+  });
   final IconData icon;
   final Color color;
   final String text;
+  final Widget? action;
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: color.withValues(alpha: .07), borderRadius: BorderRadius.circular(15), border: Border.all(color: color.withValues(alpha: .20))),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-        Icon(icon, color: color, fill: 1),
-        const SizedBox(width: 10),
-        Expanded(child: Text(text, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: BackofficePalette.ink))),
-      ]),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .07),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: color.withValues(alpha: .20)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(icon, color: color, fill: 1),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  text,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: BackofficePalette.ink,
+                  ),
+                ),
+                if (action != null) ...<Widget>[
+                  const SizedBox(height: 10),
+                  action!,
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _FinanceListTile extends StatelessWidget {
-  const _FinanceListTile({required this.icon, required this.title, required this.subtitle, required this.trailing, this.action});
+  const _FinanceListTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.trailing,
+    this.action,
+  });
   final IconData icon;
   final String title;
   final String subtitle;
@@ -2413,24 +3195,72 @@ class _FinanceListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: <Widget>[
-        Container(width: 38, height: 38, alignment: Alignment.center, decoration: BoxDecoration(color: BackofficePalette.primarySoft, borderRadius: BorderRadius.circular(11)), child: Icon(icon, size: 20, color: BackofficePalette.primary, fill: 1)),
-        const SizedBox(width: 11),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-          Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 3),
-          Text(subtitle, maxLines: 3, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
-        ])),
-        const SizedBox(width: 10),
-        if (action != null) ...<Widget>[action!, const SizedBox(width: 8)],
-        ConstrainedBox(constraints: const BoxConstraints(maxWidth: 150), child: Text(trailing, textAlign: TextAlign.right, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800, color: BackofficePalette.ink))),
-      ]),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          Container(
+            width: 38,
+            height: 38,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: BackofficePalette.primarySoft,
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(
+              icon,
+              size: 20,
+              color: BackofficePalette.primary,
+              fill: 1,
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          if (action != null) ...<Widget>[action!, const SizedBox(width: 8)],
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 150),
+            child: Text(
+              trailing,
+              textAlign: TextAlign.right,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: BackofficePalette.ink,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _FinanceCheck {
-  const _FinanceCheck({required this.ok, required this.title, required this.detail});
+  const _FinanceCheck({
+    required this.ok,
+    required this.title,
+    required this.detail,
+  });
   final bool ok;
   final String title;
   final String detail;
@@ -2441,25 +3271,52 @@ class _FinanceCheckTile extends StatelessWidget {
   final _FinanceCheck check;
   @override
   Widget build(BuildContext context) {
-    final Color color = check.ok ? BackofficePalette.success : BackofficePalette.danger;
+    final Color color = check.ok
+        ? BackofficePalette.success
+        : BackofficePalette.danger;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(children: <Widget>[
-        Icon(check.ok ? Symbols.check_circle_rounded : Symbols.warning_rounded, color: color, fill: 1),
-        const SizedBox(width: 11),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-          Text(check.title, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 2),
-          Text(check.detail, style: Theme.of(context).textTheme.bodySmall),
-        ])),
-        BackofficeStatusBadge(label: check.ok ? 'OK' : 'À contrôler', color: color),
-      ]),
+      child: Row(
+        children: <Widget>[
+          Icon(
+            check.ok ? Symbols.check_circle_rounded : Symbols.warning_rounded,
+            color: color,
+            fill: 1,
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  check.title,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  check.detail,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          BackofficeStatusBadge(
+            label: check.ok ? 'OK' : 'À contrôler',
+            color: color,
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _FinanceMovement {
-  const _FinanceMovement({required this.at, required this.icon, required this.title, required this.subtitle});
+  const _FinanceMovement({
+    required this.at,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
   final DateTime? at;
   final IconData icon;
   final String title;
@@ -2469,47 +3326,87 @@ class _FinanceMovement {
 class _FinanceLoading extends StatelessWidget {
   const _FinanceLoading();
   @override
-  Widget build(BuildContext context) => const Padding(padding: EdgeInsets.symmetric(vertical: 80), child: Center(child: CircularProgressIndicator()));
+  Widget build(BuildContext context) => const Padding(
+    padding: EdgeInsets.symmetric(vertical: 80),
+    child: Center(child: CircularProgressIndicator()),
+  );
 }
 
 class _FinanceErrorState extends StatelessWidget {
-  const _FinanceErrorState({required this.onRetry});
+  const _FinanceErrorState({
+    required this.message,
+    required this.code,
+    required this.onRetry,
+  });
+  final String message;
+  final String code;
   final VoidCallback onRetry;
   @override
   Widget build(BuildContext context) {
     return BackofficeEmptyState(
       icon: Symbols.cloud_off_rounded,
       title: 'Données financières indisponibles',
-      message: 'Les données financières ne peuvent pas être chargées pour le moment. Les autres modules IzyTel restent disponibles.',
-      action: OutlinedButton.icon(onPressed: onRetry, icon: const Icon(Symbols.refresh_rounded), label: const Text('Réessayer')),
+      message:
+          '$message\nCode : $code. Les autres modules IzyTel restent disponibles.',
+      action: OutlinedButton.icon(
+        onPressed: onRetry,
+        icon: const Icon(Symbols.refresh_rounded),
+        label: const Text('Réessayer'),
+      ),
     );
   }
 }
 
-const List<String> _expenseCategories = <String>['transport', 'internet', 'electricity', 'maintenance', 'salary', 'communication', 'fees', 'marketing', 'office', 'other'];
+const List<String> _expenseCategories = <String>[
+  'transport',
+  'internet',
+  'electricity',
+  'maintenance',
+  'salary',
+  'communication',
+  'fees',
+  'marketing',
+  'office',
+  'other',
+];
 
 String _expenseCategoryLabel(String value) {
   switch (value) {
-    case 'transport': return 'Transport';
-    case 'internet': return 'Internet';
-    case 'electricity': return 'Électricité';
-    case 'maintenance': return 'Maintenance';
-    case 'salary': return 'Salaire';
-    case 'communication': return 'Communication';
-    case 'fees': return 'Frais';
-    case 'marketing': return 'Marketing';
-    case 'office': return 'Bureau';
-    default: return 'Autre';
+    case 'transport':
+      return 'Transport';
+    case 'internet':
+      return 'Internet';
+    case 'electricity':
+      return 'Électricité';
+    case 'maintenance':
+      return 'Maintenance';
+    case 'salary':
+      return 'Salaire';
+    case 'communication':
+      return 'Communication';
+    case 'fees':
+      return 'Frais';
+    case 'marketing':
+      return 'Marketing';
+    case 'office':
+      return 'Bureau';
+    default:
+      return 'Autre';
   }
 }
 
 String _channelLabel(String value) {
   switch (value) {
-    case 'wave': return 'Wave';
-    case 'cash': return 'Espèces';
-    case 'bank': return 'Banque';
-    case 'mobile_money': return 'Mobile Money';
-    default: return 'Autre';
+    case 'wave':
+      return 'Wave';
+    case 'cash':
+      return 'Espèces';
+    case 'bank':
+      return 'Banque';
+    case 'mobile_money':
+      return 'Mobile Money';
+    default:
+      return 'Autre';
   }
 }
 
@@ -2528,27 +3425,38 @@ String _cabinistePaymentStatusLabel(String value) {
 
 String _creditStatusLabel(String value) {
   switch (value) {
-    case 'partial': return 'Partiellement remboursé';
-    case 'settled': return 'Soldé';
-    default: return 'En cours';
+    case 'partial':
+      return 'Partiellement remboursé';
+    case 'settled':
+      return 'Soldé';
+    default:
+      return 'En cours';
   }
 }
 
 String _networkLabel(String value) {
   switch (value) {
-    case 'orange': return 'Orange';
-    case 'mtn': return 'MTN';
-    case 'moov': return 'Moov Africa';
-    default: return value.isEmpty ? 'Réseau' : value;
+    case 'orange':
+      return 'Orange';
+    case 'mtn':
+      return 'MTN';
+    case 'moov':
+      return 'Moov Africa';
+    default:
+      return value.isEmpty ? 'Réseau' : value;
   }
 }
 
 String _movementTypeLabel(String value) {
   switch (value) {
-    case 'orderSuccess': return 'Commande réussie';
-    case 'supplierRecharge': return 'Approvisionnement';
-    case 'manualAdjustment': return 'Ajustement manuel';
-    default: return value;
+    case 'orderSuccess':
+      return 'Commande réussie';
+    case 'supplierRecharge':
+      return 'Approvisionnement';
+    case 'manualAdjustment':
+      return 'Ajustement manuel';
+    default:
+      return value;
   }
 }
 
@@ -2560,20 +3468,26 @@ String _dateLabel(DateTime? value) {
   return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
 }
 
-String _dateKey(DateTime value) => '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+String _dateKey(DateTime value) =>
+    '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 
 String _financeError(Object error) {
   final String raw = error.toString();
   const Map<String, String> messages = <String, String>{
-    'ADMIN_REQUIRED': 'Cette écriture financière est réservée à l’Administrateur.',
+    'ADMIN_REQUIRED':
+        'Cette écriture financière est réservée à l’Administrateur.',
     'INVALID_AMOUNT': 'Le montant saisi est invalide.',
     'DUPLICATE_REFERENCE': 'Cette référence de paiement a déjà été utilisée.',
     'PAYMENT_EXCEEDS_BALANCE': 'Le montant dépasse le reste à payer.',
     'CREDIT_ALREADY_SETTLED': 'Ce crédit est déjà soldé.',
-    'CREDIT_ALREADY_EXISTS': 'Cette commande possède déjà un dossier de crédit.',
-    'CONFIRMED_PAYMENT_ALREADY_EXISTS': 'Cette commande possède déjà un paiement confirmé et ne peut pas être convertie en crédit.',
-    'ORDER_CREDIT_STATE_INVALID': 'L’état actuel de la commande ne permet pas une vente à crédit.',
-    'SUPPLIER_HAS_HISTORY': 'Ce fournisseur possède un historique financier. Suspends-le au lieu de le supprimer.',
+    'CREDIT_ALREADY_EXISTS':
+        'Cette commande possède déjà un dossier de crédit.',
+    'CONFIRMED_PAYMENT_ALREADY_EXISTS':
+        'Cette commande possède déjà un paiement confirmé et ne peut pas être convertie en crédit.',
+    'ORDER_CREDIT_STATE_INVALID':
+        'L’état actuel de la commande ne permet pas une vente à crédit.',
+    'SUPPLIER_HAS_HISTORY':
+        'Ce fournisseur possède un historique financier. Suspends-le au lieu de le supprimer.',
     'CLOSING_ALREADY_EXISTS': 'La journée est déjà clôturée.',
     'WAVE_OPENING_REQUIRED':
         'Définis le solde d’ouverture Wave avant de clôturer la journée.',

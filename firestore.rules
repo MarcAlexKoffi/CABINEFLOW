@@ -2011,7 +2011,8 @@ service cloud.firestore {
         'role',
         'isActive',
         'createdAt',
-        'updatedAt'
+        'updatedAt',
+        'adminManaged'
       ])
         && request.resource.data.schemaVersion == 1
         && request.resource.data.name is string
@@ -2039,6 +2040,15 @@ service cloud.firestore {
         && request.resource.data.email == resource.data.email
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.updatedAt == request.time
+        && request.resource.data.get('adminManaged', false)
+          == resource.data.get('adminManaged', false)
+        && (
+          resource.data.get('adminManaged', false) != true
+          || (
+            request.resource.data.role == resource.data.role
+            && request.resource.data.isActive == resource.data.isActive
+          )
+        )
         && (
           request.auth.uid != userId
           || (

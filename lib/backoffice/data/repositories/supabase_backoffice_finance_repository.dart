@@ -2,11 +2,15 @@ import 'package:cabine_flow/backoffice/domain/models/backoffice_finance_snapshot
 import 'package:cabine_flow/backoffice/domain/repositories/backoffice_finance_repository.dart';
 import 'package:cabine_flow/core/supabase/supabase_realtime_refetch.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/features/finances/domain/services/finance_operation_key.dart';
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class SupabaseBackofficeFinanceRepository implements BackofficeFinanceRepository {
+class SupabaseBackofficeFinanceRepository
+    implements BackofficeFinanceRepository {
   SupabaseBackofficeFinanceRepository({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+    : _client = client ?? Supabase.instance.client;
 
   final SupabaseClient _client;
 
@@ -16,6 +20,7 @@ class SupabaseBackofficeFinanceRepository implements BackofficeFinanceRepository
         client: _client,
         fetch: fetchSnapshot,
         label: 'SupabaseBackofficeFinanceRepository.snapshot',
+        independentPolling: true,
         signals: const <SupabaseRealtimeSignal>[
           SupabaseRealtimeSignal(
             table: 'finance_change_feed',
@@ -26,31 +31,70 @@ class SupabaseBackofficeFinanceRepository implements BackofficeFinanceRepository
 
   @override
   Future<BackofficeFinanceSnapshot> fetchSnapshot() async {
-    final List<dynamic> responses = await Future.wait<dynamic>(<Future<dynamic>>[
-      _client.rpc('izytel_finance_snapshot'),
-      _client.rpc(
-        'izytel_admin_cabiniste_finance_snapshot',
-        params: const <String, dynamic>{'p_partner_id': null},
-      ),
-    ]);
-    final dynamic response = responses[0];
-    final dynamic cabinisteResponse = responses[1];
+    final List<_FinanceReadResult> responses =
+        await Future.wait<_FinanceReadResult>(<Future<_FinanceReadResult>>[
+          _capture(_client.rpc('izytel_finance_snapshot')),
+          _capture(
+            _client.rpc(
+              'izytel_admin_cabiniste_finance_snapshot',
+              params: const <String, dynamic>{'p_partner_id': null},
+            ),
+          ),
+        ]);
+    final _FinanceReadResult core = responses[0];
+    final _FinanceReadResult cabiniste = responses[1];
+    if (core.error case final Object error) {
+      IzyTelLog.backendError(
+        'SupabaseBackofficeFinanceRepository.core',
+        error,
+        stackTrace: core.stackTrace,
+      );
+      Error.throwWithStackTrace(error, core.stackTrace ?? StackTrace.current);
+    }
+    final dynamic response = core.value;
     final Map<String, dynamic>? map = financeMap(response);
     if (map == null) {
       throw StateError('Le snapshot financier Supabase est invalide.');
     }
-    final Map<String, dynamic> merged = Map<String, dynamic>.from(map)
-      ..['cabiniste_finance'] =
-          financeMap(cabinisteResponse) ?? const <String, dynamic>{};
+    final Map<String, dynamic> merged = Map<String, dynamic>.from(map);
+    if (cabiniste.error case final Object error) {
+      IzyTelLog.backendError(
+        'SupabaseBackofficeFinanceRepository.cabiniste',
+        error,
+        stackTrace: cabiniste.stackTrace,
+      );
+      merged
+        ..['cabiniste_finance'] = const <String, dynamic>{}
+        ..['_partial_issue_code'] = BackendFailurePolicy.safeCode(error)
+        ..['_partial_issue_kind'] = BackendFailurePolicy.classify(error).name;
+    } else {
+      final Map<String, dynamic>? cabinisteMap = financeMap(cabiniste.value);
+      if (cabinisteMap == null) {
+        merged
+          ..['cabiniste_finance'] = const <String, dynamic>{}
+          ..['_partial_issue_code'] = 'contract:cabiniste-snapshot'
+          ..['_partial_issue_kind'] = BackendFailureKind.contract.name;
+      } else {
+        merged['cabiniste_finance'] = cabinisteMap;
+      }
+    }
     return BackofficeFinanceSnapshot.fromJson(merged);
+  }
+
+  Future<_FinanceReadResult> _capture(Future<dynamic> operation) async {
+    try {
+      return _FinanceReadResult(value: await operation);
+    } catch (error, stackTrace) {
+      return _FinanceReadResult(error: error, stackTrace: stackTrace);
+    }
   }
 
   @override
   Future<void> setWaveOpening({required int amount, String? note}) async {
-    await _client.rpc('izytel_finance_set_wave_opening', params: <String, dynamic>{
-      'p_amount': amount,
-      'p_note': _nullable(note),
-    });
+    await _client.rpc(
+      'izytel_finance_set_wave_opening',
+      params: <String, dynamic>{'p_amount': amount, 'p_note': _nullable(note)},
+    );
   }
 
   @override
@@ -73,22 +117,30 @@ class SupabaseBackofficeFinanceRepository implements BackofficeFinanceRepository
   }
 
   @override
-  Future<void> setSupplierActive({required String supplierId, required bool isActive}) async {
+  Future<void> setSupplierActive({
+    required String supplierId,
+    required bool isActive,
+  }) async {
     await _client.rpc(
       'izytel_finance_set_supplier_active',
-      params: <String, dynamic>{'p_supplier_id': supplierId, 'p_is_active': isActive},
+      params: <String, dynamic>{
+        'p_supplier_id': supplierId,
+        'p_is_active': isActive,
+      },
     );
   }
 
   @override
   Future<void> deleteSupplier(String supplierId) async {
-    await _client.rpc('izytel_finance_delete_supplier', params: <String, dynamic>{
-      'p_supplier_id': supplierId,
-    });
+    await _client.rpc(
+      'izytel_finance_delete_supplier',
+      params: <String, dynamic>{'p_supplier_id': supplierId},
+    );
   }
 
   @override
   Future<String> recordSupplierRecharge({
+    String? operationKey,
     required String supplierId,
     required String agentId,
     required String agentName,
@@ -112,7 +164,7 @@ class SupabaseBackofficeFinanceRepository implements BackofficeFinanceRepository
         'p_note': _nullable(note),
         'p_staff_name': staffName,
         'p_legacy_id': null,
-        'p_operation_key': 'bo5-recharge-${DateTime.now().microsecondsSinceEpoch}',
+        'p_operation_key': operationKey ?? createFinanceOperationKey(),
       },
     );
     return _stringResult(response);
@@ -120,6 +172,7 @@ class SupabaseBackofficeFinanceRepository implements BackofficeFinanceRepository
 
   @override
   Future<String> recordSupplierPayment({
+    String? operationKey,
     required String supplierId,
     required int amount,
     required String channel,
@@ -137,7 +190,7 @@ class SupabaseBackofficeFinanceRepository implements BackofficeFinanceRepository
         'p_note': _nullable(note),
         'p_staff_name': staffName,
         'p_legacy_id': null,
-        'p_operation_key': 'bo5-supplier-payment-${DateTime.now().microsecondsSinceEpoch}',
+        'p_operation_key': operationKey ?? createFinanceOperationKey(),
       },
     );
     return _stringResult(response);
@@ -188,7 +241,9 @@ class SupabaseBackofficeFinanceRepository implements BackofficeFinanceRepository
     );
     final Map<String, dynamic>? map = financeMap(response);
     if (map == null) {
-      throw StateError('Le règlement Cabiniste renvoyé par Supabase est invalide.');
+      throw StateError(
+        'Le règlement Cabiniste renvoyé par Supabase est invalide.',
+      );
     }
     return map;
   }
@@ -293,6 +348,7 @@ class SupabaseBackofficeFinanceRepository implements BackofficeFinanceRepository
 
   @override
   Future<String> recordExpense({
+    String? operationKey,
     required String category,
     required int amount,
     required String description,
@@ -300,9 +356,10 @@ class SupabaseBackofficeFinanceRepository implements BackofficeFinanceRepository
     String? reference,
   }) async {
     final dynamic response = await _client.rpc(
-      'izytel_finance_record_expense',
+      'izytel_finance_record_expense_once',
       params: <String, dynamic>{
         'p_category': category,
+        'p_operation_key': operationKey ?? createFinanceOperationKey(),
         'p_amount': amount,
         'p_description': description.trim(),
         'p_channel': channel,
@@ -346,4 +403,12 @@ class SupabaseBackofficeFinanceRepository implements BackofficeFinanceRepository
     final String cleaned = value?.trim() ?? '';
     return cleaned.isEmpty ? null : cleaned;
   }
+}
+
+class _FinanceReadResult {
+  const _FinanceReadResult({this.value, this.error, this.stackTrace});
+
+  final dynamic value;
+  final Object? error;
+  final StackTrace? stackTrace;
 }

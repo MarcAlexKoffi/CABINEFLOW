@@ -16,6 +16,7 @@ class WaveCashSnapshot {
     required this.refunds,
     required this.expenses,
     required this.commissionPayouts,
+    this.cabinistePayouts = 0,
     required this.theoreticalBalance,
     required this.effectiveAt,
     required this.hasOpeningBalance,
@@ -28,12 +29,13 @@ class WaveCashSnapshot {
   final int refunds;
   final int expenses;
   final int commissionPayouts;
+  final int cabinistePayouts;
   final int theoreticalBalance;
   final DateTime effectiveAt;
   final bool hasOpeningBalance;
 
   int get incoming => clientPayments + creditSettlements;
-  int get outgoing => supplierPayments + refunds + expenses + commissionPayouts;
+  int get outgoing => supplierPayments + refunds + expenses + commissionPayouts + cabinistePayouts;
 }
 
 class WaveFinanceCalculator {

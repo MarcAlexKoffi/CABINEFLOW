@@ -7,6 +7,7 @@ import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:cabine_flow/features/finances/domain/models/finance_operations_models.dart';
+import 'package:cabine_flow/features/finances/data/repositories/supabase_finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/domain/repositories/finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/domain/services/finance_calculators.dart';
 import 'package:cabine_flow/features/finances/presentation/widgets/financial_ui.dart';
@@ -58,6 +59,17 @@ class _WaveCashPageState extends State<WaveCashPage> {
   }
 
   Future<_WavePageData> _load({WaveOpeningBalance? openingOverride}) async {
+    final canonical = widget.financeRepository;
+    if (canonical is SupabaseFinanceOperationsRepository) {
+      final snapshot = await canonical.fetchWaveSnapshot();
+      final opening = await canonical.watchWaveOpeningBalance().first;
+      final adjustments = await canonical.watchWaveBalanceAdjustments().first;
+      return _WavePageData(
+        opening: opening,
+        adjustments: adjustments,
+        snapshot: snapshot,
+      );
+    }
     final List<QueueOrder> orders = await _ordersStream.first;
     final List<RefundCase> refunds = await widget.refundRepository
         .watchAll()
@@ -366,6 +378,12 @@ class _WaveCashPageState extends State<WaveCashPage> {
               _FlowRow(
                 label: 'Commissions Agents',
                 amount: cash.commissionPayouts,
+                icon: Symbols.payments_rounded,
+                outgoing: true,
+              ),
+              _FlowRow(
+                label: 'Versements Cabinistes',
+                amount: cash.cabinistePayouts,
                 icon: Symbols.payments_rounded,
                 outgoing: true,
               ),

@@ -7,6 +7,7 @@ import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
 import 'package:cabine_flow/features/finances/domain/models/finance_operations_models.dart';
+import 'package:cabine_flow/features/finances/data/repositories/supabase_finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/domain/models/network_finance_models.dart';
 import 'package:cabine_flow/features/finances/domain/repositories/finance_operations_repository.dart';
 import 'package:cabine_flow/features/finances/domain/repositories/network_finance_repository.dart';
@@ -121,7 +122,10 @@ class _DailyFinancialClosingPageState extends State<DailyFinancialClosingPage> {
           orders: orders,
           transactions: networkTransactions,
         );
-    final WaveCashSnapshot wave = WaveFinanceCalculator.calculate(
+    final canonical = widget.financeRepository;
+    final WaveCashSnapshot wave = canonical is SupabaseFinanceOperationsRepository
+        ? await canonical.fetchWaveSnapshot()
+        : WaveFinanceCalculator.calculate(
       opening: opening,
       orders: orders,
       refunds: refunds,

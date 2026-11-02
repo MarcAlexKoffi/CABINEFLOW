@@ -47,9 +47,8 @@ class AgentOrdersViewModel extends ChangeNotifier {
   String? get avatarUrl => _avatarUrl;
   String? get busyOrderId => _busyOrderId;
   String? get errorMessage => _errorMessage;
-  String get errorTitle => _errorIsQueueLoad
-      ? 'Impossible de charger la file'
-      : 'Action impossible';
+  String get errorTitle =>
+      _errorIsQueueLoad ? 'Impossible de charger la file' : 'Action impossible';
   bool get isLoading => _isLoading;
 
   List<QueueOrder> get toAcceptOrders =>
@@ -363,7 +362,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
       return true;
     } catch (error, stackTrace) {
       _logActionError('accept', error, stackTrace);
-      _errorMessage = _friendlyError(error);
+      _errorMessage = _friendlyError(error, order: order);
       return false;
     } finally {
       _busyOrderId = null;
@@ -624,7 +623,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
         status == QueueOrderStatus.refunded;
   }
 
-  String _friendlyError(Object error) {
+  String _friendlyError(Object error, {QueueOrder? order}) {
     if (error is FirebaseException) {
       switch (error.code) {
         case 'permission-denied':
@@ -661,6 +660,34 @@ class AgentOrdersViewModel extends ChangeNotifier {
 
     if (error is PostgrestException) {
       final String raw = '${error.code ?? ''} ${error.message}'.toLowerCase();
+      if (raw.contains('agent_not_eligible_current_state')) {
+        final AgentProfile? profile = _agentProfile;
+        final String? zoneId = order?.zoneId;
+        if (profile != null && order != null) {
+          if (zoneId != null && !profile.zoneIds.contains(zoneId)) {
+            return 'Cette commande appartient à une zone hors de ton périmètre actuel. Demande au Manager ou à l’Administrateur de vérifier son affectation.';
+          }
+          if (profile.availability != AgentAvailability.available) {
+            return 'Ton profil est indisponible. Passe en Disponible dans ton activité avant d’accepter une commande.';
+          }
+          final AgentNetwork network = AgentNetwork.values.firstWhere(
+            (value) => value.name == order.network.name,
+          );
+          if (!profile.authorizedNetworks.contains(network)) {
+            return 'Ce réseau n’est pas autorisé sur ton profil. Demande au Manager ou à l’Administrateur de vérifier l’affectation.';
+          }
+          if (!profile.activeNetworks.contains(network)) {
+            return 'Ce réseau est désactivé dans ton activité. Active-le avant d’accepter cette commande.';
+          }
+          if (profile.capacityFor(network) < order.amount) {
+            return 'Ton stock sur ce réseau est insuffisant pour cette commande. Demande un approvisionnement ou une réaffectation.';
+          }
+        }
+        return 'Le serveur refuse l’acceptation avec ton périmètre ou tes limites actuelles. Fais vérifier la zone, la capacité réservée et les quotas par le Manager ou l’Administrateur.';
+      }
+      if (raw.contains('assignment_not_found')) {
+        return 'Cette commande n’est plus en attente d’acceptation pour toi. Actualise la file pour retrouver son état actuel.';
+      }
       if (raw.contains('pgrst303') || raw.contains('jwt issued at future')) {
         return 'L’horloge du téléphone et la session Supabase ne sont pas synchronisées. Active la date et l’heure automatiques puis actualise.';
       }

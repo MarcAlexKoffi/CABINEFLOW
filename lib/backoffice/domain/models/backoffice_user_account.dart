@@ -62,6 +62,9 @@ class BackofficeUserAccount {
     this.createdAt,
     this.updatedAt,
     this.lastActivityAt,
+    this.zoneIds = const <String>[],
+    this.authorizedNetworks = const <String>[],
+    this.hasRoleConflict = false,
   });
 
   final String id;
@@ -73,10 +76,33 @@ class BackofficeUserAccount {
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final DateTime? lastActivityAt;
+  final List<String> zoneIds;
+  final List<String> authorizedNetworks;
+  final bool hasRoleConflict;
+
+  BackofficeUserAccount withBusinessDetails({
+    List<String>? zoneIds,
+    List<String>? authorizedNetworks,
+    bool? hasRoleConflict,
+  }) => BackofficeUserAccount(
+    id: id,
+    name: name,
+    email: email,
+    phoneNumber: phoneNumber,
+    role: role,
+    isActive: isActive,
+    createdAt: createdAt,
+    updatedAt: updatedAt,
+    lastActivityAt: lastActivityAt,
+    zoneIds: zoneIds ?? this.zoneIds,
+    authorizedNetworks: authorizedNetworks ?? this.authorizedNetworks,
+    hasRoleConflict: hasRoleConflict ?? this.hasRoleConflict,
+  );
 
   bool get isPending => role == BackofficeAccountRole.pending;
 
   String get statusLabel {
+    if (hasRoleConflict) return 'Conflit de rôles';
     if (isPending) return 'En attente';
     return isActive ? 'Actif' : 'Inactif';
   }

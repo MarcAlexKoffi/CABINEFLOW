@@ -1,4 +1,4 @@
-import 'package:cabine_flow/features/commissions/data/repositories/firestore_commission_v2_repository.dart';
+import 'package:cabine_flow/features/commissions/data/repositories/supabase_commission_v2_repository.dart';
 import 'package:cabine_flow/features/commissions/domain/models/commission_v2_models.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/commission_v2_repository.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -89,7 +89,7 @@ class _CommissionV2DashboardPageState extends State<CommissionV2DashboardPage> {
   @override
   void initState() {
     super.initState();
-    _repository = widget.repository ?? FirestoreCommissionV2Repository();
+    _repository = widget.repository ?? SupabaseCommissionV2Repository();
     _searchController = TextEditingController();
     _stream = _resolveStream();
   }

@@ -121,6 +121,49 @@ class _PartnerShellPageState extends State<PartnerShellPage>
         payload.type == 'order_reassigned') {
       _openRootTab(1);
       _refreshOrders.value++;
+      unawaited(_openNotificationOrder(payload));
+    }
+  }
+
+  Future<void> _openNotificationOrder(IzyTelNotificationPayload payload) async {
+    try {
+      final List<PartnerOrderSnapshot> orders = await widget.repository
+          .fetchAssignedOrders();
+      if (!mounted) return;
+      PartnerOrderSnapshot? target;
+      for (final PartnerOrderSnapshot order in orders) {
+        if (order.orderId == payload.orderId ||
+            (payload.orderReference != null &&
+                order.orderReference == payload.orderReference)) {
+          target = order;
+          break;
+        }
+      }
+      if (target == null) {
+        IzyTelFeedback.show(
+          context,
+          'Cette commande n’est plus dans votre file.',
+        );
+        return;
+      }
+      final PartnerOrderSnapshot order = target;
+      await _navigatorKeys[1].currentState?.push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => PartnerOrderDetailPage(
+            initialOrder: order,
+            repository: widget.repository,
+          ),
+        ),
+      );
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'PartnerShell.notification-order',
+        error,
+        stackTrace: stackTrace,
+      );
+      if (mounted) {
+        IzyTelFeedback.show(context, 'La file des commandes se met à jour.');
+      }
     }
   }
 

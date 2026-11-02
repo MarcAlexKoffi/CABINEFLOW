@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cabine_flow/features/auth/presentation/widgets/session_access_boundary.dart';
 
 import 'package:cabine_flow/backoffice/data/repositories/fake_backoffice_user_repository.dart';
 import 'package:cabine_flow/backoffice/data/repositories/firestore_backoffice_user_repository.dart';
@@ -17,6 +18,8 @@ import 'package:cabine_flow/core/migrations/legacy_territory_backfill_service.da
 import 'package:cabine_flow/core/migrations/legacy_catalog_backfill_service.dart';
 import 'package:cabine_flow/core/migrations/legacy_finance_backfill_service.dart';
 import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
+import 'package:cabine_flow/core/diagnostics/startup_trace.dart';
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/features/agents/data/repositories/fake_agent_repository.dart';
 import 'package:cabine_flow/features/agents/data/repositories/firestore_agent_repository.dart';
 import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
@@ -55,6 +58,8 @@ class BackofficeApp extends StatefulWidget {
     this.adminOfferRepository,
     this.financeRepository,
     this.controlRepository,
+    this.authRestoration,
+    this.supabaseInitialization,
   });
 
   final AuthRepository? authRepository;
@@ -67,6 +72,8 @@ class BackofficeApp extends StatefulWidget {
   final AdminOfferRepository? adminOfferRepository;
   final BackofficeFinanceRepository? financeRepository;
   final ControlRepository? controlRepository;
+  final Future<void>? authRestoration;
+  final Future<void>? supabaseInitialization;
 
   @override
   State<BackofficeApp> createState() => _BackofficeAppState();
@@ -75,6 +82,32 @@ class BackofficeApp extends StatefulWidget {
 class _BackofficeAppState extends State<BackofficeApp> {
   final GlobalKey<_BackofficeAccessGateState> _accessGateKey =
       GlobalKey<_BackofficeAccessGateState>();
+
+  @override
+  void initState() {
+    super.initState();
+    _observeSupabaseInitialization();
+  }
+
+  void _observeSupabaseInitialization() {
+    final Future<void>? initialization = widget.supabaseInitialization;
+    if (initialization == null) return;
+    unawaited(
+      initialization
+          .then((_) {
+            if (!mounted) return;
+            StartupTrace.mark('supabase-repositories-ready');
+            setState(() {});
+          })
+          .catchError((Object error, StackTrace stackTrace) {
+            IzyTelLog.backendError(
+              'Startup.supabase',
+              error,
+              stackTrace: stackTrace,
+            );
+          }),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -120,9 +153,7 @@ class _BackofficeAppState extends State<BackofficeApp> {
             : null);
     final ControlRepository? effectiveControl =
         widget.controlRepository ??
-        (SupabaseBootstrap.isInitialized
-            ? SupabaseControlRepository()
-            : null);
+        (SupabaseBootstrap.isInitialized ? SupabaseControlRepository() : null);
 
     return MaterialApp(
       title: 'IzyTel Back-office',
@@ -150,6 +181,7 @@ class _BackofficeAppState extends State<BackofficeApp> {
         adminOfferRepository: effectiveOffers,
         financeRepository: effectiveFinance,
         controlRepository: effectiveControl,
+        authRestoration: widget.authRestoration,
       ),
     );
   }
@@ -168,6 +200,7 @@ class _BackofficeAccessGate extends StatefulWidget {
     required this.adminOfferRepository,
     required this.financeRepository,
     required this.controlRepository,
+    this.authRestoration,
   });
 
   final AuthRepository authRepository;
@@ -180,6 +213,7 @@ class _BackofficeAccessGate extends StatefulWidget {
   final AdminOfferRepository adminOfferRepository;
   final BackofficeFinanceRepository? financeRepository;
   final ControlRepository? controlRepository;
+  final Future<void>? authRestoration;
 
   @override
   State<_BackofficeAccessGate> createState() => _BackofficeAccessGateState();
@@ -221,8 +255,20 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
   }
 
   Future<void> _restoreSession() async {
+    StartupTrace.mark('auth-restore-wait-start');
+    try {
+      await widget.authRestoration;
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'Startup.auth-restore',
+        error,
+        stackTrace: stackTrace,
+      );
+    }
+    StartupTrace.mark('role-validation-start');
     final AuthLoginResult result = await widget.authRepository
         .refreshCurrentAccess();
+    StartupTrace.mark('role-validation-finished');
     if (!mounted) return;
 
     final AppUser? resolved = result.user;
@@ -234,6 +280,9 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
         _loading = false;
       });
       _armWebInactivityTimer();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        StartupTrace.mark('first-page-usable');
+      });
       if (resolved.role == UserRole.administrator &&
           SupabaseBootstrap.isInitialized) {
         unawaited(LegacyTerritoryBackfillService().runIfNeeded());
@@ -251,6 +300,9 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
     setState(() {
       _user = null;
       _loading = false;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      StartupTrace.mark('first-page-usable');
     });
   }
 
@@ -298,27 +350,31 @@ class _BackofficeAccessGateState extends State<_BackofficeAccessGate> {
 
     final OrdersRepository shellOrders =
         (user.role == UserRole.manager || user.role == UserRole.supervisor) &&
-                widget.ordersRepository is HybridOrdersRepository
-            ? HybridOrdersRepository(viewer: user)
-            : widget.ordersRepository;
+            widget.ordersRepository is HybridOrdersRepository
+        ? HybridOrdersRepository(viewer: user)
+        : widget.ordersRepository;
     final AgentRepository shellAgents =
         (user.role == UserRole.manager || user.role == UserRole.supervisor) &&
-                widget.agentRepository is FirestoreAgentRepository
-            ? FirestoreAgentRepository(viewer: user)
-            : widget.agentRepository;
+            widget.agentRepository is FirestoreAgentRepository
+        ? FirestoreAgentRepository(viewer: user)
+        : widget.agentRepository;
 
-    return BackofficeShellPage(
+    return SessionAccessBoundary(
       user: user,
-      userRepository: widget.userRepository,
-      ordersRepository: shellOrders,
-      agentRepository: shellAgents,
-      territoryRepository: widget.territoryRepository,
-      supportRepository: widget.supportRepository,
-      refundRepository: widget.refundRepository,
-      adminOfferRepository: widget.adminOfferRepository,
-      financeRepository: widget.financeRepository,
-      controlRepository: widget.controlRepository,
-      onLogout: _logout,
+      onAccessChanged: _logout,
+      child: BackofficeShellPage(
+        user: user,
+        userRepository: widget.userRepository,
+        ordersRepository: shellOrders,
+        agentRepository: shellAgents,
+        territoryRepository: widget.territoryRepository,
+        supportRepository: widget.supportRepository,
+        refundRepository: widget.refundRepository,
+        adminOfferRepository: widget.adminOfferRepository,
+        financeRepository: widget.financeRepository,
+        controlRepository: widget.controlRepository,
+        onLogout: _logout,
+      ),
     );
   }
 }

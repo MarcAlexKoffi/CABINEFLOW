@@ -33,8 +33,10 @@ void main() {
       final String supabase = _read('lib/core/supabase/supabase_bootstrap.dart');
 
       expect(customerMain, isNot(contains('await auth.authStateChanges().first')));
-      expect(backofficeMain, contains('final Future<User?> restoredSession'));
-      expect(backofficeMain, contains('final Future<bool> supabaseReady'));
+      expect(backofficeMain, contains('final Future<void> restoredSession'));
+      expect(backofficeMain, contains('final Future<void> supabaseReady'));
+      expect(backofficeMain, contains('authRestoration: restoredSession'));
+      expect(backofficeMain, contains('supabaseInitialization: supabaseReady'));
       expect(supabase, contains('unawaited(_syncRealtimeAuth'));
       expect(supabase, isNot(contains('await _syncRealtimeAuth(FirebaseAuth.instance.currentUser)')));
     });

@@ -3,6 +3,17 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+enum BackendFailureKind {
+  network,
+  timeout,
+  unauthorized,
+  forbidden,
+  notFound,
+  server,
+  contract,
+  unknown,
+}
+
 /// Classe les erreurs backend sans dependre de leur texte affiche a l'utilisateur.
 ///
 /// En Phase 3, seules les erreurs de transport ou de disponibilite peuvent etre
@@ -67,12 +78,95 @@ class BackendFailurePolicy {
     final String type = error.runtimeType.toString().toLowerCase();
     if (type.contains('socketexception') ||
         type.contains('clientexception') ||
+        type.contains('fetch') ||
         type.contains('handshakeexception') ||
-        type.contains('connectionclosed')) {
+        type.contains('connectionclosed') ||
+        type.contains('realtimesubscribeexception') ||
+        type.contains('websocket')) {
       return true;
     }
 
     return _looksTransientText(error.toString());
+  }
+
+  static BackendFailureKind classify(Object error) {
+    if (error is TimeoutException) return BackendFailureKind.timeout;
+
+    if (error is FirebaseException) {
+      final String code = error.code.toLowerCase();
+      if (code == 'unauthenticated' || code == 'user-token-expired') {
+        return BackendFailureKind.unauthorized;
+      }
+      if (code == 'permission-denied') return BackendFailureKind.forbidden;
+      if (code == 'not-found') return BackendFailureKind.notFound;
+      if (canRetryRead(error)) return BackendFailureKind.network;
+      if (code == 'internal' || code == 'unknown') {
+        return BackendFailureKind.server;
+      }
+    }
+
+    if (error is PostgrestException) {
+      final String code = (error.code ?? '').trim().toUpperCase();
+      if (const <String>{
+        'PGRST301',
+        'PGRST302',
+        'PGRST303',
+        '401',
+      }.contains(code)) {
+        return BackendFailureKind.unauthorized;
+      }
+      if (code == '42501' || code == '403') {
+        return BackendFailureKind.forbidden;
+      }
+      if (code == 'PGRST202' || code == 'PGRST204' || code == '404') {
+        return BackendFailureKind.notFound;
+      }
+      if (canRetryRead(error)) return BackendFailureKind.network;
+      if (code.startsWith('5') ||
+          code.startsWith('XX') ||
+          code.startsWith('PGRST0')) {
+        return BackendFailureKind.server;
+      }
+    }
+
+    if (error is AuthException) {
+      return canRetryRead(error)
+          ? BackendFailureKind.network
+          : BackendFailureKind.unauthorized;
+    }
+    if (error is FormatException || error is StateError || error is TypeError) {
+      return BackendFailureKind.contract;
+    }
+    if (canRetryRead(error)) return BackendFailureKind.network;
+    return BackendFailureKind.unknown;
+  }
+
+  static String readMessage(Object error, {required String resource}) {
+    return readMessageForKind(classify(error), resource: resource);
+  }
+
+  static String readMessageForKind(
+    BackendFailureKind kind, {
+    required String resource,
+  }) {
+    return switch (kind) {
+      BackendFailureKind.network =>
+        'Connexion indisponible pendant la lecture de $resource. Réessaie dans un instant.',
+      BackendFailureKind.timeout =>
+        'La lecture de $resource a dépassé le délai prévu. Réessaie.',
+      BackendFailureKind.unauthorized =>
+        'La session a expiré pendant la lecture de $resource. Reconnecte-toi puis réessaie.',
+      BackendFailureKind.forbidden =>
+        'Le serveur a refusé l’accès à $resource. Vérifie le rôle du compte sans modifier les permissions.',
+      BackendFailureKind.notFound =>
+        'Le service attendu pour $resource est introuvable ou incompatible avec cette version.',
+      BackendFailureKind.server =>
+        'Le serveur ne peut pas charger $resource pour le moment. Réessaie plus tard.',
+      BackendFailureKind.contract =>
+        'La réponse reçue pour $resource ne respecte pas le format attendu.',
+      BackendFailureKind.unknown =>
+        'Impossible de charger $resource pour le moment.',
+    };
   }
 
   static bool _looksTransientText(String value) {
@@ -84,6 +178,8 @@ class BackendFailurePolicy {
         text.contains('connection closed') ||
         text.contains('network is unreachable') ||
         text.contains('network request failed') ||
+        text.contains('failed to fetch') ||
+        text.contains('xmlhttprequest error') ||
         text.contains('failed host lookup') ||
         text.contains('temporary failure') ||
         text.contains('temporarily unavailable') ||
@@ -153,6 +249,15 @@ class BackendFailurePolicy {
     }
     if (error is AuthException) {
       return 'supabase-auth:${error.runtimeType}';
+    }
+    final String type = error.runtimeType.toString().toLowerCase();
+    if (type.contains('realtimesubscribeexception')) {
+      return 'supabase-realtime:subscribe';
+    }
+    if (type.contains('websocket')) return 'websocket';
+    if (type.contains('fetch') ||
+        error.toString().toLowerCase().contains('xmlhttprequest error')) {
+      return 'web-transport';
     }
     return error.runtimeType.toString();
   }

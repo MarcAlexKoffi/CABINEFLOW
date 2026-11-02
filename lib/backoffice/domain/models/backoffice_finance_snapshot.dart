@@ -23,8 +23,17 @@ class BackofficeFinanceSnapshot {
     required this.successFinalizations,
     required this.ledgerEvents,
     required this.auditEvents,
+    this.waveTotals,
+    this.committedCapacities,
+    this.partialIssueCode,
+    this.partialIssueKind,
   });
 
+  /// Exact server totals; the transaction arrays are bounded history windows.
+  final Map<String, dynamic>? waveTotals;
+  final Map<String, dynamic>? committedCapacities;
+  final String? partialIssueCode;
+  final String? partialIssueKind;
   final DateTime? generatedAt;
   final Map<String, dynamic>? waveOpening;
   final List<Map<String, dynamic>> waveAdjustments;
@@ -52,6 +61,10 @@ class BackofficeFinanceSnapshot {
   factory BackofficeFinanceSnapshot.fromJson(Map<String, dynamic> json) {
     return BackofficeFinanceSnapshot(
       generatedAt: financeDate(json['generated_at']),
+      waveTotals: financeMap(json['wave_totals']),
+      committedCapacities: financeMap(json['committed_capacities']),
+      partialIssueCode: _nullableFinanceString(json['_partial_issue_code']),
+      partialIssueKind: _nullableFinanceString(json['_partial_issue_kind']),
       waveOpening: financeMap(json['wave_opening']),
       waveAdjustments: financeRows(json['wave_adjustments']),
       credits: financeRows(json['credits']),
@@ -65,7 +78,8 @@ class BackofficeFinanceSnapshot {
       commissionAccounts: financeRows(json['commission_accounts']),
       commissions: financeRows(json['commissions']),
       commissionPayouts: financeRows(json['commission_payouts']),
-      cabinisteFinance: financeMap(json['cabiniste_finance']) ?? const <String, dynamic>{},
+      cabinisteFinance:
+          financeMap(json['cabiniste_finance']) ?? const <String, dynamic>{},
       agentCapacities: financeRows(json['agent_capacities']),
       networkMovements: financeRows(json['network_movements']),
       orderPayments: financeRows(json['order_payments']),
@@ -81,28 +95,33 @@ class BackofficeFinanceSnapshot {
 
   int get openingWaveBalance => financeInt(waveOpening?['opening_balance']);
 
-  DateTime? get waveOpeningEffectiveAt => financeDate(waveOpening?['effective_at']);
+  DateTime? get waveOpeningEffectiveAt =>
+      financeDate(waveOpening?['effective_at']);
 
   int get customerReceivables => credits.fold<int>(
-        0,
-        (int total, Map<String, dynamic> row) =>
-            total +
-            _positive(financeInt(row['amount']) - financeInt(row['paid_amount'])),
-      );
+    0,
+    (int total, Map<String, dynamic> row) =>
+        total +
+        _positive(financeInt(row['amount']) - financeInt(row['paid_amount'])),
+  );
 
   int get supplierDebt => supplierAccounts.fold<int>(
-        0,
-        (int total, Map<String, dynamic> row) =>
-            total +
-            _positive(financeInt(row['total_owed']) - financeInt(row['total_paid'])),
-      );
+    0,
+    (int total, Map<String, dynamic> row) =>
+        total +
+        _positive(
+          financeInt(row['total_owed']) - financeInt(row['total_paid']),
+        ),
+  );
 
   int get commissionDebt => commissionAccounts.fold<int>(
-        0,
-        (int total, Map<String, dynamic> row) =>
-            total +
-            _positive(financeInt(row['earned_total']) - financeInt(row['paid_total'])),
-      );
+    0,
+    (int total, Map<String, dynamic> row) =>
+        total +
+        _positive(
+          financeInt(row['earned_total']) - financeInt(row['paid_total']),
+        ),
+  );
 
   Map<String, dynamic> get cabinisteSummary =>
       financeMap(cabinisteFinance['summary']) ?? const <String, dynamic>{};
@@ -119,13 +138,13 @@ class BackofficeFinanceSnapshot {
   int get cabinisteToPayCount => financeInt(cabinisteSummary['toPayCount']);
 
   int get totalAvailableCapacity => agentCapacities.fold<int>(
-        0,
-        (int total, Map<String, dynamic> row) =>
-            total +
-            financeInt(row['orange_capacity']) +
-            financeInt(row['mtn_capacity']) +
-            financeInt(row['moov_capacity']),
-      );
+    0,
+    (int total, Map<String, dynamic> row) =>
+        total +
+        financeInt(row['orange_capacity']) +
+        financeInt(row['mtn_capacity']) +
+        financeInt(row['moov_capacity']),
+  );
 
   int capacityFor(String network) {
     final String key = '${network.toLowerCase()}_capacity';
@@ -140,22 +159,34 @@ class BackofficeFinanceSnapshot {
   /// capacité dans le fonds de roulement.
   int committedFor(String network) {
     final String normalized = network.toLowerCase();
-    return orders.where((Map<String, dynamic> row) {
-      if (financeString(row['network']) != normalized) {
-        return false;
-      }
-      if (financeString(row['assigned_agent_id']).isEmpty) {
-        return false;
-      }
-      if (!<String>{'confirmed', 'credit'}.contains(financeString(row['payment_status']))) {
-        return false;
-      }
-      return <String>{'paidReady', 'inProgress', 'onHold'}
-          .contains(financeString(row['order_status']));
-    }).fold<int>(
-      0,
-      (int total, Map<String, dynamic> row) => total + financeInt(row['amount']),
-    );
+    if (committedCapacities != null) {
+      return financeInt(committedCapacities![normalized]);
+    }
+    return orders
+        .where((Map<String, dynamic> row) {
+          if (financeString(row['network']) != normalized) {
+            return false;
+          }
+          if (financeString(row['assigned_agent_id']).isEmpty) {
+            return false;
+          }
+          if (!<String>{
+            'confirmed',
+            'credit',
+          }.contains(financeString(row['payment_status']))) {
+            return false;
+          }
+          return <String>{
+            'paidReady',
+            'inProgress',
+            'onHold',
+          }.contains(financeString(row['order_status']));
+        })
+        .fold<int>(
+          0,
+          (int total, Map<String, dynamic> row) =>
+              total + financeInt(row['amount']),
+        );
   }
 
   int freeCapacityFor(String network) {
@@ -166,7 +197,9 @@ class BackofficeFinanceSnapshot {
       committedFor('orange') + committedFor('mtn') + committedFor('moov');
 
   int get totalFreeCapacity =>
-      freeCapacityFor('orange') + freeCapacityFor('mtn') + freeCapacityFor('moov');
+      freeCapacityFor('orange') +
+      freeCapacityFor('mtn') +
+      freeCapacityFor('moov');
 
   int get operatingLiquidity => waveTheoreticalBalance + totalFreeCapacity;
 
@@ -180,180 +213,232 @@ class BackofficeFinanceSnapshot {
   int successfulOrdersAmountOn(DateTime day) {
     return _successfulNetworkMovementsOn(day).fold<int>(
       0,
-      (int total, Map<String, dynamic> row) => total + financeInt(row['amount']),
+      (int total, Map<String, dynamic> row) =>
+          total + financeInt(row['amount']),
     );
   }
 
-  int successfulOrdersCountOn(DateTime day) => _successfulNetworkMovementsOn(day).length;
+  int successfulOrdersCountOn(DateTime day) =>
+      _successfulNetworkMovementsOn(day).length;
 
   List<Map<String, dynamic>> _successfulNetworkMovementsOn(DateTime day) {
-    return networkMovements.where((Map<String, dynamic> row) {
-      return financeString(row['direction']) == 'outgoing' &&
-          financeString(row['movement_type']) == 'orderSuccess' &&
-          financeSameDay(financeDate(row['occurred_at']), day);
-    }).toList(growable: false);
+    return networkMovements
+        .where((Map<String, dynamic> row) {
+          return financeString(row['direction']) == 'outgoing' &&
+              financeString(row['movement_type']) == 'orderSuccess' &&
+              financeSameDay(financeDate(row['occurred_at']), day);
+        })
+        .toList(growable: false);
   }
 
   /// Encaissements de commandes confirmées. On lit la commande canonique,
   /// pas chaque évènement du ledger paiement, afin de ne jamais compter deux
   /// fois une même commande lorsque l'historique contient plusieurs évènements.
   int confirmedReceiptsOn(DateTime day) {
-    return orders.where((Map<String, dynamic> row) {
-      if (financeString(row['payment_status']) != 'confirmed') {
-        return false;
-      }
-      final DateTime? at =
-          financeDate(row['payment_confirmed_at']) ?? financeDate(row['paid_at']);
-      return financeSameDay(at, day);
-    }).fold<int>(
-      0,
-      (int total, Map<String, dynamic> row) => total + financeInt(row['amount']),
-    );
+    return orders
+        .where((Map<String, dynamic> row) {
+          if (financeString(row['payment_status']) != 'confirmed') {
+            return false;
+          }
+          final DateTime? at =
+              financeDate(row['payment_confirmed_at']) ??
+              financeDate(row['paid_at']);
+          return financeSameDay(at, day);
+        })
+        .fold<int>(
+          0,
+          (int total, Map<String, dynamic> row) =>
+              total + financeInt(row['amount']),
+        );
   }
 
   int creditSettlementsOn(DateTime day, {String? channel}) {
-    return creditSettlements.where((Map<String, dynamic> row) {
-      if (!financeSameDay(financeDate(row['paid_at']), day)) {
-        return false;
-      }
-      return channel == null || financeString(row['payment_channel']) == channel;
-    }).fold<int>(
-      0,
-      (int total, Map<String, dynamic> row) => total + financeInt(row['amount']),
-    );
+    return creditSettlements
+        .where((Map<String, dynamic> row) {
+          if (!financeSameDay(financeDate(row['paid_at']), day)) {
+            return false;
+          }
+          return channel == null ||
+              financeString(row['payment_channel']) == channel;
+        })
+        .fold<int>(
+          0,
+          (int total, Map<String, dynamic> row) =>
+              total + financeInt(row['amount']),
+        );
   }
 
   int supplierPaymentsOn(DateTime day, {String? channel}) {
-    return supplierPayments.where((Map<String, dynamic> row) {
-      if (!financeSameDay(financeDate(row['paid_at']), day)) {
-        return false;
-      }
-      return channel == null || financeString(row['payment_channel']) == channel;
-    }).fold<int>(
-      0,
-      (int total, Map<String, dynamic> row) => total + financeInt(row['amount']),
-    );
+    return supplierPayments
+        .where((Map<String, dynamic> row) {
+          if (!financeSameDay(financeDate(row['paid_at']), day)) {
+            return false;
+          }
+          return channel == null ||
+              financeString(row['payment_channel']) == channel;
+        })
+        .fold<int>(
+          0,
+          (int total, Map<String, dynamic> row) =>
+              total + financeInt(row['amount']),
+        );
   }
 
   int expensesOn(DateTime day, {String? channel}) {
-    return expenses.where((Map<String, dynamic> row) {
-      if (!financeSameDay(financeDate(row['spent_at']), day)) {
-        return false;
-      }
-      return channel == null || financeString(row['payment_channel']) == channel;
-    }).fold<int>(
-      0,
-      (int total, Map<String, dynamic> row) => total + financeInt(row['amount']),
-    );
+    return expenses
+        .where((Map<String, dynamic> row) {
+          if (!financeSameDay(financeDate(row['spent_at']), day)) {
+            return false;
+          }
+          return channel == null ||
+              financeString(row['payment_channel']) == channel;
+        })
+        .fold<int>(
+          0,
+          (int total, Map<String, dynamic> row) =>
+              total + financeInt(row['amount']),
+        );
   }
 
   int refundsOn(DateTime day) {
-    return refunds.where((Map<String, dynamic> row) {
-      return financeSameDay(financeDate(row['refunded_at']), day);
-    }).fold<int>(
-      0,
-      (int total, Map<String, dynamic> row) => total + financeInt(row['amount']),
-    );
+    return refunds
+        .where((Map<String, dynamic> row) {
+          return financeSameDay(financeDate(row['refunded_at']), day);
+        })
+        .fold<int>(
+          0,
+          (int total, Map<String, dynamic> row) =>
+              total + financeInt(row['amount']),
+        );
   }
 
   int commissionEarnedOn(DateTime day) {
-    return commissions.where((Map<String, dynamic> row) {
-      return financeSameDay(financeDate(row['earned_at']), day);
-    }).fold<int>(
-      0,
-      (int total, Map<String, dynamic> row) =>
-          total + financeInt(row['commission_amount']),
-    );
+    return commissions
+        .where((Map<String, dynamic> row) {
+          return financeSameDay(financeDate(row['earned_at']), day);
+        })
+        .fold<int>(
+          0,
+          (int total, Map<String, dynamic> row) =>
+              total + financeInt(row['commission_amount']),
+        );
   }
 
   int commissionPaidOn(DateTime day, {String? channel}) {
-    return commissionPayouts.where((Map<String, dynamic> row) {
-      if (!financeSameDay(financeDate(row['paid_at']), day)) {
-        return false;
-      }
-      return channel == null || financeString(row['payment_channel']) == channel;
-    }).fold<int>(
-      0,
-      (int total, Map<String, dynamic> row) => total + financeInt(row['amount']),
-    );
+    return commissionPayouts
+        .where((Map<String, dynamic> row) {
+          if (!financeSameDay(financeDate(row['paid_at']), day)) {
+            return false;
+          }
+          return channel == null ||
+              financeString(row['payment_channel']) == channel;
+        })
+        .fold<int>(
+          0,
+          (int total, Map<String, dynamic> row) =>
+              total + financeInt(row['amount']),
+        );
   }
 
   int supplierRechargeOn(DateTime day, String field) {
-    return supplierRecharges.where((Map<String, dynamic> row) {
-      return financeSameDay(financeDate(row['occurred_at']), day);
-    }).fold<int>(
-      0,
-      (int total, Map<String, dynamic> row) => total + financeInt(row[field]),
-    );
+    return supplierRecharges
+        .where((Map<String, dynamic> row) {
+          return financeSameDay(financeDate(row['occurred_at']), day);
+        })
+        .fold<int>(
+          0,
+          (int total, Map<String, dynamic> row) =>
+              total + financeInt(row[field]),
+        );
   }
 
   int creditsCreatedOn(DateTime day) {
-    return credits.where((Map<String, dynamic> row) {
-      return financeSameDay(financeDate(row['created_at']), day);
-    }).fold<int>(
-      0,
-      (int total, Map<String, dynamic> row) => total + financeInt(row['amount']),
-    );
+    return credits
+        .where((Map<String, dynamic> row) {
+          return financeSameDay(financeDate(row['created_at']), day);
+        })
+        .fold<int>(
+          0,
+          (int total, Map<String, dynamic> row) =>
+              total + financeInt(row['amount']),
+        );
   }
 
-  int get waveClientPaymentsSinceOpening => _sumSince(
-        orders,
-        dateOf: (Map<String, dynamic> row) =>
-            financeDate(row['payment_confirmed_at']) ?? financeDate(row['paid_at']),
-        amountOf: (Map<String, dynamic> row) => financeInt(row['amount']),
-        predicate: (Map<String, dynamic> row) =>
-            financeString(row['payment_status']) == 'confirmed',
-      );
+  int get waveClientPaymentsSinceOpening => waveTotals == null
+      ? _sumSince(
+          orders,
+          dateOf: (Map<String, dynamic> row) =>
+              financeDate(row['payment_confirmed_at']) ??
+              financeDate(row['paid_at']),
+          amountOf: (Map<String, dynamic> row) => financeInt(row['amount']),
+          predicate: (Map<String, dynamic> row) =>
+              financeString(row['payment_status']) == 'confirmed',
+        )
+      : financeInt(waveTotals!['client_payments']);
 
-  int get waveCreditSettlementsSinceOpening => _sumSince(
-        creditSettlements,
-        dateOf: (Map<String, dynamic> row) => financeDate(row['paid_at']),
-        amountOf: (Map<String, dynamic> row) => financeInt(row['amount']),
-        predicate: (Map<String, dynamic> row) =>
-            financeString(row['payment_channel']) == 'wave',
-      );
+  int get waveCreditSettlementsSinceOpening => waveTotals == null
+      ? _sumSince(
+          creditSettlements,
+          dateOf: (Map<String, dynamic> row) => financeDate(row['paid_at']),
+          amountOf: (Map<String, dynamic> row) => financeInt(row['amount']),
+          predicate: (Map<String, dynamic> row) =>
+              financeString(row['payment_channel']) == 'wave',
+        )
+      : financeInt(waveTotals!['credit_settlements']);
 
-  int get waveSupplierPaymentsSinceOpening => _sumSince(
-        supplierPayments,
-        dateOf: (Map<String, dynamic> row) => financeDate(row['paid_at']),
-        amountOf: (Map<String, dynamic> row) => financeInt(row['amount']),
-        predicate: (Map<String, dynamic> row) =>
-            financeString(row['payment_channel']) == 'wave',
-      );
+  int get waveSupplierPaymentsSinceOpening => waveTotals == null
+      ? _sumSince(
+          supplierPayments,
+          dateOf: (Map<String, dynamic> row) => financeDate(row['paid_at']),
+          amountOf: (Map<String, dynamic> row) => financeInt(row['amount']),
+          predicate: (Map<String, dynamic> row) =>
+              financeString(row['payment_channel']) == 'wave',
+        )
+      : financeInt(waveTotals!['supplier_payments']);
 
-  int get waveExpensesSinceOpening => _sumSince(
-        expenses,
-        dateOf: (Map<String, dynamic> row) => financeDate(row['spent_at']),
-        amountOf: (Map<String, dynamic> row) => financeInt(row['amount']),
-        predicate: (Map<String, dynamic> row) =>
-            financeString(row['payment_channel']) == 'wave',
-      );
+  int get waveExpensesSinceOpening => waveTotals == null
+      ? _sumSince(
+          expenses,
+          dateOf: (Map<String, dynamic> row) => financeDate(row['spent_at']),
+          amountOf: (Map<String, dynamic> row) => financeInt(row['amount']),
+          predicate: (Map<String, dynamic> row) =>
+              financeString(row['payment_channel']) == 'wave',
+        )
+      : financeInt(waveTotals!['expenses']);
 
-  int get waveRefundsSinceOpening => _sumSince(
-        refunds,
-        dateOf: (Map<String, dynamic> row) => financeDate(row['refunded_at']),
-        amountOf: (Map<String, dynamic> row) => financeInt(row['amount']),
-        predicate: (Map<String, dynamic> row) =>
-            financeString(row['payment_channel']).isEmpty ||
-            financeString(row['payment_channel']) == 'wave',
-      );
+  int get waveRefundsSinceOpening => waveTotals == null
+      ? _sumSince(
+          refunds,
+          dateOf: (Map<String, dynamic> row) => financeDate(row['refunded_at']),
+          amountOf: (Map<String, dynamic> row) => financeInt(row['amount']),
+          predicate: (Map<String, dynamic> row) =>
+              financeString(row['payment_channel']).isEmpty ||
+              financeString(row['payment_channel']) == 'wave',
+        )
+      : financeInt(waveTotals!['refunds']);
 
-  int get waveCommissionPayoutsSinceOpening => _sumSince(
-        commissionPayouts,
-        dateOf: (Map<String, dynamic> row) => financeDate(row['paid_at']),
-        amountOf: (Map<String, dynamic> row) => financeInt(row['amount']),
-        predicate: (Map<String, dynamic> row) =>
-            financeString(row['payment_channel']).isEmpty ||
-            financeString(row['payment_channel']) == 'wave',
-      );
+  int get waveCommissionPayoutsSinceOpening => waveTotals == null
+      ? _sumSince(
+          commissionPayouts,
+          dateOf: (Map<String, dynamic> row) => financeDate(row['paid_at']),
+          amountOf: (Map<String, dynamic> row) => financeInt(row['amount']),
+          predicate: (Map<String, dynamic> row) =>
+              financeString(row['payment_channel']).isEmpty ||
+              financeString(row['payment_channel']) == 'wave',
+        )
+      : financeInt(waveTotals!['commission_payouts']);
 
   int get waveIncomingSinceOpening =>
       waveClientPaymentsSinceOpening + waveCreditSettlementsSinceOpening;
+
+  int get waveCabinistePayoutsSinceOpening =>
+      financeInt(waveTotals?['cabiniste_payouts']);
 
   int get waveOutgoingSinceOpening =>
       waveSupplierPaymentsSinceOpening +
       waveExpensesSinceOpening +
       waveRefundsSinceOpening +
+      waveCabinistePayoutsSinceOpening +
       waveCommissionPayoutsSinceOpening;
 
   int get waveTheoreticalBalance =>
@@ -364,7 +449,9 @@ class BackofficeFinanceSnapshot {
   int waveTheoreticalBalanceOn(DateTime day) => waveTheoreticalBalance;
 
   int estimatedOperationalResultOn(DateTime day) {
-    final List<Map<String, dynamic>> successes = _successfulNetworkMovementsOn(day);
+    final List<Map<String, dynamic>> successes = _successfulNetworkMovementsOn(
+      day,
+    );
     final Map<String, int> received = <String, int>{
       'orange': 0,
       'mtn': 0,
@@ -380,7 +467,8 @@ class BackofficeFinanceSnapshot {
       if (!received.containsKey(network)) {
         continue;
       }
-      received[network] = received[network]! + financeInt(row['received_amount']);
+      received[network] =
+          received[network]! + financeInt(row['received_amount']);
       cost[network] = cost[network]! + financeInt(row['principal_amount']);
     }
 
@@ -405,13 +493,18 @@ class BackofficeFinanceSnapshot {
         })
         .map((Map<String, dynamic> row) => financeString(row['order_id']))
         .toSet();
-    final int profitRefunds = refunds.where((Map<String, dynamic> row) {
-      return financeSameDay(financeDate(row['refunded_at']), day) &&
-          historicallySuccessfulOrders.contains(financeString(row['order_id']));
-    }).fold<int>(
-      0,
-      (int total, Map<String, dynamic> row) => total + financeInt(row['amount']),
-    );
+    final int profitRefunds = refunds
+        .where((Map<String, dynamic> row) {
+          return financeSameDay(financeDate(row['refunded_at']), day) &&
+              historicallySuccessfulOrders.contains(
+                financeString(row['order_id']),
+              );
+        })
+        .fold<int>(
+          0,
+          (int total, Map<String, dynamic> row) =>
+              total + financeInt(row['amount']),
+        );
 
     final int grossMargin = turnover - estimatedNetworkCost;
     return grossMargin -
@@ -427,19 +520,21 @@ class BackofficeFinanceSnapshot {
     bool Function(Map<String, dynamic> row)? predicate,
   }) {
     final DateTime? effectiveAt = waveOpeningEffectiveAt;
-    return source.where((Map<String, dynamic> row) {
-      if (predicate != null && !predicate(row)) {
-        return false;
-      }
-      final DateTime? at = dateOf(row);
-      if (at == null) {
-        return false;
-      }
-      return effectiveAt == null || !at.isBefore(effectiveAt);
-    }).fold<int>(
-      0,
-      (int total, Map<String, dynamic> row) => total + amountOf(row),
-    );
+    return source
+        .where((Map<String, dynamic> row) {
+          if (predicate != null && !predicate(row)) {
+            return false;
+          }
+          final DateTime? at = dateOf(row);
+          if (at == null) {
+            return false;
+          }
+          return effectiveAt == null || !at.isBefore(effectiveAt);
+        })
+        .fold<int>(
+          0,
+          (int total, Map<String, dynamic> row) => total + amountOf(row),
+        );
   }
 
   static int _positive(int value) => value < 0 ? 0 : value;
@@ -479,6 +574,11 @@ int financeInt(Object? value) {
 }
 
 String financeString(Object? value) => value?.toString().trim() ?? '';
+
+String? _nullableFinanceString(Object? value) {
+  final String result = financeString(value);
+  return result.isEmpty ? null : result;
+}
 
 DateTime? financeDate(Object? value) {
   if (value is DateTime) {

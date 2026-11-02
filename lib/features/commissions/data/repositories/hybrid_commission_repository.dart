@@ -1,4 +1,5 @@
-import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/backoffice/data/repositories/supabase_backoffice_finance_repository.dart';
+import 'package:cabine_flow/backoffice/domain/repositories/backoffice_finance_repository.dart';
 import 'package:cabine_flow/features/commissions/data/repositories/firestore_commission_repository.dart';
 import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
 import 'package:cabine_flow/features/commissions/domain/repositories/agent_commission_summary_repository.dart';
@@ -14,11 +15,14 @@ class HybridCommissionRepository
   HybridCommissionRepository({
     FirestoreCommissionRepository? firestoreRepository,
     SupabasePhase5FinanceRepository? phase5Repository,
+    BackofficeFinanceRepository? payoutRepository,
   }) : _firestore = firestoreRepository ?? FirestoreCommissionRepository(),
-       _phase5 = phase5Repository ?? SupabasePhase5FinanceRepository();
+       _phase5 = phase5Repository ?? SupabasePhase5FinanceRepository(),
+       _payouts = payoutRepository;
 
   final FirestoreCommissionRepository _firestore;
   final SupabasePhase5FinanceRepository _phase5;
+  final BackofficeFinanceRepository? _payouts;
 
   @override
   Stream<AgentCommissionSummary> watchAgentCommissionSummary() =>
@@ -58,37 +62,13 @@ class HybridCommissionRepository
     required String staffName,
     String? note,
   }) async {
-    // Pont transactionnel temporaire : les règles et écrans historiques
-    // attendent encore le règlement dans Firebase. Supabase reste la source
-    // de lecture et reçoit ensuite le miroir idempotent avec l'id legacy.
-    await _firestore.recordPayout(
+    await (_payouts ?? SupabaseBackofficeFinanceRepository()).recordCommissionPayout(
       agentId: agentId,
       agentName: agentName,
       amount: amount,
-      paymentReference: paymentReference,
-      staffId: staffId,
+      reference: paymentReference,
       staffName: staffName,
       note: note,
     );
-    try {
-      final List<CommissionPayout> values = await _firestore
-          .watchPayouts(agentId: agentId)
-          .first;
-      CommissionPayout? created;
-      for (final CommissionPayout item in values) {
-        if (item.paymentReference.toUpperCase() ==
-            paymentReference.trim().toUpperCase()) {
-          created = item;
-          break;
-        }
-      }
-      if (created != null) await _phase5.mirrorCommissionPayout(created);
-    } catch (error, stackTrace) {
-      IzyTelLog.backendError(
-        'Phase5.CommissionPayoutMirror',
-        error,
-        stackTrace: stackTrace,
-      );
-    }
   }
 }

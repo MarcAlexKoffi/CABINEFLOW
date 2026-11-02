@@ -1,9 +1,15 @@
+import 'dart:convert';
+import 'package:cabine_flow/backoffice/data/repositories/backoffice_user_administration_repository.dart';
 import 'package:cabine_flow/backoffice/domain/models/backoffice_user_account.dart';
+import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_user_admin_dialog.dart';
 import 'package:cabine_flow/backoffice/domain/repositories/backoffice_user_repository.dart';
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
 import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_modal.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
+import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 class BackofficeUsersPage extends StatefulWidget {
@@ -13,12 +19,14 @@ class BackofficeUsersPage extends StatefulWidget {
     required this.repository,
     this.onManageManager,
     this.onManageAgent,
+    this.administration,
   });
 
   final AppUser currentUser;
   final BackofficeUserRepository repository;
   final ValueChanged<BackofficeUserAccount>? onManageManager;
   final ValueChanged<BackofficeUserAccount>? onManageAgent;
+  final BackofficeUserAdministration? administration;
 
   @override
   State<BackofficeUsersPage> createState() => _BackofficeUsersPageState();
@@ -29,6 +37,63 @@ class _BackofficeUsersPageState extends State<BackofficeUsersPage> {
   BackofficeAccountRole? _roleFilter;
   _AccountStatusFilter _statusFilter = _AccountStatusFilter.all;
   String _query = '';
+  String? _zoneFilter;
+  int _page = 0;
+  late Stream<List<BackofficeUserAccount>> _users;
+  List<BackofficeUserAccount>? _lastUsers;
+  late final BackofficeUserAdministration _administration;
+  List<UserAdminZone> _zones = const [];
+  bool _working = false;
+
+  Stream<List<BackofficeUserAccount>> _watchUsers() {
+    return widget.repository.watchUsers().map((users) {
+      _lastUsers = users;
+      return users;
+    });
+  }
+
+  void _reloadUsers() {
+    setState(() {
+      _lastUsers = null;
+      _users = _watchUsers();
+    });
+  }
+
+  String _registryErrorMessage(Object? error) {
+    if (error is BackofficeUserRegistryException) {
+      final String resource = switch (error.source) {
+        BackofficeUserRegistrySource.firestore => 'le registre Firestore',
+        BackofficeUserRegistrySource.supabase => 'le registre métier Supabase',
+      };
+      return '${BackendFailurePolicy.readMessageForKind(error.kind, resource: resource)} Code : ${error.code}.';
+    }
+    return 'La source des utilisateurs est momentanément indisponible. Vérifie la session puis réessaie.';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _users = _watchUsers();
+    _administration =
+        widget.administration ?? BackofficeUserAdministrationRepository();
+    if (widget.currentUser.role == UserRole.administrator) {
+      _administration
+          .loadZones()
+          .then((zones) {
+            if (mounted) setState(() => _zones = zones);
+          })
+          .catchError((Object _) {});
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant BackofficeUsersPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.repository != widget.repository) {
+      _lastUsers = null;
+      _users = _watchUsers();
+    }
+  }
 
   @override
   void dispose() {
@@ -38,43 +103,231 @@ class _BackofficeUsersPageState extends State<BackofficeUsersPage> {
 
   List<BackofficeUserAccount> _filter(List<BackofficeUserAccount> users) {
     final String query = _query.trim().toLowerCase();
-    return users.where((BackofficeUserAccount user) {
-      if (_roleFilter != null && user.role != _roleFilter) return false;
-      if (!_statusFilter.matches(user)) return false;
-      if (query.isEmpty) return true;
-      return user.name.toLowerCase().contains(query) ||
-          user.email.toLowerCase().contains(query) ||
-          user.phoneNumber.toLowerCase().contains(query) ||
-          user.id.toLowerCase().contains(query);
-    }).toList(growable: false);
+    return users
+        .where((BackofficeUserAccount user) {
+          if (_roleFilter != null && user.role != _roleFilter) return false;
+          if (!_statusFilter.matches(user)) return false;
+          if (_zoneFilter != null && !user.zoneIds.contains(_zoneFilter)) {
+            return false;
+          }
+          if (query.isEmpty) return true;
+          return user.name.toLowerCase().contains(query) ||
+              user.email.toLowerCase().contains(query) ||
+              user.phoneNumber.toLowerCase().contains(query) ||
+              user.id.toLowerCase().contains(query);
+        })
+        .toList(growable: false);
   }
 
-  void _showCreationRoadmap() {
-    showBackofficeModal<void>(
+  Future<void> _editUser([BackofficeUserAccount? user]) async {
+    final saved = await showDialog<bool>(
       context: context,
-      builder: (BuildContext dialogContext) {
-        return BackofficeModalShell(
-          title: 'Création de compte',
-          subtitle: 'Provisioning sécurisé des accès IzyTel.',
-          icon: Symbols.person_add_rounded,
-          maxWidth: 620,
-          body: const BackofficeModalSection(
-            title: 'Pourquoi cette action est protégée ?',
-            subtitle: 'Le navigateur ne crée jamais directement un compte privilégié.',
-            icon: Symbols.shield_rounded,
-            child: Text(
-              'Le registre affiche les comptes réels IzyTel. La création des accès, l’attribution des rôles et le provisioning Supabase restent sécurisés côté serveur afin qu’aucun compte privilégié ne soit créé directement depuis le navigateur.',
+      barrierDismissible: false,
+      builder: (_) => BackofficeUserAdminDialog(
+        administration: _administration,
+        user: user,
+      ),
+    );
+    if (saved == true && mounted) {
+      IzyTelFeedback.success(
+        context,
+        'Compte enregistré. Les accès ont été synchronisés.',
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>?> _command(
+    String action,
+    BackofficeUserAccount user, {
+    String? confirmUid,
+  }) async {
+    if (_working) return null;
+    _working = true;
+    try {
+      return await _administration.send({
+        'action': action,
+        'uid': user.id,
+        'requestId': BackofficeUserAdministrationRepository.newRequestId(),
+        'confirmUid': ?confirmUid,
+      });
+    } catch (error) {
+      if (mounted) {
+        IzyTelFeedback.error(
+          context,
+          error is UserAdminException
+              ? error.toString()
+              : 'Le résultat est incertain. Faites vérifier l’opération avant de recommencer.',
+        );
+      }
+      return null;
+    } finally {
+      _working = false;
+    }
+  }
+
+  Future<void> _resetPassword(BackofficeUserAccount user) async {
+    final result = await _command('reset_password', user);
+    if (result == null || !mounted) return;
+    final link = result['resetLink']?.toString();
+    if (link == null || link.isEmpty) {
+      IzyTelFeedback.success(
+        context,
+        'La demande a déjà été traitée. Aucun lien n’a été envoyé automatiquement.',
+      );
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Lien de réinitialisation'),
+        content: SizedBox(
+          width: 600,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Ce lien donne accès à la réinitialisation du mot de passe. Transmettez-le uniquement au titulaire après vérification. Aucun e-mail n’a été envoyé.',
+                ),
+                const SizedBox(height: 14),
+                SelectableText(link),
+              ],
             ),
           ),
-          actions: <Widget>[
-            FilledButton.icon(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              icon: const Icon(Symbols.check_rounded),
-              label: const Text('Compris'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: link));
+            },
+            child: const Text('Copier le lien'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteUser(BackofficeUserAccount user) async {
+    final confirmation = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: const Text('Suppression définitive'),
+          content: SizedBox(
+            width: 520,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'La suppression est bloquée tant que toutes les références historiques ne sont pas vérifiées. La désactivation conserve l’historique.',
+                ),
+                const SizedBox(height: 12),
+                SelectableText(
+                  'Pour confirmer la demande, saisissez cet UID : ${user.id}',
+                ),
+                TextField(
+                  controller: confirmation,
+                  onChanged: (_) => setDialog(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'UID de confirmation',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: confirmation.text == user.id
+                  ? () => Navigator.pop(dialogContext, true)
+                  : null,
+              child: const Text('Vérifier et supprimer'),
             ),
           ],
-        );
-      },
+        ),
+      ),
+    );
+    confirmation.dispose();
+    if (confirmed == true) await _command('delete', user, confirmUid: user.id);
+  }
+
+  void _showHistory(BackofficeUserAccount user) {
+    final future = _administration.send({
+      'action': 'audit',
+      'uid': user.id,
+      'requestId': BackofficeUserAdministrationRepository.newRequestId(),
+    });
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Historique de ${user.name}'),
+        content: SizedBox(
+          width: 760,
+          child: FutureBuilder<Map<String, dynamic>>(
+            future: future,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Text(
+                  'Impossible de consulter l’historique. ${snapshot.error}',
+                );
+              }
+              if (!snapshot.hasData) {
+                return const SizedBox(
+                  height: 100,
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              final events = snapshot.data!['events'];
+              if (events is! List || events.isEmpty) {
+                return const Text(
+                  'Aucune opération du nouveau registre administratif. Les opérations historiques antérieures ne sont pas reconstituées.',
+                );
+              }
+              return SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final raw in events)
+                      if (raw is Map)
+                        ExpansionTile(
+                          title: Text(
+                            '${raw['action'] ?? 'Opération'} · ${raw['status'] ?? ''}',
+                          ),
+                          subtitle: Text(
+                            '${raw['created_at'] ?? ''} · Auteur : ${raw['actor_uid'] ?? ''}',
+                          ),
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: SelectableText(
+                                const JsonEncoder.withIndent('  ').convert(raw),
+                              ),
+                            ),
+                          ],
+                        ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -85,59 +338,125 @@ class _BackofficeUsersPageState extends State<BackofficeUsersPage> {
     }
 
     return StreamBuilder<List<BackofficeUserAccount>>(
-      stream: widget.repository.watchUsers(),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<List<BackofficeUserAccount>> snapshot,
-      ) {
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            !snapshot.hasData) {
-          return const _UsersLoadingState();
-        }
+      stream: _users,
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<List<BackofficeUserAccount>> snapshot,
+          ) {
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                !snapshot.hasData) {
+              return const _UsersLoadingState();
+            }
 
-        if (snapshot.hasError && !snapshot.hasData) {
-          return _UsersErrorState(onRetry: () => setState(() {}));
-        }
+            if (snapshot.hasData) {
+              _lastUsers = snapshot.data;
+            }
+            final List<BackofficeUserAccount>? availableUsers =
+                snapshot.data ?? _lastUsers;
 
-        final List<BackofficeUserAccount> allUsers =
-            snapshot.data ?? const <BackofficeUserAccount>[];
-        final List<BackofficeUserAccount> visibleUsers = _filter(allUsers);
+            if (snapshot.hasError && availableUsers == null) {
+              return _UsersErrorState(
+                message: _registryErrorMessage(snapshot.error),
+                onRetry: _reloadUsers,
+              );
+            }
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            _UsersHeader(onCreate: _showCreationRoadmap),
-            const SizedBox(height: 22),
-            _UsersSummary(users: allUsers),
-            const SizedBox(height: 22),
-            _UsersFilters(
-              searchController: _searchController,
-              roleFilter: _roleFilter,
-              statusFilter: _statusFilter,
-              onSearchChanged: (String value) => setState(() => _query = value),
-              onRoleChanged: (BackofficeAccountRole? value) =>
-                  setState(() => _roleFilter = value),
-              onStatusChanged: (_AccountStatusFilter value) =>
-                  setState(() => _statusFilter = value),
-              onReset: () {
-                _searchController.clear();
-                setState(() {
-                  _query = '';
-                  _roleFilter = null;
-                  _statusFilter = _AccountStatusFilter.all;
-                });
-              },
-            ),
-            const SizedBox(height: 14),
-            _UsersRegistry(
-              users: visibleUsers,
-              totalCount: allUsers.length,
-              onOpen: (BackofficeUserAccount user) =>
-                  _showUserDetails(context, user),
-            ),
-          ],
-        );
-      },
+            final List<BackofficeUserAccount> allUsers =
+                availableUsers ?? const <BackofficeUserAccount>[];
+            final List<BackofficeUserAccount> visibleUsers = _filter(allUsers);
+            final page = _page.clamp(
+              0,
+              visibleUsers.isEmpty ? 0 : (visibleUsers.length - 1) ~/ 50,
+            );
+            final paged = visibleUsers
+                .skip(page * 50)
+                .take(50)
+                .toList(growable: false);
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                _UsersHeader(onCreate: () => _editUser()),
+                if (snapshot.hasError)
+                  const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Text(
+                      'Le registre est partiellement indisponible. Certaines informations métier peuvent manquer.',
+                    ),
+                  ),
+                const SizedBox(height: 22),
+                _UsersSummary(users: allUsers),
+                const SizedBox(height: 22),
+                _UsersFilters(
+                  searchController: _searchController,
+                  roleFilter: _roleFilter,
+                  statusFilter: _statusFilter,
+                  onSearchChanged: (String value) =>
+                      setState(() => _query = value),
+                  onRoleChanged: (BackofficeAccountRole? value) =>
+                      setState(() => _roleFilter = value),
+                  onStatusChanged: (_AccountStatusFilter value) =>
+                      setState(() => _statusFilter = value),
+                  onReset: () {
+                    _searchController.clear();
+                    setState(() {
+                      _query = '';
+                      _roleFilter = null;
+                      _statusFilter = _AccountStatusFilter.all;
+                      _zoneFilter = null;
+                      _page = 0;
+                    });
+                  },
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: _zoneFilter,
+                  decoration: const InputDecoration(labelText: 'Zone'),
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: null,
+                      child: Text('Toutes les zones'),
+                    ),
+                    for (final zone in _zones)
+                      DropdownMenuItem(value: zone.id, child: Text(zone.name)),
+                  ],
+                  onChanged: (value) => setState(() {
+                    _zoneFilter = value;
+                    _page = 0;
+                  }),
+                ),
+                const SizedBox(height: 14),
+                _UsersRegistry(
+                  users: paged,
+                  totalCount: allUsers.length,
+                  zoneNames: {for (final zone in _zones) zone.id: zone.name},
+                  onOpen: (BackofficeUserAccount user) =>
+                      _showUserDetails(context, user),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text('${visibleUsers.length} résultats · Page ${page + 1}'),
+                    IconButton(
+                      tooltip: 'Page précédente',
+                      onPressed: page > 0
+                          ? () => setState(() => _page = page - 1)
+                          : null,
+                      icon: const Icon(Icons.chevron_left),
+                    ),
+                    IconButton(
+                      tooltip: 'Page suivante',
+                      onPressed: (page + 1) * 50 < visibleUsers.length
+                          ? () => setState(() => _page = page + 1)
+                          : null,
+                      icon: const Icon(Icons.chevron_right),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
     );
   }
 
@@ -148,11 +467,13 @@ class _BackofficeUsersPageState extends State<BackofficeUsersPage> {
         final Color statusTone = user.isPending
             ? BackofficePalette.warning
             : user.isActive
-                ? BackofficePalette.success
-                : BackofficePalette.danger;
+            ? BackofficePalette.success
+            : BackofficePalette.danger;
         return BackofficeModalShell(
           title: user.name,
-          subtitle: user.email.trim().isEmpty ? 'Compte IzyTel' : user.email.trim(),
+          subtitle: user.email.trim().isEmpty
+              ? 'Compte IzyTel'
+              : user.email.trim(),
           leading: _LargeAvatar(user: user),
           maxWidth: 820,
           chips: <Widget>[
@@ -162,6 +483,14 @@ class _BackofficeUsersPageState extends State<BackofficeUsersPage> {
           body: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
+              if (user.hasRoleConflict)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 14),
+                  child: Text(
+                    'Deux profils métier actifs portent des rôles contradictoires. Vérifiez ce compte avant modification.',
+                    style: TextStyle(color: BackofficePalette.danger),
+                  ),
+                ),
               BackofficeModalHero(
                 leading: Container(
                   width: 54,
@@ -172,7 +501,9 @@ class _BackofficeUsersPageState extends State<BackofficeUsersPage> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(
-                    user.isActive ? Symbols.verified_user_rounded : Symbols.person_off_rounded,
+                    user.isActive
+                        ? Symbols.verified_user_rounded
+                        : Symbols.person_off_rounded,
                     color: statusTone,
                     size: 27,
                     fill: 1,
@@ -183,8 +514,8 @@ class _BackofficeUsersPageState extends State<BackofficeUsersPage> {
                 caption: user.isPending
                     ? 'Ce compte attend encore une validation ou un provisioning.'
                     : user.isActive
-                        ? 'Accès actif dans le registre IzyTel.'
-                        : 'Accès désactivé dans le registre IzyTel.',
+                    ? 'Accès actif dans le registre IzyTel.'
+                    : 'Accès désactivé dans le registre IzyTel.',
               ),
               const SizedBox(height: 14),
               BackofficeModalSection(
@@ -266,6 +597,37 @@ class _BackofficeUsersPageState extends State<BackofficeUsersPage> {
             ],
           ),
           actions: <Widget>[
+            OutlinedButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                _showHistory(user);
+              },
+              child: const Text('Historique'),
+            ),
+            if (user.id != widget.currentUser.id &&
+                !user.id.startsWith('partner:')) ...[
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  _editUser(user);
+                },
+                child: const Text('Modifier / activer / désactiver'),
+              ),
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  _resetPassword(user);
+                },
+                child: const Text('Réinitialiser le mot de passe'),
+              ),
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  _deleteUser(user);
+                },
+                child: const Text('Supprimer définitivement'),
+              ),
+            ],
             if (user.role == BackofficeAccountRole.manager &&
                 widget.onManageManager != null)
               OutlinedButton.icon(
@@ -296,7 +658,6 @@ class _BackofficeUsersPageState extends State<BackofficeUsersPage> {
       },
     );
   }
-
 }
 
 class _UsersHeader extends StatelessWidget {
@@ -327,7 +688,9 @@ class _UsersHeader extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 760),
           child: Text(
             'Registre des comptes IzyTel : Agents, Cabinistes, Managers, Administrateurs et comptes en attente.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(height: 1.5),
           ),
         ),
       ],
@@ -336,11 +699,7 @@ class _UsersHeader extends StatelessWidget {
     if (compact) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          copy,
-          const SizedBox(height: 16),
-          action,
-        ],
+        children: <Widget>[copy, const SizedBox(height: 16), action],
       );
     }
 
@@ -380,7 +739,11 @@ class _CreateUserButton extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                const Icon(Symbols.person_add_rounded, color: Colors.white, size: 20),
+                const Icon(
+                  Symbols.person_add_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Nouvel utilisateur',
@@ -540,9 +903,9 @@ class _SummaryCard extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   data.label,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
                 ),
               ],
             ),
@@ -624,33 +987,34 @@ class _UsersFilters extends StatelessWidget {
                   prefixIcon: Icon(Symbols.search_rounded),
                 ),
               );
-              final Widget role = DropdownButtonFormField<BackofficeAccountRole?>(
-                isExpanded: true,
-                initialValue: roleFilter,
-                decoration: const InputDecoration(labelText: 'Rôle'),
-                items: <DropdownMenuItem<BackofficeAccountRole?>>[
-                  const DropdownMenuItem<BackofficeAccountRole?>(
-                    value: null,
-                    child: Text('Tous les rôles'),
-                  ),
-                  ...BackofficeAccountRole.values
-                      .where(
-                        (BackofficeAccountRole value) =>
-                            value != BackofficeAccountRole.unknown,
-                      )
-                      .map(
-                        (BackofficeAccountRole value) =>
-                            DropdownMenuItem<BackofficeAccountRole?>(
-                              value: value,
-                              child: Text(
-                                value.label,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
+              final Widget role =
+                  DropdownButtonFormField<BackofficeAccountRole?>(
+                    isExpanded: true,
+                    initialValue: roleFilter,
+                    decoration: const InputDecoration(labelText: 'Rôle'),
+                    items: <DropdownMenuItem<BackofficeAccountRole?>>[
+                      const DropdownMenuItem<BackofficeAccountRole?>(
+                        value: null,
+                        child: Text('Tous les rôles'),
                       ),
-                ],
-                onChanged: onRoleChanged,
-              );
+                      ...BackofficeAccountRole.values
+                          .where(
+                            (BackofficeAccountRole value) =>
+                                value != BackofficeAccountRole.unknown,
+                          )
+                          .map(
+                            (BackofficeAccountRole value) =>
+                                DropdownMenuItem<BackofficeAccountRole?>(
+                                  value: value,
+                                  child: Text(
+                                    value.label,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                          ),
+                    ],
+                    onChanged: onRoleChanged,
+                  );
               final Widget status =
                   DropdownButtonFormField<_AccountStatusFilter>(
                     isExpanded: true,
@@ -707,11 +1071,13 @@ class _UsersRegistry extends StatelessWidget {
     required this.users,
     required this.totalCount,
     required this.onOpen,
+    this.zoneNames = const {},
   });
 
   final List<BackofficeUserAccount> users;
   final int totalCount;
   final ValueChanged<BackofficeUserAccount> onOpen;
+  final Map<String, String> zoneNames;
 
   @override
   Widget build(BuildContext context) {
@@ -732,9 +1098,8 @@ class _UsersRegistry extends StatelessWidget {
                     children: <Widget>[
                       Text(
                         'Registre des comptes',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 3),
                       Text(
@@ -745,7 +1110,10 @@ class _UsersRegistry extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 7,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFEAF1FF),
                     borderRadius: BorderRadius.circular(999),
@@ -765,7 +1133,11 @@ class _UsersRegistry extends StatelessWidget {
           if (users.isEmpty)
             _UsersEmptyState(totalCount: totalCount)
           else if (MediaQuery.sizeOf(context).width >= 930)
-            _UsersDesktopTable(users: users, onOpen: onOpen)
+            _UsersDesktopTable(
+              users: users,
+              onOpen: onOpen,
+              zoneNames: zoneNames,
+            )
           else
             Padding(
               padding: const EdgeInsets.all(14),
@@ -778,10 +1150,15 @@ class _UsersRegistry extends StatelessWidget {
 }
 
 class _UsersDesktopTable extends StatelessWidget {
-  const _UsersDesktopTable({required this.users, required this.onOpen});
+  const _UsersDesktopTable({
+    required this.users,
+    required this.onOpen,
+    required this.zoneNames,
+  });
 
   final List<BackofficeUserAccount> users;
   final ValueChanged<BackofficeUserAccount> onOpen;
+  final Map<String, String> zoneNames;
 
   @override
   Widget build(BuildContext context) {
@@ -794,6 +1171,7 @@ class _UsersDesktopTable extends StatelessWidget {
           DataColumn(label: Text('UTILISATEUR')),
           DataColumn(label: Text('RÔLE')),
           DataColumn(label: Text('STATUT')),
+          DataColumn(label: Text('ZONE(S)')),
           DataColumn(label: Text('CRÉÉ LE')),
           DataColumn(label: Text('DERNIÈRE ACTIVITÉ')),
           DataColumn(label: Text('')),
@@ -808,6 +1186,16 @@ class _UsersDesktopTable extends StatelessWidget {
                   ),
                   DataCell(_RolePill(role: user.role)),
                   DataCell(_StatusPill(user: user)),
+                  DataCell(
+                    SizedBox(
+                      width: 180,
+                      child: Text(
+                        user.zoneIds
+                            .map((id) => zoneNames[id] ?? id)
+                            .join(', '),
+                      ),
+                    ),
+                  ),
                   DataCell(Text(_formatDate(user.createdAt))),
                   DataCell(Text(_formatDate(user.lastActivityAt))),
                   DataCell(
@@ -1000,7 +1388,9 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color color = user.isPending
+    final Color color = user.hasRoleConflict
+        ? BackofficePalette.danger
+        : user.isPending
         ? BackofficePalette.warning
         : user.isActive
         ? BackofficePalette.success
@@ -1072,7 +1462,10 @@ class _UsersLoadingState extends StatelessWidget {
               child: const CircularProgressIndicator(strokeWidth: 2.4),
             ),
             const SizedBox(height: 14),
-            Text('Chargement des utilisateurs…', style: Theme.of(context).textTheme.bodyMedium),
+            Text(
+              'Chargement des utilisateurs…',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
           ],
         ),
       ),
@@ -1110,9 +1503,9 @@ class _UsersEmptyState extends StatelessWidget {
             const SizedBox(height: 14),
             Text(
               'Aucun utilisateur ne correspond aux filtres.',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
             if (totalCount == 0) ...<Widget>[
               const SizedBox(height: 5),
@@ -1129,8 +1522,9 @@ class _UsersEmptyState extends StatelessWidget {
 }
 
 class _UsersErrorState extends StatelessWidget {
-  const _UsersErrorState({required this.onRetry});
+  const _UsersErrorState({required this.message, required this.onRetry});
 
+  final String message;
   final VoidCallback onRetry;
 
   @override
@@ -1163,13 +1557,13 @@ class _UsersErrorState extends StatelessWidget {
               Text(
                 'Impossible de charger les utilisateurs.',
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 6),
               Text(
-                'Vérifie les droits Firestore du compte Administrateur puis réessaie.',
+                message,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
@@ -1220,9 +1614,9 @@ class _UsersAccessDenied extends StatelessWidget {
               Text(
                 'Accès réservé à l’Administrateur.',
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
               ),
             ],
           ),

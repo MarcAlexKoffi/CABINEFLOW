@@ -18,6 +18,7 @@ abstract class BackofficeFinanceRepository {
   Future<void> deleteSupplier(String supplierId);
 
   Future<String> recordSupplierRecharge({
+    String? operationKey,
     required String supplierId,
     required String agentId,
     required String agentName,
@@ -30,6 +31,7 @@ abstract class BackofficeFinanceRepository {
   });
 
   Future<String> recordSupplierPayment({
+    String? operationKey,
     required String supplierId,
     required int amount,
     required String channel,
@@ -87,6 +89,7 @@ abstract class BackofficeFinanceRepository {
   });
 
   Future<String> recordExpense({
+    String? operationKey,
     required String category,
     required int amount,
     required String description,

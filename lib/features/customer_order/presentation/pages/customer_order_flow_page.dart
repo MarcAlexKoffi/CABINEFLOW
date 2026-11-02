@@ -172,10 +172,12 @@ class _CustomerOrderFlowPageState extends State<CustomerOrderFlowPage> {
               _customerConversationLastMessageAt[conversation.id] =
                   conversation.lastMessageAt;
 
-              if (previous == null ||
-                  !conversation.lastMessageAt.isAfter(previous) ||
-                  conversation.lastSenderType !=
-                      CustomerMessageSenderType.manager) {
+              if ((previous != null &&
+                      !conversation.lastMessageAt.isAfter(previous)) ||
+                  (conversation.lastSenderType !=
+                          CustomerMessageSenderType.manager &&
+                      conversation.lastSenderType !=
+                          CustomerMessageSenderType.system)) {
                 continue;
               }
 

@@ -26,7 +26,8 @@ void main() {
       expect(policy, contains("'unavailable'"));
       expect(policy, contains("'PGRST000'"));
       expect(policy, isNot(contains("'permission-denied',")));
-      expect(policy, isNot(contains("'42501'")));
+      expect(policy, contains("code == '42501'"));
+      expect(policy, contains('BackendFailureKind.forbidden'));
 
       expect(orders, contains('BackendFailurePolicy.canRetryRead(error)'));
       expect(phase4, contains('SupabaseRealtimeRefetch.watch'));

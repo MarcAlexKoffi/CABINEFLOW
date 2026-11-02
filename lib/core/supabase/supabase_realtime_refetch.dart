@@ -2,14 +2,12 @@ import 'dart:async';
 
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
 import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
+import 'package:cabine_flow/core/resilience/backend_read_stream.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseRealtimeSignal {
-  const SupabaseRealtimeSignal({
-    required this.table,
-    required this.primaryKey,
-  });
+  const SupabaseRealtimeSignal({required this.table, required this.primaryKey});
 
   final String table;
   final List<String> primaryKey;
@@ -34,7 +32,22 @@ class SupabaseRealtimeRefetch {
     required String label,
     required List<SupabaseRealtimeSignal> signals,
     Duration fallbackInterval = fallbackPollInterval,
+    bool independentPolling = false,
+    Stream<Object?> Function()? refreshSignals,
   }) async* {
+    if (independentPolling) {
+      // A connected but silent websocket must not prevent canonical reads.
+      // Signal errors concern the refresh channel, never the financial payload.
+      yield* BackendReadStream.watch<T>(
+        fetch: fetch,
+        label: label,
+        refreshInterval: fallbackInterval,
+        refreshSignals:
+            refreshSignals ??
+            (signals.isEmpty ? null : () => _watchSignals(client, signals)),
+      );
+      return;
+    }
     T? lastSuccessful;
     bool hasLastSuccessful = false;
 
@@ -44,11 +57,7 @@ class SupabaseRealtimeRefetch {
       hasLastSuccessful = true;
       yield initial;
     } catch (error, stackTrace) {
-      IzyTelLog.backendError(
-        '$label.initial',
-        error,
-        stackTrace: stackTrace,
-      );
+      IzyTelLog.backendError('$label.initial', error, stackTrace: stackTrace);
       if (!BackendFailurePolicy.canRetryRead(error)) {
         Error.throwWithStackTrace(error, stackTrace);
       }
@@ -75,7 +84,8 @@ class SupabaseRealtimeRefetch {
 
       try {
         await _syncRealtimeAuth(client);
-        final StreamController<void> signalController = StreamController<void>();
+        final StreamController<void> signalController =
+            StreamController<void>();
         controller = signalController;
 
         for (int index = 0; index < signals.length; index += 1) {
@@ -83,7 +93,8 @@ class SupabaseRealtimeRefetch {
           final Stream<List<Map<String, dynamic>>> stream = client
               .from(signal.table)
               .stream(primaryKey: signal.primaryKey);
-          late final StreamSubscription<List<Map<String, dynamic>>> subscription;
+          late final StreamSubscription<List<Map<String, dynamic>>>
+          subscription;
           subscription = stream.listen(
             (_) {
               if (!primed[index]) {
@@ -192,5 +203,64 @@ class SupabaseRealtimeRefetch {
     final String? token = await FirebaseAuth.instance.currentUser?.getIdToken();
     if (token == null || token.trim().isEmpty) return;
     await client.realtime.setAuth(token);
+  }
+
+  static Stream<Object?> _watchSignals(
+    SupabaseClient client,
+    List<SupabaseRealtimeSignal> signals,
+  ) {
+    late final StreamController<Object?> controller;
+    final subscriptions = <StreamSubscription<List<Map<String, dynamic>>>>[];
+    bool cancelled = false;
+    int completed = 0;
+
+    Future<void> connect() async {
+      try {
+        await _syncRealtimeAuth(client).timeout(BackendReadStream.readTimeout);
+        if (cancelled) return;
+        for (final signal in signals) {
+          subscriptions.add(
+            client
+                .from(signal.table)
+                .stream(primaryKey: signal.primaryKey)
+                .listen(
+                  (rows) {
+                    if (!cancelled) controller.add(null);
+                  },
+                  onError: (Object error, StackTrace stackTrace) {
+                    if (!cancelled) controller.addError(error, stackTrace);
+                  },
+                  onDone: () {
+                    completed++;
+                    if (!cancelled && completed == signals.length) {
+                      unawaited(controller.close());
+                    }
+                  },
+                ),
+          );
+        }
+      } catch (error, stackTrace) {
+        if (!cancelled) controller.addError(error, stackTrace);
+      }
+    }
+
+    controller = StreamController<Object?>(
+      onListen: () => unawaited(connect()),
+      onCancel: () async {
+        cancelled = true;
+        for (final subscription in subscriptions) {
+          try {
+            await subscription.cancel();
+          } catch (error, stackTrace) {
+            IzyTelLog.backendError(
+              'SupabaseRealtimeRefetch.cancel',
+              error,
+              stackTrace: stackTrace,
+            );
+          }
+        }
+      },
+    );
+    return controller.stream;
   }
 }

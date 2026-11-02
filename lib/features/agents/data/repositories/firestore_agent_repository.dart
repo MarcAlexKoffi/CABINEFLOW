@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cabine_flow/backoffice/data/repositories/backoffice_user_administration_repository.dart';
 import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
 import 'package:cabine_flow/features/agents/data/repositories/supabase_agent_issue_repository.dart';
 import 'package:cabine_flow/features/agents/data/repositories/supabase_agent_operations_repository.dart';
@@ -592,16 +593,98 @@ class FirestoreAgentRepository implements AgentRepository {
     required AgentAdminUpdate update,
   }) async {
     if (SupabaseBootstrap.isInitialized) {
-      await SupabaseAgentOperationsRepository().updateAgentAdmin(
-        agent: agent,
-        update: update,
-      );
-      await _users.doc(agent.userId).update(<String, dynamic>{
-        'name': update.name.trim(),
-        'phoneNumber': update.phoneNumber.trim(),
-        'isActive': update.isActive,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      final account = await _users
+          .doc(agent.userId)
+          .get(const GetOptions(source: Source.server));
+      final data = account.data();
+      final managed = data?['adminManaged'] == true;
+      bool accountUpdated = false;
+      AgentAdminUpdate operationalUpdate = update;
+      if (managed) {
+        if (data?['role'] != 'agent') {
+          throw StateError(
+            'Le rôle de ce compte a changé. Actualisez Administration → Utilisateurs avant de poursuivre.',
+          );
+        }
+        final record = await SupabaseAgentOperationsRepository().fetchRecord(
+          agent.userId,
+        );
+        if (record == null) {
+          throw StateError(
+            'Le profil Agent doit être vérifié dans Administration → Utilisateurs.',
+          );
+        }
+        bool sameValues<T>(List<T> first, List<T> second) =>
+            first.toSet().length == second.toSet().length &&
+            first.toSet().containsAll(second);
+        final accessChanged =
+            record.isActive != update.isActive ||
+            !sameValues(record.profile.zoneIds, update.zoneIds) ||
+            !sameValues(
+              record.profile.authorizedNetworks,
+              update.authorizedNetworks,
+            );
+        final identityChanged =
+            data?['name'] != update.name.trim() ||
+            data?['phoneNumber'] != update.phoneNumber.trim();
+        // Preserve the stored ordering for unchanged authorization arrays, so
+        // capacity-only edits never become a hidden permission mutation.
+        final zones = accessChanged ? update.zoneIds : record.profile.zoneIds;
+        final networks = accessChanged
+            ? update.authorizedNetworks
+            : record.profile.authorizedNetworks;
+        if (accessChanged || identityChanged) {
+          await BackofficeUserAdministrationRepository().send({
+            'action': 'update',
+            'requestId': BackofficeUserAdministrationRepository.newRequestId(),
+            'uid': agent.userId,
+            'name': update.name.trim(),
+            'email': data?['email'] ?? agent.email,
+            'phoneNumber': update.phoneNumber.trim(),
+            'role': 'agent',
+            'isActive': update.isActive,
+            'zoneIds': zones,
+            'authorizedNetworks': networks
+                .map((network) => network.name)
+                .toList(),
+            'reason': 'Modification depuis la fiche Agent Administrateur',
+          });
+          accountUpdated = true;
+        }
+        operationalUpdate = AgentAdminUpdate(
+          name: update.name,
+          phoneNumber: update.phoneNumber,
+          isActive: update.isActive,
+          zoneIds: zones,
+          authorizedNetworks: networks,
+          orangeCapacity: update.orangeCapacity,
+          mtnCapacity: update.mtnCapacity,
+          moovCapacity: update.moovCapacity,
+          dailyTransactionLimit: update.dailyTransactionLimit,
+          maxTransactionsPerDay: update.maxTransactionsPerDay,
+        );
+      }
+      try {
+        await SupabaseAgentOperationsRepository().updateAgentAdmin(
+          agent: agent,
+          update: operationalUpdate,
+        );
+      } catch (_) {
+        if (accountUpdated) {
+          throw StateError(
+            'Les informations du compte sont enregistrées, mais les capacités ne sont pas confirmées. Actualisez la fiche avant de réessayer.',
+          );
+        }
+        rethrow;
+      }
+      if (!managed) {
+        await _users.doc(agent.userId).update(<String, dynamic>{
+          'name': update.name.trim(),
+          'phoneNumber': update.phoneNumber.trim(),
+          'isActive': update.isActive,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
       return;
     }
 
