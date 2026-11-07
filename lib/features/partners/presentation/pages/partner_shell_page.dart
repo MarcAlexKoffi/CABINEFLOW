@@ -22,7 +22,6 @@ import 'package:flutter/foundation.dart';
 import 'package:cabine_flow/features/navigation/presentation/widgets/izytel_mobile_back_scope.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 class PartnerShellPage extends StatefulWidget {
@@ -51,11 +50,10 @@ class _PartnerShellPageState extends State<PartnerShellPage>
   StreamSubscription<IzyTelNotificationPayload>? _notificationForeground;
   final List<GlobalKey<NavigatorState>> _navigatorKeys =
       List<GlobalKey<NavigatorState>>.generate(
-    4,
-    (int index) => GlobalKey<NavigatorState>(
-      debugLabel: 'cabiniste-tab-$index',
-    ),
-  );
+        4,
+        (int index) =>
+            GlobalKey<NavigatorState>(debugLabel: 'cabiniste-tab-$index'),
+      );
   final ValueNotifier<int> _refreshOrders = ValueNotifier<int>(0);
   final ValueNotifier<int> _refreshProfile = ValueNotifier<int>(0);
 
@@ -66,14 +64,14 @@ class _PartnerShellPageState extends State<PartnerShellPage>
     unawaited(_startNotifications());
     _notificationForeground = FirebaseMessagingBootstrap.foregroundPayloads
         .listen((IzyTelNotificationPayload payload) {
-      if (!mounted) return;
-      IzyTelFeedback.show(context, payload.displayMessage);
-      if (payload.targetsOrder ||
-          payload.type == 'order_assigned' ||
-          payload.type == 'order_reassigned') {
-        _refreshOrders.value++;
-      }
-    });
+          if (!mounted) return;
+          IzyTelFeedback.show(context, payload.displayMessage);
+          if (payload.targetsOrder ||
+              payload.type == 'order_assigned' ||
+              payload.type == 'order_reassigned') {
+            _refreshOrders.value++;
+          }
+        });
     _notificationOpened = FirebaseMessagingBootstrap.openedPayloads.listen(
       _handleNotificationOpen,
     );
@@ -192,10 +190,8 @@ class _PartnerShellPageState extends State<PartnerShellPage>
   Widget _tabNavigator(int index, Widget page) {
     return Navigator(
       key: _navigatorKeys[index],
-      onGenerateRoute: (RouteSettings settings) => MaterialPageRoute<void>(
-        settings: settings,
-        builder: (_) => page,
-      ),
+      onGenerateRoute: (RouteSettings settings) =>
+          MaterialPageRoute<void>(settings: settings, builder: (_) => page),
     );
   }
 
@@ -253,7 +249,8 @@ class _PartnerShellPageState extends State<PartnerShellPage>
     if (_handlingBack) return;
     _handlingBack = true;
     try {
-      final NavigatorState? current = _navigatorKeys[_selectedIndex].currentState;
+      final NavigatorState? current =
+          _navigatorKeys[_selectedIndex].currentState;
 
       if (current != null && current.canPop()) {
         _lastBackPressAt = null;
@@ -402,11 +399,12 @@ class _PartnerHomePageState extends State<_PartnerHomePage> {
   }
 
   Future<_PartnerHomeData> _load() async {
-    final PartnerAccountSnapshot? account = await widget.repository.fetchOwnAccount();
-    final List<PartnerOrderSnapshot> orders =
-        await widget.repository.fetchAssignedOrders();
-    final PartnerFinanceSnapshot finance =
-        await widget.repository.fetchFinanceSnapshot();
+    final PartnerAccountSnapshot? account = await widget.repository
+        .fetchOwnAccount();
+    final List<PartnerOrderSnapshot> orders = await widget.repository
+        .fetchAssignedOrders();
+    final PartnerFinanceSnapshot finance = await widget.repository
+        .fetchFinanceSnapshot();
     StaffProfile? profile;
     String? avatarUrl;
     try {
@@ -445,7 +443,8 @@ class _PartnerHomePageState extends State<_PartnerHomePage> {
         child: FutureBuilder<_PartnerHomeData>(
           future: _future,
           builder: (BuildContext context, AsyncSnapshot<_PartnerHomeData> snap) {
-            if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+            if (snap.connectionState == ConnectionState.waiting &&
+                !snap.hasData) {
               return const Center(child: CircularProgressIndicator());
             }
             if (snap.hasError || !snap.hasData || snap.data!.account == null) {
@@ -454,7 +453,8 @@ class _PartnerHomePageState extends State<_PartnerHomePage> {
 
             final _PartnerHomeData data = snap.data!;
             final PartnerAccountSnapshot account = data.account!;
-            final String displayName = data.profile?.displayName.trim().isNotEmpty == true
+            final String displayName =
+                data.profile?.displayName.trim().isNotEmpty == true
                 ? data.profile!.displayName
                 : account.displayName;
             final String firstName = displayName.trim().isEmpty
@@ -463,7 +463,9 @@ class _PartnerHomePageState extends State<_PartnerHomePage> {
             final int toAccept = data.orders
                 .where((PartnerOrderSnapshot order) => order.isAwaitingDecision)
                 .length;
-            final int inProgress = data.orders.where((PartnerOrderSnapshot order) {
+            final int inProgress = data.orders.where((
+              PartnerOrderSnapshot order,
+            ) {
               return order.isAccepted &&
                   (order.orderStatus == 'paidReady' ||
                       order.orderStatus == 'inProgress' ||
@@ -524,7 +526,8 @@ class _PartnerHomePageState extends State<_PartnerHomePage> {
                         IzyTelMenuRow(
                           icon: Symbols.history_rounded,
                           title: 'Mon historique',
-                          subtitle: 'Commandes traitées, refusées et terminées.',
+                          subtitle:
+                              'Commandes traitées, refusées et terminées.',
                           iconColor: IzyTelColors.primary,
                           onTap: widget.onOpenHistory,
                         ),
@@ -634,8 +637,8 @@ class _PartnerOrdersPageState extends State<_PartnerOrdersPage> {
 
   Future<void> _loadAccount() async {
     try {
-      final PartnerAccountSnapshot? account =
-          await widget.repository.fetchOwnAccount();
+      final PartnerAccountSnapshot? account = await widget.repository
+          .fetchOwnAccount();
       StaffProfile? profile;
       String? avatar;
       try {
@@ -679,7 +682,8 @@ class _PartnerOrdersPageState extends State<_PartnerOrdersPage> {
     showIzyTelAccountSheet(
       context: context,
       name: displayName,
-      role: 'Cabiniste • ${_account?.isAvailable == true ? 'Disponible' : 'Indisponible'}',
+      role:
+          'Cabiniste • ${_account?.isAvailable == true ? 'Disponible' : 'Indisponible'}',
       actions: <IzyTelAccountAction>[
         IzyTelAccountAction(
           icon: Symbols.person_rounded,
@@ -699,8 +703,9 @@ class _PartnerOrdersPageState extends State<_PartnerOrdersPage> {
 
   Future<void> _acceptOrder(PartnerOrderSnapshot order) async {
     try {
-      final PartnerOrderSnapshot accepted =
-          await widget.repository.accept(order.orderId);
+      final PartnerOrderSnapshot accepted = await widget.repository.accept(
+        order.orderId,
+      );
       PartnerOrderSnapshot treatmentOrder = accepted;
       bool started = false;
       try {
@@ -764,35 +769,51 @@ class _PartnerOrdersPageState extends State<_PartnerOrdersPage> {
   }
 
   Future<void> _openQueueModeMenu(Map<_PartnerOrdersTab, int> counts) async {
-    final _PartnerOrdersTab? selected = await showModalBottomSheet<_PartnerOrdersTab>(
-      context: context,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext sheetContext) => Padding(
-        padding: const EdgeInsets.all(12),
-        child: Material(
-          color: IzyTelColors.surface,
-          clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(22),
-            side: const BorderSide(color: IzyTelColors.outline),
+    final _PartnerOrdersTab? selected =
+        await showModalBottomSheet<_PartnerOrdersTab>(
+          context: context,
+          useSafeArea: true,
+          backgroundColor: Colors.transparent,
+          builder: (BuildContext sheetContext) => Padding(
+            padding: const EdgeInsets.all(12),
+            child: Material(
+              color: IzyTelColors.surface,
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
+                side: const BorderSide(color: IzyTelColors.outline),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const SizedBox(height: 8),
+                  _queueChoice(
+                    sheetContext,
+                    _PartnerOrdersTab.toAccept,
+                    Symbols.inbox_rounded,
+                    'À accepter',
+                    counts[_PartnerOrdersTab.toAccept] ?? 0,
+                  ),
+                  _queueChoice(
+                    sheetContext,
+                    _PartnerOrdersTab.inProgress,
+                    Symbols.autorenew_rounded,
+                    'En cours',
+                    counts[_PartnerOrdersTab.inProgress] ?? 0,
+                  ),
+                  _queueChoice(
+                    sheetContext,
+                    _PartnerOrdersTab.completed,
+                    Symbols.check_circle_rounded,
+                    'Terminées',
+                    counts[_PartnerOrdersTab.completed] ?? 0,
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const SizedBox(height: 8),
-              _queueChoice(sheetContext, _PartnerOrdersTab.toAccept,
-                  Symbols.inbox_rounded, 'À accepter', counts[_PartnerOrdersTab.toAccept] ?? 0),
-              _queueChoice(sheetContext, _PartnerOrdersTab.inProgress,
-                  Symbols.autorenew_rounded, 'En cours', counts[_PartnerOrdersTab.inProgress] ?? 0),
-              _queueChoice(sheetContext, _PartnerOrdersTab.completed,
-                  Symbols.check_circle_rounded, 'Terminées', counts[_PartnerOrdersTab.completed] ?? 0),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-    );
+        );
     if (selected != null && mounted) {
       final _PartnerOrdersTab resolved = _resolveUsefulTab(counts, selected);
       setState(() => _selectedTab = resolved);
@@ -846,44 +867,61 @@ class _PartnerOrdersPageState extends State<_PartnerOrdersPage> {
     List<PartnerOrderSnapshot> orders,
     _PartnerOrdersTab tab,
   ) {
-    return orders.where((PartnerOrderSnapshot order) {
-      switch (tab) {
-        case _PartnerOrdersTab.toAccept:
-          return order.isAwaitingDecision;
-        case _PartnerOrdersTab.inProgress:
-          return order.isAccepted &&
-              (order.orderStatus == 'paidReady' ||
-                  order.isInProgress ||
-                  order.isOnHold);
-        case _PartnerOrdersTab.completed:
-          return order.isCompleted;
-      }
-    }).toList(growable: false)
-      ..sort((PartnerOrderSnapshot a, PartnerOrderSnapshot b) =>
-          b.updatedAt.compareTo(a.updatedAt));
+    return orders
+        .where((PartnerOrderSnapshot order) {
+          switch (tab) {
+            case _PartnerOrdersTab.toAccept:
+              return order.isAwaitingDecision;
+            case _PartnerOrdersTab.inProgress:
+              return order.isAccepted &&
+                  (order.orderStatus == 'paidReady' ||
+                      order.isInProgress ||
+                      order.isOnHold);
+            case _PartnerOrdersTab.completed:
+              return order.isCompleted;
+          }
+        })
+        .toList(growable: false)
+      ..sort(
+        (PartnerOrderSnapshot a, PartnerOrderSnapshot b) =>
+            b.updatedAt.compareTo(a.updatedAt),
+      );
   }
 
   @override
   Widget build(BuildContext context) {
     Widget contentFor(List<PartnerOrderSnapshot> allOrders) {
       final Map<_PartnerOrdersTab, int> counts = <_PartnerOrdersTab, int>{
-        _PartnerOrdersTab.toAccept:
-            allOrders.where((PartnerOrderSnapshot o) => o.isAwaitingDecision).length,
-        _PartnerOrdersTab.inProgress: allOrders.where((PartnerOrderSnapshot o) =>
-            o.isAccepted && (o.orderStatus == 'paidReady' || o.isInProgress || o.isOnHold)).length,
-        _PartnerOrdersTab.completed:
-            allOrders.where((PartnerOrderSnapshot o) => o.isCompleted).length,
+        _PartnerOrdersTab.toAccept: allOrders
+            .where((PartnerOrderSnapshot o) => o.isAwaitingDecision)
+            .length,
+        _PartnerOrdersTab.inProgress: allOrders
+            .where(
+              (PartnerOrderSnapshot o) =>
+                  o.isAccepted &&
+                  (o.orderStatus == 'paidReady' ||
+                      o.isInProgress ||
+                      o.isOnHold),
+            )
+            .length,
+        _PartnerOrdersTab.completed: allOrders
+            .where((PartnerOrderSnapshot o) => o.isCompleted)
+            .length,
       };
-      final _PartnerOrdersTab effectiveTab =
-          _resolveUsefulTab(counts, _selectedTab);
+      final _PartnerOrdersTab effectiveTab = _resolveUsefulTab(
+        counts,
+        _selectedTab,
+      );
       if (effectiveTab != _selectedTab) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted || _selectedTab == effectiveTab) return;
           setState(() => _selectedTab = effectiveTab);
         });
       }
-      final List<PartnerOrderSnapshot> visible =
-          _filterOrders(allOrders, effectiveTab);
+      final List<PartnerOrderSnapshot> visible = _filterOrders(
+        allOrders,
+        effectiveTab,
+      );
       final String displayName = _profile?.displayName.trim().isNotEmpty == true
           ? _profile!.displayName
           : (_account?.displayName ?? widget.user.name);
@@ -922,7 +960,10 @@ class _PartnerOrdersPageState extends State<_PartnerOrdersPage> {
                   tooltip: 'Afficher une autre file',
                   onPressed: () => _openQueueModeMenu(counts),
                   visualDensity: VisualDensity.compact,
-                  icon: const Icon(Symbols.tune_rounded, size: IzyTelIconSize.action),
+                  icon: const Icon(
+                    Symbols.tune_rounded,
+                    size: IzyTelIconSize.action,
+                  ),
                 ),
               ],
             ),
@@ -971,32 +1012,52 @@ class _PartnerOrdersPageState extends State<_PartnerOrdersPage> {
         child: _account == null
             ? FutureBuilder<List<PartnerOrderSnapshot>>(
                 future: _initialOrders,
-                builder: (BuildContext context,
-                    AsyncSnapshot<List<PartnerOrderSnapshot>> snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (snapshot.hasError) return _PartnerErrorState(onRetry: _loadAccount);
-                  return contentFor(snapshot.data ?? const <PartnerOrderSnapshot>[]);
-                },
+                builder:
+                    (
+                      BuildContext context,
+                      AsyncSnapshot<List<PartnerOrderSnapshot>> snapshot,
+                    ) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (snapshot.hasError) {
+                        return _PartnerErrorState(onRetry: _loadAccount);
+                      }
+                      return contentFor(
+                        snapshot.data ?? const <PartnerOrderSnapshot>[],
+                      );
+                    },
               )
             : StreamBuilder<List<PartnerOrderSnapshot>>(
-                stream: widget.repository.watchAssignedOrders(partnerId: _account!.id),
-                builder: (BuildContext context,
-                    AsyncSnapshot<List<PartnerOrderSnapshot>> snapshot) {
-                  if (snapshot.hasData) return contentFor(snapshot.data!);
-                  return FutureBuilder<List<PartnerOrderSnapshot>>(
-                    future: _initialOrders,
-                    builder: (BuildContext context,
-                        AsyncSnapshot<List<PartnerOrderSnapshot>> fallback) {
-                      if (fallback.hasData) return contentFor(fallback.data!);
-                      if (snapshot.hasError || fallback.hasError) {
-                        return _PartnerErrorState(onRetry: _reload);
-                      }
-                      return const Center(child: CircularProgressIndicator());
+                stream: widget.repository.watchAssignedOrders(
+                  partnerId: _account!.id,
+                ),
+                builder:
+                    (
+                      BuildContext context,
+                      AsyncSnapshot<List<PartnerOrderSnapshot>> snapshot,
+                    ) {
+                      if (snapshot.hasData) return contentFor(snapshot.data!);
+                      return FutureBuilder<List<PartnerOrderSnapshot>>(
+                        future: _initialOrders,
+                        builder:
+                            (
+                              BuildContext context,
+                              AsyncSnapshot<List<PartnerOrderSnapshot>>
+                              fallback,
+                            ) {
+                              if (fallback.hasData) {
+                                return contentFor(fallback.data!);
+                              }
+                              if (snapshot.hasError || fallback.hasError) {
+                                return _PartnerErrorState(onRetry: _reload);
+                              }
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            },
+                      );
                     },
-                  );
-                },
               ),
       ),
     );
@@ -1049,63 +1110,73 @@ class _PartnerHistoryPageState extends State<_PartnerHistoryPage> {
           onRefresh: () async => _reload(),
           child: FutureBuilder<List<PartnerAssignmentHistoryItem>>(
             future: _future,
-            builder: (BuildContext context,
-                AsyncSnapshot<List<PartnerAssignmentHistoryItem>> snapshot) {
-              final List<PartnerAssignmentHistoryItem> items =
-                  snapshot.data ?? const <PartnerAssignmentHistoryItem>[];
-              return ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(
-                  IzyTelSpacing.lg,
-                  IzyTelSpacing.md,
-                  IzyTelSpacing.lg,
-                  IzyTelSpacing.xxl,
-                ),
-                children: <Widget>[
-                  IzyTelPageHeader(
-                    title: 'Historique',
-                    subtitle: 'Retrouve tes commandes et décisions passées.',
-                    actions: <Widget>[
-                      IconButton(
-                        tooltip: 'Actualiser',
-                        onPressed: _reload,
-                        icon: const Icon(Symbols.refresh_rounded),
+            builder:
+                (
+                  BuildContext context,
+                  AsyncSnapshot<List<PartnerAssignmentHistoryItem>> snapshot,
+                ) {
+                  final List<PartnerAssignmentHistoryItem> items =
+                      snapshot.data ?? const <PartnerAssignmentHistoryItem>[];
+                  return ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(
+                      IzyTelSpacing.lg,
+                      IzyTelSpacing.md,
+                      IzyTelSpacing.lg,
+                      IzyTelSpacing.xxl,
+                    ),
+                    children: <Widget>[
+                      IzyTelPageHeader(
+                        title: 'Historique',
+                        subtitle:
+                            'Retrouve tes commandes et décisions passées.',
+                        actions: <Widget>[
+                          IconButton(
+                            tooltip: 'Actualiser',
+                            onPressed: _reload,
+                            icon: const Icon(Symbols.refresh_rounded),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: IzyTelSpacing.xl),
-                  if (snapshot.connectionState == ConnectionState.waiting && items.isEmpty)
-                    const SizedBox(
-                      height: 280,
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  else if (snapshot.hasError && items.isEmpty)
-                    _PartnerErrorState(onRetry: _reload)
-                  else if (items.isEmpty)
-                    const IzyTelSurface(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 24),
-                        child: Text(
-                          'Aucun historique Cabiniste pour le moment.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: IzyTelColors.textSecondary),
+                      const SizedBox(height: IzyTelSpacing.xl),
+                      if (snapshot.connectionState == ConnectionState.waiting &&
+                          items.isEmpty)
+                        const SizedBox(
+                          height: 280,
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      else if (snapshot.hasError && items.isEmpty)
+                        _PartnerErrorState(onRetry: _reload)
+                      else if (items.isEmpty)
+                        const IzyTelSurface(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 24),
+                            child: Text(
+                              'Aucun historique Cabiniste pour le moment.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: IzyTelColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        ...items.map(
+                          (PartnerAssignmentHistoryItem item) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _PartnerHistoryCard(item: item),
+                          ),
                         ),
-                      ),
-                    )
-                  else
-                    ...items.map((PartnerAssignmentHistoryItem item) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _PartnerHistoryCard(item: item),
-                    )),
-                ],
-              );
-            },
+                    ],
+                  );
+                },
           ),
         ),
       ),
     );
   }
 }
+
 class PartnerOrderDetailPage extends StatefulWidget {
   const PartnerOrderDetailPage({
     super.key,
@@ -1121,43 +1192,13 @@ class PartnerOrderDetailPage extends StatefulWidget {
 }
 
 class _PartnerOrderDetailPageState extends State<PartnerOrderDetailPage> {
-  final ImagePicker _picker = ImagePicker();
   late PartnerOrderSnapshot _order;
-  Uint8List? _proofBytes;
-  bool _proofReady = false;
-  bool _isLoadingProof = true;
   bool _busy = false;
 
   @override
   void initState() {
     super.initState();
     _order = widget.initialOrder;
-    unawaited(_loadProofState());
-  }
-
-  Future<void> _loadProofState() async {
-    try {
-      final Uint8List? bytes = await widget.repository.loadProofBytes(
-        _order.orderId,
-      );
-      if (!mounted) return;
-      setState(() {
-        _proofBytes = bytes;
-        _proofReady = bytes != null && bytes.isNotEmpty;
-        _isLoadingProof = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _isLoadingProof = false);
-    }
-  }
-
-  void _showMessage(String message, {bool error = false}) {
-    if (error) {
-      IzyTelFeedback.error(context, message);
-    } else {
-      IzyTelFeedback.show(context, message);
-    }
   }
 
   Future<void> _run(
@@ -1262,12 +1303,12 @@ class _PartnerOrderDetailPageState extends State<PartnerOrderDetailPage> {
   Future<void> _markFailed() async {
     final _PartnerFailureResult? result =
         await showModalBottomSheet<_PartnerFailureResult>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const _PartnerFailureSheet(),
-    );
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => const _PartnerFailureSheet(),
+        );
     if (result == null || !mounted) return;
     await _run(
       () => widget.repository.fail(
@@ -1279,65 +1320,7 @@ class _PartnerOrderDetailPageState extends State<PartnerOrderDetailPage> {
     );
   }
 
-  Future<void> _chooseProofSource() async {
-    if (_busy || (!_order.isInProgress && !_order.isOnHold)) return;
-    final ImageSource? source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const _PartnerProofSourceSheet(),
-    );
-    if (source == null || !mounted) return;
-    await _captureProof(source);
-  }
-
-  Future<void> _captureProof(ImageSource source) async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    try {
-      final XFile? image = await _picker.pickImage(
-        source: source,
-        preferredCameraDevice: CameraDevice.rear,
-        imageQuality: 82,
-        maxWidth: 1800,
-        maxHeight: 1800,
-        requestFullMetadata: false,
-      );
-      if (image == null) return;
-      final Uint8List bytes = await image.readAsBytes();
-      await widget.repository.saveProof(
-        orderId: _order.orderId,
-        fileName: '${_order.orderReference}_preuve.jpg',
-        bytes: bytes,
-      );
-      if (!mounted) return;
-      setState(() {
-        _proofReady = true;
-        _proofBytes = bytes;
-        _isLoadingProof = false;
-      });
-      IzyTelFeedback.success(
-        context,
-        source == ImageSource.camera
-            ? 'Photo prise et preuve enregistrée.'
-            : 'Preuve enregistrée.',
-      );
-    } catch (error) {
-      if (!mounted) return;
-      IzyTelFeedback.error(context, _friendlyError(error));
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   Future<void> _confirmSuccess() async {
-    if (!_proofReady) {
-      _showMessage(
-        'Ajoute d’abord une preuve du transfert.',
-        error: false,
-      );
-      return;
-    }
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) => AlertDialog(
@@ -1368,10 +1351,10 @@ class _PartnerOrderDetailPageState extends State<PartnerOrderDetailPage> {
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      final PartnerFinalizationResult result =
-          await widget.repository.finalizeSuccess(_order.orderId);
-      final List<PartnerOrderSnapshot> orders =
-          await widget.repository.fetchAssignedOrders();
+      final PartnerFinalizationResult result = await widget.repository
+          .finalizeSuccess(_order.orderId);
+      final List<PartnerOrderSnapshot> orders = await widget.repository
+          .fetchAssignedOrders();
       PartnerOrderSnapshot? refreshed;
       for (final PartnerOrderSnapshot item in orders) {
         if (item.orderId == _order.orderId) {
@@ -1437,9 +1420,9 @@ class _PartnerOrderDetailPageState extends State<PartnerOrderDetailPage> {
             const SizedBox(height: 18),
             Text(
               title,
-              style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+              style: Theme.of(
+                sheetContext,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 16),
             child,
@@ -1505,8 +1488,8 @@ class _PartnerOrderDetailPageState extends State<PartnerOrderDetailPage> {
   Widget build(BuildContext context) {
     final PartnerOrderSnapshot order = _order;
     final Widget? bottomActions = _buildBottomActions(order);
-    final double referenceScale =
-        (MediaQuery.sizeOf(context).width / 290).clamp(.95, 1.35);
+    final double referenceScale = (MediaQuery.sizeOf(context).width / 290)
+        .clamp(.95, 1.35);
 
     return Scaffold(
       backgroundColor: IzyTelColors.background,
@@ -1540,10 +1523,17 @@ class _PartnerOrderDetailPageState extends State<PartnerOrderDetailPage> {
                   UssdQuickProcessingCard(
                     initiallyExpanded: false,
                     key: ValueKey('ussd-${order.orderId}'),
-                    orderId: order.orderId, network: order.network,
-                    offerLabel: order.offerLabel, beneficiary: order.beneficiaryPhone,
+                    orderId: order.orderId,
+                    network: order.network,
+                    offerLabel: order.offerLabel,
+                    beneficiary: order.beneficiaryPhone,
                     amount: order.amount,
-                    processable: order.isAccepted && order.isInProgress && order.isFundedForProcessing,
+                    canCopyNumber:
+                        order.isAccepted && order.isFundedForProcessing,
+                    processable:
+                        order.isAccepted &&
+                        order.isInProgress &&
+                        order.isFundedForProcessing,
                   ),
                   SizedBox(height: 18 * referenceScale),
                   _PartnerDetailMenuCard(
@@ -1624,32 +1614,6 @@ class _PartnerOrderDetailPageState extends State<PartnerOrderDetailPage> {
                             ],
                           ),
                         ),
-                      ),
-                      _PartnerDetailMenuRowData(
-                        icon: Symbols.image_rounded,
-                        label: 'Preuve',
-                        trailing: _PartnerProofThumbnail(
-                          bytes: _proofBytes,
-                          isLoading: _isLoadingProof,
-                        ),
-                        onTap: (order.isInProgress || order.isOnHold)
-                            ? _chooseProofSource
-                            : () {
-                                if (_proofBytes == null) {
-                                  _showMessage('Aucune preuve enregistrée.');
-                                  return;
-                                }
-                                _showInfoSheet(
-                                  title: 'Preuve de transfert',
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(14),
-                                    child: Image.memory(
-                                      _proofBytes!,
-                                      fit: BoxFit.contain,
-                                    ),
-                                  ),
-                                );
-                              },
                       ),
                       if (order.isFailed)
                         _PartnerDetailMenuRowData(
@@ -1784,9 +1748,9 @@ class _PartnerReferenceDetailTopBar extends StatelessWidget {
             child: Text(
               'Détail commande',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontSize: IzyTelTypeScale.cardTitle,
-                    fontWeight: FontWeight.w600,
-                  ),
+                fontSize: IzyTelTypeScale.cardTitle,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           if (actions.isNotEmpty)
@@ -1817,8 +1781,10 @@ class _PartnerReferenceOrderSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color accent = _networkColor(order.network);
     final Color statusColor = _statusColor(order);
-    final double scale =
-        (MediaQuery.sizeOf(context).width / 290).clamp(.95, 1.35);
+    final double scale = (MediaQuery.sizeOf(context).width / 290).clamp(
+      .95,
+      1.35,
+    );
     return SizedBox(
       height: 132 * scale,
       child: Container(
@@ -1857,10 +1823,10 @@ class _PartnerReferenceOrderSummary extends StatelessWidget {
                   child: Text(
                     _networkLabel(order.network),
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: IzyTelColors.textPrimary,
-                          fontSize: IzyTelTypeScale.label,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      color: IzyTelColors.textPrimary,
+                      fontSize: IzyTelTypeScale.label,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 _PartnerTinyStateBadge(
@@ -1876,10 +1842,10 @@ class _PartnerReferenceOrderSummary extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontSize: IzyTelTypeScale.title3,
-                    height: 1.22,
-                    fontWeight: FontWeight.w700,
-                  ),
+                fontSize: IzyTelTypeScale.title3,
+                height: 1.22,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             Row(
               children: <Widget>[
@@ -1889,21 +1855,21 @@ class _PartnerReferenceOrderSummary extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: IzyTelColors.textPrimary,
-                          fontSize: IzyTelTypeScale.title3,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: .15,
-                        ),
+                      color: IzyTelColors.textPrimary,
+                      fontSize: IzyTelTypeScale.title3,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: .15,
+                    ),
                   ),
                 ),
                 SizedBox(width: 8 * scale),
                 Text(
                   _formatMoney(order.amount),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: IzyTelColors.primaryStrong,
-                        fontSize: IzyTelTypeScale.title2,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    color: IzyTelColors.primaryStrong,
+                    fontSize: IzyTelTypeScale.title2,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
@@ -1914,10 +1880,10 @@ class _PartnerReferenceOrderSummary extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: IzyTelColors.textMuted,
-                      fontSize: IzyTelTypeScale.micro,
-                      fontWeight: FontWeight.w400,
-                    ),
+                  color: IzyTelColors.textMuted,
+                  fontSize: IzyTelTypeScale.micro,
+                  fontWeight: FontWeight.w400,
+                ),
               ),
             ),
           ],
@@ -1985,8 +1951,10 @@ class _PartnerReferenceProgress extends StatelessWidget {
       'En traitement',
       'Terminée',
     ];
-    final double scale =
-        (MediaQuery.sizeOf(context).width / 290).clamp(.95, 1.35);
+    final double scale = (MediaQuery.sizeOf(context).width / 290).clamp(
+      .95,
+      1.35,
+    );
     return SizedBox(
       height: 54 * scale,
       child: Padding(
@@ -2078,8 +2046,8 @@ class _PartnerReferenceProgressStep extends StatelessWidget {
                   state == _PartnerReferenceStepState.done
                       ? Symbols.check_rounded
                       : state == _PartnerReferenceStepState.active
-                          ? Symbols.hourglass_top_rounded
-                          : Symbols.person_rounded,
+                      ? Symbols.hourglass_top_rounded
+                      : Symbols.person_rounded,
                   size: IzyTelIconSize.info,
                   color: state == _PartnerReferenceStepState.pending
                       ? IzyTelColors.textMuted
@@ -2097,14 +2065,14 @@ class _PartnerReferenceProgressStep extends StatelessWidget {
             maxLines: 1,
             softWrap: false,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: state == _PartnerReferenceStepState.pending
-                      ? IzyTelColors.textSecondary
-                      : IzyTelColors.textPrimary,
-                  fontSize: IzyTelTypeScale.micro,
-                  fontWeight: state == _PartnerReferenceStepState.active
-                      ? FontWeight.w600
-                      : FontWeight.w500,
-                ),
+              color: state == _PartnerReferenceStepState.pending
+                  ? IzyTelColors.textSecondary
+                  : IzyTelColors.textPrimary,
+              fontSize: IzyTelTypeScale.micro,
+              fontWeight: state == _PartnerReferenceStepState.active
+                  ? FontWeight.w600
+                  : FontWeight.w500,
+            ),
           ),
         ),
         const SizedBox(height: 2),
@@ -2115,10 +2083,10 @@ class _PartnerReferenceProgressStep extends StatelessWidget {
             maxLines: 1,
             softWrap: false,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: IzyTelColors.textMuted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w400,
-                ),
+              color: IzyTelColors.textMuted,
+              fontSize: 11,
+              fontWeight: FontWeight.w400,
+            ),
           ),
         ),
       ],
@@ -2145,8 +2113,10 @@ class _PartnerDetailMenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double scale =
-        (MediaQuery.sizeOf(context).width / 290).clamp(.95, 1.35);
+    final double scale = (MediaQuery.sizeOf(context).width / 290).clamp(
+      .95,
+      1.35,
+    );
     final double rowHeight = 41 * scale;
     return Container(
       decoration: BoxDecoration(
@@ -2177,9 +2147,7 @@ class _PartnerDetailMenuCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             row.label,
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelMedium
+                            style: Theme.of(context).textTheme.labelMedium
                                 ?.copyWith(
                                   color: IzyTelColors.textPrimary,
                                   fontSize: IzyTelTypeScale.text,
@@ -2227,10 +2195,10 @@ class _PartnerTinyStateBadge extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: color,
-              fontSize: IzyTelTypeScale.micro,
-              fontWeight: FontWeight.w600,
-            ),
+          color: color,
+          fontSize: IzyTelTypeScale.micro,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -2253,35 +2221,11 @@ class _PartnerCountBadge extends StatelessWidget {
       child: Text(
         '$value',
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: IzyTelColors.primary,
-              fontSize: IzyTelTypeScale.micro,
-              fontWeight: FontWeight.w600,
-            ),
-      ),
-    );
-  }
-}
-
-class _PartnerProofThumbnail extends StatelessWidget {
-  const _PartnerProofThumbnail({required this.bytes, required this.isLoading});
-  final Uint8List? bytes;
-  final bool isLoading;
-
-  @override
-  Widget build(BuildContext context) {
-    if (isLoading) {
-      return const SizedBox.square(
-        dimension: 28,
-        child: Padding(
-          padding: EdgeInsets.all(7),
-          child: CircularProgressIndicator(strokeWidth: 1.5),
+          color: IzyTelColors.primary,
+          fontSize: IzyTelTypeScale.micro,
+          fontWeight: FontWeight.w600,
         ),
-      );
-    }
-    if (bytes == null) return const SizedBox.shrink();
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(5),
-      child: Image.memory(bytes!, width: 34, height: 28, fit: BoxFit.cover),
+      ),
     );
   }
 }
@@ -2312,9 +2256,9 @@ class _PartnerInfoSheetRows extends StatelessWidget {
                       row.value,
                       textAlign: TextAlign.right,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            fontSize: IzyTelTypeScale.text,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        fontSize: IzyTelTypeScale.text,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -2334,47 +2278,51 @@ class _PartnerActivitySheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final List<MapEntry<String, DateTime?>> entries =
         <MapEntry<String, DateTime?>>[
-      MapEntry('Commande reçue', order.firebaseCreatedAt),
-      MapEntry('Paiement confirmé', order.paymentConfirmedAt ?? order.paidAt),
-      MapEntry('Commande affectée', order.assignedAt),
-      MapEntry('Traitement démarré', order.processingStartedAt),
-      MapEntry('Commande mise en attente', order.lastHeldAt),
-      MapEntry('Traitement repris', order.lastResumedAt),
-      MapEntry('Traitement terminé', order.completedAt),
-    ];
+          MapEntry('Commande reçue', order.firebaseCreatedAt),
+          MapEntry(
+            'Paiement confirmé',
+            order.paymentConfirmedAt ?? order.paidAt,
+          ),
+          MapEntry('Commande affectée', order.assignedAt),
+          MapEntry('Traitement démarré', order.processingStartedAt),
+          MapEntry('Commande mise en attente', order.lastHeldAt),
+          MapEntry('Traitement repris', order.lastResumedAt),
+          MapEntry('Traitement terminé', order.completedAt),
+        ];
     return Column(
       children: entries
           .where((MapEntry<String, DateTime?> entry) => entry.value != null)
           .map((MapEntry<String, DateTime?> entry) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 13),
-          child: Row(
-            children: <Widget>[
-              const Icon(
-                Symbols.check_circle_rounded,
-                size: 17,
-                color: IzyTelColors.success,
-              ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Text(
-                  entry.key,
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 13),
+              child: Row(
+                children: <Widget>[
+                  const Icon(
+                    Symbols.check_circle_rounded,
+                    size: 17,
+                    color: IzyTelColors.success,
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      entry.key,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
                         fontSize: IzyTelTypeScale.label,
                         fontWeight: FontWeight.w600,
                       ),
-                ),
-              ),
-              Text(
-                _partnerDateTimeLabel(entry.value),
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    ),
+                  ),
+                  Text(
+                    _partnerDateTimeLabel(entry.value),
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       fontSize: IzyTelTypeScale.micro,
                     ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        );
-      }).toList(growable: false),
+            );
+          })
+          .toList(growable: false),
     );
   }
 }
@@ -2577,9 +2525,9 @@ class _PartnerSheetHeader extends StatelessWidget {
         const SizedBox(height: 16),
         Text(
           title,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
         ),
       ],
     );
@@ -2724,17 +2672,19 @@ class _PartnerHoldReasonSheetState extends State<_PartnerHoldReasonSheet> {
           Wrap(
             spacing: 7,
             runSpacing: 7,
-            children: suggestions.map((String suggestion) {
-              return ActionChip(
-                backgroundColor: IzyTelColors.surface,
-                side: const BorderSide(color: IzyTelColors.outline),
-                label: Text(suggestion),
-                onPressed: () {
-                  _controller.text = suggestion;
-                  setState(() => _error = null);
-                },
-              );
-            }).toList(growable: false),
+            children: suggestions
+                .map((String suggestion) {
+                  return ActionChip(
+                    backgroundColor: IzyTelColors.surface,
+                    side: const BorderSide(color: IzyTelColors.outline),
+                    label: Text(suggestion),
+                    onPressed: () {
+                      _controller.text = suggestion;
+                      setState(() => _error = null);
+                    },
+                  );
+                })
+                .toList(growable: false),
           ),
           const SizedBox(height: 14),
           TextField(
@@ -2830,13 +2780,16 @@ class _PartnerFailureSheetState extends State<_PartnerFailureSheet> {
           Wrap(
             spacing: 7,
             runSpacing: 7,
-            children: reasons.entries.map((MapEntry<String, String> entry) {
-              return ChoiceChip(
-                label: Text(entry.value),
-                selected: _selectedReason == entry.key,
-                onSelected: (_) => setState(() => _selectedReason = entry.key),
-              );
-            }).toList(growable: false),
+            children: reasons.entries
+                .map((MapEntry<String, String> entry) {
+                  return ChoiceChip(
+                    label: Text(entry.value),
+                    selected: _selectedReason == entry.key,
+                    onSelected: (_) =>
+                        setState(() => _selectedReason = entry.key),
+                  );
+                })
+                .toList(growable: false),
           ),
           const SizedBox(height: 14),
           TextField(
@@ -2864,107 +2817,6 @@ class _PartnerFailureSheetState extends State<_PartnerFailureSheet> {
       ),
     );
   }
-}
-
-class _PartnerProofSourceSheet extends StatelessWidget {
-  const _PartnerProofSourceSheet();
-
-  @override
-  Widget build(BuildContext context) {
-    return _PartnerSheetFrame(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          const _PartnerSheetHeader(title: 'Ajouter une preuve'),
-          const SizedBox(height: 5),
-          const Text(
-            'Choisis une photo existante ou prends-en une maintenant.',
-            style: TextStyle(color: IzyTelColors.textSecondary),
-          ),
-          const SizedBox(height: 14),
-          ListTile(
-            leading: const Icon(Symbols.photo_camera_rounded),
-            title: const Text('Appareil photo'),
-            subtitle: const Text('Prendre une photo en temps réel'),
-            onTap: () => Navigator.of(context).pop(ImageSource.camera),
-          ),
-          ListTile(
-            leading: const Icon(Symbols.photo_library_rounded),
-            title: const Text('Galerie'),
-            subtitle: const Text('Choisir une capture déjà enregistrée'),
-            onTap: () => Navigator.of(context).pop(ImageSource.gallery),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-String _partnerNetworkAsset(String network) {
-  return switch (network.trim().toLowerCase()) {
-    'orange' => 'assets/brands/operators/orange_ci.png',
-    'mtn' => 'assets/brands/operators/mtn_ci.png',
-    _ => 'assets/brands/operators/moov_africa_ci.png',
-  };
-}
-
-String _partnerFormatPhone(String value) {
-  final String digits = value.replaceAll(RegExp(r'\D'), '');
-  String local = digits;
-  if (local.startsWith('225') && local.length > 10) {
-    local = local.substring(3);
-  }
-  if (local.length == 10) {
-    return '${local.substring(0, 2)} ${local.substring(2, 4)} '
-        '${local.substring(4, 6)} ${local.substring(6, 8)} '
-        '${local.substring(8, 10)}';
-  }
-  return value.trim().isEmpty ? 'Non renseigné' : value.trim();
-}
-
-String _partnerPaymentStatusLabel(String status) {
-  return switch (status.trim().toLowerCase()) {
-    'confirmed' => 'Confirmé',
-    'credit' => 'Crédit autorisé',
-    'pending' => 'En attente',
-    'declared' => 'Déclaré',
-    'rejected' => 'Rejeté',
-    'expired' => 'Expiré',
-    _ => status.trim().isEmpty ? 'Non renseigné' : status,
-  };
-}
-
-String _partnerOperationLabel(String operationType) {
-  return switch (operationType.trim()) {
-    'internetSubscription' => 'Souscription Internet',
-    'unitTransfer' => 'Transfert d’unités',
-    'callBundle' => 'Forfait d’appels',
-    'mixedBundle' => 'Forfait mixte',
-    'other' => 'Autre service',
-    _ => operationType.trim().isEmpty ? 'Autre service' : operationType,
-  };
-}
-
-String _partnerFailureReasonLabel(String? reason) {
-  return switch (reason) {
-    'incorrectNumber' => 'Numéro incorrect',
-    'networkUnavailable' => 'Réseau indisponible',
-    'offerUnavailable' => 'Offre indisponible',
-    'insufficientBalance' => 'Solde insuffisant',
-    'technicalError' => 'Erreur technique',
-    'incorrectPayment' => 'Paiement incorrect',
-    'other' => 'Autre motif',
-    _ => 'Non renseigné',
-  };
-}
-
-String _partnerDateTimeLabel(DateTime? value) {
-  if (value == null) return 'Non renseignée';
-  final DateTime local = value.toLocal();
-  String two(int number) => number.toString().padLeft(2, '0');
-  return '${two(local.day)}/${two(local.month)}/${local.year} '
-      '${two(local.hour)}:${two(local.minute)}';
 }
 
 class _PartnerFinancePage extends StatefulWidget {
@@ -3009,131 +2861,137 @@ class _PartnerFinancePageState extends State<_PartnerFinancePage> {
       ),
       body: FutureBuilder<PartnerFinanceSnapshot>(
         future: _future,
-        builder: (BuildContext context,
-            AsyncSnapshot<PartnerFinanceSnapshot> snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting &&
-              !snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError || !snapshot.hasData) {
-            return _PartnerErrorState(onRetry: _reload);
-          }
-          final PartnerFinanceSnapshot finance = snapshot.data!;
-          return IzyTelRefreshIndicator(
-            onRefresh: () async => _reload(),
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(
-                IzyTelSpacing.lg,
-                IzyTelSpacing.md,
-                IzyTelSpacing.lg,
-                IzyTelSpacing.xxl,
-              ),
-              children: <Widget>[
-                IzyTelSurface(
-                  backgroundColor: IzyTelColors.primary,
-                  borderColor: IzyTelColors.primary,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      const Text(
-                        'À recevoir',
-                        style: TextStyle(color: Colors.white70),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _formatMoney(finance.balanceDue),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 30,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Row(
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<PartnerFinanceSnapshot> snapshot,
+            ) {
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  !snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError || !snapshot.hasData) {
+                return _PartnerErrorState(onRetry: _reload);
+              }
+              final PartnerFinanceSnapshot finance = snapshot.data!;
+              return IzyTelRefreshIndicator(
+                onRefresh: () async => _reload(),
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(
+                    IzyTelSpacing.lg,
+                    IzyTelSpacing.md,
+                    IzyTelSpacing.lg,
+                    IzyTelSpacing.xxl,
+                  ),
+                  children: <Widget>[
+                    IzyTelSurface(
+                      backgroundColor: IzyTelColors.primary,
+                      borderColor: IzyTelColors.primary,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          Expanded(
-                            child: _FinanceMiniStat(
-                              label: 'Acquis',
-                              value: _formatMoney(finance.earnedTotal),
+                          const Text(
+                            'À recevoir',
+                            style: TextStyle(color: Colors.white70),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _formatMoney(finance.balanceDue),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 30,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
-                          Expanded(
-                            child: _FinanceMiniStat(
-                              label: 'Payé',
-                              value: _formatMoney(finance.paidTotal),
-                            ),
-                          ),
-                          Expanded(
-                            child: _FinanceMiniStat(
-                              label: 'Transactions',
-                              value: '${finance.earnedTransactions}',
-                            ),
+                          const SizedBox(height: 14),
+                          Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: _FinanceMiniStat(
+                                  label: 'Acquis',
+                                  value: _formatMoney(finance.earnedTotal),
+                                ),
+                              ),
+                              Expanded(
+                                child: _FinanceMiniStat(
+                                  label: 'Payé',
+                                  value: _formatMoney(finance.paidTotal),
+                                ),
+                              ),
+                              Expanded(
+                                child: _FinanceMiniStat(
+                                  label: 'Transactions',
+                                  value: '${finance.earnedTransactions}',
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: IzyTelSpacing.xl),
-                const IzyTelSectionHeader(title: 'Historique des règlements'),
-                const SizedBox(height: IzyTelSpacing.sm),
-                if (finance.payouts.isEmpty)
-                  const IzyTelSurface(
-                    child: Text(
-                      'Aucun règlement enregistré pour le moment.',
-                      style: TextStyle(color: IzyTelColors.textSecondary),
                     ),
-                  )
-                else
-                  ...finance.payouts.map(
-                    (PartnerFinancePayout payout) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: IzyTelSurface(
-                        child: Row(
-                          children: <Widget>[
-                            const Icon(
-                              Symbols.payments_rounded,
-                              color: IzyTelColors.success,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
-                                  Text(
-                                    _formatMoney(payout.amount),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      color: IzyTelColors.textPrimary,
-                                    ),
+                    const SizedBox(height: IzyTelSpacing.xl),
+                    const IzyTelSectionHeader(
+                      title: 'Historique des règlements',
+                    ),
+                    const SizedBox(height: IzyTelSpacing.sm),
+                    if (finance.payouts.isEmpty)
+                      const IzyTelSurface(
+                        child: Text(
+                          'Aucun règlement enregistré pour le moment.',
+                          style: TextStyle(color: IzyTelColors.textSecondary),
+                        ),
+                      )
+                    else
+                      ...finance.payouts.map(
+                        (PartnerFinancePayout payout) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: IzyTelSurface(
+                            child: Row(
+                              children: <Widget>[
+                                const Icon(
+                                  Symbols.payments_rounded,
+                                  color: IzyTelColors.success,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Text(
+                                        _formatMoney(payout.amount),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          color: IzyTelColors.textPrimary,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${payout.channel.toUpperCase()} · ${payout.reference}',
+                                        style: const TextStyle(
+                                          color: IzyTelColors.textSecondary,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  Text(
-                                    '${payout.channel.toUpperCase()} · ${payout.reference}',
-                                    style: const TextStyle(
-                                      color: IzyTelColors.textSecondary,
-                                      fontSize: 12,
-                                    ),
+                                ),
+                                Text(
+                                  _shortDate(payout.paidAt),
+                                  style: const TextStyle(
+                                    color: IzyTelColors.textMuted,
+                                    fontSize: 11,
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                            Text(
-                              _shortDate(payout.paidAt),
-                              style: const TextStyle(
-                                color: IzyTelColors.textMuted,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-              ],
-            ),
-          );
-        },
+                  ],
+                ),
+              );
+            },
       ),
     );
   }
@@ -3176,8 +3034,8 @@ class _PartnerProfilePageState extends State<_PartnerProfilePage> {
   Future<void> _load() async {
     if (mounted) setState(() => _loading = true);
     try {
-      final PartnerAccountSnapshot? account =
-          await widget.repository.fetchOwnAccount();
+      final PartnerAccountSnapshot? account = await widget.repository
+          .fetchOwnAccount();
       StaffProfile? profile;
       String? avatar;
       try {
@@ -3264,10 +3122,8 @@ class _PartnerProfilePageState extends State<_PartnerProfilePage> {
   Future<void> _openPersonalProfile() async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => AgentPersonalProfilePage(
-          user: widget.user,
-          roleLabel: 'Cabiniste',
-        ),
+        builder: (_) =>
+            AgentPersonalProfilePage(user: widget.user, roleLabel: 'Cabiniste'),
       ),
     );
     if (mounted) {
@@ -3291,7 +3147,8 @@ class _PartnerProfilePageState extends State<_PartnerProfilePage> {
     showIzyTelAccountSheet(
       context: context,
       name: displayName,
-      role: 'Cabiniste • ${account.isAvailable ? 'Disponible' : 'Indisponible'}',
+      role:
+          'Cabiniste • ${account.isAvailable ? 'Disponible' : 'Indisponible'}',
       actions: <IzyTelAccountAction>[
         IzyTelAccountAction(
           icon: Symbols.manage_accounts_rounded,
@@ -3382,7 +3239,8 @@ class _PartnerProfilePageState extends State<_PartnerProfilePage> {
                   subtitle: _profile == null
                       ? 'Complète ton identité, tes contacts et ta pièce d’identité.'
                       : 'Profil ${_profile!.verificationStatus.label.toLowerCase()} · photo, contacts et identité.',
-                  badge: _profile?.verificationStatus ==
+                  badge:
+                      _profile?.verificationStatus ==
                           StaffProfileVerificationStatus.verified
                       ? 'Vérifié'
                       : null,
@@ -3405,24 +3263,30 @@ class _PartnerProfilePageState extends State<_PartnerProfilePage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    for (int index = 0;
-                        index < const <String>['orange', 'mtn', 'moov'].length;
-                        index++) ...<Widget>[
+                    for (
+                      int index = 0;
+                      index < const <String>['orange', 'mtn', 'moov'].length;
+                      index++
+                    ) ...<Widget>[
                       _PartnerNetworkAvailabilityRow(
                         network: const <String>['orange', 'mtn', 'moov'][index],
                         account: account,
                         isSaving: _saving,
                         onToggle: (bool enabled) => _saveOperations(
-                          toggledNetwork:
-                              const <String>['orange', 'mtn', 'moov'][index],
+                          toggledNetwork: const <String>[
+                            'orange',
+                            'mtn',
+                            'moov',
+                          ][index],
                           networkEnabled: enabled,
                         ),
-                        onEditCapacity: account.authorizedNetworks.contains(
-                          const <String>['orange', 'mtn', 'moov'][index],
-                        )
+                        onEditCapacity:
+                            account.authorizedNetworks.contains(
+                              const <String>['orange', 'mtn', 'moov'][index],
+                            )
                             ? () => _editCapacity(
-                                  const <String>['orange', 'mtn', 'moov'][index],
-                                )
+                                const <String>['orange', 'mtn', 'moov'][index],
+                              )
                             : null,
                       ),
                       if (index < 2) const Divider(height: 1),
@@ -3438,7 +3302,8 @@ class _PartnerProfilePageState extends State<_PartnerProfilePage> {
                 child: IzyTelMenuRow(
                   icon: Symbols.account_balance_wallet_rounded,
                   title: 'Mes règlements',
-                  subtitle: 'Gains acquis, montants à recevoir et versements reçus.',
+                  subtitle:
+                      'Gains acquis, montants à recevoir et versements reçus.',
                   iconColor: IzyTelColors.success,
                   onTap: _openFinance,
                 ),
@@ -3450,7 +3315,9 @@ class _PartnerProfilePageState extends State<_PartnerProfilePage> {
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: IzyTelMenuRow(
                   icon: Symbols.logout_rounded,
-                  title: widget.isLoggingOut ? 'Déconnexion...' : 'Se déconnecter',
+                  title: widget.isLoggingOut
+                      ? 'Déconnexion...'
+                      : 'Se déconnecter',
                   subtitle: 'Fermer ta session Cabiniste sur cet appareil.',
                   destructive: true,
                   onTap: widget.isLoggingOut ? () {} : () => widget.onLogout(),
@@ -3475,11 +3342,11 @@ class _PartnerBottomNavigationBar extends StatelessWidget {
 
   static const List<({String label, IconData icon})> _items =
       <({String label, IconData icon})>[
-    (label: 'Accueil', icon: Symbols.home_rounded),
-    (label: 'Commandes', icon: Symbols.receipt_long_rounded),
-    (label: 'Historique', icon: Symbols.history_rounded),
-    (label: 'Profil', icon: Symbols.person_rounded),
-  ];
+        (label: 'Accueil', icon: Symbols.home_rounded),
+        (label: 'Commandes', icon: Symbols.receipt_long_rounded),
+        (label: 'Historique', icon: Symbols.history_rounded),
+        (label: 'Profil', icon: Symbols.person_rounded),
+      ];
 
   @override
   Widget build(BuildContext context) {
@@ -3535,12 +3402,14 @@ class _PartnerBottomNavigationBar extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         _items[index].label,
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: color,
-                          fontSize: IzyTelTypeScale.micro,
-                          fontWeight:
-                              selected ? FontWeight.w700 : FontWeight.w500,
-                        ),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: color,
+                              fontSize: IzyTelTypeScale.micro,
+                              fontWeight: selected
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
                       ),
                     ],
                   ),
@@ -3708,7 +3577,11 @@ class _PartnerPriorityActionCard extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Symbols.arrow_forward_rounded, color: Colors.white, size: 28),
+          const Icon(
+            Symbols.arrow_forward_rounded,
+            color: Colors.white,
+            size: 28,
+          ),
         ],
       ),
     );
@@ -3732,11 +3605,17 @@ class _PartnerOperationalSummary extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
       child: Row(
         children: <Widget>[
-          Expanded(child: _PartnerSummaryItem(label: 'À accepter', value: toAccept)),
+          Expanded(
+            child: _PartnerSummaryItem(label: 'À accepter', value: toAccept),
+          ),
           const SizedBox(height: 38, child: VerticalDivider(width: 1)),
-          Expanded(child: _PartnerSummaryItem(label: 'En cours', value: inProgress)),
+          Expanded(
+            child: _PartnerSummaryItem(label: 'En cours', value: inProgress),
+          ),
           const SizedBox(height: 38, child: VerticalDivider(width: 1)),
-          Expanded(child: _PartnerSummaryItem(label: 'Terminées', value: completed)),
+          Expanded(
+            child: _PartnerSummaryItem(label: 'Terminées', value: completed),
+          ),
         ],
       ),
     );
@@ -3753,12 +3632,18 @@ class _PartnerSummaryItem extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Text('$value', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+        Text(
+          '$value',
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+        ),
         const SizedBox(height: 2),
         Text(
           label,
           textAlign: TextAlign.center,
-          style: const TextStyle(color: IzyTelColors.textSecondary, fontSize: 11),
+          style: const TextStyle(
+            color: IzyTelColors.textSecondary,
+            fontSize: 11,
+          ),
         ),
       ],
     );
@@ -3766,7 +3651,10 @@ class _PartnerSummaryItem extends StatelessWidget {
 }
 
 class _PartnerCapacitySummaryRow extends StatelessWidget {
-  const _PartnerCapacitySummaryRow({required this.network, required this.capacity});
+  const _PartnerCapacitySummaryRow({
+    required this.network,
+    required this.capacity,
+  });
   final String network;
   final int capacity;
 
@@ -3810,7 +3698,11 @@ class _PartnerOrdersEmptyState extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
         child: Column(
           children: <Widget>[
-            const Icon(Symbols.inbox_rounded, color: IzyTelColors.textMuted, size: 38),
+            const Icon(
+              Symbols.inbox_rounded,
+              color: IzyTelColors.textMuted,
+              size: 38,
+            ),
             const SizedBox(height: 12),
             Text(
               message,
@@ -3857,8 +3749,10 @@ class _PartnerHistoryCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(item.orderReference,
-                        style: const TextStyle(fontWeight: FontWeight.w800)),
+                    Text(
+                      item.orderReference,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
                     const SizedBox(height: 2),
                     Text(
                       '${_networkLabel(item.network)} · ${_formatMoney(item.amount)}',
@@ -3877,7 +3771,10 @@ class _PartnerHistoryCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               item.refusalReason!,
-              style: const TextStyle(color: IzyTelColors.textSecondary, fontSize: 12),
+              style: const TextStyle(
+                color: IzyTelColors.textSecondary,
+                fontSize: 12,
+              ),
             ),
           ],
           const SizedBox(height: 8),
@@ -3919,20 +3816,33 @@ class _PartnerIdentityHero extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(displayName,
-                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                Text(
+                  displayName,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
                 const SizedBox(height: 3),
                 Text(
                   '$partnerCode · Cabiniste',
-                  style: const TextStyle(color: IzyTelColors.textSecondary, fontSize: 12),
+                  style: const TextStyle(
+                    color: IzyTelColors.textSecondary,
+                    fontSize: 12,
+                  ),
                 ),
-                if (phoneNumber.trim().isNotEmpty || city.trim().isNotEmpty) ...<Widget>[
+                if (phoneNumber.trim().isNotEmpty ||
+                    city.trim().isNotEmpty) ...<Widget>[
                   const SizedBox(height: 4),
                   Text(
-                    <String>[phoneNumber.trim(), city.trim()]
-                        .where((String value) => value.isNotEmpty)
-                        .join(' · '),
-                    style: const TextStyle(color: IzyTelColors.textMuted, fontSize: 11),
+                    <String>[
+                      phoneNumber.trim(),
+                      city.trim(),
+                    ].where((String value) => value.isNotEmpty).join(' · '),
+                    style: const TextStyle(
+                      color: IzyTelColors.textMuted,
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ],
@@ -3941,7 +3851,8 @@ class _PartnerIdentityHero extends StatelessWidget {
           if (verificationStatus != null)
             IzyTelStatusPill(
               label: verificationStatus!.label,
-              color: verificationStatus == StaffProfileVerificationStatus.verified
+              color:
+                  verificationStatus == StaffProfileVerificationStatus.verified
                   ? IzyTelColors.success
                   : IzyTelColors.warning,
             ),
@@ -3976,7 +3887,9 @@ class _PartnerAvailabilityCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
-              available ? Symbols.check_circle_rounded : Symbols.pause_circle_rounded,
+              available
+                  ? Symbols.check_circle_rounded
+                  : Symbols.pause_circle_rounded,
               color: available ? IzyTelColors.success : IzyTelColors.textMuted,
             ),
           ),
@@ -3994,7 +3907,10 @@ class _PartnerAvailabilityCard extends StatelessWidget {
                   available
                       ? 'Tu peux recevoir de nouvelles commandes.'
                       : 'Aucune nouvelle commande ne te sera affectée.',
-                  style: const TextStyle(color: IzyTelColors.textSecondary, fontSize: 12),
+                  style: const TextStyle(
+                    color: IzyTelColors.textSecondary,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -4078,7 +3994,9 @@ class _PartnerNetworkAvailabilityRow extends StatelessWidget {
                       ),
                       const SizedBox(width: 4),
                       TextButton.icon(
-                        key: ValueKey<String>('cabiniste-capacity-edit-$network'),
+                        key: ValueKey<String>(
+                          'cabiniste-capacity-edit-$network',
+                        ),
                         onPressed: editAction,
                         style: TextButton.styleFrom(
                           minimumSize: Size.zero,
@@ -4198,9 +4116,7 @@ class _PartnerCapacityEditorSheetState
           padding: const EdgeInsets.all(IzyTelSpacing.lg),
           decoration: const BoxDecoration(
             color: IzyTelColors.surface,
-            borderRadius: BorderRadius.all(
-              Radius.circular(IzyTelRadii.sheet),
-            ),
+            borderRadius: BorderRadius.all(Radius.circular(IzyTelRadii.sheet)),
           ),
           child: SingleChildScrollView(
             child: Column(
@@ -4217,16 +4133,16 @@ class _PartnerCapacityEditorSheetState
                         children: <Widget>[
                           Text(
                             'Capacité ${_networkLabel(widget.network)}',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: IzyTelColors.textPrimary,
-                              fontWeight: FontWeight.w800,
-                            ),
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: IzyTelColors.textPrimary,
+                                  fontWeight: FontWeight.w800,
+                                ),
                           ),
                           Text(
                             'Indique le montant réellement disponible sur ce réseau.',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: IzyTelColors.textSecondary,
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: IzyTelColors.textSecondary),
                           ),
                         ],
                       ),
@@ -4291,9 +4207,9 @@ class _PartnerSectionLabel extends StatelessWidget {
     return Text(
       label,
       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: IzyTelColors.textPrimary,
-          ),
+        fontWeight: FontWeight.w700,
+        color: IzyTelColors.textPrimary,
+      ),
     );
   }
 }
@@ -4350,8 +4266,10 @@ class _PartnerOrderCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text(order.orderReference,
-                            style: const TextStyle(fontWeight: FontWeight.w800)),
+                        Text(
+                          order.orderReference,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
                         const SizedBox(height: 2),
                         Text(
                           order.beneficiaryPhone.isEmpty
@@ -4379,15 +4297,24 @@ class _PartnerOrderCard extends StatelessWidget {
                       order.offerLabel.isEmpty
                           ? _networkLabel(order.network)
                           : order.offerLabel,
-                      style: const TextStyle(color: IzyTelColors.textMuted, fontSize: 12),
+                      style: const TextStyle(
+                        color: IzyTelColors.textMuted,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                   Text(
                     _formatMoney(order.amount),
-                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   const SizedBox(width: 4),
-                  const Icon(Symbols.chevron_right_rounded, color: IzyTelColors.textMuted),
+                  const Icon(
+                    Symbols.chevron_right_rounded,
+                    color: IzyTelColors.textMuted,
+                  ),
                 ],
               ),
               if (onAccept != null && onRefuse != null) ...<Widget>[
@@ -4429,7 +4356,10 @@ class _FinanceMiniStat extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white70, fontSize: 11),
+        ),
         const SizedBox(height: 2),
         FittedBox(
           fit: BoxFit.scaleDown,
@@ -4460,7 +4390,11 @@ class _PartnerErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            const Icon(Symbols.cloud_off_rounded, color: IzyTelColors.textMuted, size: 42),
+            const Icon(
+              Symbols.cloud_off_rounded,
+              color: IzyTelColors.textMuted,
+              size: 42,
+            ),
             const SizedBox(height: 12),
             const Text(
               'Impossible de charger les informations Cabiniste.',
@@ -4508,7 +4442,9 @@ String _statusLabel(PartnerOrderSnapshot order) {
 
 Color _statusColor(PartnerOrderSnapshot order) {
   if (order.isAwaitingDecision) return IzyTelColors.warning;
-  if (order.isAccepted && order.orderStatus == 'paidReady') return IzyTelColors.primary;
+  if (order.isAccepted && order.orderStatus == 'paidReady') {
+    return IzyTelColors.primary;
+  }
   if (order.isInProgress) return IzyTelColors.primary;
   if (order.isOnHold) return IzyTelColors.warning;
   if (order.isCompleted) return IzyTelColors.success;
@@ -4563,7 +4499,8 @@ String _friendlyError(Object error) {
   if (raw.contains('capacity_below_reserved')) {
     return 'Cette capacité est déjà engagée sur une ou plusieurs commandes en cours.';
   }
-  if (raw.contains('partner_not_active') || raw.contains('active_partner_required')) {
+  if (raw.contains('partner_not_active') ||
+      raw.contains('active_partner_required')) {
     return 'Ton compte Cabiniste n’est pas actif.';
   }
   if (raw.contains('order_not_assigned') || raw.contains('order_not_owned')) {
@@ -4585,4 +4522,70 @@ String _friendlyError(Object error) {
     return 'Ce réseau n’est pas autorisé sur ton compte.';
   }
   return 'L’opération n’a pas pu être effectuée. Réessaie.';
+}
+
+String _partnerNetworkAsset(String network) {
+  return switch (network.trim().toLowerCase()) {
+    'orange' => 'assets/brands/operators/orange_ci.png',
+    'mtn' => 'assets/brands/operators/mtn_ci.png',
+    _ => 'assets/brands/operators/moov_africa_ci.png',
+  };
+}
+
+String _partnerFormatPhone(String value) {
+  final String digits = value.replaceAll(RegExp(r'\D'), '');
+  String local = digits;
+  if (local.startsWith('225') && local.length > 10) {
+    local = local.substring(3);
+  }
+  if (local.length == 10) {
+    return '${local.substring(0, 2)} ${local.substring(2, 4)} '
+        '${local.substring(4, 6)} ${local.substring(6, 8)} '
+        '${local.substring(8, 10)}';
+  }
+  return value.trim().isEmpty ? 'Non renseigné' : value.trim();
+}
+
+String _partnerPaymentStatusLabel(String status) {
+  return switch (status.trim().toLowerCase()) {
+    'confirmed' => 'Confirmé',
+    'credit' => 'Crédit autorisé',
+    'pending' => 'En attente',
+    'declared' => 'Déclaré',
+    'rejected' => 'Rejeté',
+    'expired' => 'Expiré',
+    _ => status.trim().isEmpty ? 'Non renseigné' : status,
+  };
+}
+
+String _partnerOperationLabel(String operationType) {
+  return switch (operationType.trim()) {
+    'internetSubscription' => 'Souscription Internet',
+    'unitTransfer' => 'Transfert d’unités',
+    'callBundle' => 'Forfait d’appels',
+    'mixedBundle' => 'Forfait mixte',
+    'other' => 'Autre service',
+    _ => operationType.trim().isEmpty ? 'Autre service' : operationType,
+  };
+}
+
+String _partnerFailureReasonLabel(String? reason) {
+  return switch (reason) {
+    'incorrectNumber' => 'Numéro incorrect',
+    'networkUnavailable' => 'Réseau indisponible',
+    'offerUnavailable' => 'Offre indisponible',
+    'insufficientBalance' => 'Solde insuffisant',
+    'technicalError' => 'Erreur technique',
+    'incorrectPayment' => 'Paiement incorrect',
+    'other' => 'Autre motif',
+    _ => 'Non renseigné',
+  };
+}
+
+String _partnerDateTimeLabel(DateTime? value) {
+  if (value == null) return 'Non renseignée';
+  final DateTime local = value.toLocal();
+  String two(int number) => number.toString().padLeft(2, '0');
+  return '${two(local.day)}/${two(local.month)}/${local.year} '
+      '${two(local.hour)}:${two(local.minute)}';
 }

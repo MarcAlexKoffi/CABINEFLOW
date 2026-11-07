@@ -47,6 +47,8 @@ void main() {
     UssdTestDialer dialer, {
     bool processable = true,
     bool initiallyExpanded = true,
+    String beneficiary = '0101010101',
+    bool? canCopyNumber,
     double width = 400,
   }) async {
     tester.view.physicalSize = Size(width, 950);
@@ -62,7 +64,8 @@ void main() {
                 orderId: 'synthetic-order',
                 network: 'moov',
                 offerLabel: 'Offre synthétique',
-                beneficiary: '0101010101',
+                beneficiary: beneficiary,
+                canCopyNumber: canCopyNumber,
                 amount: 1000,
                 processable: processable,
                 initiallyExpanded: initiallyExpanded,
@@ -85,6 +88,50 @@ void main() {
     await tester.ensureVisible(find.text('Lancer l’opération'));
     await tester.tap(find.text('Lancer l’opération'));
     await tester.pumpAndSettle();
+  }
+
+  for (final phone in [
+    '+225 01 02 03 04 05',
+    '00225 01 02 03 04 05',
+    '0102030405',
+  ]) {
+    testWidgets(
+      'copies local beneficiary directly without a dialer or USSD request: $phone',
+      (tester) async {
+        final repo = UssdTestRepository(), dialer = UssdTestDialer();
+        String? copied;
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'Clipboard.setData') {
+              copied = (call.arguments as Map)['text'] as String;
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+        await mount(
+          tester,
+          repo,
+          dialer,
+          beneficiary: phone,
+          processable: false,
+          canCopyNumber: true,
+        );
+        await tester.tap(find.text('Copier le numéro'));
+        await tester.pumpAndSettle();
+        expect(copied, '0102030405');
+        expect(repo.resolutions, 0);
+        expect(repo.preparations, 0);
+        expect(dialer.opens, 0);
+        expect(find.byType(AlertDialog), findsNothing);
+      },
+    );
   }
 
   for (final code in ['#154*1*0101010101#', '*410*0101010101*1000*987654#']) {

@@ -1,4 +1,7 @@
 import 'package:cabine_flow/backoffice/domain/models/territory_models.dart';
+import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/resilience/backend_failure_policy.dart';
+import 'package:cabine_flow/core/resilience/backend_read_stream.dart';
 import 'package:cabine_flow/backoffice/domain/repositories/territory_repository.dart';
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
 import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_order_widgets.dart';
@@ -38,8 +41,10 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
   _ManagerScope _scope = _ManagerScope.all;
   String _query = '';
   bool _loading = true;
-  bool _registrySynced = false;
   Object? _error;
+  Object? _agentsError;
+  bool _agentsLoaded = false;
+  int _loadGeneration = 0;
   List<TerritoryManager> _managers = const <TerritoryManager>[];
   List<TerritoryZone> _zones = const <TerritoryZone>[];
   List<AgentDirectoryEntry> _agents = const <AgentDirectoryEntry>[];
@@ -49,7 +54,7 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
   @override
   void initState() {
     super.initState();
-    _load(syncRegistry: _canManage);
+    _load();
   }
 
   @override
@@ -58,35 +63,67 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
     super.dispose();
   }
 
-  Future<void> _load({bool syncRegistry = false}) async {
-    if (mounted) {
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
-    }
+  Future<void> _load() async {
+    if (!mounted) return;
+    final int generation = ++_loadGeneration;
+    setState(() {
+      _loading = _zones.isEmpty && _managers.isEmpty;
+      _error = null;
+    });
+    // Loading a page is read-only. Account provisioning belongs to Users.
+    final agents = _readAgents(generation);
     try {
-      if (syncRegistry && !_registrySynced && _canManage) {
-        await widget.territoryRepository.syncManagersFromStaffRegistry();
-        _registrySynced = true;
-      }
-      final List<Object> data = await Future.wait<Object>(<Future<Object>>[
-        widget.territoryRepository.fetchManagers(),
-        widget.territoryRepository.fetchZones(),
-        widget.agentRepository.watchAgents().first,
+      final data = await Future.wait<Object>([
+        widget.territoryRepository.fetchZones().timeout(
+          BackendReadStream.readTimeout,
+        ),
+        widget.territoryRepository.fetchManagers().timeout(
+          BackendReadStream.readTimeout,
+        ),
       ]);
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
-        _managers = data[0] as List<TerritoryManager>;
-        _zones = data[1] as List<TerritoryZone>;
-        _agents = data[2] as List<AgentDirectoryEntry>;
+        _zones = data[0] as List<TerritoryZone>;
+        _managers = data[1] as List<TerritoryManager>;
         _loading = false;
       });
-    } catch (error) {
-      if (!mounted) return;
+    } catch (error, stack) {
+      IzyTelLog.backendError(
+        'Territory.managers-page',
+        error,
+        stackTrace: stack,
+      );
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _error = error;
         _loading = false;
+      });
+    }
+    await agents;
+  }
+
+  Future<void> _readAgents(int generation) async {
+    try {
+      final agents = await widget.agentRepository.watchAgents().first.timeout(
+        BackendReadStream.readTimeout,
+      );
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _agents = agents;
+        _agentsError = null;
+        _agentsLoaded = true;
+      });
+    } catch (error, stack) {
+      IzyTelLog.backendError(
+        'Territory.managers-agents',
+        error,
+        stackTrace: stack,
+      );
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _agents = [];
+        _agentsError = error;
+        _agentsLoaded = false;
       });
     }
   }
@@ -98,7 +135,10 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
       return BackofficeEmptyState(
         icon: Symbols.cloud_off_rounded,
         title: 'Managers indisponibles',
-        message: 'Le registre territorial des Managers ne peut pas être chargé pour le moment.',
+        message: BackendFailurePolicy.readMessage(
+          _error!,
+          resource: 'les Managers',
+        ),
         action: FilledButton.icon(
           onPressed: _load,
           icon: const Icon(Symbols.refresh_rounded),
@@ -111,12 +151,20 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
       for (final TerritoryZone zone in _zones) zone.id: zone,
     };
     final List<TerritoryManager> visible = _filtered();
-    final int activeAccounts = _managers.where((TerritoryManager manager) => manager.accountActive).length;
-    final int availableManagers = _managers.where((TerritoryManager manager) => manager.canReceiveZone).length;
-    final int assignedZones = _zones.where((TerritoryZone zone) => zone.managerId != null).length;
+    final int activeAccounts = _managers
+        .where((TerritoryManager manager) => manager.accountActive)
+        .length;
+    final int availableManagers = _managers
+        .where((TerritoryManager manager) => manager.canReceiveZone)
+        .length;
+    final int assignedZones = _zones
+        .where((TerritoryZone zone) => zone.managerId != null)
+        .length;
     final int supervisedAgents = _agents.where((AgentDirectoryEntry agent) {
       final List<String> zoneIds = agent.profile?.zoneIds ?? const <String>[];
-      return zoneIds.any((String zoneId) => zoneById[zoneId]?.managerId != null);
+      return zoneIds.any(
+        (String zoneId) => zoneById[zoneId]?.managerId != null,
+      );
     }).length;
 
     return Column(
@@ -148,6 +196,18 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
             ],
           ),
         ),
+        if (_agentsError != null) ...[
+          const SizedBox(height: 12),
+          MaterialBanner(
+            content: const Text(
+              'Les données Agents et capacités sont indisponibles. Le registre territorial reste consultable.',
+            ),
+            leading: const Icon(Symbols.warning_rounded),
+            actions: [
+              TextButton(onPressed: _load, child: const Text('Réessayer')),
+            ],
+          ),
+        ],
         const SizedBox(height: 18),
         _metrics(
           total: _managers.length,
@@ -163,7 +223,8 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
           const BackofficeEmptyState(
             icon: Symbols.person_search_rounded,
             title: 'Aucun Manager dans cette vue',
-            message: 'Modifie la recherche ou les filtres pour afficher d’autres Managers.',
+            message:
+                'Modifie la recherche ou les filtres pour afficher d’autres Managers.',
           )
         else
           LayoutBuilder(
@@ -196,9 +257,14 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
   }) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final int columns = constraints.maxWidth >= 1180 ? 5 : constraints.maxWidth >= 760 ? 3 : 2;
+        final int columns = constraints.maxWidth >= 1180
+            ? 5
+            : constraints.maxWidth >= 760
+            ? 3
+            : 2;
         const double gap = 10;
-        final double width = (constraints.maxWidth - (columns - 1) * gap) / columns;
+        final double width =
+            (constraints.maxWidth - (columns - 1) * gap) / columns;
         final List<Widget> cards = <Widget>[
           BackofficeMetricCard(
             label: 'Managers',
@@ -222,14 +288,15 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
           ),
           BackofficeMetricCard(
             label: 'Agents supervisés',
-            value: '$supervisedAgents',
+            value: _agentsLoaded ? '$supervisedAgents' : '—',
             caption: 'rattachés aux zones gérées',
             icon: Symbols.groups_rounded,
             emphasis: BackofficePalette.success,
           ),
           BackofficeMetricCard(
             label: 'À attribuer',
-            value: '${_zones.where((TerritoryZone zone) => zone.managerId == null).length}',
+            value:
+                '${_zones.where((TerritoryZone zone) => zone.managerId == null).length}',
             caption: 'zones sans Manager',
             icon: Symbols.assignment_late_rounded,
             emphasis: _zones.any((TerritoryZone zone) => zone.managerId == null)
@@ -268,17 +335,31 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
             decoration: const InputDecoration(labelText: 'Vue'),
             items: const <DropdownMenuItem<_ManagerScope>>[
               DropdownMenuItem(value: _ManagerScope.all, child: Text('Tous')),
-              DropdownMenuItem(value: _ManagerScope.available, child: Text('Disponibles')),
-              DropdownMenuItem(value: _ManagerScope.unavailable, child: Text('Indisponibles')),
-              DropdownMenuItem(value: _ManagerScope.suspended, child: Text('Comptes suspendus')),
-              DropdownMenuItem(value: _ManagerScope.withoutZone, child: Text('Sans zone')),
+              DropdownMenuItem(
+                value: _ManagerScope.available,
+                child: Text('Disponibles'),
+              ),
+              DropdownMenuItem(
+                value: _ManagerScope.unavailable,
+                child: Text('Indisponibles'),
+              ),
+              DropdownMenuItem(
+                value: _ManagerScope.suspended,
+                child: Text('Comptes suspendus'),
+              ),
+              DropdownMenuItem(
+                value: _ManagerScope.withoutZone,
+                child: Text('Sans zone'),
+              ),
             ],
             onChanged: (_ManagerScope? value) {
               if (value != null) setState(() => _scope = value);
             },
           );
           if (constraints.maxWidth < 760) {
-            return Column(children: <Widget>[search, const SizedBox(height: 10), scope]);
+            return Column(
+              children: <Widget>[search, const SizedBox(height: 10), scope],
+            );
           }
           return Row(
             children: <Widget>[
@@ -294,33 +375,42 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
 
   List<TerritoryManager> _filtered() {
     final String query = _query.trim().toLowerCase();
-    final List<TerritoryManager> result = _managers.where((TerritoryManager manager) {
-      final List<TerritoryZone> zones = _zones
-          .where((TerritoryZone zone) => zone.managerId == manager.firebaseUid)
-          .toList(growable: false);
-      final bool inScope = switch (_scope) {
-        _ManagerScope.all => true,
-        _ManagerScope.available => manager.canReceiveZone,
-        _ManagerScope.unavailable => manager.accountActive && !manager.isAvailable,
-        _ManagerScope.suspended => !manager.accountActive,
-        _ManagerScope.withoutZone => zones.isEmpty,
-      };
-      if (!inScope) return false;
-      if (query.isEmpty) {
-        return true;
-      }
-      final String zoneNames = zones.map((TerritoryZone zone) => zone.displayLabel).join(' ');
-      return <String>[
-        manager.displayName,
-        manager.email,
-        manager.phoneNumber,
-        manager.secondaryPhone,
-        manager.city,
-        zoneNames,
-      ].join(' ').toLowerCase().contains(query);
-    }).toList(growable: false);
+    final List<TerritoryManager> result = _managers
+        .where((TerritoryManager manager) {
+          final List<TerritoryZone> zones = _zones
+              .where(
+                (TerritoryZone zone) => zone.managerId == manager.firebaseUid,
+              )
+              .toList(growable: false);
+          final bool inScope = switch (_scope) {
+            _ManagerScope.all => true,
+            _ManagerScope.available => manager.canReceiveZone,
+            _ManagerScope.unavailable =>
+              manager.accountActive && !manager.isAvailable,
+            _ManagerScope.suspended => !manager.accountActive,
+            _ManagerScope.withoutZone => zones.isEmpty,
+          };
+          if (!inScope) return false;
+          if (query.isEmpty) {
+            return true;
+          }
+          final String zoneNames = zones
+              .map((TerritoryZone zone) => zone.displayLabel)
+              .join(' ');
+          return <String>[
+            manager.displayName,
+            manager.email,
+            manager.phoneNumber,
+            manager.secondaryPhone,
+            manager.city,
+            zoneNames,
+          ].join(' ').toLowerCase().contains(query);
+        })
+        .toList(growable: false);
     result.sort((TerritoryManager a, TerritoryManager b) {
-      if (a.canReceiveZone != b.canReceiveZone) return a.canReceiveZone ? -1 : 1;
+      if (a.canReceiveZone != b.canReceiveZone) {
+        return a.canReceiveZone ? -1 : 1;
+      }
       if (a.accountActive != b.accountActive) return a.accountActive ? -1 : 1;
       return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
     });
@@ -335,81 +425,103 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
         BackofficeTableColumnSpec(label: 'ZONES', flex: 4),
         BackofficeTableColumnSpec(label: 'AGENTS', flex: 2),
         BackofficeTableColumnSpec(label: 'ACTIVITÉ', flex: 3),
-        BackofficeTableColumnSpec(label: 'ACTION', flex: 2, alignment: Alignment.centerRight),
+        BackofficeTableColumnSpec(
+          label: 'ACTION',
+          flex: 2,
+          alignment: Alignment.centerRight,
+        ),
       ],
-      rows: managers.map((TerritoryManager manager) {
-        final List<TerritoryZone> zones = _zonesForManager(manager);
-        final int agents = _agentsForManager(manager).length;
-        return BackofficeDesktopTableRow(
-          cells: <BackofficeTableCellSpec>[
-            BackofficeTableCellSpec(
-              flex: 4,
-              child: Row(
-                children: <Widget>[
-                  _ManagerAvatar(manager: manager, size: 42),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _titleSubtitle(
-                      manager.displayName,
-                      manager.contactLabel,
+      rows: managers
+          .map((TerritoryManager manager) {
+            final List<TerritoryZone> zones = _zonesForManager(manager);
+            final int agents = _agentsForManager(manager).length;
+            return BackofficeDesktopTableRow(
+              cells: <BackofficeTableCellSpec>[
+                BackofficeTableCellSpec(
+                  flex: 4,
+                  child: Row(
+                    children: <Widget>[
+                      _ManagerAvatar(manager: manager, size: 42),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _titleSubtitle(
+                          manager.displayName,
+                          manager.contactLabel,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                BackofficeTableCellSpec(
+                  flex: 2,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        BackofficeStatusBadge(
+                          label: manager.accountActive
+                              ? 'Compte actif'
+                              : 'Compte suspendu',
+                          color: manager.accountActive
+                              ? BackofficePalette.primaryStrong
+                              : BackofficePalette.danger,
+                        ),
+                        const SizedBox(height: 5),
+                        BackofficeStatusBadge(
+                          label: manager.canReceiveZone
+                              ? 'Disponible'
+                              : 'Indisponible',
+                          color: manager.canReceiveZone
+                              ? BackofficePalette.success
+                              : BackofficePalette.muted,
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-            BackofficeTableCellSpec(
-              flex: 2,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    BackofficeStatusBadge(
-                      label: manager.accountActive ? 'Compte actif' : 'Compte suspendu',
-                      color: manager.accountActive ? BackofficePalette.primaryStrong : BackofficePalette.danger,
-                    ),
-                    const SizedBox(height: 5),
-                    BackofficeStatusBadge(
-                      label: manager.canReceiveZone ? 'Disponible' : 'Indisponible',
-                      color: manager.canReceiveZone ? BackofficePalette.success : BackofficePalette.muted,
-                    ),
-                  ],
                 ),
-              ),
-            ),
-            BackofficeTableCellSpec(
-              flex: 4,
-              child: Text(
-                zones.isEmpty
-                    ? 'Aucune zone'
-                    : zones.map((TerritoryZone zone) => zone.displayLabel).join(' • '),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            BackofficeTableCellSpec(
-              flex: 2,
-              child: Text('$agents'),
-            ),
-            BackofficeTableCellSpec(
-              flex: 3,
-              child: Text(_formatDate(manager.lastActivityAt ?? manager.updatedAt)),
-            ),
-            BackofficeTableCellSpec(
-              flex: 2,
-              alignment: Alignment.centerRight,
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: OutlinedButton(
-                  onPressed: () => _openManager(manager),
-                  child: Text(_canManage ? 'Voir / gérer le compte' : 'Voir le compte'),
+                BackofficeTableCellSpec(
+                  flex: 4,
+                  child: Text(
+                    zones.isEmpty
+                        ? 'Aucune zone'
+                        : zones
+                              .map((TerritoryZone zone) => zone.displayLabel)
+                              .join(' • '),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-            ),
-          ],
-        );
-      }).toList(growable: false),
+                BackofficeTableCellSpec(
+                  flex: 2,
+                  child: Text(_agentsLoaded ? '$agents' : '—'),
+                ),
+                BackofficeTableCellSpec(
+                  flex: 3,
+                  child: Text(
+                    _formatDate(manager.lastActivityAt ?? manager.updatedAt),
+                  ),
+                ),
+                BackofficeTableCellSpec(
+                  flex: 2,
+                  alignment: Alignment.centerRight,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: OutlinedButton(
+                      onPressed: () => _openManager(manager),
+                      child: Text(
+                        _canManage
+                            ? 'Voir / gérer le compte'
+                            : 'Voir le compte',
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          })
+          .toList(growable: false),
     );
   }
 
@@ -426,10 +538,23 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
             children: <Widget>[
               _ManagerAvatar(manager: manager, size: 46),
               const SizedBox(width: 10),
-              Expanded(child: _titleSubtitle(manager.displayName, manager.contactLabel)),
+              Expanded(
+                child: _titleSubtitle(
+                  manager.displayName,
+                  manager.contactLabel,
+                ),
+              ),
               BackofficeStatusBadge(
-                label: !manager.accountActive ? 'Suspendu' : manager.isAvailable ? 'Disponible' : 'Indisponible',
-                color: !manager.accountActive ? BackofficePalette.danger : manager.isAvailable ? BackofficePalette.success : BackofficePalette.muted,
+                label: !manager.accountActive
+                    ? 'Suspendu'
+                    : manager.isAvailable
+                    ? 'Disponible'
+                    : 'Indisponible',
+                color: !manager.accountActive
+                    ? BackofficePalette.danger
+                    : manager.isAvailable
+                    ? BackofficePalette.success
+                    : BackofficePalette.muted,
               ),
             ],
           ),
@@ -437,17 +562,23 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
           Text(
             zones.isEmpty
                 ? 'Aucune zone attribuée'
-                : zones.map((TerritoryZone zone) => zone.displayLabel).join(' • '),
+                : zones
+                      .map((TerritoryZone zone) => zone.displayLabel)
+                      .join(' • '),
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 4),
-          Text('$agents Agent${agents > 1 ? 's' : ''} supervisé${agents > 1 ? 's' : ''}'),
+          Text(
+            '${_agentsLoaded ? agents : '—'} Agent${agents > 1 ? 's' : ''} supervisé${agents > 1 ? 's' : ''}',
+          ),
           const SizedBox(height: 12),
           Align(
             alignment: Alignment.centerRight,
             child: OutlinedButton(
               onPressed: () => _openManager(manager),
-              child: Text(_canManage ? 'Voir / gérer le compte' : 'Voir le compte'),
+              child: Text(
+                _canManage ? 'Voir / gérer le compte' : 'Voir le compte',
+              ),
             ),
           ),
         ],
@@ -462,19 +593,21 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
   }
 
   List<AgentDirectoryEntry> _agentsForManager(TerritoryManager manager) {
-    final Set<String> managedZoneIds = _zonesForManager(manager)
-        .map((TerritoryZone zone) => zone.id)
-        .toSet();
-    return _agents.where((AgentDirectoryEntry agent) {
-      final List<String> zoneIds = agent.profile?.zoneIds ?? const <String>[];
-      return zoneIds.any(managedZoneIds.contains);
-    }).toList(growable: false);
+    final Set<String> managedZoneIds = _zonesForManager(
+      manager,
+    ).map((TerritoryZone zone) => zone.id).toSet();
+    return _agents
+        .where((AgentDirectoryEntry agent) {
+          final List<String> zoneIds =
+              agent.profile?.zoneIds ?? const <String>[];
+          return zoneIds.any(managedZoneIds.contains);
+        })
+        .toList(growable: false);
   }
 
   Future<void> _syncManagers() async {
     try {
       await widget.territoryRepository.syncManagersFromStaffRegistry();
-      _registrySynced = true;
       await _load();
       if (!mounted) return;
       IzyTelFeedback.success(context, 'Registre Managers synchronisé.');
@@ -490,13 +623,27 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
       return;
     }
 
-    final TextEditingController name = TextEditingController(text: manager.displayName);
-    final TextEditingController email = TextEditingController(text: manager.email);
-    final TextEditingController phone = TextEditingController(text: manager.phoneNumber);
-    final TextEditingController secondary = TextEditingController(text: manager.secondaryPhone);
-    final TextEditingController city = TextEditingController(text: manager.city);
-    final TextEditingController address = TextEditingController(text: manager.address);
-    final TextEditingController notes = TextEditingController(text: manager.notes);
+    final TextEditingController name = TextEditingController(
+      text: manager.displayName,
+    );
+    final TextEditingController email = TextEditingController(
+      text: manager.email,
+    );
+    final TextEditingController phone = TextEditingController(
+      text: manager.phoneNumber,
+    );
+    final TextEditingController secondary = TextEditingController(
+      text: manager.secondaryPhone,
+    );
+    final TextEditingController city = TextEditingController(
+      text: manager.city,
+    );
+    final TextEditingController address = TextEditingController(
+      text: manager.address,
+    );
+    final TextEditingController notes = TextEditingController(
+      text: manager.notes,
+    );
     final SupabaseStaffProfileRepository staffRepository =
         SupabaseStaffProfileRepository();
     StaffProfile? personalProfile;
@@ -539,18 +686,45 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
                     _adaptiveFields(<Widget>[
-                      TextField(controller: name, decoration: const InputDecoration(labelText: 'Nom affiché')),
-                      TextField(controller: email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'E-mail')),
+                      TextField(
+                        controller: name,
+                        decoration: const InputDecoration(
+                          labelText: 'Nom affiché',
+                        ),
+                      ),
+                      TextField(
+                        controller: email,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(labelText: 'E-mail'),
+                      ),
                     ]),
                     const SizedBox(height: 10),
                     _adaptiveFields(<Widget>[
-                      TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Téléphone principal')),
-                      TextField(controller: secondary, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Téléphone secondaire')),
+                      TextField(
+                        controller: phone,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(
+                          labelText: 'Téléphone principal',
+                        ),
+                      ),
+                      TextField(
+                        controller: secondary,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(
+                          labelText: 'Téléphone secondaire',
+                        ),
+                      ),
                     ]),
                     const SizedBox(height: 10),
                     _adaptiveFields(<Widget>[
-                      TextField(controller: city, decoration: const InputDecoration(labelText: 'Ville')),
-                      TextField(controller: address, decoration: const InputDecoration(labelText: 'Adresse')),
+                      TextField(
+                        controller: city,
+                        decoration: const InputDecoration(labelText: 'Ville'),
+                      ),
+                      TextField(
+                        controller: address,
+                        decoration: const InputDecoration(labelText: 'Adresse'),
+                      ),
                     ]),
                     const SizedBox(height: 14),
                     _managerPersonalProfilePanel(
@@ -561,53 +735,74 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
                       reviewNote: reviewNote,
                       onReviewStatusChanged:
                           (StaffProfileVerificationStatus value) {
-                        setDialogState(() => reviewStatus = value);
-                      },
+                            setDialogState(() => reviewStatus = value);
+                          },
                     ),
                     const SizedBox(height: 14),
                     TextField(
                       controller: notes,
                       minLines: 2,
                       maxLines: 4,
-                      decoration: const InputDecoration(labelText: 'Notes opérationnelles'),
+                      decoration: const InputDecoration(
+                        labelText: 'Notes opérationnelles',
+                      ),
                     ),
                     const SizedBox(height: 8),
                     SwitchListTile.adaptive(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Disponible pour l’attribution des zones'),
+                      title: const Text(
+                        'Disponible pour l’attribution des zones',
+                      ),
                       subtitle: Text(
                         !manager.accountActive
                             ? 'Le compte est suspendu dans Utilisateurs : aucune zone ne peut lui être attribuée.'
                             : available
-                                ? 'Ce Manager peut recevoir de nouvelles zones.'
-                                : 'Ce Manager reste visible mais ne peut pas recevoir de nouvelles zones.',
+                            ? 'Ce Manager peut recevoir de nouvelles zones.'
+                            : 'Ce Manager reste visible mais ne peut pas recevoir de nouvelles zones.',
                       ),
                       value: available,
                       onChanged: manager.accountActive
-                          ? (bool value) => setDialogState(() => available = value)
+                          ? (bool value) =>
+                                setDialogState(() => available = value)
                           : null,
                     ),
                     const Divider(height: 28),
                     _sectionTitle('Zones supervisées'),
                     const SizedBox(height: 8),
                     if (zones.isEmpty)
-                      const Text('Aucune zone attribuée. L’attribution se fait depuis Zones & capacités.')
+                      const Text(
+                        'Aucune zone attribuée. L’attribution se fait depuis Zones & capacités.',
+                      )
                     else
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
-                        children: zones.map((TerritoryZone zone) => Chip(label: Text(zone.displayLabel))).toList(growable: false),
+                        children: zones
+                            .map(
+                              (TerritoryZone zone) =>
+                                  Chip(label: Text(zone.displayLabel)),
+                            )
+                            .toList(growable: false),
                       ),
                     const SizedBox(height: 18),
                     _sectionTitle('Agents des zones'),
                     const SizedBox(height: 8),
-                    if (agents.isEmpty)
-                      const Text('Aucun Agent rattaché aux zones de ce Manager.')
+                    if (!_agentsLoaded)
+                      const Text('Données Agents indisponibles pour le moment.')
+                    else if (agents.isEmpty)
+                      const Text(
+                        'Aucun Agent rattaché aux zones de ce Manager.',
+                      )
                     else
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
-                        children: agents.map((AgentDirectoryEntry agent) => Chip(label: Text(agent.name))).toList(growable: false),
+                        children: agents
+                            .map(
+                              (AgentDirectoryEntry agent) =>
+                                  Chip(label: Text(agent.name)),
+                            )
+                            .toList(growable: false),
                       ),
                     const SizedBox(height: 18),
                     _sectionTitle('Historique territorial'),
@@ -645,7 +840,10 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
                     ? null
                     : () async {
                         if (name.text.trim().length < 2) {
-                          IzyTelFeedback.error(dialogContext, 'Renseigne le nom du Manager.');
+                          IzyTelFeedback.error(
+                            dialogContext,
+                            'Renseigne le nom du Manager.',
+                          );
                           return;
                         }
                         setDialogState(() => saving = true);
@@ -664,14 +862,17 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
                             ),
                           );
                           if (personalProfile != null &&
-                              (reviewStatus != personalProfile!.verificationStatus ||
+                              (reviewStatus !=
+                                      personalProfile!.verificationStatus ||
                                   reviewNote.text.trim() !=
-                                      (personalProfile!.verificationNote ?? ''))) {
-                            personalProfile = await staffRepository.reviewProfile(
-                              firebaseUid: manager.firebaseUid,
-                              status: reviewStatus,
-                              note: reviewNote.text.trim(),
-                            );
+                                      (personalProfile!.verificationNote ??
+                                          ''))) {
+                            personalProfile = await staffRepository
+                                .reviewProfile(
+                                  firebaseUid: manager.firebaseUid,
+                                  status: reviewStatus,
+                                  note: reviewNote.text.trim(),
+                                );
                           }
                           if (!dialogContext.mounted) {
                             return;
@@ -681,7 +882,10 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
                           if (!mounted) {
                             return;
                           }
-                          IzyTelFeedback.success(this.context, 'Profil Manager mis à jour.');
+                          IzyTelFeedback.success(
+                            this.context,
+                            'Profil Manager mis à jour.',
+                          );
                         } catch (error) {
                           if (!dialogContext.mounted) {
                             return;
@@ -714,8 +918,7 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
     required SupabaseStaffProfileRepository repository,
     required StaffProfileVerificationStatus reviewStatus,
     required TextEditingController reviewNote,
-    required ValueChanged<StaffProfileVerificationStatus>
-        onReviewStatusChanged,
+    required ValueChanged<StaffProfileVerificationStatus> onReviewStatusChanged,
   }) {
     if (profile == null) {
       return Container(
@@ -734,7 +937,8 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
     final String birthDate = profile.dateOfBirth == null
         ? 'Non renseignée'
         : _formatDateOnly(profile.dateOfBirth!);
-    final String emergency = profile.emergencyContactName.trim().isEmpty &&
+    final String emergency =
+        profile.emergencyContactName.trim().isEmpty &&
             profile.emergencyContactPhone.trim().isEmpty
         ? 'Non renseigné'
         : '${profile.emergencyContactName} • ${profile.emergencyContactPhone}';
@@ -769,9 +973,7 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
           ),
           const SizedBox(height: 10),
           Text('Date de naissance : $birthDate'),
-          Text(
-            'Contact d’urgence : $emergency',
-          ),
+          Text('Contact d’urgence : $emergency'),
           Text(
             'Dernière activité : ${_formatDate(profile.lastActivityAt ?? profile.updatedAt)}',
           ),
@@ -780,10 +982,8 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
             Align(
               alignment: Alignment.centerLeft,
               child: OutlinedButton.icon(
-                onPressed: () => _openStaffIdentityDocument(
-                  manager.firebaseUid,
-                  repository,
-                ),
+                onPressed: () =>
+                    _openStaffIdentityDocument(manager.firebaseUid, repository),
                 icon: const Icon(Symbols.id_card_rounded),
                 label: const Text('Voir la pièce d’identité'),
               ),
@@ -797,9 +997,9 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
                 .map(
                   (StaffProfileVerificationStatus value) =>
                       DropdownMenuItem<StaffProfileVerificationStatus>(
-                    value: value,
-                    child: Text(value.label),
-                  ),
+                        value: value,
+                        child: Text(value.label),
+                      ),
                 )
                 .toList(growable: false),
             onChanged: (StaffProfileVerificationStatus? value) {
@@ -828,7 +1028,9 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
     SupabaseStaffProfileRepository repository,
   ) async {
     try {
-      final String? url = await repository.fetchIdentityDocumentUrl(firebaseUid);
+      final String? url = await repository.fetchIdentityDocumentUrl(
+        firebaseUid,
+      );
       if (!mounted) {
         return;
       }
@@ -844,7 +1046,10 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
         return;
       }
       if (!opened) {
-        IzyTelFeedback.error(context, 'Impossible d’ouvrir la pièce d’identité.');
+        IzyTelFeedback.error(
+          context,
+          'Impossible d’ouvrir la pièce d’identité.',
+        );
       }
     } catch (error) {
       if (!mounted) {
@@ -878,14 +1083,48 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                _detail('Statut du compte', manager.accountActive ? 'Actif' : 'Suspendu'),
-                _detail('Disponibilité territoriale', manager.canReceiveZone ? 'Disponible' : 'Indisponible'),
-                _detail('Téléphone', manager.phoneNumber.isEmpty ? 'Non renseigné' : manager.phoneNumber),
-                _detail('E-mail', manager.email.isEmpty ? 'Non renseigné' : manager.email),
-                _detail('Ville', manager.city.isEmpty ? 'Non renseignée' : manager.city),
-                _detail('Zones', zones.isEmpty ? 'Aucune zone' : zones.map((TerritoryZone zone) => zone.displayLabel).join(' • ')),
-                _detail('Agents supervisés', agents.isEmpty ? 'Aucun Agent' : agents.map((AgentDirectoryEntry agent) => agent.name).join(' • ')),
-                _detail('Dernière activité', _formatDate(manager.lastActivityAt ?? manager.updatedAt)),
+                _detail(
+                  'Statut du compte',
+                  manager.accountActive ? 'Actif' : 'Suspendu',
+                ),
+                _detail(
+                  'Disponibilité territoriale',
+                  manager.canReceiveZone ? 'Disponible' : 'Indisponible',
+                ),
+                _detail(
+                  'Téléphone',
+                  manager.phoneNumber.isEmpty
+                      ? 'Non renseigné'
+                      : manager.phoneNumber,
+                ),
+                _detail(
+                  'E-mail',
+                  manager.email.isEmpty ? 'Non renseigné' : manager.email,
+                ),
+                _detail(
+                  'Ville',
+                  manager.city.isEmpty ? 'Non renseignée' : manager.city,
+                ),
+                _detail(
+                  'Zones',
+                  zones.isEmpty
+                      ? 'Aucune zone'
+                      : zones
+                            .map((TerritoryZone zone) => zone.displayLabel)
+                            .join(' • '),
+                ),
+                _detail(
+                  'Agents supervisés',
+                  agents.isEmpty
+                      ? 'Aucun Agent'
+                      : agents
+                            .map((AgentDirectoryEntry agent) => agent.name)
+                            .join(' • '),
+                ),
+                _detail(
+                  'Dernière activité',
+                  _formatDate(manager.lastActivityAt ?? manager.updatedAt),
+                ),
                 _sectionTitle('Historique territorial'),
                 const SizedBox(height: 8),
                 _auditHistory(manager.firebaseUid),
@@ -893,7 +1132,12 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
             ),
           ),
         ),
-        actions: <Widget>[TextButton(onPressed: () => Navigator.pop(context), child: const Text('Fermer'))],
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ],
       ),
     );
   }
@@ -905,38 +1149,55 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
         entityId: managerId,
         limit: 8,
       ),
-      builder: (BuildContext context, AsyncSnapshot<List<TerritoryAuditEvent>> snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const LinearProgressIndicator(minHeight: 2);
-        }
-        if (snapshot.hasError) {
-          return Text('Historique indisponible.', style: Theme.of(context).textTheme.bodySmall);
-        }
-        final List<TerritoryAuditEvent> events = snapshot.data ?? const <TerritoryAuditEvent>[];
-        if (events.isEmpty) {
-          return Text('Aucune modification territoriale enregistrée.', style: Theme.of(context).textTheme.bodySmall);
-        }
-        return Column(
-          children: events.map((TerritoryAuditEvent event) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  const Icon(Symbols.history_rounded, size: 18, color: BackofficePalette.primaryStrong),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '${event.actionLabel} • ${event.actorName} • ${_formatDate(event.createdAt)}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-                ],
-              ),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<List<TerritoryAuditEvent>> snapshot,
+          ) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const LinearProgressIndicator(minHeight: 2);
+            }
+            if (snapshot.hasError) {
+              return Text(
+                'Historique indisponible.',
+                style: Theme.of(context).textTheme.bodySmall,
+              );
+            }
+            final List<TerritoryAuditEvent> events =
+                snapshot.data ?? const <TerritoryAuditEvent>[];
+            if (events.isEmpty) {
+              return Text(
+                'Aucune modification territoriale enregistrée.',
+                style: Theme.of(context).textTheme.bodySmall,
+              );
+            }
+            return Column(
+              children: events
+                  .map((TerritoryAuditEvent event) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          const Icon(
+                            Symbols.history_rounded,
+                            size: 18,
+                            color: BackofficePalette.primaryStrong,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${event.actionLabel} • ${event.actorName} • ${_formatDate(event.createdAt)}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  })
+                  .toList(growable: false),
             );
-          }).toList(growable: false),
-        );
-      },
+          },
     );
   }
 
@@ -946,7 +1207,11 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
         if (constraints.maxWidth < 620) {
           return Column(
             children: <Widget>[
-              for (int index = 0; index < fields.length; index += 1) ...<Widget>[
+              for (
+                int index = 0;
+                index < fields.length;
+                index += 1
+              ) ...<Widget>[
                 fields[index],
                 if (index < fields.length - 1) const SizedBox(height: 10),
               ],
@@ -970,9 +1235,21 @@ class _BackofficeManagersPageState extends State<BackofficeManagersPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
+        Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(
+            context,
+          ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+        ),
         const SizedBox(height: 3),
-        Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
+        Text(
+          subtitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
       ],
     );
   }

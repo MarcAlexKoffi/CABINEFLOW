@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:cabine_flow/features/orders/domain/repositories/shared_order_queue_repository.dart';
+import 'package:cabine_flow/features/orders/presentation/pages/order_supervision_page.dart';
 
 import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
 import 'package:cabine_flow/backoffice/presentation/widgets/backoffice_order_widgets.dart';
@@ -73,7 +75,8 @@ class _BackofficeOrdersPageState extends State<BackofficeOrdersPage> {
 
   Future<void> _refresh() async {
     try {
-      final List<QueueOrder> orders = await widget.repository.fetchOrderHistory();
+      final List<QueueOrder> orders = await widget.repository
+          .fetchOrderHistory();
       if (!mounted) return;
       setState(() {
         _orders = orders;
@@ -165,7 +168,9 @@ class _BackofficeOrdersPageState extends State<BackofficeOrdersPage> {
     final DateTime now = DateTime.now();
     return _orders.where((QueueOrder order) {
       final DateTime date = order.createdAt.toLocal();
-      return date.year == now.year && date.month == now.month && date.day == now.day;
+      return date.year == now.year &&
+          date.month == now.month &&
+          date.day == now.day;
     }).length;
   }
 
@@ -202,13 +207,34 @@ class _BackofficeOrdersPageState extends State<BackofficeOrdersPage> {
             label: const Text('Actualiser'),
           ),
         ),
+        if (widget.repository is OrderSupervisionRepository)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => OrderSupervisionPage(
+                    user: widget.user,
+                    repository: widget.repository as OrderSupervisionRepository,
+                    historyRepository: widget.repository,
+                  ),
+                ),
+              ),
+              icon: const Icon(Symbols.monitoring_rounded),
+              label: const Text('Suivi et alertes'),
+            ),
+          ),
         const SizedBox(height: 16),
         _MetricsGrid(
           cards: <Widget>[
             BackofficeMetricCard(
               label: _period.isActive ? _period.label : 'Aujourd’hui',
-              value: _period.isActive ? '${_periodOrders.length}' : '$_todayCount',
-              caption: _period.isActive ? 'commandes dans la période' : 'commandes créées',
+              value: _period.isActive
+                  ? '${_periodOrders.length}'
+                  : '$_todayCount',
+              caption: _period.isActive
+                  ? 'commandes dans la période'
+                  : 'commandes créées',
               icon: Symbols.today_rounded,
             ),
             BackofficeMetricCard(
@@ -250,12 +276,14 @@ class _BackofficeOrdersPageState extends State<BackofficeOrdersPage> {
           const BackofficeEmptyState(
             icon: Symbols.search_off_rounded,
             title: 'Aucune commande trouvée',
-            message: 'Modifie les filtres ou la recherche pour retrouver une commande.',
+            message:
+                'Modifie les filtres ou la recherche pour retrouver une commande.',
           )
         else
           _OrdersList(
             orders: _visibleOrders,
-            onOpen: (QueueOrder order) => showBackofficeOrderDetails(context, order),
+            onOpen: (QueueOrder order) =>
+                showBackofficeOrderDetails(context, order),
             onAssign: widget.onOpenAssignments,
             onPayments: widget.onOpenPayments,
           ),
@@ -287,10 +315,22 @@ class _BackofficeOrdersPageState extends State<BackofficeOrdersPage> {
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'État'),
                 items: const <DropdownMenuItem<_OrdersScope>>[
-                  DropdownMenuItem(value: _OrdersScope.all, child: Text('Toutes')),
-                  DropdownMenuItem(value: _OrdersScope.active, child: Text('Actives')),
-                  DropdownMenuItem(value: _OrdersScope.completed, child: Text('Terminées')),
-                  DropdownMenuItem(value: _OrdersScope.failed, child: Text('Alertes')),
+                  DropdownMenuItem(
+                    value: _OrdersScope.all,
+                    child: Text('Toutes'),
+                  ),
+                  DropdownMenuItem(
+                    value: _OrdersScope.active,
+                    child: Text('Actives'),
+                  ),
+                  DropdownMenuItem(
+                    value: _OrdersScope.completed,
+                    child: Text('Terminées'),
+                  ),
+                  DropdownMenuItem(
+                    value: _OrdersScope.failed,
+                    child: Text('Alertes'),
+                  ),
                 ],
                 onChanged: (_OrdersScope? value) {
                   if (value != null) setState(() => _scope = value);
@@ -301,12 +341,25 @@ class _BackofficeOrdersPageState extends State<BackofficeOrdersPage> {
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Réseau'),
                 items: const <DropdownMenuItem<MobileNetwork?>>[
-                  DropdownMenuItem(value: null, child: Text('Tous les réseaux')),
-                  DropdownMenuItem(value: MobileNetwork.orange, child: Text('Orange')),
-                  DropdownMenuItem(value: MobileNetwork.mtn, child: Text('MTN')),
-                  DropdownMenuItem(value: MobileNetwork.moov, child: Text('Moov Africa')),
+                  DropdownMenuItem(
+                    value: null,
+                    child: Text('Tous les réseaux'),
+                  ),
+                  DropdownMenuItem(
+                    value: MobileNetwork.orange,
+                    child: Text('Orange'),
+                  ),
+                  DropdownMenuItem(
+                    value: MobileNetwork.mtn,
+                    child: Text('MTN'),
+                  ),
+                  DropdownMenuItem(
+                    value: MobileNetwork.moov,
+                    child: Text('Moov Africa'),
+                  ),
                 ],
-                onChanged: (MobileNetwork? value) => setState(() => _network = value),
+                onChanged: (MobileNetwork? value) =>
+                    setState(() => _network = value),
               );
 
               if (compact) {
@@ -365,11 +418,14 @@ class _MetricsGrid extends StatelessWidget {
             ? 2
             : 1;
         final double gap = 10;
-        final double width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+        final double width =
+            (constraints.maxWidth - gap * (columns - 1)) / columns;
         return Wrap(
           spacing: gap,
           runSpacing: gap,
-          children: cards.map((Widget card) => SizedBox(width: width, child: card)).toList(),
+          children: cards
+              .map((Widget card) => SizedBox(width: width, child: card))
+              .toList(),
         );
       },
     );
@@ -390,7 +446,8 @@ class _OrdersList extends StatelessWidget {
   final VoidCallback onPayments;
 
   bool _canAssign(QueueOrder order) {
-    return order.status == QueueOrderStatus.paidReady && !order.isAssignedToAgent;
+    return order.status == QueueOrderStatus.paidReady &&
+        !order.isAssignedToAgent;
   }
 
   bool _paymentNeedsReview(QueueOrder order) {
@@ -438,163 +495,173 @@ class _OrdersList extends StatelessWidget {
               alignment: Alignment.centerRight,
             ),
           ],
-          rows: orders.map((QueueOrder order) {
-            final bool paymentNeedsReview = _paymentNeedsReview(order);
-            final bool assignable = _canAssign(order);
-            final Color statusColor = paymentNeedsReview
-                ? BackofficePalette.warning
-                : assignable
-                ? BackofficePalette.primaryStrong
-                : orderStatusColor(order.status);
-            final String statusLabel = paymentNeedsReview
-                ? 'Paiement à vérifier'
-                : assignable
-                ? 'À affecter'
-                : orderStatusLabel(order.status);
-            return BackofficeDesktopTableRow(
-              onTap: () => onOpen(order),
-              backgroundColor: paymentNeedsReview
-                  ? BackofficePalette.warning.withValues(alpha: .04)
-                  : assignable
-                  ? BackofficePalette.primarySoft.withValues(alpha: .42)
-                  : null,
-              accentColor: paymentNeedsReview
-                  ? BackofficePalette.warning
-                  : assignable
-                  ? BackofficePalette.primary
-                  : null,
-              cells: <BackofficeTableCellSpec>[
-                BackofficeTableCellSpec(
-                  flex: 2,
-                  child: BackofficeStatusBadge(
-                    label: statusLabel,
-                    color: statusColor,
-                    icon: paymentNeedsReview
-                        ? Symbols.priority_high_rounded
-                        : assignable
-                        ? Symbols.person_add_rounded
-                        : orderStatusIcon(order.status),
-                  ),
-                ),
-                BackofficeTableCellSpec(
-                  flex: 3,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        order.reference,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+          rows: orders
+              .map((QueueOrder order) {
+                final bool paymentNeedsReview = _paymentNeedsReview(order);
+                final bool assignable = _canAssign(order);
+                final Color statusColor = paymentNeedsReview
+                    ? BackofficePalette.warning
+                    : assignable
+                    ? BackofficePalette.primaryStrong
+                    : orderStatusColor(order.status);
+                final String statusLabel = paymentNeedsReview
+                    ? 'Paiement à vérifier'
+                    : assignable
+                    ? 'À affecter'
+                    : orderStatusLabel(order.status);
+                return BackofficeDesktopTableRow(
+                  onTap: () => onOpen(order),
+                  backgroundColor: paymentNeedsReview
+                      ? BackofficePalette.warning.withValues(alpha: .04)
+                      : assignable
+                      ? BackofficePalette.primarySoft.withValues(alpha: .42)
+                      : null,
+                  accentColor: paymentNeedsReview
+                      ? BackofficePalette.warning
+                      : assignable
+                      ? BackofficePalette.primary
+                      : null,
+                  cells: <BackofficeTableCellSpec>[
+                    BackofficeTableCellSpec(
+                      flex: 2,
+                      child: BackofficeStatusBadge(
+                        label: statusLabel,
+                        color: statusColor,
+                        icon: paymentNeedsReview
+                            ? Symbols.priority_high_rounded
+                            : assignable
+                            ? Symbols.person_add_rounded
+                            : orderStatusIcon(order.status),
+                      ),
+                    ),
+                    BackofficeTableCellSpec(
+                      flex: 3,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            order.reference,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 4),
+                          BackofficeNetworkBadge(
+                            network: order.network,
+                            compact: true,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            formatOrderDateTime(order.createdAt),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(color: BackofficePalette.faint),
+                          ),
+                        ],
+                      ),
+                    ),
+                    BackofficeTableCellSpec(
+                      flex: 2,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            order.clientName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            formatIvorianPhone(order.beneficiaryPhone),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    BackofficeTableCellSpec(
+                      flex: 1,
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        formatCfa(order.amount),
+                        textAlign: TextAlign.right,
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
-                      const SizedBox(height: 4),
-                      BackofficeNetworkBadge(
-                        network: order.network,
-                        compact: true,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        formatOrderDateTime(order.createdAt),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: BackofficePalette.faint,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                BackofficeTableCellSpec(
-                  flex: 2,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        order.clientName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        formatIvorianPhone(order.beneficiaryPhone),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                BackofficeTableCellSpec(
-                  flex: 1,
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    formatCfa(order.amount),
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-                BackofficeTableCellSpec(
-                  flex: 2,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        order.assignedAgentName?.trim().isNotEmpty == true
-                            ? order.assignedAgentName!
-                            : 'Non affectée',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: assignable
-                              ? BackofficePalette.primaryStrong
-                              : BackofficePalette.ink,
-                        ),
-                      ),
-                      if (order.manualAssignmentRequired) ...<Widget>[
-                        const SizedBox(height: 3),
-                        const Text(
-                          'Intervention manuelle requise',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: BackofficePalette.warning,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
+                    ),
+                    BackofficeTableCellSpec(
+                      flex: 2,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            order.assignedAgentName?.trim().isNotEmpty == true
+                                ? order.assignedAgentName!
+                                : 'Non affectée',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: assignable
+                                  ? BackofficePalette.primaryStrong
+                                  : BackofficePalette.ink,
+                            ),
                           ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                BackofficeTableCellSpec(
-                  flex: 2,
-                  alignment: Alignment.centerRight,
-                  child: paymentNeedsReview
-                      ? FilledButton.tonalIcon(
-                          onPressed: onPayments,
-                          icon: const Icon(Symbols.payments_rounded, size: 18),
-                          label: const Text('Paiement'),
-                        )
-                      : assignable
-                      ? FilledButton.tonalIcon(
-                          onPressed: () => onAssign(order),
-                          icon: const Icon(Symbols.assignment_ind_rounded, size: 18),
-                          label: const Text('Affecter'),
-                        )
-                      : OutlinedButton.icon(
-                          onPressed: () => onOpen(order),
-                          icon: const Icon(Symbols.visibility_rounded, size: 18),
-                          label: const Text('Détails'),
-                        ),
-                ),
-              ],
-            );
-          }).toList(growable: false),
+                          if (order.manualAssignmentRequired) ...<Widget>[
+                            const SizedBox(height: 3),
+                            const Text(
+                              'Intervention manuelle requise',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: BackofficePalette.warning,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    BackofficeTableCellSpec(
+                      flex: 2,
+                      alignment: Alignment.centerRight,
+                      child: paymentNeedsReview
+                          ? FilledButton.tonalIcon(
+                              onPressed: onPayments,
+                              icon: const Icon(
+                                Symbols.payments_rounded,
+                                size: 18,
+                              ),
+                              label: const Text('Paiement'),
+                            )
+                          : assignable
+                          ? FilledButton.tonalIcon(
+                              onPressed: () => onAssign(order),
+                              icon: const Icon(
+                                Symbols.assignment_ind_rounded,
+                                size: 18,
+                              ),
+                              label: const Text('Affecter'),
+                            )
+                          : OutlinedButton.icon(
+                              onPressed: () => onOpen(order),
+                              icon: const Icon(
+                                Symbols.visibility_rounded,
+                                size: 18,
+                              ),
+                              label: const Text('Détails'),
+                            ),
+                    ),
+                  ],
+                );
+              })
+              .toList(growable: false),
         );
       },
     );
@@ -628,9 +695,15 @@ class _OrderCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(order.reference, style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      order.reference,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 3),
-                    Text('${order.clientName} • ${formatCfa(order.amount)}', style: Theme.of(context).textTheme.bodySmall),
+                    Text(
+                      '${order.clientName} • ${formatCfa(order.amount)}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                   ],
                 ),
               ),

@@ -1,0 +1,163 @@
+{
+  "recorded_at": "2026-11-06T22:12:31.820Z",
+  "project_id": "zrxeztxaxnzxevjuhzcc",
+  "authorization": "User explicitly authorized enabling shared queue, recurring five-minute supervision and publishing the three identified unassigned paid orders.",
+  "migration": {
+    "name": "activate_shared_queue_and_publish_three_pending_orders",
+    "version": "20261106221011"
+  },
+  "settings": {
+    "enabled": true,
+    "singleton": true,
+    "activated_at": "2026-11-06T22:10:11.153079+00:00"
+  },
+  "orders": [
+    {
+      "route": "shared",
+      "amount": 20000,
+      "status": "paidReady",
+      "network": "orange",
+      "payment": "confirmed",
+      "has_agent": false,
+      "reference": "CF-20261106-J4WWAB",
+      "assignment": "waiting",
+      "available_at": "2026-11-06T22:10:11.26081+00:00"
+    },
+    {
+      "route": "shared",
+      "amount": 200,
+      "status": "paidReady",
+      "network": "orange",
+      "payment": "confirmed",
+      "has_agent": false,
+      "reference": "CF-20261106-MEEBSO",
+      "assignment": "waiting",
+      "available_at": "2026-11-06T22:10:11.247452+00:00"
+    },
+    {
+      "route": "shared",
+      "amount": 1000,
+      "status": "paidReady",
+      "network": "mtn",
+      "payment": "confirmed",
+      "has_agent": false,
+      "reference": "CF-20261106-UCTYKO",
+      "assignment": "waiting",
+      "available_at": "2026-11-06T22:10:11.260892+00:00"
+    }
+  ],
+  "cron": {
+    "job": {
+      "active": true,
+      "jobname": "izytel-acceptance-delay-monitor",
+      "schedule": "* * * * *"
+    },
+    "now": "2026-11-06T22:11:23.298571+00:00",
+    "runs": [
+      {
+        "status": "succeeded",
+        "end_time": "2026-11-06T22:11:00.088295+00:00",
+        "start_time": "2026-11-06T22:11:00.076071+00:00",
+        "return_message": "1 row"
+      }
+    ],
+    "notification_counts": [
+      {
+        "count": 6,
+        "status": "sent"
+      }
+    ]
+  },
+  "guards": [
+    {
+      "name": "aaa_izytel_shared_order_guard",
+      "enabled": "O"
+    },
+    {
+      "name": "zzz_izytel_acceptance_lifecycle",
+      "enabled": "O"
+    }
+  ],
+  "visibility": {
+    "method": "read-only RPC under anon with the corresponding Firebase claims; not a phone UI observation",
+    "agent_1": {
+      "orders": [
+        {
+          "amount": 200,
+          "reference": "CF-20261106-MEEBSO",
+          "can_accept": true
+        },
+        {
+          "amount": 20000,
+          "reference": "CF-20261106-J4WWAB",
+          "can_accept": false
+        },
+        {
+          "amount": 1000,
+          "reference": "CF-20261106-UCTYKO",
+          "can_accept": true
+        }
+      ],
+      "enabled": true
+    },
+    "agent_2": {
+      "orders": [
+        {
+          "amount": 200,
+          "reference": "CF-20261106-MEEBSO",
+          "can_accept": true
+        },
+        {
+          "amount": 20000,
+          "reference": "CF-20261106-J4WWAB",
+          "can_accept": false
+        },
+        {
+          "amount": 1000,
+          "reference": "CF-20261106-UCTYKO",
+          "can_accept": true
+        }
+      ],
+      "enabled": true
+    }
+  },
+  "notifications": {
+    "outbox": [
+      {
+        "count": 2,
+        "status": "sent",
+        "order_reference": "CF-20261106-J4WWAB"
+      },
+      {
+        "count": 2,
+        "status": "sent",
+        "order_reference": "CF-20261106-MEEBSO"
+      },
+      {
+        "count": 2,
+        "status": "sent",
+        "order_reference": "CF-20261106-UCTYKO"
+      }
+    ],
+    "accepted_by_fcm": true,
+    "physical_device_reception_observed": false
+  },
+  "local_test": {
+    "command": "node test/shared_queue/integration.mjs --publication-only",
+    "result": "passed",
+    "checks": "exact target set; data/history preservation; restored guards; territorial projection; unique events; retry after acceptance; no financial finalization",
+    "script_sha256": "620df15f361eb46794063e9cd95428aed3ed05a9e55d87b7e8f139fe24eaeb97"
+  },
+  "financial_changes": "none; original order fields/history asserted unchanged inside the transaction; no account capacity credit performed",
+  "capacity_limit": {
+    "order": "CF-20261106-J4WWAB",
+    "amount": 20000,
+    "network": "orange",
+    "current_agent_capacities": [
+      10400,
+      7900
+    ],
+    "resolution": "a legitimate recharge through the existing workflow is required before acceptance"
+  },
+  "backup": "local ignored .izytel_backups/shared_queue_before_activation_20261106.json; contains original rows, history, settings and trigger metadata"
+}

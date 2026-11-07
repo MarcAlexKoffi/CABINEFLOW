@@ -63,7 +63,10 @@ void main() {
     final String supabase = read(
       'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
     );
-    expect(hybrid, contains('_phase4.fetchAssignmentCandidates()'));
+    expect(
+      hybrid.replaceAll(RegExp(r'\s+'), ''),
+      contains('_phase4.fetchAssignmentCandidates()'),
+    );
     expect(hybrid, contains('rankEligibleIgnoringPreviousRefusals'));
     expect(hybrid, contains('_phase4.assignRanked('));
     expect(supabase, contains('activeAssignmentCount'));
@@ -134,23 +137,26 @@ void main() {
     expect(block, contains('_firestore.fetchOrderProof'));
   });
 
-  test('les watchers Phase 4 conservent la derniere valeur en panne transitoire', () {
-    final String supabase = read(
-      'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
-    );
-    final String realtime = read(
-      'lib/core/supabase/supabase_realtime_refetch.dart',
-    );
+  test(
+    'les watchers Phase 4 conservent la derniere valeur en panne transitoire',
+    () {
+      final String supabase = read(
+        'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
+      );
+      final String realtime = read(
+        'lib/core/supabase/supabase_realtime_refetch.dart',
+      );
 
-    // WC15 centralise la resilience dans SupabaseRealtimeRefetch au lieu de
-    // dupliquer BackendFailurePolicy dans chaque repository.
-    expect(supabase, contains('SupabaseRealtimeRefetch.watch'));
-    expect(supabase, contains('fallbackInterval: fallbackPollInterval'));
-    expect(realtime, contains('BackendFailurePolicy.canRetryRead'));
-    expect(realtime, contains('BackendFailurePolicy.retryDelay'));
-    expect(realtime, contains('if (hasLastSuccessful)'));
-    expect(realtime, contains('yield lastSuccessful as T;'));
-  });
+      // WC15 centralise la resilience dans SupabaseRealtimeRefetch au lieu de
+      // dupliquer BackendFailurePolicy dans chaque repository.
+      expect(supabase, contains('SupabaseRealtimeRefetch.watch'));
+      expect(supabase, contains('fallbackInterval: fallbackPollInterval'));
+      expect(realtime, contains('BackendFailurePolicy.canRetryRead'));
+      expect(realtime, contains('BackendFailurePolicy.retryDelay'));
+      expect(realtime, contains('if (hasLastSuccessful)'));
+      expect(realtime, contains('yield lastSuccessful as T;'));
+    },
+  );
 
   test('snapshot Phase 4 construit une commande Agent complete', () {
     final DateTime now = DateTime(2026, 9, 2, 18);
@@ -202,18 +208,21 @@ void main() {
     expect(historyPage, contains('_tabBox('));
   });
 
-  test('la file staff est reveillee par Firestore pre-sync et Supabase canonique', () {
-    final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
-    );
-    final int start = hybrid.indexOf('watchAutomaticAssignmentQueue()');
-    final int end = hybrid.indexOf(
-      'synchronizeAutomaticAssignmentBacklog()',
-      start,
-    );
-    final String block = hybrid.substring(start, end);
-    expect(block, contains('_firestore.watchAutomaticAssignmentQueue()'));
-    expect(block, contains('_phase4.watchAllForStaff()'));
-    expect(block, contains('lastPhase4Signature'));
-  });
+  test(
+    'la file staff est reveillee par Firestore pre-sync et Supabase canonique',
+    () {
+      final String hybrid = read(
+        'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      );
+      final int start = hybrid.indexOf('watchAutomaticAssignmentQueue()');
+      final int end = hybrid.indexOf(
+        'synchronizeAutomaticAssignmentBacklog()',
+        start,
+      );
+      final String block = hybrid.substring(start, end);
+      expect(block, contains('_firestore.watchAutomaticAssignmentQueue()'));
+      expect(block, contains('_phase4.watchAllForStaff()'));
+      expect(block, contains('lastPhase4Signature'));
+    },
+  );
 }

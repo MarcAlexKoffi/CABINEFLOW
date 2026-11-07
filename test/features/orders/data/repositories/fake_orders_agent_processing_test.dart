@@ -45,35 +45,26 @@ void main() {
     expect(resumed.lastResumedAt, isNotNull);
   });
 
-  test('une réussite exige une preuve puis clôt le travail agent', () async {
-    final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
-    final QueueOrder accepted = await acceptedOrder(repository);
-    final QueueOrder started = await repository.startAgentProcessing(
-      orderId: accepted.id,
-      agentId: 'AGENT-001',
-    );
+  test(
+    'une réussite explicite clôt le travail agent sans exiger de preuve',
+    () async {
+      final FakeOrdersRepository repository = FakeOrdersRepository(
+        isTest: true,
+      );
+      final QueueOrder accepted = await acceptedOrder(repository);
+      final QueueOrder started = await repository.startAgentProcessing(
+        orderId: accepted.id,
+        agentId: 'AGENT-001',
+      );
 
-    expect(
-      repository.markAgentSuccessful(orderId: started.id, agentId: 'AGENT-001'),
-      throwsStateError,
-    );
-
-    await repository.saveOrderProof(
-      orderId: started.id,
-      orderReference: started.reference,
-      agentId: 'AGENT-001',
-      fileName: 'preuve.jpg',
-      mimeType: 'image/jpeg',
-      bytes: <int>[1, 2, 3, 4],
-    );
-
-    final QueueOrder success = await repository.markAgentSuccessful(
-      orderId: started.id,
-      agentId: 'AGENT-001',
-    );
-    expect(success.status, QueueOrderStatus.completed);
-    expect(success.completedAt, isNotNull);
-  });
+      final QueueOrder success = await repository.markAgentSuccessful(
+        orderId: started.id,
+        agentId: 'AGENT-001',
+      );
+      expect(success.status, QueueOrderStatus.completed);
+      expect(success.completedAt, isNotNull);
+    },
+  );
 
   test('un échec clôt directement le travail de l’agent', () async {
     final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);

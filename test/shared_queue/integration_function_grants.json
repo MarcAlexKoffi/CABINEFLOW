@@ -1,0 +1,541 @@
+[
+  {
+    "schema": "private",
+    "name": "is_izytel_agent_directory_staff",
+    "args": "",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "is_izytel_agent_directory_staff",
+    "args": "",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "is_izytel_finance_admin",
+    "args": "",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "is_izytel_finance_admin",
+    "args": "",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "is_izytel_phase4_staff",
+    "args": "",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "is_izytel_phase4_staff",
+    "args": "",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "is_phase5_proof_owner",
+    "args": "p_order_id text",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "is_phase5_proof_owner",
+    "args": "p_order_id text",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "izytel_calculate_order_economics",
+    "args": "p_network text, p_order_amount bigint, p_acquisition_source text, p_executor_type text, p_executor_id text, p_referring_cabiniste_id text, p_manager_id text",
+    "grantee": "service_role",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "izytel_current_manager_zone_ids",
+    "args": "",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "izytel_current_manager_zone_ids",
+    "args": "",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "izytel_current_partner_id",
+    "args": "",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "izytel_current_partner_id",
+    "args": "",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "izytel_current_staff_role",
+    "args": "",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "izytel_current_staff_role",
+    "args": "",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "izytel_manager_can_access_partner",
+    "args": "p_partner_id uuid",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "izytel_manager_can_access_partner",
+    "args": "p_partner_id uuid",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "izytel_partner_success_post_settlement",
+    "args": "",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "izytel_record_order_economics_observation",
+    "args": "p_order_id text, p_acquisition_source text, p_executor_type text, p_executor_id text, p_referring_cabiniste_id text, p_manager_id text",
+    "grantee": "service_role",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "izytel_resolve_manager_for_zone_ids",
+    "args": "p_zone_ids text[]",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "izytel_resolve_manager_for_zone_ids",
+    "args": "p_zone_ids text[]",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "izytel_wc5_completed_order_message",
+    "args": "",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "izytel_wc5_manager_owns_zone",
+    "args": "p_zone_id text, p_manager_uid text",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "izytel_wc5_manager_owns_zone",
+    "args": "p_zone_id text, p_manager_uid text",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "phase3_agent_is_eligible",
+    "args": "p_agent_id text, p_order_id text",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "phase3_agent_is_eligible",
+    "args": "p_agent_id text, p_order_id text",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "phase3_agent_processing_action",
+    "args": "p_order_id text, p_action text, p_reason text, p_observation text",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "phase3_agent_processing_action",
+    "args": "p_order_id text, p_action text, p_reason text, p_observation text",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "phase3_prepare_failed_order_for_reassignment",
+    "args": "p_order_id text",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "phase3_prepare_failed_order_for_reassignment",
+    "args": "p_order_id text",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "phase4_agent_action_internal",
+    "args": "p_order_id text, p_action text, p_reason text",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "phase4_agent_action_internal",
+    "args": "p_order_id text, p_action text, p_reason text",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "phase4_partner_processing_action_internal",
+    "args": "p_order_id text, p_action text, p_reason text, p_observation text",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "phase4_partner_processing_action_internal",
+    "args": "p_order_id text, p_action text, p_reason text, p_observation text",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "phase5_finalize_order_success",
+    "args": "p_order_id text, p_agent_name text, p_processing_started_at timestamp with time zone",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "phase5_finalize_order_success",
+    "args": "p_order_id text, p_agent_name text, p_processing_started_at timestamp with time zone",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "phase5_finalize_partner_order_success_internal",
+    "args": "p_order_id text, p_processing_started_at timestamp with time zone",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "private",
+    "name": "phase5_finalize_partner_order_success_internal",
+    "args": "p_order_id text, p_processing_started_at timestamp with time zone",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase3_agent_processing_action",
+    "args": "p_order_id text, p_action text, p_reason text, p_observation text",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase3_agent_processing_action",
+    "args": "p_order_id text, p_action text, p_reason text, p_observation text",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase3_agent_processing_action",
+    "args": "p_order_id text, p_action text, p_reason text, p_observation text",
+    "grantee": "service_role",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase3_prepare_failed_order_for_reassignment",
+    "args": "p_order_id text",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase3_prepare_failed_order_for_reassignment",
+    "args": "p_order_id text",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase3_prepare_failed_order_for_reassignment",
+    "args": "p_order_id text",
+    "grantee": "service_role",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase3_sync_order",
+    "args": "p_order_id text, p_order_reference text, p_network text, p_amount integer, p_firebase_created_at timestamp with time zone, p_paid_at timestamp with time zone, p_source text, p_client_name text, p_client_whatsapp_phone text, p_beneficiary_phone text, p_operation_type text, p_offer_label text, p_original_whatsapp_message text, p_internal_notes text, p_payment_status text, p_payment_payer_name text, p_payment_reference text, p_payment_confirmed_at timestamp with time zone, p_customer_auth_uid text",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase3_sync_order",
+    "args": "p_order_id text, p_order_reference text, p_network text, p_amount integer, p_firebase_created_at timestamp with time zone, p_paid_at timestamp with time zone, p_source text, p_client_name text, p_client_whatsapp_phone text, p_beneficiary_phone text, p_operation_type text, p_offer_label text, p_original_whatsapp_message text, p_internal_notes text, p_payment_status text, p_payment_payer_name text, p_payment_reference text, p_payment_confirmed_at timestamp with time zone, p_customer_auth_uid text",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase3_sync_order",
+    "args": "p_order_id text, p_order_reference text, p_network text, p_amount integer, p_firebase_created_at timestamp with time zone, p_paid_at timestamp with time zone, p_source text, p_client_name text, p_client_whatsapp_phone text, p_beneficiary_phone text, p_operation_type text, p_offer_label text, p_original_whatsapp_message text, p_internal_notes text, p_payment_status text, p_payment_payer_name text, p_payment_reference text, p_payment_confirmed_at timestamp with time zone, p_customer_auth_uid text",
+    "grantee": "service_role",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_agent_action",
+    "args": "p_order_id text, p_action text, p_reason text",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_agent_action",
+    "args": "p_order_id text, p_action text, p_reason text",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_agent_action",
+    "args": "p_order_id text, p_action text, p_reason text",
+    "grantee": "service_role",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_close_order",
+    "args": "p_order_id text",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_close_order",
+    "args": "p_order_id text",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_close_order",
+    "args": "p_order_id text",
+    "grantee": "service_role",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_import_legacy_refusals",
+    "args": "p_order_id text, p_refused_agent_ids text[], p_manual_required boolean",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_import_legacy_refusals",
+    "args": "p_order_id text, p_refused_agent_ids text[], p_manual_required boolean",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_import_legacy_refusals",
+    "args": "p_order_id text, p_refused_agent_ids text[], p_manual_required boolean",
+    "grantee": "service_role",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_mark_handoff",
+    "args": "p_order_id text",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_mark_handoff",
+    "args": "p_order_id text",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_mark_handoff",
+    "args": "p_order_id text",
+    "grantee": "service_role",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_partner_processing_action",
+    "args": "p_order_id text, p_action text, p_reason text, p_observation text",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_partner_processing_action",
+    "args": "p_order_id text, p_action text, p_reason text, p_observation text",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_partner_processing_action",
+    "args": "p_order_id text, p_action text, p_reason text, p_observation text",
+    "grantee": "service_role",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_reconcile_acceptance",
+    "args": "p_order_id text, p_firebase_handoff_confirmed boolean",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_reconcile_acceptance",
+    "args": "p_order_id text, p_firebase_handoff_confirmed boolean",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_reconcile_acceptance",
+    "args": "p_order_id text, p_firebase_handoff_confirmed boolean",
+    "grantee": "service_role",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_reopen_acceptance",
+    "args": "p_order_id text",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_reopen_acceptance",
+    "args": "p_order_id text",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_reopen_acceptance",
+    "args": "p_order_id text",
+    "grantee": "service_role",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_reset_for_manual_assignment",
+    "args": "p_order_id text",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_reset_for_manual_assignment",
+    "args": "p_order_id text",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase4_reset_for_manual_assignment",
+    "args": "p_order_id text",
+    "grantee": "service_role",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase5_finalize_order_success",
+    "args": "p_order_id text, p_agent_name text, p_processing_started_at timestamp with time zone",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase5_finalize_order_success",
+    "args": "p_order_id text, p_agent_name text, p_processing_started_at timestamp with time zone",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase5_finalize_order_success",
+    "args": "p_order_id text, p_agent_name text, p_processing_started_at timestamp with time zone",
+    "grantee": "service_role",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase5_finalize_partner_order_success",
+    "args": "p_order_id text, p_processing_started_at timestamp with time zone",
+    "grantee": "anon",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase5_finalize_partner_order_success",
+    "args": "p_order_id text, p_processing_started_at timestamp with time zone",
+    "grantee": "authenticated",
+    "privilege_type": "EXECUTE"
+  },
+  {
+    "schema": "public",
+    "name": "phase5_finalize_partner_order_success",
+    "args": "p_order_id text, p_processing_started_at timestamp with time zone",
+    "grantee": "service_role",
+    "privilege_type": "EXECUTE"
+  }
+]

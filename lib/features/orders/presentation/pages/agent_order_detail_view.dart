@@ -2,16 +2,12 @@ import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
-import 'package:cabine_flow/features/orders/domain/models/order_proof.dart';
 import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/ussd/presentation/ussd_quick_processing_card.dart';
 import 'package:cabine_flow/features/orders/presentation/view_models/agent_orders_view_model.dart';
 import 'package:cabine_flow/features/orders/presentation/widgets/order_display_helpers.dart';
-import 'package:flutter/foundation.dart';
 import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
-import 'package:image/image.dart' as img;
-import 'package:image_picker/image_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 class AgentOrderDetailView extends StatefulWidget {
@@ -33,36 +29,7 @@ class AgentOrderDetailView extends StatefulWidget {
 }
 
 class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
-  final ImagePicker _picker = ImagePicker();
-  OrderProof? _proof;
-  bool _isLoadingProof = true;
-
   bool get _isBusy => widget.viewModel.busyOrderId == widget.order.id;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadProof();
-  }
-
-  @override
-  void didUpdateWidget(covariant AgentOrderDetailView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.order.id != widget.order.id) {
-      _proof = null;
-      _isLoadingProof = true;
-      _loadProof();
-    }
-  }
-
-  Future<void> _loadProof() async {
-    final OrderProof? proof = await widget.viewModel.loadProof(widget.order.id);
-    if (!mounted) return;
-    setState(() {
-      _proof = proof;
-      _isLoadingProof = false;
-    });
-  }
 
   void _showMessage(String message) {
     IzyTelFeedback.show(context, message);
@@ -134,96 +101,7 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
     );
   }
 
-  Future<void> _chooseProofSource() async {
-    if (_isBusy ||
-        (widget.order.status != QueueOrderStatus.inProgress &&
-            widget.order.status != QueueOrderStatus.onHold)) {
-      return;
-    }
-
-    final ImageSource? source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const _ProofSourceSheet(),
-    );
-    if (source == null || !mounted) return;
-
-    await _pickProof(source);
-  }
-
-  Future<void> _pickProof(ImageSource source) async {
-    if (_isBusy ||
-        (widget.order.status != QueueOrderStatus.inProgress &&
-            widget.order.status != QueueOrderStatus.onHold)) {
-      return;
-    }
-
-    try {
-      final XFile? picked = await _picker.pickImage(
-        source: source,
-        preferredCameraDevice: CameraDevice.rear,
-        maxWidth: 2200,
-        maxHeight: 2200,
-        imageQuality: 88,
-        requestFullMetadata: false,
-      );
-      if (picked == null || !mounted) return;
-
-      final Uint8List sourceBytes = await picked.readAsBytes();
-      final Uint8List compressed = await compute(
-        _compressProofForUpload,
-        sourceBytes,
-      );
-      if (!mounted) return;
-
-      final String safeReference = widget.order.reference.replaceAll(
-        RegExp(r'[^A-Za-z0-9_-]'),
-        '_',
-      );
-      final OrderProof? proof = await widget.viewModel.saveProof(
-        order: widget.order,
-        fileName: '${safeReference}_preuve.jpg',
-        mimeType: 'image/jpeg',
-        bytes: compressed,
-      );
-      if (!mounted) return;
-
-      if (proof == null) {
-        _showMessage(
-          widget.viewModel.errorMessage ??
-              'Impossible d’enregistrer la preuve.',
-        );
-        return;
-      }
-
-      setState(() {
-        _proof = proof;
-      });
-      _showMessage(
-        source == ImageSource.camera
-            ? 'Photo prise et preuve enregistrée.'
-            : 'Preuve enregistrée.',
-      );
-    } on FormatException catch (error) {
-      if (!mounted) return;
-      _showMessage(error.message.toString());
-    } catch (_) {
-      if (!mounted) return;
-      _showMessage(
-        source == ImageSource.camera
-            ? 'Impossible d’utiliser cette photo. Réessaie ou choisis la galerie.'
-            : 'Impossible de préparer cette image. Essaie une autre capture.',
-      );
-    }
-  }
-
   Future<void> _confirmSuccess() async {
-    if (_proof == null) {
-      _showMessage('Ajoute d’abord une preuve du transfert.');
-      return;
-    }
-
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -463,11 +341,19 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
               UssdQuickProcessingCard(
                 initiallyExpanded: false,
                 key: ValueKey('ussd-${order.id}'),
-                orderId: order.id, network: order.network.name,
-                offerLabel: order.offerLabel, beneficiary: order.beneficiaryPhone,
+                orderId: order.id,
+                network: order.network.name,
+                offerLabel: order.offerLabel,
+                beneficiary: order.beneficiaryPhone,
                 amount: order.amount,
-                processable: order.status == QueueOrderStatus.inProgress &&
-                    order.assignedAgentId == widget.user.id && order.isFundedForProcessing,
+                canCopyNumber:
+                    order.assignedAgentId == widget.user.id &&
+                    order.assignmentStatus == OrderAssignmentStatus.accepted &&
+                    order.isFundedForProcessing,
+                processable:
+                    order.status == QueueOrderStatus.inProgress &&
+                    order.assignedAgentId == widget.user.id &&
+                    order.isFundedForProcessing,
               ),
               SizedBox(height: 18 * referenceScale),
               _DetailMenuCard(
@@ -537,33 +423,6 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
                         ],
                       ),
                     ),
-                  ),
-                  _DetailMenuRowData(
-                    icon: Symbols.image_rounded,
-                    label: 'Preuve',
-                    trailing: _ProofThumbnail(
-                      proof: _proof,
-                      isLoading: _isLoadingProof,
-                    ),
-                    onTap: (order.status == QueueOrderStatus.inProgress ||
-                            order.status == QueueOrderStatus.onHold)
-                        ? _chooseProofSource
-                        : () {
-                            if (_proof == null) {
-                              _showMessage('Aucune preuve enregistrée.');
-                              return;
-                            }
-                            _showInfoSheet(
-                              title: 'Preuve de transfert',
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(14),
-                                child: Image.memory(
-                                  _proof!.bytes,
-                                  fit: BoxFit.contain,
-                                ),
-                              ),
-                            );
-                          },
                   ),
                   if (order.status == QueueOrderStatus.failed)
                     _DetailMenuRowData(
@@ -731,8 +590,8 @@ class _ReferenceOrderSummary extends StatelessWidget {
       1.35,
     );
 
-    return SizedBox(
-      height: 132 * scale,
+    return ConstrainedBox(
+      constraints: BoxConstraints(minHeight: 132 * scale),
       child: Container(
         padding: EdgeInsets.fromLTRB(
           12 * scale,
@@ -796,8 +655,6 @@ class _ReferenceOrderSummary extends StatelessWidget {
                 Expanded(
                   child: Text(
                     formatIvorianPhone(order.beneficiaryPhone),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: IzyTelColors.textPrimary,
                       fontSize: IzyTelTypeScale.title3,
@@ -807,12 +664,15 @@ class _ReferenceOrderSummary extends StatelessWidget {
                   ),
                 ),
                 SizedBox(width: 8 * scale),
-                Text(
-                  formatCfa(order.amount),
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: IzyTelColors.primaryStrong,
-                    fontSize: IzyTelTypeScale.title2,
-                    fontWeight: FontWeight.w700,
+                Flexible(
+                  child: Text(
+                    formatCfa(order.amount),
+                    textAlign: TextAlign.end,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: IzyTelColors.primaryStrong,
+                      fontSize: IzyTelTypeScale.title2,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],
@@ -908,8 +768,8 @@ class _ReferenceProgress extends StatelessWidget {
       .95,
       1.35,
     );
-    return SizedBox(
-      height: 54 * scale,
+    return ConstrainedBox(
+      constraints: BoxConstraints(minHeight: 64 * scale),
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: 2 * scale),
         child: Row(
@@ -1090,17 +950,22 @@ class _DetailMenuCard extends StatelessWidget {
         border: Border.all(color: IzyTelColors.outline),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: List<Widget>.generate(rows.length, (int index) {
           final _DetailMenuRowData row = rows[index];
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(
-                height: rowHeight,
+              ConstrainedBox(
+                constraints: BoxConstraints(minHeight: rowHeight),
                 child: InkWell(
                   onTap: row.onTap,
                   borderRadius: BorderRadius.circular(14),
                   child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12 * scale),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 12 * scale,
+                      vertical: 8,
+                    ),
                     child: Row(
                       children: [
                         Icon(
@@ -1121,7 +986,12 @@ class _DetailMenuCard extends StatelessWidget {
                           ),
                         ),
                         if (row.trailing != null) ...[
-                          row.trailing!,
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.sizeOf(context).width * .35,
+                            ),
+                            child: row.trailing!,
+                          ),
                           SizedBox(width: 5 * scale),
                         ],
                         Icon(
@@ -1191,36 +1061,6 @@ class _CountBadge extends StatelessWidget {
           fontSize: IzyTelTypeScale.micro,
           fontWeight: FontWeight.w600,
         ),
-      ),
-    );
-  }
-}
-
-class _ProofThumbnail extends StatelessWidget {
-  const _ProofThumbnail({required this.proof, required this.isLoading});
-
-  final OrderProof? proof;
-  final bool isLoading;
-
-  @override
-  Widget build(BuildContext context) {
-    if (isLoading) {
-      return const SizedBox.square(
-        dimension: 28,
-        child: Padding(
-          padding: EdgeInsets.all(7),
-          child: CircularProgressIndicator(strokeWidth: 1.5),
-        ),
-      );
-    }
-    if (proof == null) return const SizedBox.shrink();
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(5),
-      child: Image.memory(
-        proof!.bytes,
-        width: 34,
-        height: 28,
-        fit: BoxFit.cover,
       ),
     );
   }
@@ -1468,143 +1308,6 @@ class _SingleBottomAction extends StatelessWidget {
                   )
                 : Icon(icon, size: 16),
             label: Text(label),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProofSourceSheet extends StatelessWidget {
-  const _ProofSourceSheet();
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        margin: const EdgeInsets.all(12),
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-        decoration: BoxDecoration(
-          color: IzyTelColors.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: IzyTelColors.outline),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: IzyTelColors.outline,
-                  borderRadius: BorderRadius.circular(99),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Ajouter une preuve',
-              style: TextStyle(
-                color: IzyTelColors.textPrimary,
-                fontSize: IzyTelTypeScale.title2,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Choisis une photo existante ou prends-en une maintenant.',
-              style: TextStyle(
-                color: IzyTelColors.textSecondary,
-                fontSize: IzyTelTypeScale.micro,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 16),
-            _ProofSourceTile(
-              icon: Symbols.photo_camera_rounded,
-              title: 'Appareil photo',
-              subtitle: 'Prendre une photo en temps réel',
-              onTap: () => Navigator.of(context).pop(ImageSource.camera),
-            ),
-            const SizedBox(height: 10),
-            _ProofSourceTile(
-              icon: Symbols.photo_library_rounded,
-              title: 'Galerie',
-              subtitle: 'Choisir une capture déjà enregistrée',
-              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ProofSourceTile extends StatelessWidget {
-  const _ProofSourceTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: IzyTelColors.surface,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: IzyTelColors.primary.withAlpha(28),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: IzyTelColors.primary),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        color: IzyTelColors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        color: IzyTelColors.textSecondary,
-                        fontSize: IzyTelTypeScale.label,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(
-                Symbols.chevron_right_rounded,
-                color: IzyTelColors.textSecondary,
-              ),
-            ],
           ),
         ),
       ),
@@ -1975,42 +1678,6 @@ InputDecoration _darkInputDecoration({
       borderSide: BorderSide(color: IzyTelColors.error, width: 1.5),
     ),
   );
-}
-
-Uint8List _compressProofForUpload(Uint8List source) {
-  final img.Image? decoded = img.decodeImage(source);
-  if (decoded == null) {
-    throw FormatException('Cette image ne peut pas être lue.');
-  }
-
-  img.Image working = decoded;
-  if (decoded.width > 1440 || decoded.height > 1440) {
-    working = decoded.width >= decoded.height
-        ? img.copyResize(decoded, width: 1440)
-        : img.copyResize(decoded, height: 1440);
-  }
-
-  for (final int quality in <int>[72, 62, 52, 42]) {
-    final Uint8List encoded = Uint8List.fromList(
-      img.encodeJpg(working, quality: quality),
-    );
-    if (encoded.lengthInBytes <= 700000) {
-      return encoded;
-    }
-  }
-
-  working = working.width >= working.height
-      ? img.copyResize(working, width: 1080)
-      : img.copyResize(working, height: 1080);
-  final Uint8List encoded = Uint8List.fromList(
-    img.encodeJpg(working, quality: 38),
-  );
-  if (encoded.lengthInBytes > 750000) {
-    throw FormatException(
-      'Cette capture reste trop lourde après compression. Choisis une image plus simple.',
-    );
-  }
-  return encoded;
 }
 
 String _formatDateTime(DateTime date) {

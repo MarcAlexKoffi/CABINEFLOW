@@ -13,6 +13,14 @@ globalThis.fetch=async(_url,options)=>{posted=JSON.parse(options.body);return ne
 assert.equal((await module.sendFcm({project_id:'p'},'oauth','token',row)).ok,true);
 assert.equal(posted.message.data.notificationId,'n1');
 assert.equal(posted.message.android.notification.tag,'n1');
+for (const [event,route,priority] of [['order_available','shared_queue','normal'],['order_acceptance_delay','order_supervision','high']]) {
+ const eventRow={...row,event_type:event,data:{type:event,route,orderId:'o1',zoneId:'z1',assignmentVersion:3}};
+ assert.equal((await module.sendFcm({project_id:'p'},'oauth','token',eventRow)).ok,true);
+ assert.equal(posted.message.data.type,event);
+ assert.equal(posted.message.data.route,route);
+ assert.equal(posted.message.data.assignmentVersion,'3');
+ assert.equal(posted.message.android.priority,priority);
+}
 globalThis.fetch=async()=>new Response('{"error":{"status":"NOT_FOUND"}}',{status:404});
 assert.equal((await module.sendFcm({project_id:'p'},'oauth','token',row)).invalidToken,false);
 globalThis.fetch=async()=>new Response('{"error":{"details":[{"errorCode":"UNREGISTERED"}]}}',{status:404});
@@ -31,7 +39,8 @@ function query(table) {
   else {statusUpdate=q.value;assert(q.filters.some(([k,v])=>k==='claimed_at'&&v==='lease1'));resolve({data:null});}
  }};return q;
 }
-globalThis.createClient=()=>({from:query,rpc:async()=>({data:[row]})});
+let recipientAuthorized=true, authorizationUnavailable=false;
+globalThis.createClient=()=>({from:query,rpc:async(name)=>name==='izytel_notification_recipient_authorized'?{data:recipientAuthorized,error:authorizationUnavailable?{message:'unavailable'}:null}:{data:[row]}});
 const calls=[];
 globalThis.fetch=async(url,options)=>{
  if(String(url).includes('oauth2')) return new Response('{"access_token":"oauth"}',{status:200});
@@ -44,4 +53,13 @@ assert.equal(statusUpdate.status,'pending');assert.equal(deliveries[0].status,'s
 row.attempt_count=2;calls.length=0;
 await globalThis.__handler(req());
 assert.deepEqual(calls,['token2']);assert.equal(statusUpdate.status,'sent');
+row.event_type='order_acceptance_delay';
+recipientAuthorized=false;calls.length=0;
+await globalThis.__handler(req());
+assert.deepEqual(calls,[]);assert.equal(statusUpdate.status,'skipped');
+authorizationUnavailable=true;
+await globalThis.__handler(req());
+assert.deepEqual(calls,[]);assert.equal(statusUpdate.status,'pending');
+assert.equal(statusUpdate.last_error,'RECIPIENT_AUTHORIZATION_UNAVAILABLE');
 console.log('PASS FCM ID/tag, precise invalid-token classification, multi-device partial retry without replay of accepted device, lease guard');
+console.log('PASS territorial reauthorization: obsolete recipient is skipped; unavailable authorization retries without sending');

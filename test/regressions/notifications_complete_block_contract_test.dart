@@ -24,11 +24,17 @@ void main() {
       'lib/features/orders/presentation/pages/agent_orders_page.dart',
     ).readAsStringSync();
 
-    expect(shell, contains('FirebaseMessagingBootstrap.openedPayloads.listen'));
+    expect(
+      shell.replaceAll(RegExp(r'\s+'), ''),
+      contains('FirebaseMessagingBootstrap.openedPayloads.listen'),
+    );
     expect(shell, contains("payload.type == 'order_manual_required'"));
     expect(shell, contains("payload.type == 'agent_issue_new'"));
     expect(shell, contains("payload.type == 'agent_issue_resolved'"));
-    expect(shell, contains('IzyTelNotificationDeviceRegistry.deactivateCurrentDevice'));
+    expect(
+      shell,
+      contains('IzyTelNotificationDeviceRegistry.deactivateCurrentDevice'),
+    );
     expect(agentOrders, contains('notificationOrderRequest'));
     expect(agentOrders, contains('_openNotificationOrderIfAvailable'));
     expect(agentOrders, contains('attempt == 0 && !_viewModel.isLoading'));
@@ -68,5 +74,4 @@ void main() {
     expect(app, contains('SplashPage(authRepository: authRepository)'));
     expect(app, isNot(contains('Impossible d’ouvrir cette page.')));
   });
-
 }

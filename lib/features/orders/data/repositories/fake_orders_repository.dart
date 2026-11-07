@@ -394,7 +394,9 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
   }
 
   @override
-  Future<List<QueueOrder>> fetchAssignedOrders({required String agentId}) async {
+  Future<List<QueueOrder>> fetchAssignedOrders({
+    required String agentId,
+  }) async {
     await _delay(120);
     _orders ??= _createInitialOrders();
     final List<QueueOrder> orders = _orders!
@@ -645,10 +647,6 @@ class FakeOrdersRepository implements OrdersRepository, OrderHistoryRepository {
     if (currentOrder.status != QueueOrderStatus.inProgress) {
       throw StateError('Cette commande n’est pas en cours de traitement.');
     }
-    if (_proofs[orderId] == null) {
-      throw StateError('Ajoute une preuve avant de valider la réussite.');
-    }
-
     final QueueOrder updatedOrder = currentOrder.copyWith(
       status: QueueOrderStatus.completed,
       completedAt: DateTime.now(),

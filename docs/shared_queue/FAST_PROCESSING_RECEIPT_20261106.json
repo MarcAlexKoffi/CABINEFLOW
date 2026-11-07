@@ -1,0 +1,55 @@
+{
+    "recorded_at":  "2026-11-06T23:14:10.261Z",
+    "project_id":  "zrxeztxaxnzxevjuhzcc",
+    "authorization":  "User requested direct local-number copying, automatic list updates, and removal of processing photo for both Agents and Cabinistes; previous production authorization remains in force.",
+    "local_migration":  "supabase/migrations/20261106224728_fast_processing_without_proof.sql",
+    "source_sha256":  "c4cc498f4c0c1511c1fda1b52c0a654ffed590230f508c95edfdda9c92e651d6",
+    "deployment_success":  true,
+    "verification":  {
+                         "migration":  {
+                                           "name":  "fast_processing_without_proof",
+                                           "version":  "20261106230445"
+                                       },
+                         "photo_gates":  [
+                                             {
+                                                 "function":  "phase5_finalize_order_success",
+                                                 "proof_required":  false,
+                                                 "owner_check_preserved":  true,
+                                                 "capacity_check_preserved":  true
+                                             },
+                                             {
+                                                 "function":  "phase5_finalize_partner_order_success_internal",
+                                                 "proof_required":  false,
+                                                 "owner_check_preserved":  true,
+                                                 "capacity_check_preserved":  true
+                                             }
+                                         ],
+                         "queue_enabled":  true,
+                         "sla_job_active":  true,
+                         "alerts_realtime":  true
+                     },
+    "checks":  {
+                   "targeted_flutter_passed":  52,
+                   "sql_integration_passed":  12,
+                   "targeted_static_analysis":  "no issues",
+                   "full_flutter_suite":  "not rerun; scoped verification per request",
+                   "real_order_finalization_test":  "not performed; financial tests use synthetic rows in local PostgreSQL"
+               },
+    "rollback_backup":  ".izytel_backups/fast_processing_finalizers_before_20261106.sql",
+    "data_changes":  "function definitions and Realtime publication only; no real order finalized, no proof deleted, no account balance manually changed",
+    "ui_contract":  {
+                        "copy":  "10 local digits; no country code or spaces; no dialer launched",
+                        "updates":  "acknowledged assignment versions cannot be resurrected by older reads; Realtime plus 3-second canonical fallback",
+                        "completion":  "explicit owner confirmation; no photo stage"
+                    },
+    "builds":  {
+                   "android_release":  "passed",
+                   "backoffice_web":  "passed",
+                   "apk_path":  "build/shared_queue/izytel-traitement-rapide-20261106.apk",
+                   "apk_sha256":  "6dfe8ca04a9120113fc3cbf99e8c0e6517a12bdaad4b5b395dcbf11e24d0e262",
+                   "final_quick_processing_text_in_apk":  true,
+                   "final_visual_and_ussd_passed":  23,
+                   "counts_note":  "The final 23 overlap with the 52 targeted tests; do not sum them.",
+                   "physical_device_recipe":  "not rerun for this patch"
+               }
+}

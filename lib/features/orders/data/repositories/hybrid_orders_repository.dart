@@ -15,6 +15,8 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/agent_assignment_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/shared_order_queue_repository.dart';
+import 'package:cabine_flow/features/orders/data/repositories/supabase_shared_order_queue_repository.dart';
 import 'package:cabine_flow/features/orders/domain/services/automatic_assignment_selector.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -29,7 +31,9 @@ class HybridOrdersRepository
     implements
         OrdersRepository,
         OrderHistoryRepository,
-        AgentAssignmentHistoryRepository {
+        AgentAssignmentHistoryRepository,
+        SharedOrderQueueRepository,
+        OrderSupervisionRepository {
   HybridOrdersRepository({
     FirestoreOrdersRepository? firestoreRepository,
     SupabasePhase4AssignmentRepository? phase4Repository,
@@ -45,9 +49,28 @@ class HybridOrdersRepository
            ),
        _phase4 = phase4Repository ?? SupabasePhase4AssignmentRepository(),
        _proofs = proofRepository ?? SupabaseOrderProofRepository(),
-       _phase5Finance = phase5FinanceRepository ?? SupabasePhase5FinanceRepository(),
+       _phase5Finance =
+           phase5FinanceRepository ?? SupabasePhase5FinanceRepository(),
        _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
        _viewer = viewer;
+
+  SupabaseSharedOrderQueueRepository get _sharedQueue =>
+      SupabaseSharedOrderQueueRepository();
+  @override
+  Future<SharedQueueSnapshot> fetchAvailableOrders() =>
+      _sharedQueue.fetchAvailableOrders();
+  @override
+  Stream<SharedQueueSnapshot> watchAvailableOrders() =>
+      _sharedQueue.watchAvailableOrders();
+  @override
+  Future<QueueOrder> claimAvailableOrder(AvailableSharedOrder order) =>
+      _sharedQueue.claimAvailableOrder(order);
+  @override
+  Future<OrderSupervisionSnapshot> fetchSupervision() =>
+      _sharedQueue.fetchSupervision();
+  @override
+  Stream<OrderSupervisionSnapshot> watchSupervision() =>
+      _sharedQueue.watchSupervision();
 
   static const int _maximumBacklogOrders = 50;
 
@@ -66,7 +89,6 @@ class HybridOrdersRepository
   Future<List<AutomaticAssignmentAgent>>? _assignmentCandidateFetch;
   List<AutomaticAssignmentAgent>? _assignmentCandidateCache;
   DateTime? _assignmentCandidateFetchedAt;
-
 
   @override
   Future<QueueOrder> createOrder({required CreateOrderRequest request}) {
@@ -123,11 +145,24 @@ class HybridOrdersRepository
     String? paymentReference,
   }) async {
     await _assertManagerCanAccessLegacyOrder(orderId);
-    final QueueOrder confirmed = await _firestore.confirmPayment(
+    QueueOrder confirmed = await _firestore.confirmPayment(
       orderId: orderId,
       paidAt: paidAt,
       paymentReference: paymentReference,
     );
+    // Re-read the committed server timestamp; paidAt may represent an older payment time.
+    // A failed read never rolls back the already confirmed payment.
+    bool confirmationTimestampVerified = false;
+    try {
+      confirmed = await _firestore.fetchOrderById(orderId: orderId);
+      confirmationTimestampVerified = confirmed.paymentConfirmedAt != null;
+    } catch (error, stackTrace) {
+      IzyTelLog.backendError(
+        'Phase4.confirmed-payment-read',
+        error,
+        stackTrace: stackTrace,
+      );
+    }
     try {
       await _phase5Finance.mirrorOrderPayment(confirmed);
     } catch (error, stackTrace) {
@@ -137,6 +172,11 @@ class HybridOrdersRepository
         stackTrace: stackTrace,
       );
     }
+
+    // Publishing a payer-provided date can route a new payment into the legacy
+    // engine after activation. The persistent backlog retries from a canonical
+    // Firestore read; keep the confirmed payment and its finance mirror intact.
+    if (!confirmationTimestampVerified) return confirmed;
 
     // Le paiement ne doit jamais être annulé parce que le moteur d'affectation
     // est temporairement indisponible. La file Firestore reste persistée et le
@@ -277,8 +317,8 @@ class HybridOrdersRepository
 
     final List<QueueOrder> firebaseOrders = await _firestore.fetchPaidQueue();
 
-    final List<AutomaticAssignmentAgent> baseCandidates =
-        await _phase4.fetchAssignmentCandidates();
+    final List<AutomaticAssignmentAgent> baseCandidates = await _phase4
+        .fetchAssignmentCandidates();
     List<Phase4AssignmentSnapshot> snapshots = await _phase4.fetchAllForStaff();
 
     final List<QueueOrder> backlog = firebaseOrders
@@ -310,11 +350,7 @@ class HybridOrdersRepository
         if (error.toString().contains('STAFF_REQUIRED')) {
           rethrow;
         }
-        IzyTelLog.backendError(
-          'Phase4.backlog',
-          error,
-          stackTrace: stackTrace,
-        );
+        IzyTelLog.backendError('Phase4.backlog', error, stackTrace: stackTrace);
       }
     }
 
@@ -335,7 +371,9 @@ class HybridOrdersRepository
       // Une commande acceptee ou deja en traitement appartient desormais a
       // Supabase. L'absence de mutation Firestore apres le cutover est normale
       // et ne doit jamais provoquer une fermeture/compensation automatique.
-      if (!(snapshot.isWaiting || snapshot.isAssigned || snapshot.isManualRequired)) {
+      if (!(snapshot.isWaiting ||
+          snapshot.isAssigned ||
+          snapshot.isManualRequired)) {
         continue;
       }
       if (snapshot.orderStatus != QueueOrderStatus.paidReady ||
@@ -371,12 +409,14 @@ class HybridOrdersRepository
       order.id,
     );
     Phase4AssignmentSnapshot snapshot =
-        existing ?? await _phase4.syncOrder(order.copyWith(clearAgentAssignment: true));
+        existing ??
+        await _phase4.syncOrder(order.copyWith(clearAgentAssignment: true));
 
     // Les anciennes lignes handed_off sans statut operationnel verifiable sont
     // conservees telles quelles pour reconciliation historique. Elles ne
     // doivent jamais forcer un retour vers Firestore pour les nouvelles actions.
-    if (snapshot.legacyStateUnresolved ||
+    if (snapshot.assignmentRoute == 'shared' ||
+        snapshot.legacyStateUnresolved ||
         snapshot.orderStatus != QueueOrderStatus.paidReady ||
         snapshot.isAccepted ||
         snapshot.isHandedOff) {
@@ -410,11 +450,12 @@ class HybridOrdersRepository
         );
         final List<AutomaticAssignmentAgent> candidates =
             <AutomaticAssignmentAgent>[
-          current,
-          ...ranked.where(
-            (AutomaticAssignmentAgent item) => item.agentId != current.agentId,
-          ),
-        ];
+              current,
+              ...ranked.where(
+                (AutomaticAssignmentAgent item) =>
+                    item.agentId != current.agentId,
+              ),
+            ];
         return _phase4.assignRanked(
           orderId: order.id,
           candidates: candidates,
@@ -446,6 +487,9 @@ class HybridOrdersRepository
       );
     }
 
+    if (snapshot.assignmentRoute == 'shared') {
+      return snapshot.toQueueOrder(legacy: legacyOrder);
+    }
     final Phase4AssignmentPlan? currentPlan = await _phase4.fetchPlan(orderId);
     if (snapshot.isAssigned ||
         snapshot.isAccepted ||
@@ -459,8 +503,8 @@ class HybridOrdersRepository
     }
 
     final QueueOrder order = snapshot.toQueueOrder(legacy: legacyOrder);
-    final List<AutomaticAssignmentAgent> candidates =
-        await _phase4.fetchAssignmentCandidates();
+    final List<AutomaticAssignmentAgent> candidates = await _phase4
+        .fetchAssignmentCandidates();
     snapshot =
         await _tryAutomaticAssignmentWithContext(
           order: order.copyWith(clearAgentAssignment: true),
@@ -546,7 +590,9 @@ class HybridOrdersRepository
     }
 
     final bool canonicalHasAssignment =
-        (canonical.isAssigned || canonical.isAccepted || canonical.isHandedOff) &&
+        (canonical.isAssigned ||
+            canonical.isAccepted ||
+            canonical.isHandedOff) &&
         canonical.assignedAgentId != null;
     if (canonicalHasAssignment) {
       final String canonicalAgentId = canonical.assignedAgentId!.trim();
@@ -571,11 +617,13 @@ class HybridOrdersRepository
       canonical = await _phase4.resetForManualAssignment(order.id);
     }
 
-    final List<AutomaticAssignmentAgent> agents =
-        await _phase4.fetchAssignmentCandidates();
+    final List<AutomaticAssignmentAgent> agents = await _phase4
+        .fetchAssignmentCandidates();
     final AutomaticAssignmentAgent? target = _findAgent(agents, targetAgentId);
     if (target == null) {
-      throw StateError('Le profil opérationnel Supabase de cet agent est introuvable.');
+      throw StateError(
+        'Le profil opérationnel Supabase de cet agent est introuvable.',
+      );
     }
     if (_isManager) {
       final bool sameTerritory = await _phase4.managerAssignmentAllowed(
@@ -594,7 +642,7 @@ class HybridOrdersRepository
     );
     if (!targetIsEligible) {
       throw StateError(
-        'Cet agent n’est plus éligible pour cette commande. Actualise ses ' 
+        'Cet agent n’est plus éligible pour cette commande. Actualise ses '
         'capacités, réseaux et disponibilités puis réessaie.',
       );
     }
@@ -605,11 +653,11 @@ class HybridOrdersRepository
     );
     final List<AutomaticAssignmentAgent> manualPlanCandidates =
         <AutomaticAssignmentAgent>[
-      target,
-      ...rankedFallback.where(
-        (AutomaticAssignmentAgent item) => item.agentId != targetAgentId,
-      ),
-    ];
+          target,
+          ...rankedFallback.where(
+            (AutomaticAssignmentAgent item) => item.agentId != targetAgentId,
+          ),
+        ];
 
     final Phase4AssignmentSnapshot assigned = await _phase4.assignRanked(
       orderId: order.id,
@@ -631,17 +679,17 @@ class HybridOrdersRepository
 
   @override
   Stream<Map<String, int>> watchActiveAssignmentCounts() {
-    return _phase4.watchAllForStaff().map(
-      (List<Phase4AssignmentSnapshot> snapshots) {
-        final Map<String, int> counts = <String, int>{};
-        for (final Phase4AssignmentSnapshot snapshot in snapshots) {
-          final String? agentId = snapshot.assignedAgentId;
-          if (agentId == null || !snapshot.reservesCapacityInSupabase) continue;
-          counts[agentId] = (counts[agentId] ?? 0) + 1;
-        }
-        return Map<String, int>.unmodifiable(counts);
-      },
-    );
+    return _phase4.watchAllForStaff().map((
+      List<Phase4AssignmentSnapshot> snapshots,
+    ) {
+      final Map<String, int> counts = <String, int>{};
+      for (final Phase4AssignmentSnapshot snapshot in snapshots) {
+        final String? agentId = snapshot.assignedAgentId;
+        if (agentId == null || !snapshot.reservesCapacityInSupabase) continue;
+        counts[agentId] = (counts[agentId] ?? 0) + 1;
+      }
+      return Map<String, int>.unmodifiable(counts);
+    });
   }
 
   @override
@@ -670,23 +718,26 @@ class HybridOrdersRepository
     if (inFlight != null) return inFlight;
 
     late final Future<List<AutomaticAssignmentAgent>> request;
-    request = _phase4.fetchAssignmentCandidates().then(
-      (List<AutomaticAssignmentAgent> value) {
-        _assignmentCandidateCache = value;
-        _assignmentCandidateFetchedAt = DateTime.now();
-        return value;
-      },
-    ).whenComplete(() {
-      if (identical(_assignmentCandidateFetch, request)) {
-        _assignmentCandidateFetch = null;
-      }
-    });
+    request = _phase4
+        .fetchAssignmentCandidates()
+        .then((List<AutomaticAssignmentAgent> value) {
+          _assignmentCandidateCache = value;
+          _assignmentCandidateFetchedAt = DateTime.now();
+          return value;
+        })
+        .whenComplete(() {
+          if (identical(_assignmentCandidateFetch, request)) {
+            _assignmentCandidateFetch = null;
+          }
+        });
     _assignmentCandidateFetch = request;
     return request;
   }
 
   @override
-  Future<List<QueueOrder>> fetchAssignedOrders({required String agentId}) async {
+  Future<List<QueueOrder>> fetchAssignedOrders({
+    required String agentId,
+  }) async {
     final String cleanedAgentId = agentId.trim();
     if (cleanedAgentId.isEmpty) return const <QueueOrder>[];
 
@@ -834,10 +885,7 @@ class HybridOrdersRepository
     for (final Phase4AssignmentSnapshot snapshot
         in phase4State.currentAssignments) {
       if (snapshot.assignedAgentId != agentId) continue;
-      result.putIfAbsent(
-        snapshot.orderId,
-        () => snapshot.toQueueOrder(),
-      );
+      result.putIfAbsent(snapshot.orderId, () => snapshot.toQueueOrder());
     }
 
     final List<QueueOrder> orders = result.values.toList(growable: false)
@@ -871,7 +919,9 @@ class HybridOrdersRepository
     }
 
     await _phase4.accept(orderId);
-    final Phase4AssignmentSnapshot? accepted = await _phase4.fetchOrder(orderId);
+    final Phase4AssignmentSnapshot? accepted = await _phase4.fetchOrder(
+      orderId,
+    );
     if (accepted == null ||
         accepted.assignedAgentId != cleanedAgentId ||
         !accepted.isAccepted) {
@@ -973,7 +1023,9 @@ class HybridOrdersRepository
     // Le fallback Firestore est strictement historique. Une commande Phase 3
     // canonique sans preuve Supabase ne doit jamais reutiliser un vieux Blob.
     try {
-      final Phase4AssignmentSnapshot? snapshot = await _phase4.fetchOrder(orderId);
+      final Phase4AssignmentSnapshot? snapshot = await _phase4.fetchOrder(
+        orderId,
+      );
       if (snapshot != null && !snapshot.legacyStateUnresolved) return null;
     } catch (error) {
       if (!BackendFailurePolicy.canRetryRead(error)) rethrow;
@@ -1006,11 +1058,6 @@ class HybridOrdersRepository
     required String agentId,
   }) async {
     final String cleanedAgentId = _requireCurrentAgent(agentId);
-    final OrderProof? proof = await _proofs.fetchProof(orderId: orderId);
-    if (proof == null || proof.agentId.trim() != cleanedAgentId) {
-      throw StateError('Ajoute une preuve avant de valider la réussite.');
-    }
-
     final Phase4AssignmentSnapshot? before = await _phase4.fetchOrder(orderId);
     if (before == null || before.assignedAgentId != cleanedAgentId) {
       throw StateError('Cette commande ne t’est plus affectée.');
@@ -1018,8 +1065,7 @@ class HybridOrdersRepository
     if (before.orderStatus != QueueOrderStatus.inProgress) {
       throw StateError('Cette commande n’est pas en cours de traitement.');
     }
-    final String agentName =
-        before.assignedAgentName?.trim().isNotEmpty == true
+    final String agentName = before.assignedAgentName?.trim().isNotEmpty == true
         ? before.assignedAgentName!.trim()
         : 'Agent';
 
@@ -1028,8 +1074,11 @@ class HybridOrdersRepository
       agentId: cleanedAgentId,
       agentName: agentName,
     );
-    final Phase4AssignmentSnapshot? completed = await _phase4.fetchOrder(orderId);
-    if (completed == null || completed.orderStatus != QueueOrderStatus.completed) {
+    final Phase4AssignmentSnapshot? completed = await _phase4.fetchOrder(
+      orderId,
+    );
+    if (completed == null ||
+        completed.orderStatus != QueueOrderStatus.completed) {
       throw StateError(
         'La réussite a été enregistrée mais son état Supabase reste illisible.',
       );
@@ -1072,15 +1121,17 @@ class HybridOrdersRepository
     required String orderId,
   }) async {
     if (_isManager) {
-      final Phase4AssignmentSnapshot? visible = await _phase4.fetchOrder(orderId);
+      final Phase4AssignmentSnapshot? visible = await _phase4.fetchOrder(
+        orderId,
+      );
       if (visible == null) {
         throw StateError(
           'Cette commande ne fait pas partie de votre périmètre territorial.',
         );
       }
     }
-    final Phase4AssignmentSnapshot reopened =
-        await _phase4.prepareFailedForReassignment(orderId);
+    final Phase4AssignmentSnapshot reopened = await _phase4
+        .prepareFailedForReassignment(orderId);
     return reopened.toQueueOrder();
   }
 
@@ -1117,7 +1168,8 @@ class HybridOrdersRepository
         error,
         stackTrace: stackTrace,
       );
-      if (firebaseOrders.isNotEmpty && BackendFailurePolicy.canRetryRead(error)) {
+      if (firebaseOrders.isNotEmpty &&
+          BackendFailurePolicy.canRetryRead(error)) {
         return firebaseOrders;
       }
       if (firebaseError != null &&
@@ -1209,9 +1261,7 @@ class HybridOrdersRepository
       // source Firestore primaire n'a pas repondu au moins une fois.
       if (!legacyReady || controller.isClosed) return;
       controller.add(
-        _paymentTrackingOrders(
-          _overlayStaffOrders(legacyOrders, snapshots),
-        ),
+        _paymentTrackingOrders(_overlayStaffOrders(legacyOrders, snapshots)),
       );
     }
 
@@ -1300,35 +1350,38 @@ class HybridOrdersRepository
     }
   }
 
-  List<QueueOrder> _canonicalOrders(
-    List<Phase4AssignmentSnapshot> snapshots,
-  ) {
-    final List<QueueOrder> result = snapshots
-        .where((Phase4AssignmentSnapshot item) => !item.legacyStateUnresolved)
-        .map((Phase4AssignmentSnapshot item) => item.toQueueOrder())
-        .toList(growable: false)
-      ..sort(
-        (QueueOrder first, QueueOrder second) =>
-            second.createdAt.compareTo(first.createdAt),
-      );
+  List<QueueOrder> _canonicalOrders(List<Phase4AssignmentSnapshot> snapshots) {
+    final List<QueueOrder> result =
+        snapshots
+            .where(
+              (Phase4AssignmentSnapshot item) => !item.legacyStateUnresolved,
+            )
+            .map((Phase4AssignmentSnapshot item) => item.toQueueOrder())
+            .toList(growable: false)
+          ..sort(
+            (QueueOrder first, QueueOrder second) =>
+                second.createdAt.compareTo(first.createdAt),
+          );
     return List<QueueOrder>.unmodifiable(result);
   }
 
   List<QueueOrder> _paymentTrackingOrders(List<QueueOrder> orders) {
-    final List<QueueOrder> paymentOrders = orders.where((QueueOrder order) {
-      final bool isCustomerPaymentToVerify =
-          order.source == OrderSource.customerWeb &&
-          order.paymentStatus == OrderPaymentStatus.declared &&
-          (order.status == QueueOrderStatus.paymentToVerify ||
-              order.status == QueueOrderStatus.awaitingPayment ||
-              order.status == QueueOrderStatus.expired);
-      final bool wasConfirmed =
-          order.paymentStatus == OrderPaymentStatus.confirmed &&
-          order.paymentReference != null &&
-          order.paymentReference!.trim().isNotEmpty;
+    final List<QueueOrder> paymentOrders = orders
+        .where((QueueOrder order) {
+          final bool isCustomerPaymentToVerify =
+              order.source == OrderSource.customerWeb &&
+              order.paymentStatus == OrderPaymentStatus.declared &&
+              (order.status == QueueOrderStatus.paymentToVerify ||
+                  order.status == QueueOrderStatus.awaitingPayment ||
+                  order.status == QueueOrderStatus.expired);
+          final bool wasConfirmed =
+              order.paymentStatus == OrderPaymentStatus.confirmed &&
+              order.paymentReference != null &&
+              order.paymentReference!.trim().isNotEmpty;
 
-      return isCustomerPaymentToVerify || wasConfirmed;
-    }).toList(growable: false);
+          return isCustomerPaymentToVerify || wasConfirmed;
+        })
+        .toList(growable: false);
 
     paymentOrders.sort((QueueOrder first, QueueOrder second) {
       final DateTime firstDate =
@@ -1424,7 +1477,6 @@ class HybridOrdersRepository
     return controller.stream;
   }
 
-
   bool _canIgnoreLegacyStaffReadFailure(Object error) {
     if (BackendFailurePolicy.canRetryRead(error)) return true;
     final String code = BackendFailurePolicy.safeCode(error).toLowerCase();
@@ -1449,7 +1501,8 @@ class HybridOrdersRepository
       for (final QueueOrder legacy in firebaseOrders)
         phase4ById[legacy.id]?.overlayOn(legacy) ?? legacy,
       for (final Phase4AssignmentSnapshot snapshot in phase4ById.values)
-        if (!firebaseById.containsKey(snapshot.orderId)) snapshot.toQueueOrder(),
+        if (!firebaseById.containsKey(snapshot.orderId))
+          snapshot.toQueueOrder(),
     ];
     result.sort(
       (QueueOrder first, QueueOrder second) =>
@@ -1486,8 +1539,6 @@ class HybridOrdersRepository
     }
     return null;
   }
-
-
 
   // Flux historiques de traitement : délégation intégrale à Firebase.
   @override

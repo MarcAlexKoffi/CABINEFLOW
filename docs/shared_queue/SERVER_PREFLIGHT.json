@@ -1,0 +1,9 @@
+{
+  "checked_at": "2026-11-06T10:27:09.389Z",
+  "project_id": "zrxeztxaxnzxevjuhzcc",
+  "mode": "read-only catalog queries; no remote mutation",
+  "cron_extension": "1.6.4",
+  "shared_columns": [],
+  "detector_present": false,
+  "shared_settings_present": false
+}

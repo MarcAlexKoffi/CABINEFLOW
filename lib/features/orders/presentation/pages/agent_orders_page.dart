@@ -29,6 +29,10 @@ class AgentOrdersPage extends StatefulWidget {
     this.onOpenCommissions,
     this.onLogout,
     this.notificationOrderRequest,
+    this.queueTabs,
+    this.sharedQueueChildren,
+    this.onRefreshSharedQueue,
+    this.scrollController,
   });
 
   final AppUser user;
@@ -39,6 +43,10 @@ class AgentOrdersPage extends StatefulWidget {
   final VoidCallback? onOpenCommissions;
   final VoidCallback? onLogout;
   final ValueListenable<IzyTelNotificationPayload?>? notificationOrderRequest;
+  final Widget? queueTabs;
+  final List<Widget>? sharedQueueChildren;
+  final Future<void> Function()? onRefreshSharedQueue;
+  final ScrollController? scrollController;
 
   @override
   State<AgentOrdersPage> createState() => _AgentOrdersPageState();
@@ -61,7 +69,9 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
       agentRepository: widget.agentRepository,
     );
     _viewModel.start();
-    widget.notificationOrderRequest?.addListener(_handleNotificationOrderRequest);
+    widget.notificationOrderRequest?.addListener(
+      _handleNotificationOrderRequest,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(_openNotificationOrderIfAvailable());
     });
@@ -70,18 +80,26 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
   @override
   void didUpdateWidget(covariant AgentOrdersPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.sharedQueueChildren != null &&
+        widget.sharedQueueChildren == null) {
+      unawaited(_viewModel.refresh());
+    }
     if (oldWidget.notificationOrderRequest != widget.notificationOrderRequest) {
-      oldWidget.notificationOrderRequest
-          ?.removeListener(_handleNotificationOrderRequest);
-      widget.notificationOrderRequest
-          ?.addListener(_handleNotificationOrderRequest);
+      oldWidget.notificationOrderRequest?.removeListener(
+        _handleNotificationOrderRequest,
+      );
+      widget.notificationOrderRequest?.addListener(
+        _handleNotificationOrderRequest,
+      );
       unawaited(_openNotificationOrderIfAvailable());
     }
   }
 
   @override
   void dispose() {
-    widget.notificationOrderRequest?.removeListener(_handleNotificationOrderRequest);
+    widget.notificationOrderRequest?.removeListener(
+      _handleNotificationOrderRequest,
+    );
     _clockTimer?.cancel();
     _viewModel.dispose();
     super.dispose();
@@ -94,7 +112,13 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
   Future<void> _openNotificationOrderIfAvailable() async {
     final IzyTelNotificationPayload? payload =
         widget.notificationOrderRequest?.value;
-    if (payload == null || !payload.targetsOrder || !mounted) return;
+    if (payload == null ||
+        !payload.targetsOrder ||
+        payload.type == 'order_available' ||
+        payload.route == 'shared_queue' ||
+        !mounted) {
+      return;
+    }
 
     QueueOrder? findOrder() {
       final String? orderId = payload.orderId;
@@ -276,25 +300,22 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
                   leading: const Icon(Symbols.inbox_rounded),
                   title: const Text('À accepter'),
                   trailing: Text('${_viewModel.toAcceptCount}'),
-                  onTap: () => Navigator.of(
-                    sheetContext,
-                  ).pop(AgentOrdersTab.toAccept),
+                  onTap: () =>
+                      Navigator.of(sheetContext).pop(AgentOrdersTab.toAccept),
                 ),
                 ListTile(
                   leading: const Icon(Symbols.autorenew_rounded),
                   title: const Text('En cours'),
                   trailing: Text('${_viewModel.inProgressCount}'),
-                  onTap: () => Navigator.of(
-                    sheetContext,
-                  ).pop(AgentOrdersTab.inProgress),
+                  onTap: () =>
+                      Navigator.of(sheetContext).pop(AgentOrdersTab.inProgress),
                 ),
                 ListTile(
                   leading: const Icon(Symbols.check_circle_rounded),
                   title: const Text('Terminées'),
                   trailing: Text('${_viewModel.completedCount}'),
-                  onTap: () => Navigator.of(
-                    sheetContext,
-                  ).pop(AgentOrdersTab.completed),
+                  onTap: () =>
+                      Navigator.of(sheetContext).pop(AgentOrdersTab.completed),
                 ),
                 const SizedBox(height: 8),
               ],
@@ -326,24 +347,34 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
         child: ListenableBuilder(
           listenable: _viewModel,
           builder: (_, _) {
-              final List<QueueOrder> queue = _viewModel.visibleOrders;
-              final AgentOrdersTab selectedTab = _viewModel.selectedTab;
+            final List<QueueOrder> queue = _viewModel.visibleOrders;
+            final AgentOrdersTab selectedTab = _viewModel.selectedTab;
 
-              return IzyTelRefreshIndicator(
-                onRefresh: _viewModel.refresh,
-                color: IzyTelColors.primary,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
-                  children: [
-                    _AgentHeader(
-                      user: widget.user,
-                      profile: _viewModel.agentProfile,
-                      personalProfile: _viewModel.personalProfile,
-                      avatarUrl: _viewModel.avatarUrl,
-                      onAvatarTap: _openAccountMenu,
-                    ),
-                    const SizedBox(height: 32),
+            return IzyTelRefreshIndicator(
+              onRefresh: widget.sharedQueueChildren != null
+                  ? widget.onRefreshSharedQueue ?? _viewModel.refresh
+                  : _viewModel.refresh,
+              color: IzyTelColors.primary,
+              child: ListView(
+                controller: widget.scrollController,
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
+                children: [
+                  _AgentHeader(
+                    user: widget.user,
+                    profile: _viewModel.agentProfile,
+                    personalProfile: _viewModel.personalProfile,
+                    avatarUrl: _viewModel.avatarUrl,
+                    onAvatarTap: _openAccountMenu,
+                  ),
+                  SizedBox(height: widget.queueTabs == null ? 32 : 24),
+                  if (widget.queueTabs != null) ...[
+                    widget.queueTabs!,
+                    const SizedBox(height: 24),
+                  ],
+                  if (widget.sharedQueueChildren != null)
+                    ...widget.sharedQueueChildren!
+                  else ...[
                     Row(
                       children: [
                         Expanded(
@@ -413,9 +444,10 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
                         ),
                       ),
                   ],
-                ),
-              );
-            },
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -502,14 +534,16 @@ class _AgentHeader extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  Text(
-                    profile?.availability.label ?? 'Profil Agent',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: available
-                          ? IzyTelColors.textPrimary
-                          : IzyTelColors.textSecondary,
-                      fontSize: IzyTelTypeScale.micro,
-                      fontWeight: FontWeight.w500,
+                  Expanded(
+                    child: Text(
+                      profile?.availability.label ?? 'Profil Agent',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: available
+                            ? IzyTelColors.textPrimary
+                            : IzyTelColors.textSecondary,
+                        fontSize: IzyTelTypeScale.micro,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ],

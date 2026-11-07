@@ -39,7 +39,7 @@ function base64Url(input: Uint8Array | string): string {
   return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/g, "");
 }
 
-function decodePemPrivateKey(pem: string): Uint8Array {
+function decodePemPrivateKey(pem: string): ArrayBuffer {
   const base64 = pem
     .replace("-----BEGIN PRIVATE KEY-----", "")
     .replace("-----END PRIVATE KEY-----", "")
@@ -47,7 +47,7 @@ function decodePemPrivateKey(pem: string): Uint8Array {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  return bytes;
+  return bytes.buffer;
 }
 
 async function firebaseAccessToken(account: ServiceAccount): Promise<string> {
@@ -128,7 +128,7 @@ async function sendFcm(
           notificationId: row.id,
         },
         android: {
-          priority: ["order_assigned", "order_reassigned", "order_manual_required", "order_failed_review"].includes(row.event_type) ? "high" : "normal",
+          priority: ["order_assigned", "order_reassigned", "order_manual_required", "order_failed_review", "order_acceptance_delay"].includes(row.event_type) ? "high" : "normal",
           notification: { sound: "default", tag: row.id },
         },
       },
@@ -232,6 +232,21 @@ Deno.serve(async (req: Request) => {
   });
 
   for (const row of rows) {
+    if (["order_available", "order_acceptance_delay"].includes(row.event_type)) {
+      const { data: authorized, error: authorizationError } = await admin.rpc(
+        "izytel_notification_recipient_authorized", { p_outbox_id: row.id },
+      );
+      if (authorizationError) {
+        failed += 1;
+        await finish(row, { ...retry(row), last_error: "RECIPIENT_AUTHORIZATION_UNAVAILABLE" });
+        continue;
+      }
+      if (authorized !== true) {
+        skipped += 1;
+        await finish(row, { status: "skipped", last_error: "RECIPIENT_SCOPE_CHANGED_OR_EVENT_OBSOLETE" });
+        continue;
+      }
+    }
     const { data: devices, error: deviceError } = await admin
       .from("izytel_notification_devices")
       .select("id, fcm_token")

@@ -1,0 +1,123 @@
+// Copied as Dart by prepare_android_qa.ps1 into a disposable QA app with its own app ID.
+// All repositories and notification payloads are synthetic; production is never initialized.
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
+import 'package:google_fonts/google_fonts.dart';
+// ignore: implementation_imports
+import 'package:google_fonts/src/google_fonts_base.dart' as fonts;
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:cabine_flow/core/theme/app_theme.dart';
+import 'package:cabine_flow/core/notifications/izytel_notification_payload.dart';
+import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
+import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/features/orders/domain/repositories/shared_order_queue_repository.dart';
+import 'package:cabine_flow/features/orders/presentation/pages/shared_agent_orders_page.dart';
+import 'package:cabine_flow/features/orders/presentation/pages/order_supervision_page.dart';
+
+const actor = AppUser(id: 'AGENT-001', name: 'Agent de recette', phoneNumber: '0700000000', role: UserRole.agent);
+
+class DeviceQueue extends FakeOrdersRepository implements SharedOrderQueueRepository {
+  DeviceQueue() : super(isTest: true);
+  final changes = StreamController<SharedQueueSnapshot>.broadcast(sync: true);
+  late SharedQueueSnapshot snapshot;
+  int processingCalls = 0;
+  Future<void> prepare() async {
+    final order = (await fetchPaidQueue()).first;
+    snapshot = SharedQueueSnapshot(serverNow: DateTime.utc(2026, 11, 6, 10), enabled: true, orders: [
+      AvailableSharedOrder(id: order.id, reference: order.reference, zoneId: 'test-zone', network: order.network, offerLabel: order.offerLabel, service: order.operationType.name, amount: order.amount, beneficiaryMasked: '•• •• •• 0018', availableAt: DateTime.utc(2026, 11, 6, 9, 58), version: 0, canAccept: true),
+    ]);
+  }
+  @override
+  Future<SharedQueueSnapshot> fetchAvailableOrders() async => snapshot;
+  @override
+  Stream<SharedQueueSnapshot> watchAvailableOrders() async* { yield snapshot; yield* changes.stream; }
+  @override
+  Future<QueueOrder> claimAvailableOrder(AvailableSharedOrder order) async {
+    await assignToAgent(orderId: order.id, agentId: actor.id, assignedByUserId: actor.id);
+    return acceptAgentAssignment(orderId: order.id, agentId: actor.id);
+  }
+  @override
+  Future<QueueOrder> startAgentProcessing({required String orderId, required String agentId}) {
+    processingCalls++;
+    return super.startAgentProcessing(orderId: orderId, agentId: agentId);
+  }
+}
+
+class DeviceSupervision implements OrderSupervisionRepository {
+  int reads = 0;
+  @override
+  Future<OrderSupervisionSnapshot> fetchSupervision() async {
+    reads++;
+    return OrderSupervisionSnapshot(serverNow: DateTime.utc(2026, 11, 6, 10), orders: const [], alerts: [
+      {'order_id': 'test-order', 'order_reference': 'TEST-ANDROID', 'order_status': 'inProgress', 'agent_name': 'Agent de recette', 'state': 'active', 'accepted_at': DateTime.utc(2026, 11, 6, 9, 54).toIso8601String()},
+    ]);
+  }
+  @override
+  Stream<OrderSupervisionSnapshot> watchSupervision() async* { yield await fetchSupervision(); }
+}
+
+void main() {
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  late ThemeData theme;
+  setUpAll(() async {
+    fonts.httpClient = MockClient((request) async {
+      final hash = request.url.pathSegments.last;
+      final path = hash.startsWith('1ddeeeff') ? 'Manrope-Regular.ttf' : hash;
+      final bytes = await rootBundle.load('assets/qa_fonts/$path');
+      return http.Response.bytes(bytes.buffer.asUint8List(), 200);
+    });
+    theme = AppTheme.light;
+    await GoogleFonts.pendingFonts();
+  });
+
+  testWidgets('Android: acceptance, explicit processing, back and notification queue routing', (tester) async {
+    final queue = DeviceQueue();
+    await queue.prepare();
+    final request = ValueNotifier<IzyTelNotificationPayload?>(null);
+    await tester.pumpWidget(MaterialApp(debugShowCheckedModeBanner: false, theme: theme, home: Scaffold(body: SharedAgentOrdersPage(user: actor, ordersRepository: queue, sharedRepository: queue, notificationOrderRequest: request))));
+    await tester.pumpAndSettle();
+    expect(find.text('À prendre'), findsOneWidget);
+    await tester.ensureVisible(find.text('Accepter et traiter'));
+    await tester.tap(find.text('Accepter et traiter'));
+    await tester.pumpAndSettle();
+    expect(find.text('Détail commande'), findsOneWidget);
+    expect(find.text('Démarrer le traitement'), findsOneWidget);
+    expect(queue.processingCalls, 0);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mes commandes'));
+    await tester.pumpAndSettle();
+    request.value = const IzyTelNotificationPayload(type: 'order_available', route: 'shared_queue', orderId: 'synthetic-id');
+    await tester.pumpAndSettle();
+    expect(find.text('À prendre'), findsOneWidget);
+    queue.changes.addError(StateError('synthetic network loss'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Accepter et traiter')).onPressed, isNull);
+    await tester.pumpWidget(const SizedBox());
+    await queue.changes.close();
+    request.dispose();
+  });
+
+  testWidgets('Android: persistent Manager alert and client role guard', (tester) async {
+    final supervision = DeviceSupervision();
+    final orders = FakeOrdersRepository(isTest: true);
+    await tester.pumpWidget(MaterialApp(theme: theme, home: OrderSupervisionPage(user: actor, repository: supervision, historyRepository: orders)));
+    await tester.pumpAndSettle();
+    expect(find.text('Accès Manager requis.'), findsOneWidget);
+    expect(supervision.reads, 0);
+    const manager = AppUser(id: 'manager-test', name: 'Manager de recette', phoneNumber: '0700000000', role: UserRole.manager);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(MaterialApp(debugShowCheckedModeBanner: false, theme: theme, home: OrderSupervisionPage(user: manager, repository: supervision, historyRepository: orders)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Voir les alertes'));
+    await tester.pumpAndSettle();
+    expect(find.text('TEST-ANDROID'), findsOneWidget);
+    expect(find.text('Délai dépassé'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+}

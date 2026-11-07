@@ -20,6 +20,7 @@ class Phase4AssignmentSnapshot {
     required this.assignmentState,
     required this.firebaseCreatedAt,
     required this.updatedAt,
+    this.assignmentRoute = 'legacy',
     this.zoneId,
     this.offerId,
     this.originalWhatsappMessage,
@@ -96,6 +97,7 @@ class Phase4AssignmentSnapshot {
   final bool legacyStateUnresolved;
   final DateTime updatedAt;
   final String? zoneId;
+  final String assignmentRoute;
 
   bool get isAssigned => assignmentState == 'assigned';
   bool get isAccepted => assignmentState == 'accepted';
@@ -191,14 +193,9 @@ class Phase4AssignmentSnapshot {
   }) {
     // Une ligne Supabase synchronisee est canonique pour le statut operationnel.
     // Firestore ne sert plus ici que de source de champs historiques non migres.
-    return toQueueOrder(
-      legacy: order,
-      refusedAgentIds: refusedAgentIds,
-    );
+    return toQueueOrder(legacy: order, refusedAgentIds: refusedAgentIds);
   }
-
 }
-
 
 class Phase4AgentActionOutcome {
   const Phase4AgentActionOutcome({
@@ -213,8 +210,7 @@ class Phase4AgentActionOutcome {
   final bool reassigned;
   final bool manualRequired;
 
-  bool get isAccepted =>
-      action == 'accept' && assignmentState == 'accepted';
+  bool get isAccepted => action == 'accept' && assignmentState == 'accepted';
 
   bool get isRefusalApplied =>
       action == 'refuse' &&
@@ -343,9 +339,12 @@ class SupabasePhase4AssignmentRepository {
     // Older servers remain fully usable before the USSD migration is applied.
     if (order.offerId != null) {
       try {
-        await _client.rpc('izytel_ussd_register_order_context', params: {
-          'p_order_id': order.id, 'p_offer_id': order.offerId,
-        }).timeout(const Duration(seconds: 3));
+        await _client
+            .rpc(
+              'izytel_ussd_register_order_context',
+              params: {'p_order_id': order.id, 'p_offer_id': order.offerId},
+            )
+            .timeout(const Duration(seconds: 3));
       } catch (error) {
         IzyTelLog.backendError('USSD.order-context', error);
       }
@@ -503,7 +502,6 @@ class SupabasePhase4AssignmentRepository {
     return _requireSnapshot(raw);
   }
 
-
   Future<bool> isAgentEligibleForOrder({
     required String agentId,
     required String orderId,
@@ -525,9 +523,10 @@ class SupabasePhase4AssignmentRepository {
     return List<AutomaticAssignmentAgent>.unmodifiable(
       rows
           .whereType<Map>()
-          .map((Map row) => _assignmentCandidateFromRow(
-                Map<String, dynamic>.from(row),
-              ))
+          .map(
+            (Map row) =>
+                _assignmentCandidateFromRow(Map<String, dynamic>.from(row)),
+          )
           .whereType<AutomaticAssignmentAgent>(),
     );
   }
@@ -628,7 +627,6 @@ class SupabasePhase4AssignmentRepository {
     return _snapshotFromRow(rows.first);
   }
 
-
   Future<bool> managerAssignmentAllowed({
     required String orderId,
     required String agentId,
@@ -644,7 +642,9 @@ class SupabasePhase4AssignmentRepository {
   }
 
   Future<Set<String>> fetchVisibleLegacyOrderIds() async {
-    final Object? raw = await _client.rpc('izytel_wc6_visible_legacy_order_ids');
+    final Object? raw = await _client.rpc(
+      'izytel_wc6_visible_legacy_order_ids',
+    );
     final List<dynamic> rows = raw is List ? raw : const <dynamic>[];
     final Set<String> ids = <String>{};
     for (final dynamic item in rows) {
@@ -672,11 +672,11 @@ class SupabasePhase4AssignmentRepository {
         fetch: fetchAllForStaff,
         label: 'Phase4Assignment.staff-watch',
         signals: const <SupabaseRealtimeSignal>[
-        SupabaseRealtimeSignal(
-          table: ordersTable,
-          primaryKey: <String>['order_id'],
-        ),
-      ],
+          SupabaseRealtimeSignal(
+            table: ordersTable,
+            primaryKey: <String>['order_id'],
+          ),
+        ],
         fallbackInterval: fallbackPollInterval,
       );
 
@@ -731,23 +731,20 @@ class SupabasePhase4AssignmentRepository {
 
   Stream<Phase4AgentAssignmentState> watchAgentAssignmentState(
     String agentId,
-  ) =>
-      SupabaseRealtimeRefetch.watch<Phase4AgentAssignmentState>(
-        client: _client,
-        fetch: () => fetchAgentAssignmentState(agentId),
-        label: 'Phase4Assignment.agent-watch',
-        signals: const <SupabaseRealtimeSignal>[
-        SupabaseRealtimeSignal(
-          table: ordersTable,
-          primaryKey: <String>['order_id'],
-        ),
-        SupabaseRealtimeSignal(
-          table: historyTable,
-          primaryKey: <String>['id'],
-        ),
-      ],
-        fallbackInterval: fallbackPollInterval,
-      );
+  ) => SupabaseRealtimeRefetch.watch<Phase4AgentAssignmentState>(
+    client: _client,
+    fetch: () => fetchAgentAssignmentState(agentId),
+    label: 'Phase4Assignment.agent-watch',
+    independentPolling: true,
+    signals: const <SupabaseRealtimeSignal>[
+      SupabaseRealtimeSignal(
+        table: ordersTable,
+        primaryKey: <String>['order_id'],
+      ),
+      SupabaseRealtimeSignal(table: historyTable, primaryKey: <String>['id']),
+    ],
+    fallbackInterval: const Duration(seconds: 3),
+  );
 
   Stream<List<Phase4AssignmentSnapshot>> watchAgentAssignments(String agentId) {
     return watchAgentAssignmentState(
@@ -773,19 +770,15 @@ class SupabasePhase4AssignmentRepository {
 
   Stream<List<Phase4AssignmentHistorySnapshot>> watchAgentAssignmentHistory(
     String agentId,
-  ) =>
-      SupabaseRealtimeRefetch.watch<List<Phase4AssignmentHistorySnapshot>>(
-        client: _client,
-        fetch: () => fetchAgentAssignmentHistory(agentId),
-        label: 'Phase4Assignment.agent-history',
-        signals: const <SupabaseRealtimeSignal>[
-        SupabaseRealtimeSignal(
-          table: historyTable,
-          primaryKey: <String>['id'],
-        ),
-      ],
-        fallbackInterval: fallbackPollInterval,
-      );
+  ) => SupabaseRealtimeRefetch.watch<List<Phase4AssignmentHistorySnapshot>>(
+    client: _client,
+    fetch: () => fetchAgentAssignmentHistory(agentId),
+    label: 'Phase4Assignment.agent-history',
+    signals: const <SupabaseRealtimeSignal>[
+      SupabaseRealtimeSignal(table: historyTable, primaryKey: <String>['id']),
+    ],
+    fallbackInterval: fallbackPollInterval,
+  );
 
   Future<List<Phase4RefusalHistorySnapshot>> fetchAgentRefusalHistory(
     String agentId,
@@ -806,19 +799,15 @@ class SupabasePhase4AssignmentRepository {
 
   Stream<List<Phase4RefusalHistorySnapshot>> watchAgentRefusalHistory(
     String agentId,
-  ) =>
-      SupabaseRealtimeRefetch.watch<List<Phase4RefusalHistorySnapshot>>(
-        client: _client,
-        fetch: () => fetchAgentRefusalHistory(agentId),
-        label: 'Phase4Assignment.refusal-history',
-        signals: const <SupabaseRealtimeSignal>[
-        SupabaseRealtimeSignal(
-          table: historyTable,
-          primaryKey: <String>['id'],
-        ),
-      ],
-        fallbackInterval: fallbackPollInterval,
-      );
+  ) => SupabaseRealtimeRefetch.watch<List<Phase4RefusalHistorySnapshot>>(
+    client: _client,
+    fetch: () => fetchAgentRefusalHistory(agentId),
+    label: 'Phase4Assignment.refusal-history',
+    signals: const <SupabaseRealtimeSignal>[
+      SupabaseRealtimeSignal(table: historyTable, primaryKey: <String>['id']),
+    ],
+    fallbackInterval: fallbackPollInterval,
+  );
 
   Future<List<QueueOrder>> fetchAgentRefusedOrders(String agentId) async {
     final String id = agentId.trim();
@@ -841,11 +830,11 @@ class SupabasePhase4AssignmentRepository {
         fetch: () => fetchAgentRefusedOrders(agentId),
         label: 'Phase4Assignment.refused-orders',
         signals: const <SupabaseRealtimeSignal>[
-        SupabaseRealtimeSignal(
-          table: historyTable,
-          primaryKey: <String>['id'],
-        ),
-      ],
+          SupabaseRealtimeSignal(
+            table: historyTable,
+            primaryKey: <String>['id'],
+          ),
+        ],
         fallbackInterval: fallbackPollInterval,
       );
 
@@ -884,6 +873,9 @@ class SupabasePhase4AssignmentRepository {
           });
     return List<Phase4AssignmentSnapshot>.unmodifiable(result);
   }
+
+  QueueOrder parseCanonicalOrder(Map<String, dynamic> row) =>
+      _requireSnapshot(row).toQueueOrder();
 
   Phase4AssignmentSnapshot _requireSnapshot(Object? raw) {
     final Map<String, dynamic>? row = _rowFromRpc(raw);
@@ -939,6 +931,7 @@ class SupabasePhase4AssignmentRepository {
 
     return Phase4AssignmentSnapshot(
       orderId: orderId,
+      assignmentRoute: _string(row['assignment_route'], fallback: 'legacy'),
       orderReference: reference,
       network: network,
       amount: amount,
@@ -1025,10 +1018,7 @@ class SupabasePhase4AssignmentRepository {
 
   Set<MobileNetwork> _networkSet(Object? raw) {
     if (raw is! List) return const <MobileNetwork>{};
-    return raw
-        .map(_network)
-        .whereType<MobileNetwork>()
-        .toSet();
+    return raw.map(_network).whereType<MobileNetwork>().toSet();
   }
 
   Phase4AssignmentHistorySnapshot? _assignmentHistoryFromRow(
@@ -1039,8 +1029,11 @@ class SupabasePhase4AssignmentRepository {
     final String reference = _string(row['order_reference']);
     final String agentId = _string(row['agent_id']);
     final String status = _string(row['status']);
-    if (id.isEmpty || orderId.isEmpty || reference.isEmpty ||
-        agentId.isEmpty || status.isEmpty) {
+    if (id.isEmpty ||
+        orderId.isEmpty ||
+        reference.isEmpty ||
+        agentId.isEmpty ||
+        status.isEmpty) {
       return null;
     }
     return Phase4AssignmentHistorySnapshot(

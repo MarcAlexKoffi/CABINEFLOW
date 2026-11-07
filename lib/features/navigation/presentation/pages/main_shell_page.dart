@@ -36,7 +36,7 @@ import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/agent_history_page.dart';
 import 'package:cabine_flow/features/orders/presentation/pages/orders_page.dart';
 import 'package:cabine_flow/features/orders/presentation/navigation/staff_order_navigation.dart';
-import 'package:cabine_flow/features/orders/presentation/pages/agent_orders_page.dart';
+import 'package:cabine_flow/features/orders/presentation/pages/shared_agent_orders_page.dart';
 import 'package:cabine_flow/features/payments/presentation/pages/payments_page.dart';
 import 'package:cabine_flow/features/payments/domain/repositories/payment_link_repository.dart';
 import 'package:cabine_flow/features/navigation/presentation/widgets/izytel_mobile_back_scope.dart';
@@ -94,8 +94,10 @@ class _MainShellPageState extends State<MainShellPage>
   DateTime? _lastBackPressAt;
   bool _handlingSystemBack = false;
   late final List<NavigatorObserver> _tabNavigatorObservers;
-  StreamSubscription<IzyTelNotificationPayload>? _notificationOpenedSubscription;
-  StreamSubscription<IzyTelNotificationPayload>? _notificationForegroundSubscription;
+  StreamSubscription<IzyTelNotificationPayload>?
+  _notificationOpenedSubscription;
+  StreamSubscription<IzyTelNotificationPayload>?
+  _notificationForegroundSubscription;
 
   final List<GlobalKey<NavigatorState>> _tabNavigatorKeys =
       List<GlobalKey<NavigatorState>>.generate(
@@ -180,33 +182,34 @@ class _MainShellPageState extends State<MainShellPage>
   }
 
   void _wireStaffNotifications() {
-    _notificationForegroundSubscription =
-        FirebaseMessagingBootstrap.foregroundPayloads.listen(
-      (IzyTelNotificationPayload payload) {
-        if (!mounted) return;
-        IzyTelFeedback.show(context, payload.displayMessage);
-      },
-      onError: (Object error, StackTrace stackTrace) {
-        IzyTelLog.backendError(
-          'FCM.staff-foreground-stream',
-          error,
-          stackTrace: stackTrace,
+    _notificationForegroundSubscription = FirebaseMessagingBootstrap
+        .foregroundPayloads
+        .listen(
+          (IzyTelNotificationPayload payload) {
+            if (!mounted) return;
+            IzyTelFeedback.show(context, payload.displayMessage);
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            IzyTelLog.backendError(
+              'FCM.staff-foreground-stream',
+              error,
+              stackTrace: stackTrace,
+            );
+          },
         );
-      },
-    );
-    _notificationOpenedSubscription =
-        FirebaseMessagingBootstrap.openedPayloads.listen(
-      (IzyTelNotificationPayload payload) {
-        unawaited(_handleStaffNotificationOpen(payload));
-      },
-      onError: (Object error, StackTrace stackTrace) {
-        IzyTelLog.backendError(
-          'FCM.staff-opened-stream',
-          error,
-          stackTrace: stackTrace,
+    _notificationOpenedSubscription = FirebaseMessagingBootstrap.openedPayloads
+        .listen(
+          (IzyTelNotificationPayload payload) {
+            unawaited(_handleStaffNotificationOpen(payload));
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            IzyTelLog.backendError(
+              'FCM.staff-opened-stream',
+              error,
+              stackTrace: stackTrace,
+            );
+          },
         );
-      },
-    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final IzyTelNotificationPayload? pending =
@@ -256,8 +259,7 @@ class _MainShellPageState extends State<MainShellPage>
       try {
         final OrderHistoryRepository history =
             rawRepository as OrderHistoryRepository;
-        final QueueOrder order =
-            await history.fetchOrderById(orderId: orderId);
+        final QueueOrder order = await history.fetchOrderById(orderId: orderId);
         if (!mounted) return;
         await _openSpecificOrder(order);
       } catch (error, stackTrace) {
@@ -503,11 +505,7 @@ class _MainShellPageState extends State<MainShellPage>
         (Route<dynamic> route) => false,
       );
     } catch (error, stackTrace) {
-      IzyTelLog.backendError(
-        'Auth.logout',
-        error,
-        stackTrace: stackTrace,
-      );
+      IzyTelLog.backendError('Auth.logout', error, stackTrace: stackTrace);
       if (!mounted) return;
       setState(() {
         _isLoggingOut = false;
@@ -739,8 +737,10 @@ class _AgentShellState extends State<_AgentShell> {
   DateTime? _lastBackPressAt;
   bool _handlingSystemBack = false;
   late final List<NavigatorObserver> _tabNavigatorObservers;
-  StreamSubscription<IzyTelNotificationPayload>? _notificationOpenedSubscription;
-  StreamSubscription<IzyTelNotificationPayload>? _notificationForegroundSubscription;
+  StreamSubscription<IzyTelNotificationPayload>?
+  _notificationOpenedSubscription;
+  StreamSubscription<IzyTelNotificationPayload>?
+  _notificationForegroundSubscription;
   final ValueNotifier<IzyTelNotificationPayload?> _notificationOrderRequest =
       ValueNotifier<IzyTelNotificationPayload?>(null);
   final List<GlobalKey<NavigatorState>> _tabNavigatorKeys =
@@ -757,33 +757,34 @@ class _AgentShellState extends State<_AgentShell> {
       _tabNavigatorKeys.length,
       (_) => _IzyTelTabNavigationObserver(_disarmExit),
     );
-    _notificationForegroundSubscription =
-        FirebaseMessagingBootstrap.foregroundPayloads.listen(
-      (IzyTelNotificationPayload payload) {
-        if (!mounted) return;
-        IzyTelFeedback.show(context, payload.displayMessage);
-      },
-      onError: (Object error, StackTrace stackTrace) {
-        IzyTelLog.backendError(
-          'FCM.agent-foreground-stream',
-          error,
-          stackTrace: stackTrace,
+    _notificationForegroundSubscription = FirebaseMessagingBootstrap
+        .foregroundPayloads
+        .listen(
+          (IzyTelNotificationPayload payload) {
+            if (!mounted) return;
+            IzyTelFeedback.show(context, payload.displayMessage);
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            IzyTelLog.backendError(
+              'FCM.agent-foreground-stream',
+              error,
+              stackTrace: stackTrace,
+            );
+          },
         );
-      },
-    );
-    _notificationOpenedSubscription =
-        FirebaseMessagingBootstrap.openedPayloads.listen(
-      (IzyTelNotificationPayload payload) {
-        _handleAgentNotificationOpen(payload);
-      },
-      onError: (Object error, StackTrace stackTrace) {
-        IzyTelLog.backendError(
-          'FCM.agent-opened-stream',
-          error,
-          stackTrace: stackTrace,
+    _notificationOpenedSubscription = FirebaseMessagingBootstrap.openedPayloads
+        .listen(
+          (IzyTelNotificationPayload payload) {
+            _handleAgentNotificationOpen(payload);
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            IzyTelLog.backendError(
+              'FCM.agent-opened-stream',
+              error,
+              stackTrace: stackTrace,
+            );
+          },
         );
-      },
-    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final IzyTelNotificationPayload? pending =
@@ -874,11 +875,7 @@ class _AgentShellState extends State<_AgentShell> {
         (Route<dynamic> route) => false,
       );
     } catch (error, stackTrace) {
-      IzyTelLog.backendError(
-        'Auth.logout',
-        error,
-        stackTrace: stackTrace,
-      );
+      IzyTelLog.backendError('Auth.logout', error, stackTrace: stackTrace);
       if (!mounted) return;
       setState(() {
         _isLoggingOut = false;
@@ -1042,7 +1039,7 @@ class _AgentShellState extends State<_AgentShell> {
         onOpenActivity: _openAgentPerformance,
         onOpenCommissions: _openAgentCommissions,
       ),
-      AgentOrdersPage(
+      SharedAgentOrdersPage(
         user: widget.user,
         ordersRepository: widget.ordersRepository,
         agentRepository: widget.agentRepository,
@@ -1118,7 +1115,10 @@ class _IzyTelTabNavigationObserver extends NavigatorObserver {
   }
 
   @override
-  void didStartUserGesture(Route<dynamic> route, Route<dynamic>? previousRoute) {
+  void didStartUserGesture(
+    Route<dynamic> route,
+    Route<dynamic>? previousRoute,
+  ) {
     onNavigation();
   }
 }

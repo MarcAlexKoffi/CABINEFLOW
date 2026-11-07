@@ -4,20 +4,27 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('WC6 - registre Managers et création de zone', () {
-    test('le repository provisionne les Managers Firestore dans Supabase', () {
-      final String repository = File(
-        'lib/backoffice/data/repositories/supabase_territory_repository.dart',
-      ).readAsStringSync();
-      expect(repository, contains("collection('users').get()"));
-      expect(repository, contains("role != 'manager' && role != 'supervisor'"));
-      expect(repository, contains("izytel_wc6_provision_manager_account"));
-    });
+    test(
+      'le registre territorial ne reprovisionne plus les accès depuis Firestore',
+      () {
+        final String repository = File(
+          'lib/backoffice/data/repositories/supabase_territory_repository.dart',
+        ).readAsStringSync();
+        expect(repository, isNot(contains("collection('users').get()")));
+        expect(
+          repository,
+          isNot(contains('izytel_wc6_provision_manager_account')),
+        );
+        expect(repository, contains('izytel_sync_manager_profiles'));
+      },
+    );
 
-    test('Zones synchronise le registre Manager avant le sélecteur', () {
+    test('Zones consulte le registre sans mutation préalable', () {
       final String zones = File(
         'lib/backoffice/presentation/pages/team/backoffice_zones_page.dart',
       ).readAsStringSync();
-      expect(zones, contains('syncManagersFromStaffRegistry()'));
+      expect(zones, isNot(contains('syncManagersFromStaffRegistry()')));
+      expect(zones, contains('fetchManagers()'));
       expect(zones, contains("labelText: 'Manager responsable'"));
     });
 

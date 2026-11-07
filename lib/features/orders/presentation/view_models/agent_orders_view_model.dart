@@ -131,6 +131,18 @@ class AgentOrdersViewModel extends ChangeNotifier {
     _selectedTab = _resolveUsefulTab(_selectedTab);
   }
 
+  void includeClaimedOrder(QueueOrder order) {
+    if (order.assignedAgentId != agentId ||
+        order.assignmentStatus != OrderAssignmentStatus.accepted) {
+      throw StateError('Acceptation non confirmée pour cette session.');
+    }
+    _orders = <QueueOrder>[
+      order,
+      ..._orders.where((existing) => existing.id != order.id),
+    ];
+    notifyListeners();
+  }
+
   QueueOrder? orderById(String orderId) {
     for (final QueueOrder order in _orders) {
       if (order.id == orderId) return order;

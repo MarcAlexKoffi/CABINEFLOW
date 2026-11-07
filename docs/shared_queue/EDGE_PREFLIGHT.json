@@ -1,0 +1,22 @@
+{
+  "checked_at": "2026-11-06T10:35:59.629Z",
+  "project_id": "zrxeztxaxnzxevjuhzcc",
+  "mode": "read-only Edge function metadata/source inspection; no deployment",
+  "function": "izytel-notification-dispatch",
+  "version": 3,
+  "status": "ACTIVE",
+  "verify_jwt": false,
+  "import_map": true,
+  "bundle_sha256": "cad51f27f400f33f3a6e7637428e9f4d8d5f6c1ca2ae19ff37aa12a39f94d2d2",
+  "entrypoint": "index.ts",
+  "configuration": "deno.json",
+  "proposed_deployment": {
+    "files": [
+      "supabase/functions/izytel-notification-dispatch/index.ts",
+      "supabase/functions/izytel-notification-dispatch/deno.json"
+    ],
+    "verify_jwt": false,
+    "secrets": "retain existing; no secret mutation",
+    "activation": "none; shared queue remains disabled"
+  }
+}

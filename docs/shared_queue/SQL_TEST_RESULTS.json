@@ -1,0 +1,26 @@
+{
+  "executed_at": "2026-11-06T10:24:07.716Z",
+  "migration_sha256": "7347127e1fdea63db58c79ad77b4ccfc62fe988802fbd8e2be944d0975d96177",
+  "runner_sha256": "f05c8e90f2eca1c5d6083d4b82af1403a4702ca78f368bf6ae1b9a993ebadef1",
+  "postgres": "PostgreSQL 17.11 on x86_64-windows, compiled by msvc-19.44.35228, 64-bit",
+  "passed": 13,
+  "checks": [
+    "additive migration preserves historical orders; publication disabled by default",
+    "territorial minimal projection, masked beneficiary, legacy Firebase anon role, no full-row leak",
+    "two real concurrent connections: one winner; retry preserves timestamp/history; acceptance does not start/finalize processing",
+    "territorial refresh signal and assignment history remain correctly scoped after acceptance",
+    "different orders, same Agent: capacity lock prevents oversubscription",
+    "disabled Agent cannot read or claim",
+    "overdue in-progress order: one persistent alert and one push event to the active zone owner only",
+    "completion resolves the alert; failure before threshold produces no delay alert",
+    "manual assignment preserved; old round-robin RPC cannot take a new shared order",
+    "late historical synchronization stays outside the activated shared circuit",
+    "concurrent SLA workers dedupe; manual reassignment obsoletes the previous cycle and rejects stale claims",
+    "telecom completion awaiting customer confirmation is terminal for the delay monitor",
+    "clients cannot invoke the detector; migration creates no cron extension or remote job"
+  ],
+  "limits": [
+    "isolated metadata fixture; existing financial and partner side effects excluded",
+    "no remote migration, no real FCM reception"
+  ]
+}

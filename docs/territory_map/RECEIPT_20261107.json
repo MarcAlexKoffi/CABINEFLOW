@@ -1,0 +1,37 @@
+﻿{
+    "createdAt":  "2026-11-07T01:03:15.0842529Z",
+    "migration":  {
+                      "local":  "20261107002724_territory_managed_profiles_compatibility",
+                      "remote":  "20261107003803",
+                      "applied":  true,
+                      "sha256":  "2e68cf2a14c81778e43aa44198236b32ecbdc7dccb2c5d517a66708b3fa593e4"
+                  },
+    "verification":  {
+                         "flutterTargetedPassed":  27,
+                         "postgresLocalChecks":  8,
+                         "visualTestPassed":  1,
+                         "visualWidths":  [
+                                              1440,
+                                              768,
+                                              390
+                                          ],
+                         "flutterAnalysis":  "No issues found",
+                         "webBuild":  "success",
+                         "remoteReadManagers":  1,
+                         "remoteReadZones":  4,
+                         "remoteProfileEditVerifiedWithRollback":  true,
+                         "securityAdvisorsNewScopedWarnings":  0,
+                         "authenticatedBrowserTest":  "not executed: browser access host unavailable"
+                     },
+    "artifact":  {
+                     "path":  "build/territory_map/izytel-backoffice-territoires-20261107.zip",
+                     "bytes":  18223501,
+                     "sha256":  "2773af03daf9fe3254f3a126d75a6a1330b701b40e3bb359201a8faa275b952e"
+                 },
+    "deployment":  {
+                       "database":  "applied",
+                       "hosting":  "not deployed",
+                       "developmentServer":  "existing flutter run on 8080 requires restart"
+                   },
+    "compiledMainSha256":  "13ae39d31fcdf15f86ede7d7d8e9b206950ebfe955373b8ad0bc5d5d6ce120fe"
+}

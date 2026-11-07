@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>IzyTel — À prendre & supervision · AURA R1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="prototype.css">
+  <script src="prototype.js" defer></script>
+</head>
+<body>
+  <header class="review-header">
+    <a class="brand" href="#agent" aria-label="IzyTel, prototype Agent"><span class="brand-mark" aria-hidden="true">i<span></span></span><span>Izy<span class="brand-blue">Tel</span></span></a>
+    <div class="role-switch" role="group" aria-label="Espace à prévisualiser">
+      <button type="button" data-role="agent" aria-pressed="true">Espace Agent</button>
+      <button type="button" data-role="manager" aria-pressed="false">Espace Manager</button>
+    </div>
+    <div class="revision"><span class="review-dot"></span>DESIGN_REVIEW <strong>R1</strong></div>
+  </header>
+
+  <main class="review-layout">
+    <aside class="review-sidebar" aria-label="Scénarios du prototype">
+      <span class="eyebrow">IZYTEL · OPÉRATIONS</span>
+      <h1>La bonne commande.<br>Au bon Agent.</h1>
+      <p class="review-intro">Une file partagée dans la zone, une prise en charge exclusive, un suivi à cinq minutes.</p>
+      <div class="review-divider"></div>
+      <label class="eyebrow" for="scenario">ÉTAT À EXPLORER</label>
+      <select id="scenario">
+        <option value="normal">Parcours normal</option>
+        <option value="loading">Chargement</option>
+        <option value="empty">File vide</option>
+        <option value="error">Erreur de chargement</option>
+        <option value="taken">Déjà prise par un autre Agent</option>
+        <option value="offline">Hors connexion</option>
+        <option value="unavailable">Agent indisponible</option>
+      </select>
+      <button type="button" class="reset-button" id="reset"><span data-icon="refresh"></span>Recommencer le parcours</button>
+      <button type="button" class="reset-button" id="time-skip" hidden><span data-icon="clock"></span>Simuler + 6 min côté serveur</button>
+      <ol class="journey" aria-label="Parcours présenté">
+        <li class="current"><span>1</span><div><strong>Consulter la file</strong><small>Commandes validées de la zone</small></div></li>
+        <li><span>2</span><div><strong>Accepter et traiter</strong><small>Accès direct au traitement</small></div></li>
+        <li><span>3</span><div><strong>Suivre côté Manager</strong><small>Un retard, une alerte persistante</small></div></li>
+      </ol>
+      <div class="prototype-note"><span data-icon="flask"></span><div><strong>Prototype interactif</strong><p>Données fictives. Les commandes, délais et notifications sont simulés.</p></div></div>
+      <p class="review-caption">Aucune opération télécom réelle.<br>Référence soumise à validation.</p>
+    </aside>
+
+    <section class="preview-region" aria-label="Prévisualisation de l’application">
+      <div class="preview-label"><span id="preview-title">AGENT · COMMANDES</span><span id="preview-description">Mobile · thème clair IzyTel</span></div>
+      <div id="agent-preview" class="agent-preview">
+        <div class="app-topbar"><div><span class="mini-brand">Izy<span>Tel</span></span><small>Espace Agent</small></div><div class="topbar-actions"><button class="icon-button" id="agent-bell" type="button" aria-label="Voir la notification de démonstration"><span data-icon="bell"></span><span class="notification-dot"></span></button><span class="avatar" aria-label="Agent de démonstration">AK</span></div></div>
+        <div id="agent-content" class="agent-content" aria-live="polite"></div>
+        <nav class="app-bottom-nav" aria-label="Navigation principale Agent">
+          <button type="button" data-nav="home"><span data-icon="home"></span><span>Accueil</span></button>
+          <button type="button" data-nav="orders" aria-current="page"><span data-icon="orders"></span><span>Commandes</span></button>
+          <button type="button" data-nav="history"><span data-icon="history"></span><span>Historique</span></button>
+          <button type="button" data-nav="profile"><span data-icon="user"></span><span>Profil</span></button>
+        </nav>
+        <div class="android-bar"><button type="button" id="android-back" aria-label="Retour Android"><span data-icon="back"></span></button><span aria-hidden="true"></span><span class="android-square" aria-hidden="true"></span></div>
+      </div>
+      <div id="manager-preview" class="manager-preview" hidden>
+        <div class="manager-app-header"><div><span class="mini-brand">Izy<span>Tel</span></span><span class="manager-context">Supervision</span></div><div class="topbar-actions"><button class="icon-button" id="manager-bell" type="button" aria-label="Ouvrir les alertes Manager"><span data-icon="bell"></span><span class="notification-dot" id="manager-bell-dot"></span></button><span class="avatar manager-avatar" aria-label="Manager de démonstration">MD</span></div></div>
+        <div class="manager-content" id="manager-content" aria-live="polite"></div>
+      </div>
+      <div class="preview-footer"><span><span class="tiny-dot"></span>Prototype R1 · 6 novembre 2026</span><span>Manrope / Bleu IzyTel</span></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <dialog id="action-dialog"><div id="dialog-content"></div></dialog>
+</body>
+</html>

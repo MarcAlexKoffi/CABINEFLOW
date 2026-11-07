@@ -19,6 +19,7 @@ class UssdQuickProcessingCard extends StatefulWidget {
     required this.amount,
     required this.processable,
     this.initiallyExpanded = true,
+    this.canCopyNumber,
     this.repository,
     this.dialer,
   });
@@ -26,6 +27,7 @@ class UssdQuickProcessingCard extends StatefulWidget {
   final int amount;
   final bool processable;
   final bool initiallyExpanded;
+  final bool? canCopyNumber;
   final UssdRepository? repository;
   final UssdDialer? dialer;
   @override
@@ -331,6 +333,31 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
     }
   }
 
+  String? get _localNumber {
+    try {
+      final raw =
+          _resolution?.context['beneficiary'] as String? ?? widget.beneficiary;
+      return UssdPhoneNumber.parse(
+        raw.replaceAll(RegExp(r'\s+'), ' ').trim(),
+      ).local;
+    } on UssdValidationException {
+      return null;
+    }
+  }
+
+  Future<void> _copyNumber() async {
+    final number = _localNumber;
+    if (number == null || !(widget.canCopyNumber ?? widget.processable)) return;
+    try {
+      await Clipboard.setData(ClipboardData(text: number));
+      if (mounted) setState(() => _message = 'Numéro copié : $number');
+    } catch (_) {
+      if (mounted) {
+        setState(() => _message = 'Impossible de copier le numéro. Réessayez.');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final available =
@@ -364,6 +391,19 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
               ),
               Text(
                 'Bénéficiaire : ${_resolution?.context['beneficiary'] ?? widget.beneficiary}',
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed:
+                      !_busy &&
+                          (widget.canCopyNumber ?? widget.processable) &&
+                          _localNumber != null
+                      ? _copyNumber
+                      : null,
+                  icon: const Icon(Icons.copy_outlined, size: 18),
+                  label: const Text('Copier le numéro'),
+                ),
               ),
               Text(
                 'Montant de commande : ${_resolution?.context['amount'] ?? widget.amount} FCFA',
@@ -419,7 +459,7 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
                 ],
               ),
               const Text(
-                'Les actions habituelles de traitement et de preuve restent disponibles.',
+                'Les actions de traitement restent disponibles.',
               ),
             ],
           ),

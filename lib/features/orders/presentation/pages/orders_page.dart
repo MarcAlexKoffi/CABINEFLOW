@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:cabine_flow/features/orders/domain/repositories/shared_order_queue_repository.dart';
+import 'package:cabine_flow/features/orders/presentation/pages/order_supervision_page.dart';
 
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
@@ -39,6 +41,23 @@ class OrdersPage extends StatefulWidget {
 }
 
 class _OrdersPageState extends State<OrdersPage> {
+  Future<void> _openSupervision() async {
+    final raw = widget.ordersRepository;
+    if (raw is! OrderSupervisionRepository || raw is! OrderHistoryRepository) {
+      return;
+    }
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        settings: const RouteSettings(name: 'staff-order-supervision'),
+        builder: (_) => OrderSupervisionPage(
+          user: widget.user,
+          repository: raw as OrderSupervisionRepository,
+          historyRepository: raw as OrderHistoryRepository,
+        ),
+      ),
+    );
+  }
+
   Timer? _clockTimer;
   late final OrdersViewModel _viewModel;
   int _activeTabIndex = 0;
@@ -359,12 +378,7 @@ class _OrdersPageState extends State<OrdersPage> {
             onTransactionSucceeded: _markTransactionSuccessful,
             onTransactionFailed: _markTransactionFailed,
             onPutOnHold: _putTransactionOnHold,
-            onNotificationsPressed: () {
-              IzyTelFeedback.show(
-                context,
-                'L’écran des notifications sera ajouté ultérieurement.',
-              );
-            },
+            onNotificationsPressed: _openSupervision,
           );
         }
 
@@ -388,14 +402,18 @@ class _OrdersPageState extends State<OrdersPage> {
                   onFiltersPressed: () {
                     unawaited(_openHistory(openFiltersOnStart: true));
                   },
-                  onNotificationsPressed: () {
-                    IzyTelFeedback.show(
-                      context,
-                      'L’écran des notifications sera ajouté ultérieurement.',
-                    );
-                  },
+                  onNotificationsPressed: _openSupervision,
                 ),
               ),
+              if (widget.ordersRepository is OrderSupervisionRepository)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: _openSupervision,
+                    icon: const Icon(Symbols.monitoring_rounded),
+                    label: const Text('Suivi et alertes'),
+                  ),
+                ),
               const Divider(height: 1, color: IzyTelColors.outline),
               Expanded(
                 child: IzyTelRefreshIndicator(
