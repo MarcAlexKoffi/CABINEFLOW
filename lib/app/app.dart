@@ -1,48 +1,48 @@
 import 'dart:async';
-
-import 'package:cabine_flow/app/app_routes.dart';
-import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
-import 'package:cabine_flow/core/migrations/legacy_catalog_backfill_service.dart';
-import 'package:cabine_flow/features/agents/data/repositories/fake_agent_repository.dart';
-import 'package:cabine_flow/features/agents/data/repositories/firestore_agent_repository.dart';
-import 'package:cabine_flow/features/agents/domain/repositories/agent_repository.dart';
-import 'package:cabine_flow/core/services/wave_payment_link_builder.dart';
-import 'package:cabine_flow/core/theme/app_theme.dart';
-import 'package:cabine_flow/features/auth/data/repositories/fake_auth_repository.dart';
-import 'package:cabine_flow/features/auth/data/repositories/firebase_auth_repository.dart';
-import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
-import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
-import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
-import 'package:cabine_flow/features/auth/domain/repositories/auth_repository.dart';
-import 'package:cabine_flow/features/auth/presentation/pages/login_page.dart';
-import 'package:cabine_flow/features/auth/presentation/pages/pending_account_page.dart';
-import 'package:cabine_flow/features/dashboard/data/repositories/fake_dashboard_repository.dart';
-import 'package:cabine_flow/features/commissions/data/repositories/fake_commission_repository.dart';
-import 'package:cabine_flow/features/commissions/data/repositories/firestore_commission_repository.dart';
-import 'package:cabine_flow/features/commissions/data/repositories/hybrid_commission_repository.dart';
-import 'package:cabine_flow/features/commissions/domain/repositories/commission_repository.dart';
-import 'package:cabine_flow/features/dashboard/data/repositories/firestore_dashboard_repository.dart';
-import 'package:cabine_flow/features/dashboard/data/repositories/hybrid_dashboard_repository.dart';
-import 'package:cabine_flow/features/dashboard/domain/repositories/dashboard_repository.dart';
-import 'package:cabine_flow/features/navigation/presentation/pages/main_shell_page.dart';
-import 'package:cabine_flow/features/offers/data/repositories/fake_admin_offer_repository.dart';
-import 'package:cabine_flow/features/offers/data/repositories/firestore_admin_offer_repository.dart';
-import 'package:cabine_flow/features/offers/data/repositories/supabase_admin_offer_repository.dart';
-import 'package:cabine_flow/features/offers/domain/repositories/admin_offer_repository.dart';
-import 'package:cabine_flow/features/orders/data/repositories/fake_offer_catalog_repository.dart';
-import 'package:cabine_flow/features/orders/data/repositories/firestore_offer_catalog_repository.dart';
-import 'package:cabine_flow/features/orders/data/repositories/supabase_offer_catalog_repository.dart';
-import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
-import 'package:cabine_flow/features/orders/data/repositories/firestore_orders_repository.dart';
-import 'package:cabine_flow/features/orders/data/repositories/hybrid_orders_repository.dart';
-import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
-import 'package:cabine_flow/features/orders/domain/repositories/offer_catalog_repository.dart';
-import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
-import 'package:cabine_flow/features/payments/data/repositories/wave_payment_link_repository.dart';
-import 'package:cabine_flow/features/splash/presentation/pages/splash_page.dart';
-import 'package:cabine_flow/features/payments/domain/repositories/payment_link_repository.dart';
-import 'package:cabine_flow/features/partners/data/repositories/supabase_partner_order_repository.dart';
-import 'package:cabine_flow/features/partners/presentation/pages/partner_shell_page.dart';
+import 'package:cabine_flow/app/modules/auth/widgets/session_access_boundary.dart';
+import 'package:cabine_flow/app/routes/app_routes.dart';
+import 'package:cabine_flow/app/core/logging/izytel_log.dart';
+import 'package:cabine_flow/app/services/migrations/legacy_catalog_backfill_service.dart';
+import 'package:cabine_flow/app/data/repositories/fake_agent_repository.dart';
+import 'package:cabine_flow/app/data/repositories/firestore_agent_repository.dart';
+import 'package:cabine_flow/app/domain/repositories/agent_repository.dart';
+import 'package:cabine_flow/app/services/wave_payment_link_builder.dart';
+import 'package:cabine_flow/app/theme/app_theme.dart';
+import 'package:cabine_flow/app/data/repositories/fake_auth_repository.dart';
+import 'package:cabine_flow/app/data/repositories/firebase_auth_repository.dart';
+import 'package:cabine_flow/app/domain/entities/auth/app_user.dart';
+import 'package:cabine_flow/app/domain/permissions/user_permissions.dart';
+import 'package:cabine_flow/app/domain/entities/auth/auth_login_result.dart';
+import 'package:cabine_flow/app/domain/repositories/auth_repository.dart';
+import 'package:cabine_flow/app/modules/auth/views/login_page.dart';
+import 'package:cabine_flow/app/modules/auth/views/pending_account_page.dart';
+import 'package:cabine_flow/app/data/repositories/fake_dashboard_repository.dart';
+import 'package:cabine_flow/app/data/repositories/fake_commission_repository.dart';
+import 'package:cabine_flow/app/data/repositories/firestore_commission_repository.dart';
+import 'package:cabine_flow/app/data/repositories/hybrid_commission_repository.dart';
+import 'package:cabine_flow/app/domain/repositories/commission_repository.dart';
+import 'package:cabine_flow/app/data/repositories/firestore_dashboard_repository.dart';
+import 'package:cabine_flow/app/data/repositories/hybrid_dashboard_repository.dart';
+import 'package:cabine_flow/app/domain/repositories/dashboard_repository.dart';
+import 'package:cabine_flow/app/modules/home/views/main_shell_page.dart';
+import 'package:cabine_flow/app/data/repositories/fake_admin_offer_repository.dart';
+import 'package:cabine_flow/app/data/repositories/firestore_admin_offer_repository.dart';
+import 'package:cabine_flow/app/data/repositories/supabase_admin_offer_repository.dart';
+import 'package:cabine_flow/app/domain/repositories/admin_offer_repository.dart';
+import 'package:cabine_flow/app/data/repositories/fake_offer_catalog_repository.dart';
+import 'package:cabine_flow/app/data/repositories/firestore_offer_catalog_repository.dart';
+import 'package:cabine_flow/app/data/repositories/supabase_offer_catalog_repository.dart';
+import 'package:cabine_flow/app/data/repositories/fake_orders_repository.dart';
+import 'package:cabine_flow/app/data/repositories/firestore_orders_repository.dart';
+import 'package:cabine_flow/app/data/repositories/hybrid_orders_repository.dart';
+import 'package:cabine_flow/app/data/sources/supabase_bootstrap.dart';
+import 'package:cabine_flow/app/domain/repositories/offer_catalog_repository.dart';
+import 'package:cabine_flow/app/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/app/data/repositories/wave_payment_link_repository.dart';
+import 'package:cabine_flow/app/modules/splash/views/splash_page.dart';
+import 'package:cabine_flow/app/domain/repositories/payment_link_repository.dart';
+import 'package:cabine_flow/app/data/repositories/supabase_partner_order_repository.dart';
+import 'package:cabine_flow/app/modules/partners/views/partner_shell_page.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
@@ -199,10 +199,17 @@ class CabineFlowApp extends StatelessWidget {
               return MaterialPageRoute<void>(
                 settings: settings,
                 builder: (BuildContext context) {
-                  return PartnerShellPage(
+                  return SessionAccessBoundary(
+                    user: arguments,
+                    onAccessChanged: () async {
+                      await effectiveAuthRepository.logout();
+                      if (context.mounted) Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
+                    },
+                    child: PartnerShellPage(
                     user: arguments,
                     authRepository: effectiveAuthRepository,
                     repository: SupabasePartnerOrderRepository(),
+                    ),
                   );
                 },
               );
@@ -241,7 +248,13 @@ class CabineFlowApp extends StatelessWidget {
                     ? FirestoreAgentRepository(viewer: arguments)
                     : effectiveAgentRepository;
 
-                return MainShellPage(
+                return SessionAccessBoundary(
+                  user: arguments,
+                  onAccessChanged: () async {
+                    await effectiveAuthRepository.logout();
+                    if (context.mounted) Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
+                  },
+                  child: MainShellPage(
                   user: arguments,
                   authRepository: effectiveAuthRepository,
                   dashboardRepository: shellDashboardRepository,
@@ -251,6 +264,7 @@ class CabineFlowApp extends StatelessWidget {
                   paymentLinkRepository: effectivePaymentLinkRepository,
                   agentRepository: shellAgentRepository,
                   commissionRepository: effectiveCommissionRepository,
+                  ),
                 );
               },
             );

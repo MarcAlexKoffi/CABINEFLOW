@@ -6,10 +6,10 @@ void main() {
   group('WC8 - navigation native et refresh Agent borne', () {
     test('Web client: messagerie est une vraie route et retour interne est local', () {
       final String flow = File(
-        'lib/features/customer_order/presentation/pages/customer_order_flow_page.dart',
+        'lib/app/modules/customer/views/customer_order_flow_page.dart',
       ).readAsStringSync();
       final String messaging = File(
-        'lib/features/messaging/presentation/pages/customer_messaging_page.dart',
+        'lib/app/modules/messaging/views/customer_messaging_page.dart',
       ).readAsStringSync();
 
       expect(flow, contains('_pushMessagingRoute'));
@@ -25,7 +25,7 @@ void main() {
 
     test('Mobile staff: le retour Android est transactionnel dans le shell', () {
       final String shell = File(
-        'lib/features/navigation/presentation/pages/main_shell_page.dart',
+        'lib/app/modules/home/views/main_shell_page.dart',
       ).readAsStringSync();
 
       expect(shell, contains('PopScope('));
@@ -39,10 +39,10 @@ void main() {
 
     test('Profil Agent: le pull-to-refresh ne redemarre plus les streams', () {
       final String page = File(
-        'lib/features/agents/presentation/pages/agent_activity_page.dart',
+        'lib/app/modules/agent_ops/views/agent_activity_page.dart',
       ).readAsStringSync();
       final String viewModel = File(
-        'lib/features/agents/presentation/view_models/agent_activity_view_model.dart',
+        'lib/app/modules/agent_ops/controllers/agent_activity_view_model.dart',
       ).readAsStringSync();
 
       expect(page, contains('onRefresh: _viewModel.refresh'));

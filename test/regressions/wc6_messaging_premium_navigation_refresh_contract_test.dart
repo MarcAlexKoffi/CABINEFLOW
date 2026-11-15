@@ -6,7 +6,7 @@ void main() {
   group('WC6 - Messagerie premium navigation actualisation', () {
     test('client: retour interne et pull-to-refresh sur listes et fil', () {
       final String source = File(
-        'lib/features/messaging/presentation/pages/customer_messaging_page.dart',
+        'lib/app/modules/messaging/views/customer_messaging_page.dart',
       ).readAsStringSync();
 
       expect(source, contains("RouteSettings(name: '/customer/messaging/new')"));
@@ -22,7 +22,7 @@ void main() {
 
     test('staff: boîte zonée, retour conversation et actualisation réelle', () {
       final String source = File(
-        'lib/features/messaging/presentation/pages/staff_customer_messaging_page.dart',
+        'lib/app/modules/messaging/views/staff_customer_messaging_page.dart',
       ).readAsStringSync();
 
       expect(source, contains('PopScope('));

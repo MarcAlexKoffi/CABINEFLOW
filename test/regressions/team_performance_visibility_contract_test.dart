@@ -7,10 +7,10 @@ void main() {
 
   test('Performance équipe distingue Admin global et Manager zone', () {
     final String page = source(
-      'lib/features/team/presentation/pages/team_performance_page.dart',
+      'lib/app/modules/team/views/team_performance_page.dart',
     );
     final String repository = source(
-      'lib/features/team/data/repositories/supabase_team_supervision_repository.dart',
+      'lib/app/data/repositories/supabase_team_supervision_repository.dart',
     );
 
     expect(page, contains("'Performance de ma zone'"));
@@ -23,7 +23,7 @@ void main() {
 
   test('Manager finance utilise la performance de zone et non les commandes globales', () {
     final String finances = source(
-      'lib/features/finances/presentation/pages/finances_page.dart',
+      'lib/app/modules/finance/views/finances_page.dart',
     );
 
     expect(finances, contains("title: 'Finances de ma zone'"));
@@ -35,13 +35,13 @@ void main() {
 
   test('Back Office ouvre les détails financiers équipe', () {
     final String agents = source(
-      'lib/backoffice/presentation/pages/team/backoffice_agents_page.dart',
+      'lib/app/modules/backoffice/views/team/backoffice_agents_page.dart',
     );
     final String managers = source(
-      'lib/backoffice/presentation/pages/team/backoffice_managers_page.dart',
+      'lib/app/modules/backoffice/views/team/backoffice_managers_page.dart',
     );
     final String cabinistes = source(
-      'lib/backoffice/presentation/pages/finances/backoffice_cabiniste_finance_page.dart',
+      'lib/app/modules/backoffice/views/finances/backoffice_cabiniste_finance_page.dart',
     );
 
     expect(agents, contains('Identité, gains et activité'));

@@ -11,16 +11,16 @@ void main() {
 
     setUpAll(() {
       flow = File(
-        'lib/features/customer_order/presentation/pages/customer_order_flow_page.dart',
+        'lib/app/modules/customer/views/customer_order_flow_page.dart',
       ).readAsStringSync();
       help = File(
-        'lib/features/support/presentation/pages/customer_help_page.dart',
+        'lib/app/modules/support/views/customer_help_page.dart',
       ).readAsStringSync();
       home = File(
-        'lib/features/customer_order/presentation/pages/customer_home_page.dart',
+        'lib/app/modules/customer/views/customer_home_page.dart',
       ).readAsStringSync();
       messagingPage = File(
-        'lib/features/messaging/presentation/pages/customer_messaging_page.dart',
+        'lib/app/modules/messaging/views/customer_messaging_page.dart',
       ).readAsStringSync();
     });
 

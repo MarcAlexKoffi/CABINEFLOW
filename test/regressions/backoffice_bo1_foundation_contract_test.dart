@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('BO-1 - fondation Back-office Web', () {
     test('dispose d un point d entree Web staff separe du client', () {
-      final String source = File('lib/main_backoffice_web.dart').readAsStringSync();
+      final String source = File('lib/main_backoffice.dart').readAsStringSync();
 
       expect(source, contains('BackofficeApp'));
       expect(source, contains('FirebaseBootstrap.initialize()'));
@@ -16,7 +16,7 @@ void main() {
 
     test('le shell filtre Utilisateurs aux Administrateurs', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       ).readAsStringSync();
 
       expect(source, contains("return 'Utilisateurs';"));
@@ -27,10 +27,11 @@ void main() {
 
     test('BO-1 lit users sans inventer une creation privilegiee cote client', () {
       final String source = File(
-        'lib/backoffice/data/repositories/firestore_backoffice_user_repository.dart',
+        'lib/app/data/repositories/firestore_backoffice_user_repository.dart',
       ).readAsStringSync();
 
-      expect(source, contains("collection('users').snapshots()"));
+      expect(source, contains("collection('users')"));
+      expect(source, contains('.snapshots()'));
       expect(source, isNot(contains('createUserWithEmailAndPassword')));
       expect(source, isNot(contains('.set(')));
       expect(source, isNot(contains('.update(')));
@@ -38,9 +39,9 @@ void main() {
     });
 
     test('le mobile Admin existant reste la baseline et n est pas remplace', () {
-      final String mainSource = File('lib/main.dart').readAsStringSync();
+      final String mainSource = File('lib/main_staff.dart').readAsStringSync();
       final String shellSource = File(
-        'lib/features/navigation/presentation/pages/main_shell_page.dart',
+        'lib/app/modules/home/views/main_shell_page.dart',
       ).readAsStringSync();
 
       expect(mainSource, contains('runApp(const CabineFlowApp())'));
@@ -51,7 +52,7 @@ void main() {
 
     test('la page Utilisateurs couvre recherche roles statuts et detail', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/backoffice_users_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_users_page.dart',
       ).readAsStringSync();
 
       expect(source, contains("'Utilisateurs'"));

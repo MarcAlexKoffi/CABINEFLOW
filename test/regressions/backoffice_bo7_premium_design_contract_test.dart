@@ -7,9 +7,9 @@ String _read(String path) => File(path).readAsStringSync();
 void main() {
   group('BO-7.1 - Design System Premium', () {
     test('le Back-office garde Manrope et une hiérarchie premium', () {
-      final String appTheme = _read('lib/core/theme/app_theme.dart');
+      final String appTheme = _read('lib/app/theme/app_theme.dart');
       final String theme = _read(
-        'lib/backoffice/presentation/theme/backoffice_theme.dart',
+        'lib/app/theme/backoffice_theme.dart',
       );
 
       expect(appTheme, contains('GoogleFonts.manropeTextTheme'));
@@ -21,10 +21,10 @@ void main() {
 
     test('les badges réseaux utilisent les assets officiels existants', () {
       final String widgets = _read(
-        'lib/backoffice/presentation/widgets/backoffice_order_widgets.dart',
+        'lib/app/modules/backoffice/widgets/backoffice_order_widgets.dart',
       );
       final String operatorBrand = _read(
-        'lib/shared/widgets/design_system/izy_tel_operator_brand.dart',
+        'lib/app/shared/widgets/design_system/izy_tel_operator_brand.dart',
       );
 
       expect(operatorBrand, contains("orange_ci.png"));
@@ -37,7 +37,7 @@ void main() {
 
     test('les pages partagent le nouveau header et les tableaux premium', () {
       final String widgets = _read(
-        'lib/backoffice/presentation/widgets/backoffice_order_widgets.dart',
+        'lib/app/modules/backoffice/widgets/backoffice_order_widgets.dart',
       );
 
       expect(widgets, contains('BackofficePageIntro'));
@@ -50,7 +50,7 @@ void main() {
 
     test('le shell est allégé et ne répète plus Espace sécurisé', () {
       final String shell = _read(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       );
 
       expect(shell, contains('Administrateur · accès complet'));
@@ -61,13 +61,13 @@ void main() {
 
     test('Wave et les opérateurs sont visibles dans les écrans clés', () {
       final String payments = _read(
-        'lib/backoffice/presentation/pages/operations/backoffice_payments_page.dart',
+        'lib/app/modules/backoffice/views/operations/backoffice_payments_page.dart',
       );
       final String finance = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart',
+        'lib/app/modules/backoffice/views/finances/backoffice_finance_page.dart',
       );
       final String dashboard = _read(
-        'lib/backoffice/presentation/pages/backoffice_dashboard_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_dashboard_page.dart',
       );
 
       expect(payments, contains('BackofficeWaveBadge'));
@@ -81,10 +81,10 @@ void main() {
 
     test('les libellés techniques BO ne sont plus exposés dans les zones retouchées', () {
       final String finance = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart',
+        'lib/app/modules/backoffice/views/finances/backoffice_finance_page.dart',
       );
       final String users = _read(
-        'lib/backoffice/presentation/pages/backoffice_users_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_users_page.dart',
       );
 
       expect(finance, isNot(contains("eyebrow: 'BO-5")));

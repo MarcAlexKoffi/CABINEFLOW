@@ -7,10 +7,10 @@ void main() {
 
   test('registre Admin reconnait le role Cabiniste', () {
     final String model = source(
-      'lib/backoffice/domain/models/backoffice_user_account.dart',
+      'lib/app/domain/entities/backoffice/backoffice_user_account.dart',
     );
     final String page = source(
-      'lib/backoffice/presentation/pages/backoffice_users_page.dart',
+      'lib/app/modules/backoffice/views/backoffice_users_page.dart',
     );
 
     expect(model, contains('cabiniste,'));
@@ -22,7 +22,7 @@ void main() {
 
   test('registre fusionne Firestore Staff et Supabase partner_accounts', () {
     final String repository = source(
-      'lib/backoffice/data/repositories/firestore_backoffice_user_repository.dart',
+      'lib/app/data/repositories/firestore_backoffice_user_repository.dart',
     );
 
     expect(repository, contains("collection('users')"));

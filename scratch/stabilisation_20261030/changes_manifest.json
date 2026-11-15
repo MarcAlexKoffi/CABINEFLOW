@@ -1,0 +1,165 @@
+﻿{
+    "branch":  "fix/stabilisation-mobile-web-20261030",
+    "modified":  [
+                     {
+                         "path":  "lib/core/supabase/supabase_bootstrap.dart",
+                         "beforeSha256":  "3F52BD1803D5471A18BDC23C6681684D67643610E48FEA99B9FE756DB616FB83",
+                         "afterSha256":  "49E9F8F57FF8EC5B6E0CFE805653AB351BF64950074070A1F57A559E39B21EBD",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\lib\\core\\supabase\\supabase_bootstrap.dart"
+                     },
+                     {
+                         "path":  "lib/features/agents/presentation/pages/agent_home_page.dart",
+                         "beforeSha256":  "6F62D402052DB197EBE92CE0C4284CB07D3DEF0F62E54A67D565F0ED505636B7",
+                         "afterSha256":  "9EB7FD268B4E11C00F1725ED19D23EC489594017EA9035AA218CB0051EFE5A1F",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\lib\\features\\agents\\presentation\\pages\\agent_home_page.dart"
+                     },
+                     {
+                         "path":  "lib/features/auth/data/repositories/firebase_auth_repository.dart",
+                         "beforeSha256":  "39B245038BD4133CF569D5907C822A5CABF8C119555F716B6BAEF2F80C6A30AB",
+                         "afterSha256":  "B417748184BF3E296429C51991FB79A2D4C9AC8640A44B541C56332799F9B4DF",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\lib\\features\\auth\\data\\repositories\\firebase_auth_repository.dart"
+                     },
+                     {
+                         "path":  "lib/features/customer_order/data/repositories/supabase_customer_offer_repository.dart",
+                         "beforeSha256":  "00B47C60DACBCFEEB168CB1F5FDB23683DB19147B83018B95B041746054B024F",
+                         "afterSha256":  "B602496E64F99933DAAB4276CF8FCB9A71EEB0D3316A9E9514D171B952EBE017",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\lib\\features\\customer_order\\data\\repositories\\supabase_customer_offer_repository.dart"
+                     },
+                     {
+                         "path":  "lib/features/customer_order/presentation/pages/customer_catalog_page.dart",
+                         "beforeSha256":  "EEC17A493ACB47492E1786772E5679C570BBA9D7C4FCB2C5BDB7C3DDA64E6A02",
+                         "afterSha256":  "44332D82A21E800B17D101109BFC40428535D30655DF2000D5C1BB39BD6D45C4",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\lib\\features\\customer_order\\presentation\\pages\\customer_catalog_page.dart"
+                     },
+                     {
+                         "path":  "lib/features/customer_order/presentation/pages/customer_offer_page.dart",
+                         "beforeSha256":  "A9525E8A49138EC53A62E828479C9481E6F9B8A1FB6F565F4E15F0C3A28721BC",
+                         "afterSha256":  "32F8C8B5E8EDAF201ABF08A15A5C4BE77026CEE8FA8ADD56C8627E90AEC8237A",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\lib\\features\\customer_order\\presentation\\pages\\customer_offer_page.dart"
+                     },
+                     {
+                         "path":  "lib/features/messaging/data/repositories/supabase_customer_messaging_repository.dart",
+                         "beforeSha256":  "3DF7330C210BC3D9940D0BC7F5D250C3F1FA116096F54E652365184560FC543E",
+                         "afterSha256":  "F9620E90C5F07F36A38C2C62604B28497473CBD498B4FA7995F1E3637DE28F10",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\lib\\features\\messaging\\data\\repositories\\supabase_customer_messaging_repository.dart"
+                     },
+                     {
+                         "path":  "lib/features/messaging/presentation/pages/customer_messaging_page.dart",
+                         "beforeSha256":  "91DDC6FA09A56F515AE3D8C2FC1E6C55109BA3F67C7680A1B168DBAB99636D03",
+                         "afterSha256":  "8794FC9163507B01C108C09944F14A443B10EB31E380E52E43A52BB025858BD3",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\lib\\features\\messaging\\presentation\\pages\\customer_messaging_page.dart"
+                     },
+                     {
+                         "path":  "lib/features/messaging/presentation/pages/staff_customer_messaging_page.dart",
+                         "beforeSha256":  "CD541C429BE8FF0ACB2B1A0040D1857421A9765C1A8E3064475ECB7E70281FEE",
+                         "afterSha256":  "1AB440731ECDB5F31E517B56AEF857124C510DCC0B724AD78871887111987168",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\lib\\features\\messaging\\presentation\\pages\\staff_customer_messaging_page.dart"
+                     },
+                     {
+                         "path":  "lib/features/navigation/presentation/pages/main_shell_page.dart",
+                         "beforeSha256":  "E33D3798B8D60E7C48723DCC9265D57A3C83FFF0017932F55F9565309007CE3F",
+                         "afterSha256":  "BFEC9F4EBAE27D3A766B382296974188553AE1709866C5478CE280875A3A2354",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\lib\\features\\navigation\\presentation\\pages\\main_shell_page.dart"
+                     },
+                     {
+                         "path":  "lib/features/navigation/presentation/widgets/izytel_mobile_back_scope.dart",
+                         "beforeSha256":  "FCC28AE4BE9A4AAB7946F156E417E1A12FA4ADC884612FA85F8DF6F05E5AAF47",
+                         "afterSha256":  "AEDEE3D2F505053CBEF0374F5652E3BD3B0B4DC526D3DD212873C6ABEB6142E2",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\lib\\features\\navigation\\presentation\\widgets\\izytel_mobile_back_scope.dart"
+                     },
+                     {
+                         "path":  "lib/features/partners/presentation/pages/partner_shell_page.dart",
+                         "beforeSha256":  "ED79A49FB4AD7B367647A74BDA6094B4042A160AB8A51001E7F9D79178CCCE47",
+                         "afterSha256":  "CF634A32F8D23204EA686B4D9558AAE1F0AC23DE8ABD7B439246E7AAD5959559",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\lib\\features\\partners\\presentation\\pages\\partner_shell_page.dart"
+                     },
+                     {
+                         "path":  "lib/features/support/data/repositories/supabase_support_request_repository.dart",
+                         "beforeSha256":  "F56B7D65E6172596801F263786E430306D84CA561FE2CFF981D5E38C75D646B0",
+                         "afterSha256":  "E6B4EF7842E6DF7D0468B069847CF8F2E98C44AA62931E030740C5FA543E7078",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\lib\\features\\support\\data\\repositories\\supabase_support_request_repository.dart"
+                     },
+                     {
+                         "path":  "lib/features/support/presentation/pages/support_request_center_page.dart",
+                         "beforeSha256":  "132AB1DB584AF0FFD1D90EA0418B225EE83248AD71590DAC984232324D643328",
+                         "afterSha256":  "1F9EE5CBDFD5FA16DD0765E8C0D2DE12225CD637EF95418FE5746DA644EC9FDE",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\lib\\features\\support\\presentation\\pages\\support_request_center_page.dart"
+                     },
+                     {
+                         "path":  "test/features/navigation/navigation_and_search_regression_contract_test.dart",
+                         "beforeSha256":  "839A18326F161D837D596BC7D01FE48E0B16183C17129A8D49A97810489A8387",
+                         "afterSha256":  "6E98529F1A416745CB02C2EA2873076B605CFD18B1AD546E49280D6F3D8500CE",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\test\\features\\navigation\\navigation_and_search_regression_contract_test.dart"
+                     },
+                     {
+                         "path":  "test/regressions/backoffice_supabase_realtime_fallback_and_dialog_contract_test.dart",
+                         "beforeSha256":  "3B69DC072D815C9775EE9E2B5A9FEBF9610DE5DCE3077D4FC08D3D2F8101EC03",
+                         "afterSha256":  "0EE51F99768CA08337DDA5603D6498261F184582F7FCB7449B84AD6C8492EC52",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\test\\regressions\\backoffice_supabase_realtime_fallback_and_dialog_contract_test.dart"
+                     },
+                     {
+                         "path":  "test/regressions/bo4_catalog_realtime_end_to_end_contract_test.dart",
+                         "beforeSha256":  "49A26BDA0AEF384F80AD3E56AB880A1DC0C95F4A25A49038E777160896ED1E4C",
+                         "afterSha256":  "019B75705A1D0B963B59A4D02D06099D56DA570CBCFE57AB8B7DE5B702297451",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\test\\regressions\\bo4_catalog_realtime_end_to_end_contract_test.dart"
+                     },
+                     {
+                         "path":  "test/regressions/customer_web_responsive_startup_realtime_contract_test.dart",
+                         "beforeSha256":  "35210162A53EAE92C5F7497E8FFD698519B938409940065426866C3F3A6180FB",
+                         "afterSha256":  "0BB37A8BFC1AA98D00B55D95BA661CE4F86405EC4FE5B74676AA9BBDFF4FDBD4",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\test\\regressions\\customer_web_responsive_startup_realtime_contract_test.dart"
+                     },
+                     {
+                         "path":  "test/regressions/customer_web_v2_wc3b_live_refresh_contract_test.dart",
+                         "beforeSha256":  "E244809A045035AF8D1356FA5253E6B10985898DF18744ACC47081F91A992B3F",
+                         "afterSha256":  "76EDA520174570DF66DF568C5100EB5EC93329E25C3CC343ACD20F6D4549F5EA",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\test\\regressions\\customer_web_v2_wc3b_live_refresh_contract_test.dart"
+                     },
+                     {
+                         "path":  "test/regressions/phase14_ui_runtime_fixes_contract_test.dart",
+                         "beforeSha256":  "39F043273ED9A8659F47F2515053DE4C2DBC1EE8CC630F45B078BF65C3F21E94",
+                         "afterSha256":  "8E535352AEA14DB1DA93A6963C196EE01B0DFC4B77476BF4F777854B3D15B967",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\test\\regressions\\phase14_ui_runtime_fixes_contract_test.dart"
+                     },
+                     {
+                         "path":  "test/regressions/wc9_mobile_navigation_manager_agents_contract_test.dart",
+                         "beforeSha256":  "98EC462254E1E7507BC01E8F16E52E754A7CD67D3EDFD60DE0A73BF768779668",
+                         "afterSha256":  "C50437D2F76B23CE6272B3206C908378E90B259D2DEF99962E466953965D6F55",
+                         "backup":  "scratch\\stabilisation_20261030\\original\\test\\regressions\\wc9_mobile_navigation_manager_agents_contract_test.dart"
+                     }
+                 ],
+    "created":  [
+                    {
+                        "path":  "lib/core/resilience/backend_read_stream.dart",
+                        "sha256":  "D7FB7C73F91DB0DA18CFEAAE42401A3066EB26DA1F03F694FF2924B8C91F1D40"
+                    },
+                    {
+                        "path":  "test/core/resilience/backend_read_stream_test.dart",
+                        "sha256":  "8022A5DF96CFEB176D4021DA5DA01BEC99AC2CCB6CD14834324E2EF10035AE04"
+                    },
+                    {
+                        "path":  "test/core/resilience/operational_repositories_http_test.dart",
+                        "sha256":  "7612E04743A41B6CB03613C40143A7AB8BD7A61E1A2AEE596FA583F56FAC1D8F"
+                    },
+                    {
+                        "path":  "test/features/auth/data/firebase_auth_access_failure_test.dart",
+                        "sha256":  "AD2BF8070D0D88414CD58E1217A8FAC83AFA338F5B6DFF090F67E9AB3E0AFC04"
+                    },
+                    {
+                        "path":  "test/features/navigation/mobile_back_platform_regression_test.dart",
+                        "sha256":  "E1AC0FBE3EF5B89BA3898235BA0FED62FF1B17BB99BA04A04A0279955049DDB1"
+                    },
+                    {
+                        "path":  "test/features/navigation/cabiniste_back_regression_test.dart",
+                        "sha256":  "4ED56BAB111418D2AFF794599EAEDDF14068A2EC338C4441B72829BDA965569D"
+                    },
+                    {
+                        "path":  "test/features/support/presentation/support_retry_regression_test.dart",
+                        "sha256":  "3BBE12B85860839611896208160971C5B9449640B3E5FC12DB463CD24C07345B"
+                    },
+                    {
+                        "path":  "test/features/customer_order/presentation/customer_catalog_retry_filter_test.dart",
+                        "sha256":  "EFF11AE5F9177212B6AC182712DAB09C7AC5CC892796D0F5133D7FD386D438D3"
+                    }
+                ]
+}

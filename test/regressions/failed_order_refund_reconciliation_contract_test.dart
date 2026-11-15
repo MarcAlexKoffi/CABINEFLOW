@@ -21,7 +21,7 @@ void main() {
 
     test('backoffice refreshes the canonical order before a financial action', () {
       final String page = _read(
-        'lib/backoffice/presentation/pages/operations/backoffice_failed_orders_page.dart',
+        'lib/app/modules/backoffice/views/operations/backoffice_failed_orders_page.dart',
       );
 
       expect(page, contains('_freshOrderForTreatment'));
@@ -32,7 +32,7 @@ void main() {
 
     test('refund repository does not expose raw PostgREST envelopes', () {
       final String repository = _read(
-        'lib/features/refunds/data/repositories/supabase_refund_repository.dart',
+        'lib/app/data/repositories/supabase_refund_repository.dart',
       );
 
       expect(repository, contains('_friendlyPostgrestError'));

@@ -1,0 +1,75 @@
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  test('order navigation preserves the exact previous route', () {
+    final String adminOrders = File(
+      'lib/app/modules/manager_orders/views/orders_page.dart',
+    ).readAsStringSync();
+    final String staffNavigation = File(
+      'lib/app/modules/staff_orders/navigation/staff_order_navigation.dart',
+    ).readAsStringSync();
+    final String agentOrders = File(
+      'lib/app/modules/agent_orders/views/agent_orders_page.dart',
+    ).readAsStringSync();
+    final String agentHistory = File(
+      'lib/app/modules/agent_orders/views/agent_history_page.dart',
+    ).readAsStringSync();
+
+    expect(adminOrders, contains('StaffOrderNavigation.openHistory'));
+    expect(adminOrders, contains('StaffOrderNavigation.openOrderDetail'));
+    expect(adminOrders, isNot(contains('bool _showHistory')));
+    expect(adminOrders, isNot(contains('_detailOrder')));
+
+    expect(staffNavigation, contains('context: detailContext'));
+    expect(staffNavigation, contains('context: historyContext'));
+    expect(staffNavigation, contains('staff-customer-order-history'));
+
+    expect(agentOrders, contains('AgentOrderDetailRoutePage'));
+    expect(agentHistory, contains('AgentOrderDetailRoutePage'));
+    expect(agentOrders, isNot(contains('_openedOrderId')));
+    expect(agentHistory, isNot(contains('_openedOrderId')));
+  });
+
+  test('les recherches ne recréent pas leur stream à chaque caractère', () {
+    final String journal = File(
+      'lib/app/modules/control/views/admin_activity_journal_page.dart',
+    ).readAsStringSync();
+    final String support = File(
+      'lib/app/modules/support/views/support_request_center_page.dart',
+    ).readAsStringSync();
+    final String issues = File(
+      'lib/app/modules/agent_issues/views/agent_issue_center_page.dart',
+    ).readAsStringSync();
+    final String refunds = File(
+      'lib/app/modules/refunds/views/refund_management_page.dart',
+    ).readAsStringSync();
+
+    expect(
+      journal,
+      contains('late final Stream<List<QueueOrder>> _ordersStream'),
+    );
+    expect(journal, contains('stream: _ordersStream'));
+    expect(journal, contains('stream: _requestsStream'));
+
+    expect(
+      support,
+      contains('late Stream<List<SupportRequest>> _requestsStream'),
+    );
+    expect(support, contains('stream: _requestsStream'));
+
+    expect(
+      issues,
+      contains('late final Stream<List<AgentDirectoryEntry>> _agentsStream'),
+    );
+    expect(issues, contains('stream: _agentsStream'));
+    expect(issues, contains('stream: _issuesStream'));
+
+    expect(
+      refunds,
+      contains('late final Stream<List<RefundCase>> _refundsStream'),
+    );
+    expect(refunds, contains('stream: _refundsStream'));
+  });
+}

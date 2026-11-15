@@ -1,0 +1,39 @@
+{
+  "date": "2026-11-15",
+  "feature": "CAT-IMPORT-01",
+  "status": "local implementation verified; authorized backend deployment completed",
+  "styleReference": "existing Back-office and user video 2026-11-15 130243",
+  "checks": {
+    "flutterAnalysis": "passed: no issues",
+    "flutterTargetedTests": {"passed":36,"failed":0,"includesExistingStyleGoldenComparisons":2},
+    "sqlIntegration": {"passed":16,"failed":0,"engine":"isolated PGlite 0.5.13"},
+    "serverXlsxParser": {"passed":5,"failed":0},
+    "edgeTypeCheck":"passed",
+    "backofficeWebBuild":"passed: build/catalog_import_backoffice",
+    "responsiveWidths":[320,390,768,1440],
+    "remoteSchemaReview":"read-only: four target tables and existing Admin helper"
+  },
+  "remoteMigrationApplied":true,
+  "edgeFunctionDeployed":true,
+  "deploymentReceipt":"deployment-results.json",
+  "followUpLayoutFix": {
+    "reference":"user video 2026-11-15 142729",
+    "reproducedBeforeFix":"RenderFlex overflowed by 375 pixels at 884px test viewport",
+    "change":"Bound catalogue intro actions to 440px so buttons wrap without compressing the copy",
+    "contentViewportWidthsTested":[840,884,930,1024,1280],
+    "targetedTestsAfterFix":{"passed":16,"failed":0,"includesExistingStyleGoldenComparisons":2},
+    "flutterAnalysis":"passed: no issues",
+    "backofficeWebBuild":"passed: build/catalog_import_backoffice",
+    "backendChanged":false
+  },
+  "frontendHostingDeployed":false,
+  "githubIssuesPublished":false,
+  "productionAuthenticatedAcceptanceRun":false,
+  "fullProjectTestSuiteRerun":false,
+  "notes":[
+    "Existing style references were recorded before integration and were not regenerated to hide differences.",
+    "Internal comments and delivery evidence are protected from public catalogue reads.",
+    "No historical order amounts, fees or labels were reconstructed from current catalogue data.",
+    "The general project suite had pre-existing failures; this delivery used targeted checks."
+  ]
+}

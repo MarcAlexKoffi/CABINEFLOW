@@ -7,7 +7,7 @@ void main() {
 
   test('Fiche equipe ouvre sur un apercu compact avec profil et historique a la demande', () {
     final String page = source(
-      'lib/features/team/presentation/pages/team_member_detail_page.dart',
+      'lib/app/modules/team/views/team_member_detail_page.dart',
     );
 
     expect(page, contains('_MemberDetailTab.overview'));
@@ -22,7 +22,7 @@ void main() {
 
   test('Apercu Agent distingue mois, cumul et solde du', () {
     final String page = source(
-      'lib/features/team/presentation/pages/team_member_detail_page.dart',
+      'lib/app/modules/team/views/team_member_detail_page.dart',
     );
 
     expect(page, contains("teamMap(finance['activityHistory'])"));
@@ -35,7 +35,7 @@ void main() {
 
   test('Apercu Cabiniste garde ses capacites en lecture seule', () {
     final String page = source(
-      'lib/features/team/presentation/pages/team_member_detail_page.dart',
+      'lib/app/modules/team/views/team_member_detail_page.dart',
     );
 
     expect(page, contains('Marge Cabiniste'));
@@ -46,7 +46,7 @@ void main() {
 
   test('Apercu Manager distingue remuneration theorique et eligible', () {
     final String page = source(
-      'lib/features/team/presentation/pages/team_member_detail_page.dart',
+      'lib/app/modules/team/views/team_member_detail_page.dart',
     );
 
     expect(page, contains('Rémunération théorique'));
@@ -58,7 +58,7 @@ void main() {
 
   test('Liste performance ne confond plus acquis cumule et solde du Agent', () {
     final String page = source(
-      'lib/features/team/presentation/pages/team_performance_page.dart',
+      'lib/app/modules/team/views/team_performance_page.dart',
     );
 
     expect(page, contains("row['periodCommissionEarned']"));
@@ -70,7 +70,7 @@ void main() {
 
   test('Repository charge l historique scope Agent Cabiniste', () {
     final String repository = source(
-      'lib/features/team/data/repositories/supabase_team_supervision_repository.dart',
+      'lib/app/data/repositories/supabase_team_supervision_repository.dart',
     );
 
     expect(repository, contains("'izytel_team_member_activity_history'"));

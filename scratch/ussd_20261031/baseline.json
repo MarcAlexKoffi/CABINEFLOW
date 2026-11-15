@@ -1,0 +1,38 @@
+﻿[
+    {
+        "path":  "lib/features/orders/domain/models/queue_order.dart",
+        "sha256":  "A277EF4C785EF8BE46031C701A087CEF9FA83153830C3E9A6D7E6ACB44913C68"
+    },
+    {
+        "path":  "lib/features/orders/data/mappers/firestore_order_mapper.dart",
+        "sha256":  "5F4D4EC3D1E267102789E553D1410BF6BC753E6FC012D14974D1FEE27D2D7CA7"
+    },
+    {
+        "path":  "lib/features/orders/data/repositories/firestore_orders_repository.dart",
+        "sha256":  "6D1DD7824F8021A683DF0F305410649E704B9F6ABA2ADB676402B1F3A3A430CC"
+    },
+    {
+        "path":  "lib/features/orders/data/repositories/fake_orders_repository.dart",
+        "sha256":  "B90DBA91E5CD26B3934AC62A2A928D0405EB350880ECC1CC8E5EDC5350F06335"
+    },
+    {
+        "path":  "lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart",
+        "sha256":  "50A4496032660FBBC35ECDDD0F058C272A49FBEBAB6C32EC7BF49AABD1A4D58F"
+    },
+    {
+        "path":  "lib/features/orders/presentation/pages/agent_order_detail_view.dart",
+        "sha256":  "7E11A737F515A9D178766566A537F98AB1E034E681D064F8E33BDD56927E9FB5"
+    },
+    {
+        "path":  "lib/features/partners/presentation/pages/partner_shell_page.dart",
+        "sha256":  "CF634A32F8D23204EA686B4D9558AAE1F0AC23DE8ABD7B439246E7AAD5959559"
+    },
+    {
+        "path":  "lib/backoffice/presentation/pages/backoffice_shell_page.dart",
+        "sha256":  "C19E576874F6523A217A975CA6BA331CBFCD413BFC2AD91D482F49CE835F1841"
+    },
+    {
+        "path":  "lib/backoffice/presentation/pages/team/backoffice_agent_issues_page.dart",
+        "sha256":  "3CB452E9905F011C41B22FB98376D49F42ED5DF772190F6586C62FB57B1A8A02"
+    }
+]

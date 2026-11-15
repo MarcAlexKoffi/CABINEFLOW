@@ -7,7 +7,7 @@ void main() {
 
   test('WC3B live - un envoi client est relu immediatement depuis Supabase', () {
     final String page = source(
-      'lib/features/messaging/presentation/pages/customer_messaging_page.dart',
+      'lib/app/modules/messaging/views/customer_messaging_page.dart',
     );
 
     expect(page, contains('sendClientMessage('));
@@ -18,7 +18,7 @@ void main() {
 
   test('WC3B live - Realtime a un fallback REST borne', () {
     final String repository = source(
-      'lib/features/messaging/data/repositories/supabase_customer_messaging_repository.dart',
+      'lib/app/data/repositories/supabase_customer_messaging_repository.dart',
     );
 
     expect(repository, contains('BackendReadStream.watch'));
@@ -35,7 +35,7 @@ void main() {
 
   test('WC3B live - la messagerie reste Supabase et ne cree aucun flux Firestore', () {
     final String repository = source(
-      'lib/features/messaging/data/repositories/supabase_customer_messaging_repository.dart',
+      'lib/app/data/repositories/supabase_customer_messaging_repository.dart',
     );
 
     expect(repository, contains("'izytel_wc3_send_client_message'"));

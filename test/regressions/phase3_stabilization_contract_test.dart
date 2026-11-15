@@ -8,25 +8,26 @@ void main() {
   group('Phase 3 - stabilisation technique', () {
     test('les fallbacks backend ne masquent que les pannes transitoires', () {
       final String policy = source(
-        'lib/core/resilience/backend_failure_policy.dart',
+        'lib/app/core/resilience/backend_failure_policy.dart',
       );
       final String orders = source(
-        'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+        'lib/app/data/repositories/hybrid_orders_repository.dart',
       );
       final String phase4 = source(
-        'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
+        'lib/app/data/repositories/supabase_phase4_assignment_repository.dart',
       );
       final String phase5 = source(
-        'lib/features/finances/data/repositories/supabase_phase5_finance_repository.dart',
+        'lib/app/data/repositories/supabase_phase5_finance_repository.dart',
       );
       final String realtime = source(
-        'lib/core/supabase/supabase_realtime_refetch.dart',
+        'lib/app/data/sources/supabase_realtime_refetch.dart',
       );
 
       expect(policy, contains("'unavailable'"));
       expect(policy, contains("'PGRST000'"));
       expect(policy, isNot(contains("'permission-denied',")));
-      expect(policy, isNot(contains("'42501'")));
+      expect(policy, contains("code == '42501'"));
+      expect(policy, contains('BackendFailureKind.forbidden'));
 
       expect(orders, contains('BackendFailurePolicy.canRetryRead(error)'));
       expect(phase4, contains('SupabaseRealtimeRefetch.watch'));
@@ -37,19 +38,19 @@ void main() {
 
     test('les logs sensibles ne recopient plus les valeurs metier', () {
       final String logger = source(
-        'lib/core/diagnostics/izytel_log.dart',
+        'lib/app/core/logging/izytel_log.dart',
       );
       final String messaging = source(
-        'lib/core/notifications/firebase_messaging_bootstrap.dart',
+        'lib/app/services/notifications/firebase_messaging_bootstrap.dart',
       );
       final String devices = source(
-        'lib/core/notifications/izytel_notification_device_registry.dart',
+        'lib/app/services/notifications/izytel_notification_device_registry.dart',
       );
       final String wave = source(
-        'lib/features/payments/presentation/pages/send_wave_link_page.dart',
+        'lib/app/modules/payments/views/send_wave_link_page.dart',
       );
       final String payments = source(
-        'lib/features/payments/presentation/view_models/payments_view_model.dart',
+        'lib/app/modules/payments/controllers/payments_view_model.dart',
       );
 
       // Le marqueur historique reste present pour les contrats Phase 1/M5,
@@ -70,7 +71,7 @@ void main() {
 
     test('le mapper historique ne rajeunit plus les anciennes commandes', () {
       final String mapper = source(
-        'lib/features/orders/data/mappers/firestore_order_mapper.dart',
+        'lib/app/data/mappers/firestore_order_mapper.dart',
       );
 
       expect(mapper, contains('_readHistoricalCreatedAt(data)'));
@@ -82,10 +83,10 @@ void main() {
 
     test('les correctifs de compilation du bloc 1 restent verrouilles', () {
       final String mapper = source(
-        'lib/features/orders/data/mappers/firestore_order_mapper.dart',
+        'lib/app/data/mappers/firestore_order_mapper.dart',
       );
       final String orders = source(
-        'lib/features/orders/data/repositories/firestore_orders_repository.dart',
+        'lib/app/data/repositories/firestore_orders_repository.dart',
       );
 
       expect(mapper, contains('final List<DateTime> candidates = <DateTime?>['));
@@ -95,7 +96,7 @@ void main() {
     test('la Phase 3 ne modifie pas les contrats visuels ou les roles', () {
       final String app = source('lib/app/app.dart');
       final String orders = source(
-        'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+        'lib/app/data/repositories/hybrid_orders_repository.dart',
       );
 
       expect(app, contains('HybridOrdersRepository'));

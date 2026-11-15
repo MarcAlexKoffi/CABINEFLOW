@@ -8,7 +8,7 @@ void main() {
 
     setUpAll(() {
       flow = File(
-        'lib/features/customer_order/presentation/pages/customer_order_flow_page.dart',
+        'lib/app/modules/customer/views/customer_order_flow_page.dart',
       ).readAsStringSync();
     });
 
@@ -44,7 +44,7 @@ void main() {
       );
 
       final String summary = File(
-        'lib/features/customer_order/presentation/pages/customer_summary_page.dart',
+        'lib/app/modules/customer/views/customer_summary_page.dart',
       ).readAsStringSync();
       expect(summary, contains("backLabel: orderCreated ? 'Commande enregistrée' : 'Modifier'"));
       expect(summary, contains('widget.onBack ?? widget.viewModel.goBack'));

@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('registre FCM utilise Supabase sans ecriture Firestore', () {
     final String source = File(
-      'lib/core/notifications/izytel_notification_device_registry.dart',
+      'lib/app/services/notifications/izytel_notification_device_registry.dart',
     ).readAsStringSync();
 
     expect(source, contains('izytel_register_notification_device'));
@@ -18,17 +18,23 @@ void main() {
 
   test('navigation notification est branchee Agent et Manager', () {
     final String shell = File(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     ).readAsStringSync();
     final String agentOrders = File(
-      'lib/features/orders/presentation/pages/agent_orders_page.dart',
+      'lib/app/modules/agent_orders/views/agent_orders_page.dart',
     ).readAsStringSync();
 
-    expect(shell, contains('FirebaseMessagingBootstrap.openedPayloads.listen'));
+    expect(
+      shell.replaceAll(RegExp(r'\s+'), ''),
+      contains('FirebaseMessagingBootstrap.openedPayloads.listen'),
+    );
     expect(shell, contains("payload.type == 'order_manual_required'"));
     expect(shell, contains("payload.type == 'agent_issue_new'"));
     expect(shell, contains("payload.type == 'agent_issue_resolved'"));
-    expect(shell, contains('IzyTelNotificationDeviceRegistry.deactivateCurrentDevice'));
+    expect(
+      shell,
+      contains('IzyTelNotificationDeviceRegistry.deactivateCurrentDevice'),
+    );
     expect(agentOrders, contains('notificationOrderRequest'));
     expect(agentOrders, contains('_openNotificationOrderIfAvailable'));
     expect(agentOrders, contains('attempt == 0 && !_viewModel.isLoading'));
@@ -59,7 +65,7 @@ void main() {
   test('ouverture notification ne laisse jamais une route morte', () {
     final String app = File('lib/app/app.dart').readAsStringSync();
     final String messaging = File(
-      'lib/core/notifications/firebase_messaging_bootstrap.dart',
+      'lib/app/services/notifications/firebase_messaging_bootstrap.dart',
     ).readAsStringSync();
 
     expect(messaging, contains('getInitialMessage()'));
@@ -68,5 +74,4 @@ void main() {
     expect(app, contains('SplashPage(authRepository: authRepository)'));
     expect(app, isNot(contains('Impossible d’ouvrir cette page.')));
   });
-
 }

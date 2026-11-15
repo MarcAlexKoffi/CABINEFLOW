@@ -7,13 +7,13 @@ void main() {
 
   test('mobile auth resolves cabiniste outside staff roles', () {
     final String appUser = source(
-      'lib/features/auth/domain/models/app_user.dart',
+      'lib/app/domain/entities/auth/app_user.dart',
     );
     final String auth = source(
-      'lib/features/auth/data/repositories/firebase_auth_repository.dart',
+      'lib/app/data/repositories/firebase_auth_repository.dart',
     );
     final String permissions = source(
-      'lib/features/auth/domain/permissions/user_permissions.dart',
+      'lib/app/domain/permissions/user_permissions.dart',
     );
 
     expect(appUser, contains('cabiniste'));
@@ -28,7 +28,7 @@ void main() {
   test('cabiniste uses a dedicated mobile shell', () {
     final String app = source('lib/app/app.dart');
     final String shell = source(
-      'lib/features/partners/presentation/pages/partner_shell_page.dart',
+      'lib/app/modules/partners/views/partner_shell_page.dart',
     );
 
     expect(app, contains('arguments.role == UserRole.cabiniste'));
@@ -41,10 +41,10 @@ void main() {
 
   test('cabiniste order UI is wired to validated partner RPC layer', () {
     final String shell = source(
-      'lib/features/partners/presentation/pages/partner_shell_page.dart',
+      'lib/app/modules/partners/views/partner_shell_page.dart',
     );
     final String repository = source(
-      'lib/features/partners/data/repositories/supabase_partner_order_repository.dart',
+      'lib/app/data/repositories/supabase_partner_order_repository.dart',
     );
 
     expect(shell, contains('repository.accept('));
@@ -58,10 +58,10 @@ void main() {
 
   test('cabiniste shell registers FCM and listens to assigned orders', () {
     final String shell = source(
-      'lib/features/partners/presentation/pages/partner_shell_page.dart',
+      'lib/app/modules/partners/views/partner_shell_page.dart',
     );
     final String repository = source(
-      'lib/features/partners/data/repositories/supabase_partner_order_repository.dart',
+      'lib/app/data/repositories/supabase_partner_order_repository.dart',
     );
 
     expect(shell, contains('IzyTelNotificationDeviceRegistry.start'));
@@ -73,10 +73,10 @@ void main() {
 
   test('cabiniste finance and capacities remain server controlled', () {
     final String shell = source(
-      'lib/features/partners/presentation/pages/partner_shell_page.dart',
+      'lib/app/modules/partners/views/partner_shell_page.dart',
     );
     final String repository = source(
-      'lib/features/partners/data/repositories/supabase_partner_order_repository.dart',
+      'lib/app/data/repositories/supabase_partner_order_repository.dart',
     );
 
     expect(repository, contains("rpc('izytel_partner_finance_snapshot')"));

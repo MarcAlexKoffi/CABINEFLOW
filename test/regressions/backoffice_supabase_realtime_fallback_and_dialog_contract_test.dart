@@ -8,7 +8,7 @@ void main() {
   group('Back-office - fallback Supabase et dialogues', () {
     test('Support charge d abord via Data API et ne propage pas une panne Realtime', () {
       final String source = read(
-        'lib/features/support/data/repositories/supabase_support_request_repository.dart',
+        'lib/app/data/repositories/supabase_support_request_repository.dart',
       );
       expect(source, contains("from(tableName).select()"));
       expect(source, contains("stream(primaryKey: const <String>['id'])"));
@@ -19,7 +19,7 @@ void main() {
 
     test('Remboursements charge d abord via Data API et ne propage pas une panne Realtime', () {
       final String source = read(
-        'lib/features/refunds/data/repositories/supabase_refund_repository.dart',
+        'lib/app/data/repositories/supabase_refund_repository.dart',
       );
       expect(source, contains("from(tableName).select()"));
       expect(source, contains("stream(primaryKey: const <String>['order_id'])"));
@@ -29,10 +29,10 @@ void main() {
 
     test('les actions Support et Remboursements forcent une relecture REST locale', () {
       final String support = read(
-        'lib/backoffice/presentation/pages/clients/backoffice_support_requests_page.dart',
+        'lib/app/modules/backoffice/views/clients/backoffice_support_requests_page.dart',
       );
       final String refunds = read(
-        'lib/backoffice/presentation/pages/clients/backoffice_refunds_page.dart',
+        'lib/app/modules/backoffice/views/clients/backoffice_refunds_page.dart',
       );
       expect(support, contains('void _reload({bool resetPage = false})'));
       expect(support, contains('setState(() => _pageFuture = _fetchPage())'));
@@ -42,7 +42,7 @@ void main() {
 
     test('le detail utilisateur est scrollable et ne peut plus deborder en hauteur', () {
       final String users = read(
-        'lib/backoffice/presentation/pages/backoffice_users_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_users_page.dart',
       );
       expect(users, contains('BackofficeModalShell('));
       expect(users, contains('SingleChildScrollView('));

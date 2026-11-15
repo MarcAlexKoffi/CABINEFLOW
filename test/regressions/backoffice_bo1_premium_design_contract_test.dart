@@ -6,10 +6,10 @@ void main() {
   group('BO-1 - design premium clair IzyTel', () {
     test('le back-office reutilise la palette officielle du mobile', () {
       final String theme = File(
-        'lib/backoffice/presentation/theme/backoffice_theme.dart',
+        'lib/app/theme/backoffice_theme.dart',
       ).readAsStringSync();
       final String app = File(
-        'lib/backoffice/backoffice_app.dart',
+        'lib/app/backoffice_app.dart',
       ).readAsStringSync();
 
       expect(theme, contains('static const Color canvas = IzyTelColors.background'));
@@ -23,16 +23,16 @@ void main() {
 
     test('navigation dashboard et utilisateurs restent bleu et blanc', () {
       final String shell = File(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       ).readAsStringSync();
       final String dashboard = File(
-        'lib/backoffice/presentation/pages/backoffice_dashboard_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_dashboard_page.dart',
       ).readAsStringSync();
       final String users = File(
-        'lib/backoffice/presentation/pages/backoffice_users_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_users_page.dart',
       ).readAsStringSync();
       final String login = File(
-        'lib/backoffice/presentation/pages/backoffice_login_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_login_page.dart',
       ).readAsStringSync();
 
       expect(shell, contains('BackofficeGradients.selectedNav'));

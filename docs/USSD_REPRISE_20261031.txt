@@ -1,0 +1,318 @@
+IZYTEL — REPRISE USSD : AURA / ATLAS / SENTINEL
+Travaux du 31 octobre au 1er novembre 2026 ; rapport finalisé le 1er novembre 2026
+Branche conservée : fix/stabilisation-mobile-web-20261030
+
+Complément ultérieur : voir docs/USSD_SUPPRESSION_20261101.txt pour l'ajout
+des suppressions. Les résultats ci-dessous décrivent la reprise initiale.
+Application serveur autorisée ultérieurement :
+  docs/USSD_MIGRATIONS_SERVEUR_20261101.txt (migrations désormais installées).
+
+PÉRIMÈTRE ET ÉTAT DE LIVRAISON
+
+Reprise du module existant, sans réécriture de son architecture. Les corrections
+antérieures de rendu et d'authentification sont conservées. Aucun push GitHub,
+aucune fusion, aucun déploiement, aucun abonnement ni environnement payant créé.
+Aucune écriture distante pendant cette reprise. Les lectures de métadonnées du
+catalogue n'ont sélectionné ni informations clients ni secrets.
+
+La migration V1 avait été appliquée lors de l'intervention précédente, sur
+autorisation distincte. La NOUVELLE migration décrite ici est préparée et testée
+localement uniquement. Ses nouveaux comportements serveur et ses brouillons ne
+sont donc pas encore installés dans la base utilisée par l'application.
+
+1. CONSTATS AURA
+
+Le formulaire précédent empilait ses champs sans sections ni rythme régulier.
+Le template et le statut étaient du texte simple ; les actions du tableau
+reposaient sur des icônes. Les AlertDialog divergeaient du système de fenêtres
+Back-office déjà disponible. La prévisualisation mélangeait données, erreurs
+et résultat généré.
+
+Composants retenus : BackofficeModalShell, BackofficeModalSection et
+showBackofficeModal (lib/backoffice/presentation/widgets/backoffice_modal.dart),
+BackofficeDesktopTable/NetworkBadge/StatusBadge (backoffice_order_widgets.dart),
+BackofficePalette/BackofficeTheme et IzyTelSpacing existants. Aucun changement
+du shell global, de ses tokens ou du thème de production.
+
+2. MODIFICATIONS VISUELLES
+
+- Éditeur de 900 px maximum : Périmètre / Syntaxe USSD / Publication.
+- Deux colonnes si la largeur intérieure atteint 600 px, sinon une colonne.
+- Espacements de 16 px entre champs et de 24 px entre sections ; corps seul
+  défilant, header et footer accessibles. Header plus court sur écran compact.
+- Syntaxe monospace dominante, aide courte, boutons de variables au curseur,
+  remplacement de la sélection et restitution du focus.
+- Aperçu instantané de la forme canonique et d'un résultat strictement fictif.
+- Publication explicitement en brouillon ; activation séparée avec attestation
+  SIM. Une modification de règle active impose une nouvelle validation.
+- Tableau : opérateur, statut et actions en premier ; détails défilants, badges,
+  syntaxe monospace et menus explicites. Aucun Expanded sous hauteur non bornée.
+- Prévisualisation : sections Données fictives / Résultat généré, erreur séparée
+  du résultat, bouton exact « Générer sans lancer ». Aucun appel tel: côté BO.
+- Un enregistrement invalide ramène le défilement au premier champ en erreur.
+
+3. FICHIERS CONCERNÉS
+
+Production locale :
+  lib/features/ussd/presentation/backoffice_ussd_page.dart
+  lib/features/ussd/presentation/ussd_rule_dialogs.dart (nouveau, partie UI)
+  lib/features/ussd/domain/ussd_engine.dart
+  lib/features/ussd/domain/ussd_repository.dart
+  lib/features/ussd/data/supabase_ussd_repository.dart
+  android/app/src/main/kotlin/com/izytel/app/MainActivity.kt
+
+Tests :
+  test/features/ussd/ussd_backoffice_widget_test.dart
+  test/features/ussd/ussd_engine_test.dart
+  test/features/ussd/ussd_dialer_test.dart
+  test/features/ussd/ussd_mobile_widget_test.dart
+  test/features/ussd/ussd_repository_http_test.dart
+  test/ussd_sql/baseline_fixture.sql
+  test/ussd_sql/generation_vectors.json
+  test/ussd_sql/run.mjs
+
+Compatibilité des tests de contrat sur Windows (assertions inchangées) :
+  test/regressions/staff_team_navigation_contract_test.dart
+  test/regressions/wc13_mobile_navigation_and_zone_assignment_contract_test.dart
+  test/regressions/wc9_mobile_navigation_manager_agents_contract_test.dart
+  La lecture des sources normalise CRLF vers LF. Les quatre échecs initiaux
+  venaient uniquement des comparaisons multilignes ; les fichiers de navigation
+  n'ont pas été modifiés. Les 13 cas des trois fichiers ont ensuite réussi.
+
+Configuration :
+  pubspec.yaml / pubspec.lock : http 1.6.0 devient une dépendance de développement
+  explicite pour le MockClient des captures. Cette version était déjà verrouillée
+  comme dépendance transitive ; aucune bibliothèque d'exécution n'est mise à jour.
+
+SQL :
+  supabase/migrations/20261031224809_ussd_template_aliases_secret_and_draft_catalog.sql
+  supabase/tests/ussd_reprise_preflight.sql (contrôles SELECT préparés pour la cible future)
+
+4. NORMALISATION
+
+Avant enregistrement, les tokens reconnus sont convertis en placeholders
+canoniques. Dart et SQL appliquent la même règle, avec vecteurs partagés.
+Accents, accents décomposés et casse sont tolérés. La ponctuation et les
+chiffres des codes ne sont pas réécrits.
+
+  numéro_du_destinataire / numero_du_destinataire / numéro / numero
+    -> {{msisdn_local}}
+  montant -> {{amount}}
+  code_offre / code offre -> {{offer_code}}
+  quantité / quantite -> {{quantity}}
+  code_secret / code secret -> {{secret_code}}
+
+Les alias sont aussi reconnus à l'intérieur d'accolades doubles complètes.
+Les tokens inconnus et accolades incomplètes restent invalides ; aucun texte
+arbitraire n'est injecté comme variable. Le stockage garde la forme canonique.
+
+Exemples :
+  *412*2*numéro_du_destinataire# -> *412*2*{{msisdn_local}}#
+  *133*5*numéro*montant# -> *133*5*{{msisdn_local}}*{{amount}}#
+  *410*numéro*montant*code_secret#
+    -> *410*{{msisdn_local}}*{{amount}}*{{secret_code}}#
+
+5. PLACEHOLDERS ET SECRET
+
+Disponibles : msisdn_local, amount, offer_code, quantity, secret_code.
+Les syntaxes statiques restent valides. Préfixes autorisés : *, ** et # ;
+terminaison # ; longueur de code généré maximale 182, template maximal 512.
+Les valeurs injectées sont typées/validées et le résultat final est revalidé.
+Un paramètre manquant bloque le composeur et laisse le traitement manuel.
+
+Le secret réel est résolu côté serveur depuis private.ussd_secret_configuration,
+par réseau et cible ; l'override propre à la cible précède « both ». Sans
+override autorisé, le défaut V1 centralisé est 0000. La configuration privée
+n'est accessible ni au Manager, ni à l'Agent/Cabiniste, ni via une table client.
+Sa gestion demeure réservée à l'administrateur de base ; aucun champ de secret
+réel n'est ajouté au Back-office.
+
+Le défaut Dart est centralisé dans UssdEngine.defaultSecretCode et sert aux
+aperçus fictifs. Le mobile ne reconstruit pas le code réel : il utilise la
+réponse du serveur. Le contexte n'expose qu'une révision UUID opaque ; une
+rotation ou suppression/recréation invalide une confirmation antérieure.
+Les logs techniques et tables d'audit ne reçoivent pas la valeur du secret
+ni le code final. L'affichage final et le composeur contiennent naturellement
+le code à exécuter après confirmation de l'utilisateur.
+
+6. BROUILLONS PRÉPARÉS
+
+Le seed crée 12 règles en Brouillon, sans activation :
+
+MOOV
+  callBundle : *412*1#
+  internetSubscription : *412*2*{{msisdn_local}}#
+  famille Folie / callBundle : *412*4*{{msisdn_local}}#
+  consultation du solde : *414*{{secret_code}}#
+  unitTransfer : *410*{{msisdn_local}}*{{amount}}*{{secret_code}}#
+
+ORANGE
+  internetSubscription : #154*1*{{msisdn_local}}#
+  callBundle : #154*1*{{msisdn_local}}#
+  mixedBundle : #154*1*{{msisdn_local}}#
+
+MTN
+  mixedBundle / Pass Appel : *133*6*2*{{msisdn_local}}#
+  internetSubscription : *133*6*3*{{msisdn_local}}#
+  famille Chic / mixedBundle : *133*6*8*{{msisdn_local}}#
+  unitTransfer : *133*5*{{msisdn_local}}*{{amount}}#
+
+Les IDs réseau sont ceux du code : moov, orange, mtn. Orange utilise trois
+règles car ses offres Appel emploient deux identifiants métier réellement
+présents : callBundle et mixedBundle. unitTransfer existe déjà dans le modèle,
+même si aucune offre de ce service n'était présente au contrôle du catalogue.
+
+Moov Folie est une famille contrôlée callBundle, reliée explicitement aux IDs
+moov-calls-500, moov-calls-1000, moov-calls-1500, moov-calls-2500, moov-calls-5000.
+Les bindings existants sont conservés, sans remplacement d'une décision Admin.
+
+MTN Chic n'a pas de mapping certain : les offres présentes sont Free Plus.
+La famille est créée de manière contrôlée, SANS association automatique à ces
+offres. Son activation est refusée tant que l'association n'est pas renseignée.
+Les libellés ne deviennent pas une clé de sélection des commandes.
+
+La consultation du solde est distinguée par purpose=balance, sans nouveau
+service de commande. Elle est consultable/configurable/prévisualisable mais
+n'est JAMAIS sélectionnée pour traiter une commande. Aucun nouveau parcours
+mobile autonome de consultation du solde n'est ajouté dans cette reprise.
+
+7. MIGRATION ET APPLICATION FUTURE
+
+Fichier nouveau :
+  20261031224809_ussd_template_aliases_secret_and_draft_catalog.sql
+Créé après vérification de la CLI et via « supabase migration new ».
+CLI utilisée : Supabase 2.122.0, outillage local dans scratch uniquement.
+SHA256 de la nouvelle migration :
+  7c5132cc3f8698d7ef38052dd564a276e8b3708b6ba045c650f9bc7a7e49dbc4
+
+Ancienne migration 20261031005603 inchangée :
+  SHA256 70c8df374919db53f54fc30087e39ac3c9af572638c37646b32ae3045d6b86c3
+  Historique distant de V1 : version 20261031095414.
+Ne pas réappliquer V1 ni pousser toutes les anciennes migrations à l'aveugle.
+
+La nouvelle migration ajoute purpose/seed_key et une configuration privée du
+secret ; elle étend les helpers en préservant les ACL des RPC existantes.
+Le bloc de seed peut être rejoué sans doublon, sans écraser une édition ni un
+binding existant, y compris après renommage d'une famille contrôlée. Le DDL
+complet reste une migration à appliquer une seule fois via son historique.
+Aucune commande, paiement, capacité, preuve ou commission n'est modifié.
+
+La base active étant la production, cette reprise S'ARRÊTE AVANT l'écriture
+distante. Une future application exige une autorisation explicite et un contrôle
+de l'historique/schema cible. L'ancienne base continue d'accepter les brouillons
+ordinaires : le repository omet purpose=order pour compatibilité. Les nouveaux
+placeholders secrets, codes débutant par #, règles balance et le catalogue de
+brouillons nécessitent en revanche la nouvelle migration serveur.
+
+8. ENVIRONNEMENTS DE VÉRIFICATION
+
+- SQL : PostgreSQL PGlite 0.5.13 en mémoire, baseline et identités synthétiques,
+  sans client réseau. Aucun jeton réel, aucun ordre client utilisé.
+- Flutter : tests locaux, faux repositories, serveur HTTP loopback pour les RPC
+  et composeur simulé par MethodChannel.
+- Captures : harness Flutter de données fictives, vrai BackofficeTheme.light,
+  Manrope locale vérifiée par SHA256, réponses de polices fournies par MockClient
+  sans réseau pendant les tests, icônes et monospace chargées localement.
+- Aucun test destructif ni transaction télécom. La compilation n'atteste pas
+  le fonctionnement d'un code opérateur sur une SIM réelle.
+
+9. TESTS CIBLÉS
+
+129 tests USSD réussis, dont les 20 tests d'interface exécutés avec le vrai
+thème dans le mode de captures optionnel. Sont couverts : alias/canonique,
+génération, secret, # initial, refus des données invalides, transmission Bearer,
+brouillons, édition, activation/désactivation, menus, filtres, erreurs/reprise,
+chargement, insertion au curseur, modales et scroll à 360/768/1280 px, hauteur
+480 px et texte agrandi à 1,3 sur compact, garde des actions dans le tableau,
+et scénarios mobile simulés de confirmation/retour/fallback.
+
+Les 13 tests des trois fichiers de contrats de navigation passent également
+après normalisation des fins de ligne dans leur lecteur uniquement.
+
+10. ANALYSE
+
+flutter analyze --no-pub : aucune anomalie (0 issue).
+
+11. SUITE COMPLÈTE ET SQL
+
+flutter test --no-pub --reporter expanded : 1 024 tests réussis, zéro échec.
+node test/ussd_sql/run.mjs : 92 scénarios SQL réussis, zéro échec.
+Build Android debug : réussi (80,7 s).
+  Artefact : build/app/outputs/flutter-apk/app-debug.apk
+Build Web Back-office, entrée lib/main_backoffice_web.dart : réussi (84,4 s).
+  Sortie : build/ussd/backoffice_web
+Aucun de ces artefacts n'a été déployé. Le build Web JavaScript réussi ne
+valide pas une cible WebAssembly ; son contrôle préparatoire Wasm émet des
+avertissements. Le build Android signale aussi un décalage de version du format
+XML entre outils SDK, sans empêcher la compilation. Ces avertissements restent
+à traiter dans une intervention d'outillage distincte.
+
+Journaux :
+  scratch/ussd_reprise_visual_tests.log
+  scratch/ussd_reprise_tests.log
+  scratch/ussd_reprise_full_tests.log
+  scratch/ussd_reprise_analyze.log
+  scratch/ussd_reprise_sql_validation.log
+  scratch/ussd_reprise_android_build.log
+  scratch/ussd_reprise_backoffice_build.log
+Captures : scratch/ussd_reprise_visual/*.png (données fictives uniquement).
+
+12. CONTRE-VÉRIFICATION SENTINEL
+
+Avis favorable pour livraison LOCALE ; aucune anomalie critique/élevée restante
+identifiée dans le périmètre relu. Ce n'est pas un audit complet de tout IzyTel.
+
+- Écritures/activation/historiques administratifs toujours réservés à Admin.
+- Manager/Supervisor : lecture pertinente et supervision territoriale prévues.
+- Agent/Cabiniste : attribution exclusive, compte actif, réseau autorisé,
+  commande traitable ; aucune création/modification de règle possible.
+- RLS/ACL non élargies ; nouveaux helpers internes révoqués aux rôles clients.
+- Placeholder arbitraire et sortie partiellement résolue refusés.
+- Secret absent du contexte métier exposé, des historiques et des journaux.
+- ACTION_DIAL et Uri.fromParts("tel", code, null) conservés : pas d'appel direct,
+  pas de permission CALL_PHONE ajoutée, pas de lancement depuis le Back-office.
+- Confirmation explicite, lecture fraîche avant lancement, revalidation serveur
+  et maintien des protections anti-doublon et du traitement manuel.
+
+Deux observations ont été corrigées puis testées : réutilisation possible d'une
+révision numérique après suppression/réinsertion du secret (remplacée par UUID),
+et replay du seed après renommage de famille (identité contrôlée réutilisée).
+SENTINEL a exécuté indépendamment les 92 scénarios SQL : tous réussis.
+
+Limite distribuée conservée : un code déjà transmis au téléphone ne peut pas
+être retiré après une révocation ultérieure. Le bail de préparation reste borné
+à dix secondes et à la fin de validité, avec contrôle avant copie/composeur.
+
+13. RECETTE RESTANTE SUR TÉLÉPHONE ET SERVEUR RÉELS
+
+Après application future autorisée de la migration sur une cible vérifiée :
+- Vrais JWT Firebase Admin/Manager/Agent/Cabiniste via PostgREST ; essais hors
+  zone, compte désactivé, réattribution, réseau retiré et absence d'identité.
+- Android physique : numéros normalisés, montant réel attendu, secret autorisé,
+  # initial/final intacts, une SIM puis deux SIM et choix effectif d'opérateur.
+- Confirmation/annulation, copie, double toucher, réseau coupé, expiration,
+  changement de règle/secret pendant confirmation et absence de composeur.
+- Retour, verrouillage, arrière-plan et destruction du processus : état de
+  traitement conservé, aucune réussite automatique de commande/paiement.
+- Non-régression manuelle : preuve de réussite, échec soumis au Manager,
+  attente/reprise, capacité/commission comptées une fois et notifications métier.
+- Validation humaine des syntaxes fournies et du mapping Chic avant activation.
+
+Ne pas utiliser de paiement réel ni lancer de transaction opérateur sans accord
+spécifique, SIM de test et coût accepté. Les brouillons ne valent pas certification
+télécom. Aucune de ces vérifications physiques n'est revendiquée ici.
+
+REPRODUCTION LOCALE
+
+  flutter pub get --offline
+  flutter analyze --no-pub
+  flutter test --no-pub test/features/ussd --reporter expanded
+  flutter test --no-pub --reporter expanded
+  npm install --prefix scratch/ussd_reprise_tools --no-save --package-lock=false @electric-sql/pglite@0.5.13
+  node test/ussd_sql/run.mjs
+
+Les captures sont optionnelles : IZYTEL_USSD_RENDER=1 avec les fixtures Manrope
+locales dans scratch/ussd_reprise_visual et IZYTEL_USSD_MONO_FONT pointant vers une
+police monospace locale. Sans ces variables, les tests ordinaires ne dépendent
+d'aucun téléchargement de police. Les sorties scratch et builds ne sont pas
+destinées à être ajoutées globalement au dépôt.

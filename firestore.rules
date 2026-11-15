@@ -1691,13 +1691,6 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'availability',
           'activeNetworks',
-          'orangeCapacity',
-          'mtnCapacity',
-          'moovCapacity',
-          'lastCapacityUpdateAt',
-          'lastOrangeMovementId',
-          'lastMtnMovementId',
-          'lastMoovMovementId',
           'lastSeenAt',
           'updatedAt'
         ])
@@ -2011,7 +2004,8 @@ service cloud.firestore {
         'role',
         'isActive',
         'createdAt',
-        'updatedAt'
+        'updatedAt',
+        'adminManaged'
       ])
         && request.resource.data.schemaVersion == 1
         && request.resource.data.name is string
@@ -2039,6 +2033,15 @@ service cloud.firestore {
         && request.resource.data.email == resource.data.email
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.updatedAt == request.time
+        && request.resource.data.get('adminManaged', false)
+          == resource.data.get('adminManaged', false)
+        && (
+          resource.data.get('adminManaged', false) != true
+          || (
+            request.resource.data.role == resource.data.role
+            && request.resource.data.isActive == resource.data.isActive
+          )
+        )
         && (
           request.auth.uid != userId
           || (
@@ -3845,14 +3848,11 @@ service cloud.firestore {
         (network == 'orange' && before.orangeCapacity == request.resource.data.capacityBefore)
         || (network == 'mtn' && before.mtnCapacity == request.resource.data.capacityBefore)
         || (network == 'moov' && before.moovCapacity == request.resource.data.capacityBefore);
-      return (isAdmin() || (isAgent() && agentId == request.auth.uid))
+      return isAdmin()
         && hasValidNetworkTransactionValues()
         && request.resource.data.type == 'manualAdjustment'
         && beforeMatches
-        && (
-          (isAdmin() && request.resource.data.createdByRole == 'admin')
-          || (isAgent() && request.resource.data.createdByRole == 'agent')
-        )
+        && request.resource.data.createdByRole == 'admin'
         && (
           (request.resource.data.direction == 'incoming'
             && request.resource.data.capacityAfter > request.resource.data.capacityBefore

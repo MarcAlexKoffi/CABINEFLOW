@@ -1,7 +1,7 @@
 import 'package:cabine_flow/app/app.dart';
-import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
-import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
-import 'package:cabine_flow/features/orders/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/app/data/repositories/fake_orders_repository.dart';
+import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
+import 'package:cabine_flow/app/domain/repositories/orders_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -1,0 +1,50 @@
+{
+  "executed_at": "2026-11-06T11:00:30.062Z",
+  "project_id": "zrxeztxaxnzxevjuhzcc",
+  "authorization": "User explicitly authorized applying the migration with queue disabled and deploying notification dispatch.",
+  "migration": {
+    "name": "shared_agent_queue_and_sla",
+    "source": "supabase/migrations/20261106004036_shared_agent_queue_and_sla.sql",
+    "source_sha256": "7347127e1fdea63db58c79ad77b4ccfc62fe988802fbd8e2be944d0975d96177",
+    "remote_version": "20261106105111",
+    "result": {
+      "success": true
+    },
+    "session_limits": {
+      "lock_timeout": "5s",
+      "statement_timeout": "60s"
+    },
+    "version_note": "MCP assigned the remote migration version; do not blindly reapply the differently dated local file with db push."
+  },
+  "edge": {
+    "name": "izytel-notification-dispatch",
+    "previous_version": 3,
+    "version": 4,
+    "status": "ACTIVE",
+    "verify_jwt": false,
+    "import_map": true,
+    "bundle_sha256": "ebac4bd85a5e941bff2672e935a156c63f048b537a4f597260163552b6456a34",
+    "source_readback_matches": true,
+    "secrets_changed": false,
+    "other_functions_changed": false
+  },
+  "verification": {
+    "enabled": false,
+    "sla_jobs": 0,
+    "activated_at": null,
+    "shared_orders": 0,
+    "new_tables_rls": true,
+    "recipient_check_client_execute": false,
+    "recipient_check_service_execute": true
+  },
+  "cron_jobs": [
+    {
+      "name": "izytel-notification-retry-wakeup",
+      "active": true,
+      "schedule": "* * * * *"
+    }
+  ],
+  "business_data_mutations": "none requested or performed beyond additive migration defaults; existing orders remain legacy",
+  "real_fcm_send_test": "not performed",
+  "sla_job_activation": "not authorized and not performed"
+}

@@ -21,7 +21,7 @@ void main() {
 
     test('les commandes Manager ferment toute fuite Firestore globale', () {
       final String source = File(
-        'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+        'lib/app/data/repositories/hybrid_orders_repository.dart',
       ).readAsStringSync();
 
       expect(source, contains('AppUser? viewer'));
@@ -34,13 +34,13 @@ void main() {
 
     test('dashboard et annuaire Agent connaissent le viewer Manager', () {
       final String dashboard = File(
-        'lib/features/dashboard/data/repositories/hybrid_dashboard_repository.dart',
+        'lib/app/data/repositories/hybrid_dashboard_repository.dart',
       ).readAsStringSync();
       final String agents = File(
-        'lib/features/agents/data/repositories/firestore_agent_repository.dart',
+        'lib/app/data/repositories/firestore_agent_repository.dart',
       ).readAsStringSync();
       final String shell = File(
-        'lib/features/navigation/presentation/pages/main_shell_page.dart',
+        'lib/app/modules/home/views/main_shell_page.dart',
       ).readAsStringSync();
 
       expect(dashboard, contains('AppUser? viewer'));
@@ -51,7 +51,7 @@ void main() {
 
     test('le Manager peut traiter Support et echecs sans devenir Admin finance', () {
       final String permissions = File(
-        'lib/features/auth/domain/permissions/user_permissions.dart',
+        'lib/app/domain/permissions/user_permissions.dart',
       ).readAsStringSync();
       final RegExp managerBlock = RegExp(
         r'static const UserPermissions manager = UserPermissions\(([\s\S]*?)\n  \);',
@@ -67,7 +67,7 @@ void main() {
 
     test('les nouveaux Agents sont administrables meme avant profil operationnel', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/team/backoffice_agents_page.dart',
+        'lib/app/modules/backoffice/views/team/backoffice_agents_page.dart',
       ).readAsStringSync();
       expect(source, contains('if (widget.user.permissions.canManageAgents)'));
       expect(source, contains('agent.profile ?? AgentProfile('));

@@ -1,0 +1,21 @@
+{
+  "source": "C:/Users/koffi/Downloads/Modele_import_offres_IzyTel.xlsx",
+  "inspectedOn": "2026-11-15",
+  "mode": "read-only; original unchanged",
+  "sha256": "ba7efd5ed529ee1e512df97a341ea49776c0d778562d842540be19120f5942c3",
+  "prototypeCopy": "aura-r1/Modele_import_offres_IzyTel.xlsx",
+  "copySha256Matches": true,
+  "sheets": [
+    {"name":"OFFRES","nonemptyRows":41,"dataRows":40,"headersRange":"A1:V1","dataRange":"A2:V41","usedForImport":true},
+    {"name":"GUIDE","nonemptyRows":18,"usedForImport":false},
+    {"name":"REFERENTIEL","nonemptyRows":13,"usedForImport":false},
+    {"name":"EXEMPLES_MAJ","nonemptyRows":5,"usedForImport":false}
+  ],
+  "operators": {"ORANGE":12,"MTN":13,"MOOV":15},
+  "allOffersStatus": "BROUILLON",
+  "commercialVerification": "Propositions non vérifiées, aucune validation de tarifs ou de disponibilité opérateur",
+  "containsMacros": false,
+  "formulasInOffres": false,
+  "fixture": "aura-r1/fixtures.json",
+  "fixtureRowsRetainOriginalRowNumbers": true
+}

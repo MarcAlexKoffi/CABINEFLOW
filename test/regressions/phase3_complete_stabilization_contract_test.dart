@@ -7,13 +7,13 @@ void main() {
 
   group('Phase 3 complete - stabilisation technique', () {
     test('les flux Realtime appliquent un backoff de secours et se remettent apres succes', () {
-      final String policy = read('lib/core/resilience/backend_failure_policy.dart');
-      final String realtime = read('lib/core/supabase/supabase_realtime_refetch.dart');
+      final String policy = read('lib/app/core/resilience/backend_failure_policy.dart');
+      final String realtime = read('lib/app/data/sources/supabase_realtime_refetch.dart');
       final List<String> realtimeRepositories = <String>[
-        'lib/features/agents/data/repositories/supabase_agent_issue_repository.dart',
-        'lib/features/finances/data/repositories/supabase_supplier_registry_repository.dart',
-        'lib/features/finances/data/repositories/supabase_phase5_finance_repository.dart',
-        'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
+        'lib/app/data/repositories/supabase_agent_issue_repository.dart',
+        'lib/app/data/repositories/supabase_supplier_registry_repository.dart',
+        'lib/app/data/repositories/supabase_phase5_finance_repository.dart',
+        'lib/app/data/repositories/supabase_phase4_assignment_repository.dart',
       ];
 
       expect(policy, contains('retryDelay('));
@@ -26,13 +26,13 @@ void main() {
         expect(read(path), contains('SupabaseRealtimeRefetch.watch'), reason: path);
       }
       expect(
-        read('lib/features/orders/data/repositories/hybrid_orders_repository.dart'),
+        read('lib/app/data/repositories/hybrid_orders_repository.dart'),
         contains('BackendFailurePolicy.canRetryRead(error)'),
       );
     });
 
     test('Firestore mobile garde un cache persistant sans imposer le cache Web', () {
-      final String bootstrap = read('lib/core/firebase/firebase_bootstrap.dart');
+      final String bootstrap = read('lib/app/data/sources/firebase_bootstrap.dart');
       expect(bootstrap, contains('if (kIsWeb) return;'));
       expect(bootstrap, contains('TargetPlatform.android'));
       expect(bootstrap, contains('TargetPlatform.iOS'));
@@ -41,7 +41,7 @@ void main() {
 
     test('le pont de preuve ne masque que les pannes Supabase transitoires', () {
       final String hybrid = read(
-        'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+        'lib/app/data/repositories/hybrid_orders_repository.dart',
       );
       final int start = hybrid.indexOf('Future<OrderProof?> fetchOrderProof');
       final int end = hybrid.indexOf('Future<OrderProof> saveOrderProof', start);
@@ -56,7 +56,7 @@ void main() {
 
     test('le backfill historique est idempotent, tolerant et deterministe', () {
       final String sync = read(
-        'lib/features/finances/data/services/phase5_consolidated_synchronizer.dart',
+        'lib/app/services/finance/phase5_consolidated_synchronizer.dart',
       );
       expect(sync, contains('BackendFailurePolicy.retryIdempotent<void>'));
       expect(sync, contains("_legacyEpochIso = '1970-01-01T00:00:00.000Z'"));
@@ -68,14 +68,14 @@ void main() {
 
     test('les erreurs backend importantes ne restent plus silencieuses', () {
       final List<String> sources = <String>[
-        'lib/features/dashboard/presentation/view_models/dashboard_view_model.dart',
-        'lib/features/dashboard/presentation/pages/dashboard_page.dart',
-        'lib/features/agents/presentation/view_models/agent_activity_view_model.dart',
-        'lib/features/agents/presentation/view_models/agent_management_view_model.dart',
-        'lib/features/agents/presentation/view_models/agent_detail_view_model.dart',
-        'lib/features/orders/presentation/pages/order_detail_page.dart',
-        'lib/features/payments/presentation/view_models/payment_request_view_model.dart',
-        'lib/features/navigation/presentation/pages/main_shell_page.dart',
+        'lib/app/modules/home/controllers/dashboard_view_model.dart',
+        'lib/app/modules/home/views/dashboard_page.dart',
+        'lib/app/modules/agent_ops/controllers/agent_activity_view_model.dart',
+        'lib/app/modules/agent_ops/controllers/agent_management_view_model.dart',
+        'lib/app/modules/agent_ops/controllers/agent_detail_view_model.dart',
+        'lib/app/modules/manager_orders/views/order_detail_page.dart',
+        'lib/app/modules/payments/controllers/payment_request_view_model.dart',
+        'lib/app/modules/home/views/main_shell_page.dart',
       ];
       for (final String path in sources) {
         expect(read(path), contains('IzyTelLog.backendError('), reason: path);
@@ -110,14 +110,14 @@ void main() {
 
     test('les anomalies de recette terrain restent verrouillees', () {
       final String phase4 = read(
-        'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
+        'lib/app/data/repositories/supabase_phase4_assignment_repository.dart',
       );
       final String hybrid = read(
-        'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+        'lib/app/data/repositories/hybrid_orders_repository.dart',
       );
       final String app = read('lib/app/app.dart');
       final String agentVm = read(
-        'lib/features/orders/presentation/view_models/agent_orders_view_model.dart',
+        'lib/app/modules/agent_orders/controllers/agent_orders_view_model.dart',
       );
       final String migration = read(
         'supabase/migrations/20260911_phase3_refusal_atomic_outcome.sql',

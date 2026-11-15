@@ -28,19 +28,19 @@ void main() {
 
     test('le Web client ecoute les changements et refait une lecture REST', () {
       final String repository = _read(
-        'lib/features/customer_order/data/repositories/supabase_customer_offer_repository.dart',
+        'lib/app/data/repositories/supabase_customer_offer_repository.dart',
       );
       final String contract = _read(
-        'lib/features/customer_order/domain/repositories/customer_offer_repository.dart',
+        'lib/app/domain/repositories/customer_offer_repository.dart',
       );
       final String home = _read(
-        'lib/features/customer_order/presentation/pages/customer_home_page.dart',
+        'lib/app/modules/customer/views/customer_home_page.dart',
       );
       final String catalog = _read(
-        'lib/features/customer_order/presentation/pages/customer_catalog_page.dart',
+        'lib/app/modules/customer/views/customer_catalog_page.dart',
       );
       final String offer = _read(
-        'lib/features/customer_order/presentation/pages/customer_offer_page.dart',
+        'lib/app/modules/customer/views/customer_offer_page.dart',
       );
 
       expect(repository, contains("_changeFeedTable = 'catalog_change_feed'"));
@@ -60,13 +60,13 @@ void main() {
 
     test('le Staff conserve un abonnement actif au reseau selectionne', () {
       final String repository = _read(
-        'lib/features/orders/data/repositories/supabase_offer_catalog_repository.dart',
+        'lib/app/data/repositories/supabase_offer_catalog_repository.dart',
       );
       final String contract = _read(
-        'lib/features/orders/domain/repositories/offer_catalog_repository.dart',
+        'lib/app/domain/repositories/offer_catalog_repository.dart',
       );
       final String viewModel = _read(
-        'lib/features/orders/presentation/view_models/create_order_view_model.dart',
+        'lib/app/modules/staff_orders/controllers/create_order_view_model.dart',
       );
 
       expect(repository, contains("_changeFeedTable = 'catalog_change_feed'"));
@@ -81,7 +81,7 @@ void main() {
 
     test('une offre selectionnee ne peut pas rester obsolete ou suspendue', () {
       final String viewModel = _read(
-        'lib/features/customer_order/presentation/view_models/customer_order_view_model.dart',
+        'lib/app/modules/customer/controllers/customer_order_view_model.dart',
       );
 
       expect(viewModel, contains('void reconcileCatalogOffers'));

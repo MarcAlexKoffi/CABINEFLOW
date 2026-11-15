@@ -1,0 +1,24 @@
+{
+  "date": "2026-11-15",
+  "project": "zrxeztxaxnzxevjuhzcc",
+  "operation": "read-only schema metadata",
+  "tables": [
+    {
+      "table_name": "catalog_offer_audit_events",
+      "columns": "id:uuid, offer_id:text, action:text, before_state:jsonb, after_state:jsonb, actor_uid:text, actor_name:text, actor_role:text, created_at:timestamp with time zone"
+    },
+    {
+      "table_name": "catalog_offers",
+      "columns": "id:text, network:text, service:text, operation_type:text, title:text, catalog_label:text, description:text, selling_price:bigint, details:ARRAY, badge_label:text, category:text, validity:text, volume:text, minutes:text, sms:text, eligibility:text, is_active:boolean, display_order:integer, source_kind:text, legacy_firestore_id:text, created_by_uid:text, created_by_name:text, updated_by_uid:text, updated_by_name:text, created_at:timestamp with time zone, updated_at:timestamp with time zone, deleted_at:timestamp with time zone, deleted_by_uid:text, deleted_by_name:text"
+    },
+    {
+      "table_name": "customer_order_recovery_registry",
+      "columns": "order_id:text, order_reference:text, owner_firebase_uid:text, recovery_code_hash:text, service:text, network:text, operation_type:text, offer_id:text, offer_label:text, is_custom_offer:boolean, amount:integer, beneficiary_phone:text, created_at:timestamp with time zone, expires_at:timestamp with time zone, registered_at:timestamp with time zone, updated_at:timestamp with time zone, order_status:text, payment_status:text, payment_declared_at:timestamp with time zone, payment_confirmed_at:timestamp with time zone, expired_at:timestamp with time zone, client_name:text"
+    },
+    {
+      "table_name": "phase4_assignment_orders",
+      "columns": "order_id:text, order_reference:text, network:text, amount:integer, firebase_created_at:timestamp with time zone, paid_at:timestamp with time zone, assignment_state:text, assigned_agent_id:text, assigned_agent_name:text, assigned_by_uid:text, assignment_mode:text, assigned_at:timestamp with time zone, last_refusal_reason:text, last_refused_at:timestamp with time zone, last_refused_agent_id:text, firebase_handoff_at:timestamp with time zone, created_at:timestamp with time zone, updated_at:timestamp with time zone, firebase_assignment_synced_at:timestamp with time zone, source:text, client_name:text, client_whatsapp_phone:text, beneficiary_phone:text, operation_type:text, offer_label:text, original_whatsapp_message:text, internal_notes:text, payment_status:text, payment_payer_name:text, payment_reference:text, payment_confirmed_at:timestamp with time zone, customer_auth_uid:text, order_status:text, processing_started_at:timestamp with time zone, completed_at:timestamp with time zone, failure_reason:text, observation:text, last_hold_reason:text, last_held_at:timestamp with time zone, last_resumed_at:timestamp with time zone, customer_confirmation_status:text, customer_confirmation_completed_at:timestamp with time zone, legacy_state_unresolved:boolean, assigned_cabiniste_id:uuid, assigned_cabiniste_name:text, last_refused_cabiniste_id:uuid, zone_id:text, assignment_route:text, assignment_version:bigint, accepted_at:timestamp with time zone, available_at:timestamp with time zone"
+    }
+  ],
+  "remoteMutations": false
+}

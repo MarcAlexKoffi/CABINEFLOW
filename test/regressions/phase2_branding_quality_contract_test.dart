@@ -9,10 +9,10 @@ void main() {
     final String app = source('lib/app/app.dart');
     final String pubspec = source('pubspec.yaml');
     final String shell = source(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     );
     final String more = source(
-      'lib/features/more/presentation/pages/more_page.dart',
+      'lib/app/modules/home/views/more_page.dart',
     );
 
     expect(app, contains("title: 'IzyTel'"));
@@ -30,10 +30,10 @@ void main() {
 
   test('la marque et le splash partagent la même signature IzyTel', () {
     final String brand = source(
-      'lib/shared/widgets/izytel/izytel_brand.dart',
+      'lib/app/shared/widgets/izytel/izytel_brand.dart',
     );
     final String splash = source(
-      'lib/features/splash/presentation/pages/splash_page.dart',
+      'lib/app/modules/splash/views/splash_page.dart',
     );
 
     expect(brand, contains("'Simple. Rapide. Izy.'"));
@@ -45,11 +45,11 @@ void main() {
 
   test('les écrans opérationnels historiques utilisent la palette claire IzyTel', () {
     const List<String> paths = <String>[
-      'lib/features/orders/presentation/pages/create_order_page.dart',
-      'lib/features/orders/presentation/pages/orders_page.dart',
-      'lib/features/orders/presentation/pages/order_processing_page.dart',
-      'lib/features/orders/presentation/widgets/order_display_helpers.dart',
-      'lib/features/payments/presentation/pages/send_wave_link_page.dart',
+      'lib/app/modules/staff_orders/views/create_order_page.dart',
+      'lib/app/modules/manager_orders/views/orders_page.dart',
+      'lib/app/modules/manager_orders/views/order_processing_page.dart',
+      'lib/app/modules/staff_orders/widgets/order_display_helpers.dart',
+      'lib/app/modules/payments/views/send_wave_link_page.dart',
     ];
 
     for (final String path in paths) {
@@ -61,7 +61,7 @@ void main() {
   });
 
   test('le thème global applique les finitions premium sans changer la logique', () {
-    final String theme = source('lib/core/theme/app_theme.dart');
+    final String theme = source('lib/app/theme/app_theme.dart');
 
     expect(theme, contains('GoogleFonts.manrope'));
     expect(theme, contains('TextSelectionThemeData'));
@@ -73,10 +73,10 @@ void main() {
 
   test('l accès Administrateur mobile reste présent pendant la Phase 2', () {
     final String shell = source(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     );
     final String navigation = source(
-      'lib/features/dashboard/presentation/widgets/dashboard_widgets.dart',
+      'lib/app/modules/home/widgets/dashboard_widgets.dart',
     );
 
     expect(shell, contains('FinancesPage('));

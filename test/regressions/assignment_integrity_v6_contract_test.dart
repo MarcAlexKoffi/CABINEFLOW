@@ -22,7 +22,7 @@ void main() {
   test('la baseline 9E conserve ses deux chemins automatiques validés', () {
     final String rules = File('firestore.rules').readAsStringSync();
     final String agentVm = File(
-      'lib/features/orders/presentation/view_models/agent_orders_view_model.dart',
+      'lib/app/modules/agent_orders/controllers/agent_orders_view_model.dart',
     ).readAsStringSync();
 
     expect(rules, contains('isValidAgentAutomaticSelfAssignment(orderId)'));
@@ -38,7 +38,7 @@ void main() {
     'une réussite en attente de confirmation ne réserve plus deux fois la capacité',
     () {
       final String repository = File(
-        'lib/features/orders/data/repositories/firestore_orders_repository.dart',
+        'lib/app/data/repositories/firestore_orders_repository.dart',
       ).readAsStringSync();
 
       expect(
@@ -58,10 +58,10 @@ void main() {
 
   test('Voir la commande peut ouvrir la commande exacte', () {
     final String payments = File(
-      'lib/features/payments/presentation/pages/payments_page.dart',
+      'lib/app/modules/payments/views/payments_page.dart',
     ).readAsStringSync();
     final String shell = File(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     ).readAsStringSync();
 
     expect(payments, contains('final ValueChanged<QueueOrder>? onOpenOrder;'));

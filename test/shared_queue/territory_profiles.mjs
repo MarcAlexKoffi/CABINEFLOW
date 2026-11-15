@@ -1,0 +1,74 @@
+import assert from 'node:assert/strict';
+import {readFile, writeFile} from 'node:fs/promises';
+import {join} from 'node:path';
+import {withPostgres, root} from './postgres.mjs';
+
+const read = path => readFile(join(root,path),'utf8');
+const original = await read('test/shared_queue/fixtures/territory_profiles_before_compatibility.sql');
+const migration = await read('supabase/migrations/20261107002724_territory_managed_profiles_compatibility.sql');
+const lifecycle = await read('supabase/migrations/20261101062508_admin_accounts_lifecycle.sql');
+const territory = await read('supabase/migrations/20260914233249_bo3c_territory_managers_zones.sql');
+const guard = lifecycle.slice(lifecycle.indexOf('create function private.izytel_guard_managed_account_access()'),
+  lifecycle.indexOf('revoke all on function private.izytel_guard_managed_account_access()'));
+const checks = [];
+await withPostgres(async ({admin: db}) => {
+  await db.query(`create role anon; create role authenticated; create schema auth; create schema private;
+    create function auth.jwt() returns jsonb language sql stable as $$ select current_setting('request.jwt.claims',true)::jsonb $$;
+    create function private.is_izytel_finance_admin() returns boolean language sql stable as $$ select auth.jwt()->>'sub'='admin' $$;
+    create function private.izytel_staff_display_name() returns text language sql as $$select 'Test Admin'::text$$;
+    create function private.izytel_current_staff_role() returns text language sql as $$select 'admin'::text$$;
+    create table public.izytel_staff_access(firebase_uid text primary key, role text, is_active boolean, display_name text,
+      created_at timestamptz default now(),updated_at timestamptz default now());
+    create table public.izytel_user_admin_operations(target_uid text, command jsonb);
+    create table public.territory_audit_events(entity_type text,entity_id text,action text,before_state jsonb,after_state jsonb,actor_uid text,actor_name text,actor_role text);
+  `);
+  const tableStart=territory.indexOf('create table if not exists public.manager_profiles');
+  await db.query(territory.slice(tableStart,territory.indexOf('\n);',tableStart)+4));
+  await db.query('alter table public.manager_profiles add column is_available boolean not null default true');
+  await db.query(`insert into public.izytel_staff_access(firebase_uid,role,is_active,display_name) values ('managed','manager',true,'Managed'),('legacy','manager',true,'Legacy'),('missing','manager',true,'Missing');
+    insert into public.manager_profiles(firebase_uid,display_name,is_active,is_available) values ('managed','Managed',true,false);
+    insert into public.izytel_user_admin_operations values ('managed','{"action":"create"}'),('missing','{"action":"create"}');
+    ${guard}
+    create trigger manager_guard before insert or update or delete on public.manager_profiles for each row execute function private.izytel_guard_managed_account_access();
+    grant usage on schema public,private,auth to anon,authenticated;
+    ${original}
+    revoke all on function public.izytel_sync_manager_profiles() from public;
+    revoke all on function public.izytel_save_manager_profile(text,text,text,text,text,text,text,text,boolean) from public;
+    grant execute on function public.izytel_sync_manager_profiles(), public.izytel_save_manager_profile(text,text,text,text,text,text,text,text,boolean) to anon;
+    select set_config('request.jwt.claims','{"sub":"admin","role":"anon"}',false); set role anon;
+  `);
+  await assert.rejects(db.query('select public.izytel_sync_manager_profiles()'),/MANAGED_ACCOUNT_SERVER_REQUIRED/);
+  const save="select to_jsonb(public.izytel_save_manager_profile('managed','Updated Manager','test@example.invalid','','','Abidjan','','Profile test',true)) as profile";
+  await assert.rejects(db.query(save),/MANAGED_ACCOUNT_SERVER_REQUIRED/);
+  checks.push('Both original failures reproduced with the actual managed-account guard');
+  await db.query('reset role');
+  await db.query(migration);
+  await db.query('set role anon');
+  const result=await db.query(save);
+  assert.equal(result.rows[0].profile.display_name,'Updated Manager');
+  checks.push('Managed profile edit succeeds without an INSERT');
+  await db.query('select public.izytel_sync_manager_profiles()');
+  await db.query('select public.izytel_sync_manager_profiles()');
+  await db.query('reset role');
+  const profiles=(await db.query('select firebase_uid,is_active,is_available,display_name from public.manager_profiles order by firebase_uid')).rows;
+  assert.deepEqual(profiles.map(x=>x.firebase_uid),['legacy','managed']);
+  assert.equal(profiles[1].is_active,true);
+  assert.equal(profiles[1].is_available,true);
+  assert.equal(profiles[1].display_name,'Updated Manager');
+  checks.push('Repeated reconciliation preserves managed access and custom profile data');
+  checks.push('Legacy missing profile reconciled; managed missing identity is not recreated');
+  assert.equal((await db.query('select count(*)::int n from public.territory_audit_events')).rows[0].n,1);
+  checks.push('Profile edit produces one territorial audit event');
+  await db.query("select set_config('request.jwt.claims','{\"sub\":\"manager\",\"role\":\"anon\"}',false);set role anon");
+  await assert.rejects(db.query(save),/ADMIN_REQUIRED/);
+  await assert.rejects(db.query('select public.izytel_sync_manager_profiles()'),/ADMIN_REQUIRED/);
+  checks.push('Non-Admin denied for profile edit and registry reconciliation');
+  await db.query('reset role');
+  const acl=(await db.query("select has_function_privilege('anon','public.izytel_sync_manager_profiles()','execute') yes,has_function_privilege('authenticated','public.izytel_sync_manager_profiles()','execute') no")).rows[0];
+  assert.equal(acl.yes,true); assert.equal(acl.no,false);
+  checks.push('Existing function ACL retained without granting additional access');
+  await db.query(migration);
+  checks.push('Migration can be reapplied');
+});
+await writeFile(join(root,'scratch/territory_profiles_results.json'),JSON.stringify({at:new Date().toISOString(),checks},null,2));
+console.log(JSON.stringify({passed:checks.length,checks},null,2));

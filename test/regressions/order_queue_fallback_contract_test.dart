@@ -7,7 +7,7 @@ void main() {
 
   test('file Agent bascule vers la premiere file non vide', () {
     final String viewModel = source(
-      'lib/features/orders/presentation/view_models/agent_orders_view_model.dart',
+      'lib/app/modules/agent_orders/controllers/agent_orders_view_model.dart',
     );
 
     expect(viewModel, contains('_resolveUsefulTab'));
@@ -19,7 +19,7 @@ void main() {
 
   test('file Cabiniste bascule vers la premiere file non vide', () {
     final String shell = source(
-      'lib/features/partners/presentation/pages/partner_shell_page.dart',
+      'lib/app/modules/partners/views/partner_shell_page.dart',
     );
 
     expect(shell, contains('_resolveUsefulTab'));

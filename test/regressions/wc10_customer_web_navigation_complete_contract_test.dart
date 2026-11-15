@@ -6,7 +6,7 @@ void main() {
   group('Web client - navigation stable restauree', () {
     test('messagerie et recuperation sont de vraies routes Flutter', () {
       final String flow = File(
-        'lib/features/customer_order/presentation/pages/customer_order_flow_page.dart',
+        'lib/app/modules/customer/views/customer_order_flow_page.dart',
       ).readAsStringSync();
 
       expect(flow, contains('unawaited(_pushMessagingRoute())'));
@@ -20,7 +20,7 @@ void main() {
 
     test('historique navigateur reste simple et ne concurrence pas les routes Flutter', () {
       final String history = File(
-        'lib/core/navigation/customer_web_history_web.dart',
+        'lib/app/core/platform/customer_web_history_web.dart',
       ).readAsStringSync();
 
       expect(history, contains("static const String _marker = 'izytel_customer_web'"));
@@ -31,7 +31,7 @@ void main() {
 
     test('Retrouver ma commande reste dans la categorie Aide sur mobile Web', () {
       final String recovery = File(
-        'lib/features/customer_order/presentation/pages/customer_order_recovery_page.dart',
+        'lib/app/modules/customer/views/customer_order_recovery_page.dart',
       ).readAsStringSync();
       expect(recovery, contains('current: IzyTelCustomerDestination.help'));
     });

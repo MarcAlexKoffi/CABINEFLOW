@@ -12,16 +12,16 @@ void main() {
 
     setUpAll(() {
       flow = File(
-        'lib/features/customer_order/presentation/pages/customer_order_flow_page.dart',
+        'lib/app/modules/customer/views/customer_order_flow_page.dart',
       ).readAsStringSync();
       viewModel = File(
-        'lib/features/customer_order/presentation/view_models/customer_order_view_model.dart',
+        'lib/app/modules/customer/controllers/customer_order_view_model.dart',
       ).readAsStringSync();
       sourceWeb = File(
-        'lib/features/customer_order/data/acquisition/customer_acquisition_source_web.dart',
+        'lib/app/data/platform/customer/acquisition/customer_acquisition_source_web.dart',
       ).readAsStringSync();
       supabaseRepository = File(
-        'lib/features/customer_order/data/repositories/supabase_customer_order_context_repository.dart',
+        'lib/app/data/repositories/supabase_customer_order_context_repository.dart',
       ).readAsStringSync();
       migration = File(
         'supabase/migrations/20260926235839_wc4a_customer_order_context_foundation.sql',

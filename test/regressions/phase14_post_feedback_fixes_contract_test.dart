@@ -24,7 +24,7 @@ void main() {
 
   test('demande client garde le remboursement normal et explique le credit', () {
     final String page = source(
-      'lib/features/support/presentation/pages/support_request_center_page.dart',
+      'lib/app/modules/support/views/support_request_center_page.dart',
     );
     expect(page, contains('Créer un remboursement'));
     expect(page, contains('Cette commande a été autorisée à crédit'));
@@ -33,7 +33,7 @@ void main() {
 
   test('feedback adapte automatiquement sa couleur au resultat', () {
     final String feedback = source(
-      'lib/shared/widgets/izytel/izytel_feedback.dart',
+      'lib/app/shared/widgets/izytel/izytel_feedback.dart',
     );
     expect(feedback, contains('_toneForMessage'));
     expect(feedback, contains("normalized.contains('permission-denied')"));
@@ -43,7 +43,7 @@ void main() {
 
   test('ecran compte suspendu est IzyTel clair', () {
     final String page = source(
-      'lib/features/auth/presentation/pages/pending_account_page.dart',
+      'lib/app/modules/auth/views/pending_account_page.dart',
     );
     expect(page, contains("'IzyTel'"));
     expect(page, contains("'Compte suspendu'"));
@@ -53,7 +53,7 @@ void main() {
 
   test('affectation utilise le style IzyTel clair', () {
     final String page = source(
-      'lib/features/orders/presentation/pages/agent_assignment_page.dart',
+      'lib/app/modules/manager_orders/views/agent_assignment_page.dart',
     );
     expect(page, contains('IzyTelColors.background'));
     expect(page, contains("'Affecter une commande'"));
@@ -62,13 +62,13 @@ void main() {
 
   test('centre des commandes echouees est accessible depuis accueil', () {
     final String dashboard = source(
-      'lib/features/dashboard/presentation/pages/dashboard_page.dart',
+      'lib/app/modules/home/views/dashboard_page.dart',
     );
     final String failed = source(
-      'lib/features/orders/presentation/pages/failed_orders_page.dart',
+      'lib/app/modules/manager_orders/views/failed_orders_page.dart',
     );
     final String repository = source(
-      'lib/features/orders/domain/repositories/orders_repository.dart',
+      'lib/app/domain/repositories/orders_repository.dart',
     );
     expect(dashboard, contains('_openFailedOrdersCenter'));
     expect(dashboard, contains("title: 'Échecs'"));
@@ -80,13 +80,13 @@ void main() {
 
   test('attente des files se recalcule periodiquement', () {
     final String admin = source(
-      'lib/features/orders/presentation/pages/orders_page.dart',
+      'lib/app/modules/manager_orders/views/orders_page.dart',
     );
     final String agent = source(
-      'lib/features/orders/presentation/pages/agent_orders_page.dart',
+      'lib/app/modules/agent_orders/views/agent_orders_page.dart',
     );
     final String viewModel = source(
-      'lib/features/orders/presentation/view_models/orders_view_model.dart',
+      'lib/app/modules/manager_orders/controllers/orders_view_model.dart',
     );
     expect(admin, contains('Timer.periodic(const Duration(seconds: 20)'));
     expect(agent, contains('Timer.periodic(const Duration(seconds: 20)'));
@@ -96,7 +96,7 @@ void main() {
 
   test('detail demande du journal est scrollable et controle en hauteur', () {
     final String page = source(
-      'lib/features/more/presentation/pages/admin_activity_journal_page.dart',
+      'lib/app/modules/control/views/admin_activity_journal_page.dart',
     );
     expect(page, contains('isScrollControlled: true'));
     expect(page, contains('SingleChildScrollView'));

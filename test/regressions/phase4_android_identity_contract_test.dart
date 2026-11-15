@@ -50,7 +50,7 @@ void main() {
         matchingClient.single['client_info'] as Map<String, dynamic>;
     expect(clientInfo['mobilesdk_app_id'], newFirebaseAppId);
 
-    final firebaseOptions = File('lib/firebase_options.dart').readAsStringSync();
+    final firebaseOptions = File('lib/app/config/firebase_options.dart').readAsStringSync();
     expect(firebaseOptions, contains(newFirebaseAppId));
     expect(firebaseOptions, isNot(contains(oldFirebaseAppId)));
 

@@ -1,0 +1,43 @@
+﻿{
+    "date":  "2026-10-31",
+    "timezone":  "Africa/Abidjan",
+    "flutter":  "3.44.8",
+    "dart":  "3.12.2",
+    "analyze":  "PASS - No issues found",
+    "tests":  {
+                  "command":  "flutter test --no-pub --reporter expanded",
+                  "failed":  0,
+                  "passed":  895
+              },
+    "builds":  {
+                   "customerWeb":  "PASS",
+                   "androidDebug":  "PASS",
+                   "backofficeWeb":  "PASS"
+               },
+    "supabase":  {
+                     "publicActiveOffers":  34,
+                     "authenticatedClientManagerIntegration":  "NOT EXECUTED",
+                     "privateRowsWithoutSession":  {
+                                                       "supportRequests":  0,
+                                                       "customerConversations":  0,
+                                                       "customerMessages":  0
+                                                   },
+                     "initialStatus":  "INACTIVE",
+                     "finalStatus":  "ACTIVE_HEALTHY",
+                     "managerSupportTerritorialPolicy":  "SERVER REVIEW REQUIRED",
+                     "publicFilterCounts":  {
+                                                "moovCalls":  5,
+                                                "mtnCalls":  6,
+                                                "mtnInternet":  6,
+                                                "moovInternet":  5,
+                                                "orangeCalls":  6,
+                                                "orangeInternet":  6
+                                            }
+                 },
+    "manualAndroidDevice":  "NOT EXECUTED",
+    "deployment":  "NOT EXECUTED",
+    "productionMutations":  "NONE",
+    "rollbackPreview":  "PASS",
+    "modifiedFiles":  21,
+    "createdSourceAndTestFiles":  8
+}

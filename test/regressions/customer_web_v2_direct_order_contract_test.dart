@@ -6,13 +6,13 @@ void main() {
   group('Web Client V2 - parcours directs et catalogue', () {
     test('le parcours direct Transfert d unites reste sans choix d offre', () {
       final String flow = File(
-        'lib/features/customer_order/presentation/pages/customer_order_flow_page.dart',
+        'lib/app/modules/customer/views/customer_order_flow_page.dart',
       ).readAsStringSync();
       final String offerPage = File(
-        'lib/features/customer_order/presentation/pages/customer_offer_page.dart',
+        'lib/app/modules/customer/views/customer_offer_page.dart',
       ).readAsStringSync();
       final String viewModel = File(
-        'lib/features/customer_order/presentation/view_models/customer_order_view_model.dart',
+        'lib/app/modules/customer/controllers/customer_order_view_model.dart',
       ).readAsStringSync();
 
       expect(flow, contains('_startServiceOrder(CustomerService service)'));
@@ -26,10 +26,10 @@ void main() {
 
     test('une offre du catalogue garde son raccourci vers le beneficiaire', () {
       final String flow = File(
-        'lib/features/customer_order/presentation/pages/customer_order_flow_page.dart',
+        'lib/app/modules/customer/views/customer_order_flow_page.dart',
       ).readAsStringSync();
       final String viewModel = File(
-        'lib/features/customer_order/presentation/view_models/customer_order_view_model.dart',
+        'lib/app/modules/customer/controllers/customer_order_view_model.dart',
       ).readAsStringSync();
 
       expect(flow, contains('void _startOfferOrder(CustomerOffer offer)'));
@@ -41,7 +41,7 @@ void main() {
 
     test('la page beneficiaire reprend le contexte sans imposer de noms', () {
       final String beneficiaryPage = File(
-        'lib/features/customer_order/presentation/pages/customer_beneficiary_page.dart',
+        'lib/app/modules/customer/views/customer_beneficiary_page.dart',
       ).readAsStringSync();
 
       expect(beneficiaryPage, contains("'À qui envoyer les unités ?'"));

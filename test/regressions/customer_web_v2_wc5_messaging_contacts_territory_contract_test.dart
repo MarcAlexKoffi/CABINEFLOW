@@ -6,7 +6,7 @@ void main() {
   group('WC5 - messagerie unique, contacts frequents et routage territorial', () {
     test('identification client ne demande plus WhatsApp et utilise Signo Serge', () {
       final String source = File(
-        'lib/features/customer_order/presentation/pages/customer_identification_page.dart',
+        'lib/app/modules/customer/views/customer_identification_page.dart',
       ).readAsStringSync();
       expect(source, contains("hintText: 'Signo Serge'"));
       expect(source, isNot(contains('Numéro WhatsApp')));
@@ -16,10 +16,10 @@ void main() {
 
     test('contacts frequents utilisent le couple nom et numero et remplissent sans avancer', () {
       final String viewModel = File(
-        'lib/features/customer_order/presentation/view_models/customer_order_view_model.dart',
+        'lib/app/modules/customer/controllers/customer_order_view_model.dart',
       ).readAsStringSync();
       final String page = File(
-        'lib/features/customer_order/presentation/pages/customer_beneficiary_page.dart',
+        'lib/app/modules/customer/views/customer_beneficiary_page.dart',
       ).readAsStringSync();
       expect(viewModel, contains('suggestedBeneficiaryContacts'));
       expect(viewModel, contains("'${r'$'}{cleanedName.toLowerCase()}|${r'$'}{beneficiary.normalized}'"));
@@ -72,10 +72,10 @@ void main() {
         'supabase/wc5_territorial_routing_messaging_and_contacts.sql',
       ).readAsStringSync();
       final String agentPage = File(
-        'lib/features/orders/presentation/pages/orders_page.dart',
+        'lib/app/modules/manager_orders/views/orders_page.dart',
       ).readAsStringSync();
       final String delivery = File(
-        'lib/features/messaging/data/services/customer_messaging_delivery_service.dart',
+        'lib/app/services/messaging/customer_messaging_delivery_service.dart',
       ).readAsStringSync();
       expect(sql, contains('izytel_wc5_completed_order_message'));
       expect(sql, contains("new.order_status = 'completed'"));

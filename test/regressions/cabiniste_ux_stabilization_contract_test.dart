@@ -7,7 +7,7 @@ void main() {
 
   test('historique et refresh Cabiniste ne retournent plus de Future depuis setState', () {
     final String shell = source(
-      'lib/features/partners/presentation/pages/partner_shell_page.dart',
+      'lib/app/modules/partners/views/partner_shell_page.dart',
     );
 
     expect(shell, isNot(contains('setState(() => _future =')));
@@ -18,7 +18,7 @@ void main() {
 
   test('capacites Cabiniste disposent d une action explicite de modification', () {
     final String shell = source(
-      'lib/features/partners/presentation/pages/partner_shell_page.dart',
+      'lib/app/modules/partners/views/partner_shell_page.dart',
     );
 
     expect(shell, contains("'cabiniste-capacity-edit-\$network'"));
@@ -29,7 +29,7 @@ void main() {
 
   test('retour Android restaure navigation interne avant de quitter', () {
     final String shell = source(
-      'lib/features/partners/presentation/pages/partner_shell_page.dart',
+      'lib/app/modules/partners/views/partner_shell_page.dart',
     );
 
     expect(shell, contains('bool _handlingBack = false;'));
@@ -42,10 +42,10 @@ void main() {
 
   test('avatar Cabiniste est rafraichi sur les onglets apres modification', () {
     final String shell = source(
-      'lib/features/partners/presentation/pages/partner_shell_page.dart',
+      'lib/app/modules/partners/views/partner_shell_page.dart',
     );
     final String profileRepository = source(
-      'lib/features/auth/data/repositories/supabase_staff_profile_repository.dart',
+      'lib/app/data/repositories/supabase_staff_profile_repository.dart',
     );
 
     expect(shell, contains('_refreshProfile'));

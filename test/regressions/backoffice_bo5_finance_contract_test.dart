@@ -8,10 +8,10 @@ void main() {
   group('BO-5 - Finances Back-office', () {
     test('les dix sous-modules Finances sont routes vers une vraie page', () {
       final String shell = _read(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       );
       final String page = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart',
+        'lib/app/modules/backoffice/views/finances/backoffice_finance_page.dart',
       );
 
       for (final String destination in <String>[
@@ -49,10 +49,10 @@ void main() {
 
     test('la page Finances respecte le scroll porte par le shell', () {
       final String shell = _read(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       );
       final String page = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart',
+        'lib/app/modules/backoffice/views/finances/backoffice_finance_page.dart',
       );
 
       // Le shell fournit deja le scroll vertical du contenu. Une ListView
@@ -66,7 +66,7 @@ void main() {
 
     test('Supabase fournit un snapshot canonique et un signal Realtime', () {
       final String repository = _read(
-        'lib/backoffice/data/repositories/supabase_backoffice_finance_repository.dart',
+        'lib/app/data/repositories/supabase_backoffice_finance_repository.dart',
       );
       final String realtime = _read(
         'supabase/migrations/20260915113104_bo5_finance_realtime_bridge.sql',
@@ -87,13 +87,13 @@ void main() {
 
     test('les ecritures sensibles restent Admin et le Manager est lecture seule', () {
       final String page = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart',
+        'lib/app/modules/backoffice/views/finances/backoffice_finance_page.dart',
       );
       final String migration = _read(
         'supabase/migrations/20260915174752_bo5_finance_supplier_admin_write_hardening.sql',
       );
       final String repository = _read(
-        'lib/backoffice/data/repositories/supabase_backoffice_finance_repository.dart',
+        'lib/app/data/repositories/supabase_backoffice_finance_repository.dart',
       );
 
       expect(page, contains('canManageFinanceSettings'));
@@ -108,10 +108,10 @@ void main() {
 
     test('la vente a credit passe atomiquement par Supabase et non par une ecriture Firestore', () {
       final String page = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart',
+        'lib/app/modules/backoffice/views/finances/backoffice_finance_page.dart',
       );
       final String repository = _read(
-        'lib/backoffice/data/repositories/supabase_backoffice_finance_repository.dart',
+        'lib/app/data/repositories/supabase_backoffice_finance_repository.dart',
       );
       final String migration = _read(
         'supabase/migrations/20260915174444_bo5_finance_credit_canonical_authorization.sql',
@@ -131,10 +131,10 @@ void main() {
 
     test('approvisionnement, dette fournisseur et capacite partagent le noyau Phase 5', () {
       final String page = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart',
+        'lib/app/modules/backoffice/views/finances/backoffice_finance_page.dart',
       );
       final String repository = _read(
-        'lib/backoffice/data/repositories/supabase_backoffice_finance_repository.dart',
+        'lib/app/data/repositories/supabase_backoffice_finance_repository.dart',
       );
 
       expect(repository, contains('phase5_record_supplier_recharge'));
@@ -146,10 +146,10 @@ void main() {
 
     test('la caisse Wave et la cloture utilisent un point de depart reel', () {
       final String model = _read(
-        'lib/backoffice/domain/models/backoffice_finance_snapshot.dart',
+        'lib/app/domain/entities/backoffice/backoffice_finance_snapshot.dart',
       );
       final String page = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart',
+        'lib/app/modules/backoffice/views/finances/backoffice_finance_page.dart',
       );
 
       expect(model, contains('waveOpeningEffectiveAt'));
@@ -172,10 +172,10 @@ void main() {
 
     test('le fonds de roulement distingue stock, engagements et capacite libre', () {
       final String model = _read(
-        'lib/backoffice/domain/models/backoffice_finance_snapshot.dart',
+        'lib/app/domain/entities/backoffice/backoffice_finance_snapshot.dart',
       );
       final String page = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart',
+        'lib/app/modules/backoffice/views/finances/backoffice_finance_page.dart',
       );
 
       expect(model, contains('int committedFor(String network)'));
@@ -190,9 +190,9 @@ void main() {
 
     test('le backfill Firestore est uniquement une reprise historique', () {
       final String backfill = _read(
-        'lib/core/migrations/legacy_finance_backfill_service.dart',
+        'lib/app/services/migrations/legacy_finance_backfill_service.dart',
       );
-      final String app = _read('lib/backoffice/backoffice_app.dart');
+      final String app = _read('lib/app/backoffice_app.dart');
 
       expect(backfill, contains('izytel_finance_backfill_needed'));
       expect(backfill, contains('izytel_import_legacy_finance'));
@@ -237,7 +237,7 @@ void main() {
 
     test('les rapprochements isolent le legacy pre-Phase 4 des anomalies courantes', () {
       final String page = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart',
+        'lib/app/modules/backoffice/views/finances/backoffice_finance_page.dart',
       );
       final String hardening = _read(
         'supabase/migrations/20260915224305_bo5_finance_integrity_hardening.sql',
@@ -252,7 +252,7 @@ void main() {
 
     test('la cloture est recalculee canoniquement par Supabase', () {
       final String page = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart',
+        'lib/app/modules/backoffice/views/finances/backoffice_finance_page.dart',
       );
       final String hardening = _read(
         'supabase/migrations/20260915224305_bo5_finance_integrity_hardening.sql',

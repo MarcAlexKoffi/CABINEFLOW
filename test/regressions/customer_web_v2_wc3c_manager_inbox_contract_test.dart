@@ -7,7 +7,7 @@ void main() {
 
   group('Web Client V2 - WC3C inbox Manager et supervision Admin', () {
     test('Manager dispose d un acces Messagerie clients dans Plus', () {
-      final String more = read('lib/features/more/presentation/pages/more_page.dart');
+      final String more = read('lib/app/modules/home/views/more_page.dart');
       expect(more, contains("title: 'Messagerie clients'"));
       expect(more, contains('StaffCustomerMessagingPage'));
       expect(more, contains('createOperationalCustomerMessagingRepository'));
@@ -15,7 +15,7 @@ void main() {
 
     test('le circuit staff reste Manager uniquement pour les ecritures', () {
       final String page = read(
-        'lib/features/messaging/presentation/pages/staff_customer_messaging_page.dart',
+        'lib/app/modules/messaging/views/staff_customer_messaging_page.dart',
       );
       expect(page, contains('watchManagerInbox'));
       expect(page, contains('takeConversation'));
@@ -27,7 +27,7 @@ void main() {
 
     test('Back-office expose Messagerie clients dans la section Clients', () {
       final String shell = read(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       );
       expect(shell, contains('customerMessaging'));
       expect(shell, contains("return 'Messagerie clients';"));
@@ -38,9 +38,9 @@ void main() {
 
     test('WC3C ne cree aucune nouvelle dependance Firestore', () {
       final String page = read(
-        'lib/features/messaging/presentation/pages/staff_customer_messaging_page.dart',
+        'lib/app/modules/messaging/views/staff_customer_messaging_page.dart',
       );
-      final String more = read('lib/features/more/presentation/pages/more_page.dart');
+      final String more = read('lib/app/modules/home/views/more_page.dart');
       expect(page, isNot(contains('cloud_firestore')));
       expect(more, isNot(contains('firestore.rules')));
     });

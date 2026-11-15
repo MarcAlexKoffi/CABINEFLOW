@@ -8,11 +8,10 @@ void main() {
     () {
       final String rules = File('firestore.rules').readAsStringSync();
       final String profile = File(
-        'lib/features/agents/presentation/pages/agent_personal_profile_page.dart',
+        'lib/app/modules/profile/views/agent_personal_profile_page.dart',
       ).readAsStringSync();
       final String repository = File(
-        'lib/features/agents/data/repositories/'
-        'supabase_agent_personal_profile_repository.dart',
+        'lib/app/data/repositories/supabase_agent_personal_profile_repository.dart',
       ).readAsStringSync();
 
       expect(profile, contains('SupabaseAgentPersonalProfileRepository'));
@@ -30,11 +29,10 @@ void main() {
 
   test('refus Agent utilise Phase 4 et ne retombe pas dans le lien Firestore', () {
     final String hybrid = File(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     ).readAsStringSync();
     final String phase4 = File(
-      'lib/features/orders/data/repositories/'
-      'supabase_phase4_assignment_repository.dart',
+      'lib/app/data/repositories/supabase_phase4_assignment_repository.dart',
     ).readAsStringSync();
 
     expect(hybrid, contains('Future<QueueOrder> refuseAgentAssignment'));
@@ -48,16 +46,13 @@ void main() {
     'signalements et fournisseurs conservent les correctifs Supabase',
     () {
       final String issues = File(
-        'lib/features/agents/data/repositories/'
-        'supabase_agent_issue_repository.dart',
+        'lib/app/data/repositories/supabase_agent_issue_repository.dart',
       ).readAsStringSync();
       final String hybridFinance = File(
-        'lib/features/finances/data/repositories/'
-        'hybrid_finance_operations_repository.dart',
+        'lib/app/data/repositories/hybrid_finance_operations_repository.dart',
       ).readAsStringSync();
       final String suppliers = File(
-        'lib/features/finances/data/repositories/'
-        'supabase_supplier_registry_repository.dart',
+        'lib/app/data/repositories/supabase_supplier_registry_repository.dart',
       ).readAsStringSync();
 
       expect(issues, contains("'in_progress'"));
@@ -71,13 +66,13 @@ void main() {
 
   test('Accueil et Profil exposent le suivi comme navigation explicite', () {
     final String home = File(
-      'lib/features/agents/presentation/pages/agent_home_page.dart',
+      'lib/app/modules/agent_ops/views/agent_home_page.dart',
     ).readAsStringSync();
     final String profile = File(
-      'lib/features/agents/presentation/pages/agent_activity_page.dart',
+      'lib/app/modules/agent_ops/views/agent_activity_page.dart',
     ).readAsStringSync();
     final String shell = File(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     ).readAsStringSync();
 
     expect(home, contains("const IzyTelSectionHeader(title: 'Mon suivi')"));

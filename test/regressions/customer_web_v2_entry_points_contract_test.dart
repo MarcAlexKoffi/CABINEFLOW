@@ -8,7 +8,7 @@ void main() {
   group('Web Client V2 - Accueil Catalogue Recapitulatif', () {
     test('Accueil distingue clairement transfert direct et catalogue', () {
       final String home = _read(
-        'lib/features/customer_order/presentation/pages/customer_home_page.dart',
+        'lib/app/modules/customer/views/customer_home_page.dart',
       );
 
       expect(home, contains('Commandez directement ou choisissez une offre'));
@@ -21,10 +21,10 @@ void main() {
 
     test('Catalogue garde un acces explicite au transfert sans offre', () {
       final String catalog = _read(
-        'lib/features/customer_order/presentation/pages/customer_catalog_page.dart',
+        'lib/app/modules/customer/views/customer_catalog_page.dart',
       );
       final String flow = _read(
-        'lib/features/customer_order/presentation/pages/customer_order_flow_page.dart',
+        'lib/app/modules/customer/views/customer_order_flow_page.dart',
       );
 
       expect(catalog, contains('required this.onStartDirectTransfer'));
@@ -40,7 +40,7 @@ void main() {
 
     test('Catalogue conserve aussi le choix des offres reelles', () {
       final String catalog = _read(
-        'lib/features/customer_order/presentation/pages/customer_catalog_page.dart',
+        'lib/app/modules/customer/views/customer_catalog_page.dart',
       );
 
       expect(catalog, contains('watchAllOffers()'));
@@ -51,7 +51,7 @@ void main() {
 
     test('Recapitulatif distingue transfert direct et offre sans remettre WhatsApp au centre', () {
       final String summary = _read(
-        'lib/features/customer_order/presentation/pages/customer_summary_page.dart',
+        'lib/app/modules/customer/views/customer_summary_page.dart',
       );
 
       expect(summary, contains("'Vérifiez votre commande'"));

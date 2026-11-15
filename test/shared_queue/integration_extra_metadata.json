@@ -1,0 +1,789 @@
+{
+  "source": "IzyTel schema catalog only; no table rows",
+  "columns": [
+    {
+      "name": "actor_type",
+      "type": "text",
+      "table": "compensation_accounts",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "actor_id",
+      "type": "text",
+      "table": "compensation_accounts",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "actor_display_name",
+      "type": "text",
+      "table": "compensation_accounts",
+      "default": "''::text",
+      "not_null": true
+    },
+    {
+      "name": "currency",
+      "type": "text",
+      "table": "compensation_accounts",
+      "default": "'XOF'::text",
+      "not_null": true
+    },
+    {
+      "name": "earned_total",
+      "type": "bigint",
+      "table": "compensation_accounts",
+      "default": "0",
+      "not_null": true
+    },
+    {
+      "name": "paid_total",
+      "type": "bigint",
+      "table": "compensation_accounts",
+      "default": "0",
+      "not_null": true
+    },
+    {
+      "name": "earned_transactions",
+      "type": "bigint",
+      "table": "compensation_accounts",
+      "default": "0",
+      "not_null": true
+    },
+    {
+      "name": "last_entry_id",
+      "type": "uuid",
+      "table": "compensation_accounts",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "last_payout_id",
+      "type": "uuid",
+      "table": "compensation_accounts",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "compensation_accounts",
+      "default": "now()",
+      "not_null": true
+    },
+    {
+      "name": "updated_at",
+      "type": "timestamp with time zone",
+      "table": "compensation_accounts",
+      "default": "now()",
+      "not_null": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "compensation_entries",
+      "default": "gen_random_uuid()",
+      "not_null": true
+    },
+    {
+      "name": "actor_type",
+      "type": "text",
+      "table": "compensation_entries",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "actor_id",
+      "type": "text",
+      "table": "compensation_entries",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "entry_type",
+      "type": "text",
+      "table": "compensation_entries",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "amount",
+      "type": "bigint",
+      "table": "compensation_entries",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "currency",
+      "type": "text",
+      "table": "compensation_entries",
+      "default": "'XOF'::text",
+      "not_null": true
+    },
+    {
+      "name": "order_id",
+      "type": "text",
+      "table": "compensation_entries",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "order_reference",
+      "type": "text",
+      "table": "compensation_entries",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "period_key",
+      "type": "text",
+      "table": "compensation_entries",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "plan_id",
+      "type": "uuid",
+      "table": "compensation_entries",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "source_entry_id",
+      "type": "uuid",
+      "table": "compensation_entries",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "idempotency_key",
+      "type": "text",
+      "table": "compensation_entries",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "metadata",
+      "type": "jsonb",
+      "table": "compensation_entries",
+      "default": "'{}'::jsonb",
+      "not_null": true
+    },
+    {
+      "name": "occurred_at",
+      "type": "timestamp with time zone",
+      "table": "compensation_entries",
+      "default": "now()",
+      "not_null": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "compensation_entries",
+      "default": "now()",
+      "not_null": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "compensation_periods",
+      "default": "gen_random_uuid()",
+      "not_null": true
+    },
+    {
+      "name": "actor_type",
+      "type": "text",
+      "table": "compensation_periods",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "actor_id",
+      "type": "text",
+      "table": "compensation_periods",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "period_key",
+      "type": "text",
+      "table": "compensation_periods",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "period_start",
+      "type": "date",
+      "table": "compensation_periods",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "period_end",
+      "type": "date",
+      "table": "compensation_periods",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "status",
+      "type": "text",
+      "table": "compensation_periods",
+      "default": "'open'::text",
+      "not_null": true
+    },
+    {
+      "name": "base_amount",
+      "type": "bigint",
+      "table": "compensation_periods",
+      "default": "0",
+      "not_null": true
+    },
+    {
+      "name": "variable_amount",
+      "type": "bigint",
+      "table": "compensation_periods",
+      "default": "0",
+      "not_null": true
+    },
+    {
+      "name": "adjustment_amount",
+      "type": "bigint",
+      "table": "compensation_periods",
+      "default": "0",
+      "not_null": true
+    },
+    {
+      "name": "total_amount",
+      "type": "bigint",
+      "table": "compensation_periods",
+      "default": "0",
+      "not_null": true
+    },
+    {
+      "name": "calculated_at",
+      "type": "timestamp with time zone",
+      "table": "compensation_periods",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "approved_at",
+      "type": "timestamp with time zone",
+      "table": "compensation_periods",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "paid_at",
+      "type": "timestamp with time zone",
+      "table": "compensation_periods",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "compensation_periods",
+      "default": "now()",
+      "not_null": true
+    },
+    {
+      "name": "updated_at",
+      "type": "timestamp with time zone",
+      "table": "compensation_periods",
+      "default": "now()",
+      "not_null": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "compensation_plans",
+      "default": "gen_random_uuid()",
+      "not_null": true
+    },
+    {
+      "name": "plan_code",
+      "type": "text",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "actor_type",
+      "type": "text",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "plan_scope",
+      "type": "text",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "version",
+      "type": "integer",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "status",
+      "type": "text",
+      "table": "compensation_plans",
+      "default": "'draft'::text",
+      "not_null": true
+    },
+    {
+      "name": "currency",
+      "type": "text",
+      "table": "compensation_plans",
+      "default": "'XOF'::text",
+      "not_null": true
+    },
+    {
+      "name": "base_fee_amount",
+      "type": "bigint",
+      "table": "compensation_plans",
+      "default": "0",
+      "not_null": true
+    },
+    {
+      "name": "daily_target",
+      "type": "integer",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "tier_1_from",
+      "type": "integer",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "tier_1_to",
+      "type": "integer",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "tier_1_rate",
+      "type": "bigint",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "tier_2_from",
+      "type": "integer",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "tier_2_to",
+      "type": "integer",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "tier_2_rate",
+      "type": "bigint",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "tier_3_from",
+      "type": "integer",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "tier_3_rate",
+      "type": "bigint",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "gross_rate_bps",
+      "type": "integer",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "variable_cap_amount",
+      "type": "bigint",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "activation_daily_order_threshold",
+      "type": "integer",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "activation_gross_threshold",
+      "type": "bigint",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "partner_margin_share_bps",
+      "type": "integer",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "izytel_margin_share_bps",
+      "type": "integer",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "effective_from",
+      "type": "timestamp with time zone",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "effective_to",
+      "type": "timestamp with time zone",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "metadata",
+      "type": "jsonb",
+      "table": "compensation_plans",
+      "default": "'{}'::jsonb",
+      "not_null": true
+    },
+    {
+      "name": "created_by_uid",
+      "type": "text",
+      "table": "compensation_plans",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "compensation_plans",
+      "default": "now()",
+      "not_null": true
+    },
+    {
+      "name": "updated_at",
+      "type": "timestamp with time zone",
+      "table": "compensation_plans",
+      "default": "now()",
+      "not_null": true
+    },
+    {
+      "name": "id",
+      "type": "smallint",
+      "table": "finance_change_feed",
+      "default": "1",
+      "not_null": true
+    },
+    {
+      "name": "revision",
+      "type": "bigint",
+      "table": "finance_change_feed",
+      "default": "0",
+      "not_null": true
+    },
+    {
+      "name": "changed_at",
+      "type": "timestamp with time zone",
+      "table": "finance_change_feed",
+      "default": "now()",
+      "not_null": true
+    }
+  ],
+  "constraints": [
+    {
+      "name": "compensation_accounts_actor_type_check",
+      "type": "c",
+      "table": "compensation_accounts",
+      "definition": "CHECK ((actor_type = ANY (ARRAY['agent'::text, 'manager'::text, 'cabiniste'::text])))"
+    },
+    {
+      "name": "compensation_accounts_currency_check",
+      "type": "c",
+      "table": "compensation_accounts",
+      "definition": "CHECK ((currency = 'XOF'::text))"
+    },
+    {
+      "name": "compensation_accounts_earned_transactions_check",
+      "type": "c",
+      "table": "compensation_accounts",
+      "definition": "CHECK ((earned_transactions >= 0))"
+    },
+    {
+      "name": "compensation_accounts_paid_total_check",
+      "type": "c",
+      "table": "compensation_accounts",
+      "definition": "CHECK ((paid_total >= 0))"
+    },
+    {
+      "name": "compensation_accounts_pkey",
+      "type": "p",
+      "table": "compensation_accounts",
+      "definition": "PRIMARY KEY (actor_type, actor_id)"
+    },
+    {
+      "name": "compensation_entries_actor_id_check",
+      "type": "c",
+      "table": "compensation_entries",
+      "definition": "CHECK ((btrim(actor_id) <> ''::text))"
+    },
+    {
+      "name": "compensation_entries_actor_type_check",
+      "type": "c",
+      "table": "compensation_entries",
+      "definition": "CHECK ((actor_type = ANY (ARRAY['agent'::text, 'manager'::text, 'cabiniste'::text])))"
+    },
+    {
+      "name": "compensation_entries_currency_check",
+      "type": "c",
+      "table": "compensation_entries",
+      "definition": "CHECK ((currency = 'XOF'::text))"
+    },
+    {
+      "name": "compensation_entries_entry_type_check",
+      "type": "c",
+      "table": "compensation_entries",
+      "definition": "CHECK ((entry_type = ANY (ARRAY['agent_base_fee'::text, 'agent_volume_bonus'::text, 'manager_base_fee'::text, 'manager_variable_commission'::text, 'cabiniste_settlement'::text, 'manual_adjustment'::text, 'legacy_import'::text, 'reversal'::text])))"
+    },
+    {
+      "name": "compensation_entries_idempotency_key_key",
+      "type": "u",
+      "table": "compensation_entries",
+      "definition": "UNIQUE (idempotency_key)"
+    },
+    {
+      "name": "compensation_entries_pkey",
+      "type": "p",
+      "table": "compensation_entries",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "compensation_entries_reversal_source_check",
+      "type": "c",
+      "table": "compensation_entries",
+      "definition": "CHECK (((entry_type <> 'reversal'::text) OR (source_entry_id IS NOT NULL)))"
+    },
+    {
+      "name": "compensation_periods_actor_period_key",
+      "type": "u",
+      "table": "compensation_periods",
+      "definition": "UNIQUE (actor_type, actor_id, period_key)"
+    },
+    {
+      "name": "compensation_periods_actor_type_check",
+      "type": "c",
+      "table": "compensation_periods",
+      "definition": "CHECK ((actor_type = ANY (ARRAY['agent'::text, 'manager'::text, 'cabiniste'::text])))"
+    },
+    {
+      "name": "compensation_periods_date_check",
+      "type": "c",
+      "table": "compensation_periods",
+      "definition": "CHECK ((period_end >= period_start))"
+    },
+    {
+      "name": "compensation_periods_pkey",
+      "type": "p",
+      "table": "compensation_periods",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "compensation_periods_status_check",
+      "type": "c",
+      "table": "compensation_periods",
+      "definition": "CHECK ((status = ANY (ARRAY['open'::text, 'calculated'::text, 'approved'::text, 'paid'::text, 'closed'::text])))"
+    },
+    {
+      "name": "compensation_plans_activation_daily_order_threshold_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK (((activation_daily_order_threshold IS NULL) OR (activation_daily_order_threshold >= 0)))"
+    },
+    {
+      "name": "compensation_plans_activation_gross_threshold_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK (((activation_gross_threshold IS NULL) OR (activation_gross_threshold >= 0)))"
+    },
+    {
+      "name": "compensation_plans_actor_type_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK ((actor_type = ANY (ARRAY['agent'::text, 'manager'::text, 'cabiniste'::text])))"
+    },
+    {
+      "name": "compensation_plans_base_fee_amount_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK ((base_fee_amount >= 0))"
+    },
+    {
+      "name": "compensation_plans_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK (((tier_1_to IS NULL) OR (tier_1_to >= tier_1_from)))"
+    },
+    {
+      "name": "compensation_plans_check1",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK (((tier_2_to IS NULL) OR (tier_2_to >= tier_2_from)))"
+    },
+    {
+      "name": "compensation_plans_currency_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK ((currency = 'XOF'::text))"
+    },
+    {
+      "name": "compensation_plans_daily_target_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK (((daily_target IS NULL) OR (daily_target >= 0)))"
+    },
+    {
+      "name": "compensation_plans_effective_window_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK (((effective_to IS NULL) OR (effective_from IS NULL) OR (effective_to > effective_from)))"
+    },
+    {
+      "name": "compensation_plans_gross_rate_bps_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK (((gross_rate_bps IS NULL) OR ((gross_rate_bps >= 0) AND (gross_rate_bps <= 10000))))"
+    },
+    {
+      "name": "compensation_plans_izytel_margin_share_bps_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK (((izytel_margin_share_bps IS NULL) OR ((izytel_margin_share_bps >= 0) AND (izytel_margin_share_bps <= 10000))))"
+    },
+    {
+      "name": "compensation_plans_partner_margin_share_bps_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK (((partner_margin_share_bps IS NULL) OR ((partner_margin_share_bps >= 0) AND (partner_margin_share_bps <= 10000))))"
+    },
+    {
+      "name": "compensation_plans_partner_share_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK (((partner_margin_share_bps IS NULL) OR (izytel_margin_share_bps IS NULL) OR ((partner_margin_share_bps + izytel_margin_share_bps) = 10000)))"
+    },
+    {
+      "name": "compensation_plans_pkey",
+      "type": "p",
+      "table": "compensation_plans",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "compensation_plans_plan_code_key",
+      "type": "u",
+      "table": "compensation_plans",
+      "definition": "UNIQUE (plan_code)"
+    },
+    {
+      "name": "compensation_plans_scope_version_key",
+      "type": "u",
+      "table": "compensation_plans",
+      "definition": "UNIQUE (actor_type, plan_scope, version)"
+    },
+    {
+      "name": "compensation_plans_status_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK ((status = ANY (ARRAY['draft'::text, 'active'::text, 'retired'::text])))"
+    },
+    {
+      "name": "compensation_plans_tier_1_from_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK (((tier_1_from IS NULL) OR (tier_1_from >= 1)))"
+    },
+    {
+      "name": "compensation_plans_tier_1_rate_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK (((tier_1_rate IS NULL) OR (tier_1_rate >= 0)))"
+    },
+    {
+      "name": "compensation_plans_tier_2_from_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK (((tier_2_from IS NULL) OR (tier_2_from >= 1)))"
+    },
+    {
+      "name": "compensation_plans_tier_2_rate_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK (((tier_2_rate IS NULL) OR (tier_2_rate >= 0)))"
+    },
+    {
+      "name": "compensation_plans_tier_3_from_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK (((tier_3_from IS NULL) OR (tier_3_from >= 1)))"
+    },
+    {
+      "name": "compensation_plans_tier_3_rate_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK (((tier_3_rate IS NULL) OR (tier_3_rate >= 0)))"
+    },
+    {
+      "name": "compensation_plans_variable_cap_amount_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK (((variable_cap_amount IS NULL) OR (variable_cap_amount >= 0)))"
+    },
+    {
+      "name": "compensation_plans_version_check",
+      "type": "c",
+      "table": "compensation_plans",
+      "definition": "CHECK ((version >= 1))"
+    },
+    {
+      "name": "finance_change_feed_id_check",
+      "type": "c",
+      "table": "finance_change_feed",
+      "definition": "CHECK ((id = 1))"
+    },
+    {
+      "name": "finance_change_feed_pkey",
+      "type": "p",
+      "table": "finance_change_feed",
+      "definition": "PRIMARY KEY (id)"
+    }
+  ]
+}

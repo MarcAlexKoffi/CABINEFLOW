@@ -6,9 +6,9 @@ void main() {
   String source(String path) => File(path).readAsStringSync();
 
   test('la version Web conserve le parcours client et la session locale', () {
-    final String entry = source('lib/main_customer_web.dart');
+    final String entry = source('lib/main_customer.dart');
     final String flow = source(
-      'lib/features/customer_order/presentation/pages/customer_order_flow_page.dart',
+      'lib/app/modules/customer/views/customer_order_flow_page.dart',
     );
 
     expect(entry, contains('Persistence.LOCAL'));
@@ -24,7 +24,7 @@ void main() {
 
   test('la page d accueil Web utilise le nouveau langage visuel IzyTel', () {
     final String home = source(
-      'lib/features/customer_order/presentation/pages/customer_home_page.dart',
+      'lib/app/modules/customer/views/customer_home_page.dart',
     );
 
     expect(home, contains('IZYTEL WEB'));
@@ -36,12 +36,12 @@ void main() {
   });
 
   test('le theme client Web utilise Manrope et le design system premium', () {
-    final String theme = source('lib/core/theme/customer_app_theme.dart');
+    final String theme = source('lib/app/theme/customer_app_theme.dart');
     final String shell = source(
-      'lib/shared/widgets/design_system/izy_tel_shell.dart',
+      'lib/app/shared/widgets/design_system/izy_tel_shell.dart',
     );
     final String cards = source(
-      'lib/shared/widgets/design_system/izy_tel_cards.dart',
+      'lib/app/shared/widgets/design_system/izy_tel_cards.dart',
     );
 
     expect(theme, contains('GoogleFonts.manropeTextTheme'));

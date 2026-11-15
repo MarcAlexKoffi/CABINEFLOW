@@ -34,13 +34,13 @@ void main() {
 
     test('photo Staff est commune et reste privée dans Supabase Storage', () {
       final String repository = _read(
-        'lib/features/auth/data/repositories/supabase_staff_profile_repository.dart',
+        'lib/app/data/repositories/supabase_staff_profile_repository.dart',
       );
       final String avatar = _read(
-        'lib/features/auth/presentation/widgets/staff_profile_avatar.dart',
+        'lib/app/modules/profile/widgets/staff_profile_avatar.dart',
       );
       final String managerAvatar = _read(
-        'lib/features/auth/presentation/widgets/manager_profile_avatar.dart',
+        'lib/app/modules/profile/widgets/manager_profile_avatar.dart',
       );
       final String directoryMigration = _read(
         'supabase/migrations/20260915002603_bo3d_staff_avatar_directory_rpc.sql',
@@ -59,10 +59,10 @@ void main() {
 
     test('Back-office Admin expose Mon profil depuis le header', () {
       final String shell = _read(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       );
       final String page = _read(
-        'lib/backoffice/presentation/pages/profile/backoffice_my_profile_page.dart',
+        'lib/app/modules/backoffice/views/profile/backoffice_my_profile_page.dart',
       );
 
       expect(shell, contains("value: 'profile'"));
@@ -77,10 +77,10 @@ void main() {
 
     test('Manager mobile dispose aussi de son profil personnel commun', () {
       final String more = _read(
-        'lib/features/more/presentation/pages/more_page.dart',
+        'lib/app/modules/home/views/more_page.dart',
       );
       final String profile = _read(
-        'lib/features/auth/presentation/pages/staff_personal_profile_page.dart',
+        'lib/app/modules/profile/views/staff_personal_profile_page.dart',
       );
 
       expect(more, contains('StaffPersonalProfilePage(user: user)'));
@@ -93,11 +93,10 @@ void main() {
 
     test('Agent conserve son écran historique mais écrit dans la couche Staff', () {
       final String page = _read(
-        'lib/features/agents/presentation/pages/agent_personal_profile_page.dart',
+        'lib/app/modules/profile/views/agent_personal_profile_page.dart',
       );
       final String adapter = _read(
-        'lib/features/agents/data/repositories/'
-        'supabase_agent_personal_profile_repository.dart',
+        'lib/app/data/repositories/supabase_agent_personal_profile_repository.dart',
       );
 
       expect(page, contains('SupabaseAgentPersonalProfileRepository'));
@@ -110,10 +109,10 @@ void main() {
 
     test('Admin voit les dossiers personnels Agent et Manager sans toucher auto-affectation', () {
       final String agents = _read(
-        'lib/backoffice/presentation/pages/team/backoffice_agents_page.dart',
+        'lib/app/modules/backoffice/views/team/backoffice_agents_page.dart',
       );
       final String managers = _read(
-        'lib/backoffice/presentation/pages/team/backoffice_managers_page.dart',
+        'lib/app/modules/backoffice/views/team/backoffice_managers_page.dart',
       );
 
       for (final String source in <String>[agents, managers]) {
@@ -130,10 +129,10 @@ void main() {
 
     test('BO-3D ne crée aucun nouveau flux Firestore', () {
       final List<String> files = <String>[
-        'lib/features/auth/data/repositories/supabase_staff_profile_repository.dart',
-        'lib/features/auth/presentation/widgets/staff_profile_avatar.dart',
-        'lib/features/auth/presentation/pages/staff_personal_profile_page.dart',
-        'lib/backoffice/presentation/pages/profile/backoffice_my_profile_page.dart',
+        'lib/app/data/repositories/supabase_staff_profile_repository.dart',
+        'lib/app/modules/profile/widgets/staff_profile_avatar.dart',
+        'lib/app/modules/profile/views/staff_personal_profile_page.dart',
+        'lib/app/modules/backoffice/views/profile/backoffice_my_profile_page.dart',
       ];
       for (final String path in files) {
         final String source = _read(path);

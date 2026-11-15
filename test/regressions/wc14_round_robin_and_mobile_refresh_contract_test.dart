@@ -20,13 +20,13 @@ void main() {
 
   test('Agent pull-to-refresh no longer restarts live subscriptions', () {
     final String viewModel = _read(
-      'lib/features/orders/presentation/view_models/agent_orders_view_model.dart',
+      'lib/app/modules/agent_orders/controllers/agent_orders_view_model.dart',
     );
     final String agentOrders = _read(
-      'lib/features/orders/presentation/pages/agent_orders_page.dart',
+      'lib/app/modules/agent_orders/views/agent_orders_page.dart',
     );
     final String agentHistory = _read(
-      'lib/features/orders/presentation/pages/agent_history_page.dart',
+      'lib/app/modules/agent_orders/views/agent_history_page.dart',
     );
 
     expect(viewModel, contains('Future<void> refresh()'));
@@ -40,37 +40,37 @@ void main() {
 
   test('mobile refresh indicator is bounded globally', () {
     final String ui = _read(
-      'lib/shared/widgets/izytel/izytel_ui.dart',
+      'lib/app/shared/widgets/izytel/izytel_ui.dart',
     );
     expect(ui, contains('class IzyTelRefreshIndicator'));
     expect(ui, contains('visualTimeout = const Duration(seconds: 5)'));
     expect(ui, contains('raw.timeout(widget.visualTimeout)'));
 
     const List<String> mobilePages = <String>[
-      'lib/features/orders/presentation/pages/agent_history_page.dart',
-      'lib/features/orders/presentation/pages/order_history_page.dart',
-      'lib/features/orders/presentation/pages/order_detail_page.dart',
-      'lib/features/orders/presentation/pages/agent_assignment_page.dart',
-      'lib/features/orders/presentation/pages/orders_page.dart',
-      'lib/features/orders/presentation/pages/agent_orders_page.dart',
-      'lib/features/dashboard/presentation/pages/dashboard_page.dart',
-      'lib/features/offers/presentation/pages/offer_management_page.dart',
-      'lib/features/support/presentation/pages/support_request_center_page.dart',
-      'lib/features/partners/presentation/pages/partner_shell_page.dart',
-      'lib/features/control/presentation/pages/manager_pilotage_page.dart',
-      'lib/features/payments/presentation/pages/payments_page.dart',
-      'lib/features/managers/presentation/pages/manager_accounts_page.dart',
-      'lib/features/agents/presentation/pages/agent_activity_page.dart',
-      'lib/features/agents/presentation/pages/agent_management_page.dart',
-      'lib/features/agents/presentation/pages/agent_home_page.dart',
-      'lib/features/agents/presentation/pages/agent_issue_center_page.dart',
-      'lib/features/more/presentation/pages/admin_activity_journal_page.dart',
-      'lib/features/finances/presentation/pages/financial_reconciliation_page.dart',
-      'lib/features/finances/presentation/pages/cabiniste_finance_supervision_page.dart',
-      'lib/features/finances/presentation/pages/finances_page.dart',
-      'lib/features/team/presentation/pages/team_member_detail_page.dart',
-      'lib/features/team/presentation/pages/team_performance_page.dart',
-      'lib/features/messaging/presentation/pages/staff_customer_messaging_page.dart',
+      'lib/app/modules/agent_orders/views/agent_history_page.dart',
+      'lib/app/modules/staff_history/views/order_history_page.dart',
+      'lib/app/modules/manager_orders/views/order_detail_page.dart',
+      'lib/app/modules/manager_orders/views/agent_assignment_page.dart',
+      'lib/app/modules/manager_orders/views/orders_page.dart',
+      'lib/app/modules/agent_orders/views/agent_orders_page.dart',
+      'lib/app/modules/home/views/dashboard_page.dart',
+      'lib/app/modules/offers/views/offer_management_page.dart',
+      'lib/app/modules/support/views/support_request_center_page.dart',
+      'lib/app/modules/partners/views/partner_shell_page.dart',
+      'lib/app/modules/control/views/manager_pilotage_page.dart',
+      'lib/app/modules/payments/views/payments_page.dart',
+      'lib/app/modules/team/views/manager_accounts_page.dart',
+      'lib/app/modules/agent_ops/views/agent_activity_page.dart',
+      'lib/app/modules/agent_ops/views/agent_management_page.dart',
+      'lib/app/modules/agent_ops/views/agent_home_page.dart',
+      'lib/app/modules/agent_issues/views/agent_issue_center_page.dart',
+      'lib/app/modules/control/views/admin_activity_journal_page.dart',
+      'lib/app/modules/finance/views/financial_reconciliation_page.dart',
+      'lib/app/modules/finance/views/cabiniste_finance_supervision_page.dart',
+      'lib/app/modules/finance/views/finances_page.dart',
+      'lib/app/modules/team/views/team_member_detail_page.dart',
+      'lib/app/modules/team/views/team_performance_page.dart',
+      'lib/app/modules/messaging/views/staff_customer_messaging_page.dart',
     ];
 
     for (final String path in mobilePages) {
@@ -90,13 +90,13 @@ void main() {
 
   test('offer refresh is snapshot-based and does not restart realtime', () {
     final String viewModel = _read(
-      'lib/features/offers/presentation/view_models/offer_management_view_model.dart',
+      'lib/app/modules/offers/controllers/offer_management_view_model.dart',
     );
     final String page = _read(
-      'lib/features/offers/presentation/pages/offer_management_page.dart',
+      'lib/app/modules/offers/views/offer_management_page.dart',
     );
     final String contract = _read(
-      'lib/features/offers/domain/repositories/admin_offer_repository.dart',
+      'lib/app/domain/repositories/admin_offer_repository.dart',
     );
 
     expect(contract, contains('Future<List<AdminOffer>> fetchOffers();'));

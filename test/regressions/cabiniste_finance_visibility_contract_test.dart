@@ -7,7 +7,7 @@ void main() {
 
   test('repository expose une lecture Cabiniste commune Admin Manager', () {
     final String repository = source(
-      'lib/features/partners/data/repositories/supabase_cabiniste_finance_supervision_repository.dart',
+      'lib/app/data/repositories/supabase_cabiniste_finance_supervision_repository.dart',
     );
 
     expect(repository, contains("'izytel_staff_cabiniste_finance_snapshot'"));
@@ -17,7 +17,7 @@ void main() {
 
   test('modele distingue gain IzyTel et montant a reverser', () {
     final String model = source(
-      'lib/features/partners/domain/models/cabiniste_finance_supervision_models.dart',
+      'lib/app/domain/entities/partners/cabiniste_finance_supervision_models.dart',
     );
 
     expect(model, contains('izytelGrossGainTotal'));
@@ -29,10 +29,10 @@ void main() {
 
   test('Cabinistes sont ranges dans Equipe sur mobile Admin et Manager', () {
     final String more = source(
-      'lib/features/more/presentation/pages/more_page.dart',
+      'lib/app/modules/home/views/more_page.dart',
     );
     final String cabinistePage = source(
-      'lib/features/finances/presentation/pages/cabiniste_finance_supervision_page.dart',
+      'lib/app/modules/finance/views/cabiniste_finance_supervision_page.dart',
     );
 
     expect(more, contains("const _SectionLabel('Équipe')"));
@@ -45,10 +45,10 @@ void main() {
 
   test('Back Office range Cabinistes dans Equipe et reserve le paiement Admin', () {
     final String shell = source(
-      'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+      'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
     );
     final String page = source(
-      'lib/backoffice/presentation/pages/finances/backoffice_cabiniste_finance_page.dart',
+      'lib/app/modules/backoffice/views/finances/backoffice_cabiniste_finance_page.dart',
     );
 
     expect(shell, contains('case BackofficeDestination.cabinisteFinances:'));

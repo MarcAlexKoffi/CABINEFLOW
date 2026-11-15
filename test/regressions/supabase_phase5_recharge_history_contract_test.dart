@@ -7,7 +7,7 @@ void main() {
 
   test('Phase 5 garde la pagination serveur des recharges Agent', () {
     final String repository = read(
-      'lib/features/finances/data/repositories/supabase_agent_recharge_history_repository.dart',
+      'lib/app/data/repositories/supabase_agent_recharge_history_repository.dart',
     );
     expect(repository, contains("'phase5_agent_recharge_page'"));
     expect(repository, contains('pageSize = 50'));
@@ -19,10 +19,10 @@ void main() {
 
   test('Historique Agent conserve recherche filtres et pagination', () {
     final String page = read(
-      'lib/features/orders/presentation/pages/agent_history_page.dart',
+      'lib/app/modules/agent_orders/views/agent_history_page.dart',
     );
     final String periodFilter = read(
-      'lib/shared/widgets/izytel_period_filter.dart',
+      'lib/app/shared/widgets/izytel_period_filter.dart',
     );
     expect(page, contains("_tabBox('Recharges'"));
     expect(page, contains('Rechercher fournisseur, référence ou note'));
@@ -40,7 +40,7 @@ void main() {
 
   test('le backfill Phase 5 est désormais consolidé et idempotent', () {
     final String synchronizer = read(
-      'lib/features/finances/data/services/phase5_consolidated_synchronizer.dart',
+      'lib/app/services/finance/phase5_consolidated_synchronizer.dart',
     );
     expect(synchronizer, contains('defaultBatchSize = 100'));
     expect(synchronizer, contains("collection('supplierRecharges')"));
@@ -53,10 +53,10 @@ void main() {
 
   test('une nouvelle recharge alimente tout le registre financier Phase 5', () {
     final String hybrid = read(
-      'lib/features/finances/data/repositories/hybrid_finance_operations_repository.dart',
+      'lib/app/data/repositories/hybrid_finance_operations_repository.dart',
     );
     final String phase5 = read(
-      'lib/features/finances/data/repositories/supabase_phase5_finance_repository.dart',
+      'lib/app/data/repositories/supabase_phase5_finance_repository.dart',
     );
     expect(hybrid, contains('fetchAgentCapacitiesForPhase5'));
     expect(hybrid, contains('ensureCapacitySeed'));
@@ -68,7 +68,7 @@ void main() {
 
   test('seul Admin lance le backfill financier consolidé', () {
     final String shell = read(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     );
     expect(shell, contains('Phase5ConsolidatedSynchronizer'));
     expect(shell, contains('_synchronizePhase5ConsolidatedBackfill'));

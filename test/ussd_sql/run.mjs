@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { runDeletionCases } from './deletion_cases.mjs';
 const root = resolve(import.meta.dirname, '../..');
-const modulePath = process.env.IZYTEL_PGLITE_MODULE ?? resolve(root,'scratch/ussd_20261031/tools/node_modules/@electric-sql/pglite/dist/index.js');
+const modulePath = process.env.IZYTEL_PGLITE_MODULE ?? resolve(root,'scratch/ussd_reprise_tools/node_modules/@electric-sql/pglite/dist/index.js');
 const { PGlite } = await import(pathToFileURL(modulePath).href);
 const db = new PGlite();
 let passed = 0;
@@ -33,13 +34,52 @@ try {
   const migration=migrations.find(n=>n.endsWith('_ussd_dynamic_shortcuts_v1.sql'));
   assert.ok(migration,'local migration exists');
   await db.exec(await readFile(resolve(root,'supabase/migrations',migration),'utf8'));
+  const beforeGrants=(await db.query("select p.proname,p.proacl::text as acl from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'izytel_ussd_%' order by p.proname")).rows;
+  const followup=migrations.find(n=>n.endsWith('_ussd_template_aliases_secret_and_draft_catalog.sql'));
+  assert.ok(followup,'follow-up migration exists');
+  const followupSql=await readFile(resolve(root,'supabase/migrations',followup),'utf8');
+  await db.exec(followupSql);
+  await test('new migration preserves every existing public RPC grant',async()=>{
+    assert.deepEqual((await db.query("select p.proname,p.proacl::text as acl from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'izytel_ussd_%' order by p.proname")).rows,beforeGrants);
+  });
+  const deletionMigration=migrations.find(n=>n.endsWith('_ussd_admin_deletion.sql'));
+  assert.ok(deletionMigration,'deletion migration exists');
+  const existingGrants=(await db.query("select p.proname,p.proacl::text as acl from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'izytel_ussd_%' order by p.proname")).rows;
+  await db.exec(await readFile(resolve(root,'supabase/migrations',deletionMigration),'utf8'));
+  await test('deletion migration preserves existing RPC grants',async()=>{
+    const names=new Set(existingGrants.map(r=>r.proname));
+    const actual=(await db.query("select p.proname,p.proacl::text as acl from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'izytel_ussd_%' order by p.proname")).rows;
+    assert.deepEqual(actual.filter(r=>names.has(r.proname)),existingGrants);
+  });
+  await test('operator seed is draft-only, canonical and idempotent without overwriting edits',async()=>{
+    const before=(await db.query('select to_jsonb(r) as row from public.ussd_execution_rules r order by id')).rows;
+    assert.equal(before.length,12);assert.ok(before.every(r=>r.row.status==='draft'));
+    const begin=followupSql.indexOf('-- BEGIN IDEMPOTENT USSD DRAFT SEED');
+    const end=followupSql.indexOf('-- END IDEMPOTENT USSD DRAFT SEED');
+    await db.exec(followupSql.slice(begin,end));
+    assert.deepEqual((await db.query('select to_jsonb(r) as row from public.ussd_execution_rules r order by id')).rows,before);
+    assert.equal((await db.query('select count(*)::int as n from public.ussd_rule_versions')).rows[0].n,12);
+    await db.exec("update public.ussd_execution_rules set internal_note='administrator edit preserved' where seed_key='moov-pass-appel-v1'");
+    await db.exec(followupSql.slice(begin,end));
+    assert.equal((await db.query("select internal_note from public.ussd_execution_rules where seed_key='moov-pass-appel-v1'")).rows[0].internal_note,'administrator edit preserved');
+    await db.exec("update public.ussd_offer_families set label='Folie renamed by administrator' where id='71000000-0000-4000-8000-000000000001'");
+    await db.exec(followupSql.slice(begin,end));
+    assert.equal((await db.query("select count(*)::int as n from public.ussd_offer_families where network='moov' and service='callBundle'")).rows[0].n,1);
+    await db.exec("update public.ussd_offer_families set label='Folie' where id='71000000-0000-4000-8000-000000000001'");
+  });
+  await test('controlled family mapping uses explicit IDs and leaves Chic unbound',async()=>{
+    const rows=(await db.query("select b.offer_id,f.label from public.ussd_offer_bindings b join public.ussd_offer_families f on f.id=b.family_id order by b.offer_id")).rows;
+    assert.equal(rows.length,5);assert.ok(rows.every(r=>r.label==='Folie' && r.offer_id.startsWith('moov-calls-')));
+    assert.ok(!rows.some(r=>r.offer_id==='unrelated-folie-title'));
+  });
   await test('all nine new tables have RLS and no client table grants',async()=>{
     const rows=(await db.query("select c.relname,c.relrowsecurity,has_table_privilege('anon',c.oid,'SELECT') as can_read,has_table_privilege('authenticated',c.oid,'TRUNCATE') as can_truncate from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' and c.relname like 'ussd_%' order by c.relname")).rows;
     assert.equal(rows.length,9); for(const r of rows){assert.equal(r.relrowsecurity,true);assert.equal(r.can_read,false);assert.equal(r.can_truncate,false);}
   });
   const vectors=JSON.parse(await readFile(resolve(import.meta.dirname,'generation_vectors.json'),'utf8'));
   for(const v of vectors) await test(`SQL grammar: ${v.name}`,async()=>{
-    const call=()=>db.query('select private.ussd_generate($1,$2,$3,$4,$5) as code',[v.template,v.beneficiary??null,v.amount??null,v.offer_code??null,v.quantity??null]);
+    if(v.canonical) assert.equal((await db.query('select private.ussd_normalize_template($1) as template',[v.template])).rows[0].template,v.canonical);
+    const call=()=>db.query('select private.ussd_generate($1,$2,$3,$4,$5,$6) as code',[v.template,v.beneficiary??null,v.amount??null,v.offer_code??null,v.quantity??null,v.secret_code??null]);
     if(v.error) await assert.rejects(call,e=>e.message===v.error);else assert.equal((await call()).rows[0].code,v.expected);
   });
   await test('anonymous identity cannot read rules or use RPC',async()=>{
@@ -238,5 +278,79 @@ try {
     assert.ok(configuration.offers.some(o=>o.id==='synthetic-offer'));
     assert.ok(!configuration.offers.some(o=>o.id==='other-offer'||o.id==='synthetic-orange'));
   });
+  await test('server stores only canonical human templates and rejects arbitrary variables',async()=>{
+    await identity('test-admin');
+    const id=await create({ussd_template:'*410*numéro*montant*CODE SECRET#'});
+    assert.equal((await current(id)).ussd_template,'*410*{{msisdn_local}}*{{amount}}*{{secret_code}}#');
+    const decomposed='*412*2*nume\u0301ro#';
+    await identity('test-admin','postgres');
+    assert.equal((await db.query('select private.ussd_normalize_template($1) as t',[decomposed])).rows[0].t,'*412*2*{{msisdn_local}}#');
+    await identity('test-admin');
+    await assert.rejects(()=>create({ussd_template:'*999*{{foobar}}#'}),/unknown_variable/);
+    await assert.rejects(()=>create({ussd_template:'*999*{{numero}#'}),/invalid_template/);
+  });
+  await test('balance uses a separate purpose and cannot be an order service',async()=>{
+    await identity('test-admin');
+    const id=await create({purpose:'balance',service:null,ussd_template:'*414*{{secret_code}}#'});
+    assert.equal((await current(id)).purpose,'balance');assert.equal((await current(id)).service,null);
+    await activate(id);
+    await assert.rejects(()=>create({purpose:'balance',service:'other',ussd_template:'*414#'}));
+    await assert.rejects(()=>create({purpose:'balance',service:null,ussd_template:'*999*montant#'}),/invalid_balance_template/);
+    await identity('test-agent');assert.notEqual((await rpc('resolve',['order-agent'])).rule.id,id);
+    await identity('test-manager');assert.ok(!(await rpc('configuration')).rules.some(r=>r.purpose==='balance'));
+  });
+  await test('unmapped Chic family remains a non-activatable draft',async()=>{
+    await identity('test-admin');const rule=(await rpc('configuration')).rules.find(r=>r.seed_key==='mtn-chic-v1');
+    await assert.rejects(()=>activate(rule.id),/missing_offer_context/);
+    assert.equal((await current(rule.id)).status,'draft');
+  });
+  let secretRule;
+  await test('Agent and Cabiniste resolve the centralized default secret without exposing it in context',async()=>{
+    await identity('test-admin');
+    secretRule=await create({priority:500,ussd_template:'*410*numéro*montant*code_secret#'});await activate(secretRule);
+    // Remove the exact/family rule preference for these synthetic orders only.
+    await identity('test-admin','postgres');await db.exec("delete from public.ussd_order_contexts where order_id in ('order-agent','order-cabiniste'); delete from public.ussd_execution_logs where actor_uid='test-agent'");
+    for(const uid of ['test-agent','test-cabiniste']){
+      await identity(uid);const r=await rpc('resolve',[uid==='test-agent'?'order-agent':'order-cabiniste']);
+      assert.equal(r.code,'*410*0101010101*1000*0000#');
+      assert.equal(r.context.secret_revision,'default-v1');
+      assert.ok(!JSON.stringify(r.context).includes('0000'));
+    }
+  });
+  await test('configured secret override is actor scoped, secret-free in histories and protected from clients',async()=>{
+    await identity('test-admin','postgres');
+    await db.query('insert into private.ussd_secret_configuration(network,actor_scope,secret_code) values($1,$2,$3)',['moov','agent','987654']);
+    await identity('test-agent');const r=await rpc('resolve',['order-agent']);assert.equal(r.code,'*410*0101010101*1000*987654#');
+    assert.match(r.context.secret_revision,/^[0-9a-f-]{36}$/);
+    assert.ok(!JSON.stringify(r.context).includes('987654'));
+    const p=await prepare('order-agent',r,'secret-audit');await rpc('record_result',[p.attempt_id,'dialer_opened',null]);
+    await identity('test-cabiniste');assert.equal((await rpc('resolve',['order-cabiniste'])).code,'*410*0101010101*1000*0000#');
+    for(const uid of ['test-admin','test-manager','test-agent','test-cabiniste']){
+      await identity(uid);await denied(()=>db.query('select * from private.ussd_secret_configuration'));
+      await denied(()=>db.query("select private.ussd_secret_settings('moov','agent')"));
+    }
+    await identity('test-admin');
+    for(const rows of [await rpc('configuration'),await rpc('history',[secretRule]),await rpc('logs')]){
+      assert.ok(!JSON.stringify(rows).includes('987654'));
+    }
+  });
+  await test('changing a configured secret during confirmation invalidates prepare without logging the value',async()=>{
+    await identity('test-agent');const before=await rpc('resolve',['order-agent']);
+    await identity('test-admin','postgres');await db.query('update private.ussd_secret_configuration set secret_code=$1 where network=$2 and actor_scope=$3',['654321','moov','agent']);
+    await identity('test-agent');const result=await prepare('order-agent',before,'secret-changed');
+    assert.equal(result.reason,'rule_changed');
+    const fresh=await rpc('resolve',['order-agent']);assert.notEqual(fresh.context.secret_revision,before.context.secret_revision);
+    assert.equal(fresh.code,'*410*0101010101*1000*654321#');
+  });
+  await test('deleting and recreating a secret configuration cannot reuse its confirmation revision',async()=>{
+    await identity('test-agent');const before=await rpc('resolve',['order-agent']);
+    await identity('test-admin','postgres');
+    await db.query("delete from private.ussd_secret_configuration where network='moov' and actor_scope='agent'");
+    await db.query('insert into private.ussd_secret_configuration(network,actor_scope,secret_code) values($1,$2,$3)',['moov','agent','246810']);
+    await identity('test-agent');const after=await rpc('resolve',['order-agent']);
+    assert.notEqual(after.context.secret_revision,before.context.secret_revision);
+    assert.equal((await prepare('order-agent',before,'secret-reinserted')).reason,'rule_changed');
+  });
+  await runDeletionCases({db,test,identity,rpc,denied,payload,current,create,activate,prepare});
   console.log(`SQL SUMMARY: ${passed} passed, 0 failed; in-memory synthetic database only.`);
 } finally {await db.close();}

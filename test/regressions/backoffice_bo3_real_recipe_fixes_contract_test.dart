@@ -6,7 +6,7 @@ void main() {
   group('BO-3 recette réelle - correctifs profils et zones', () {
     test('le profil Admin revient au back-office après enregistrement', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/profile/backoffice_my_profile_page.dart',
+        'lib/app/modules/backoffice/views/profile/backoffice_my_profile_page.dart',
       ).readAsStringSync();
       expect(source, contains("IzyTelFeedback.success(context, 'Profil Staff enregistré.');"));
       expect(source, contains('Navigator.of(context).pop(saved);'));
@@ -14,7 +14,7 @@ void main() {
 
     test('les libellés du formulaire Zone restent visibles au-dessus de la carte', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/team/backoffice_zones_page.dart',
+        'lib/app/modules/backoffice/views/team/backoffice_zones_page.dart',
       ).readAsStringSync();
       expect(source, contains('padding: const EdgeInsets.only(top: 10)'));
       for (final String label in <String>[

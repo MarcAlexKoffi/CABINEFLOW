@@ -31,10 +31,10 @@ void main() {
 
     test('la fiche Manager edite quotas reseaux et capacites sans ouvrir identite ni zone', () {
       final String page = File(
-        'lib/features/agents/presentation/pages/agent_detail_page.dart',
+        'lib/app/modules/agent_ops/views/agent_detail_page.dart',
       ).readAsStringSync();
       final String repository = File(
-        'lib/features/agents/data/repositories/supabase_agent_operations_repository.dart',
+        'lib/app/data/repositories/supabase_agent_operations_repository.dart',
       ).readAsStringSync();
 
       expect(page, contains('_canEditOperationalSettings'));

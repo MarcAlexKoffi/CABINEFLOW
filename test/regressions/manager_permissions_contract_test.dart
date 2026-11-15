@@ -8,7 +8,7 @@ void main() {
 
   test('Auth traduit supervisor Firestore en Manager Flutter', () {
     final String auth = compact(
-      read('lib/features/auth/data/repositories/firebase_auth_repository.dart'),
+      read('lib/app/data/repositories/firebase_auth_repository.dart'),
     );
     expect(auth, contains("case 'manager': return UserRole.manager;"));
     expect(auth, contains("case 'supervisor':"));
@@ -17,7 +17,7 @@ void main() {
 
   test('permissions Manager sont centralisees hors des pages', () {
     final String permissions = read(
-      'lib/features/auth/domain/permissions/user_permissions.dart',
+      'lib/app/domain/permissions/user_permissions.dart',
     );
     expect(permissions, contains('class UserPermissions'));
     expect(permissions, contains('firestoreCompatibilityRole'));
@@ -28,13 +28,13 @@ void main() {
 
   test('Manager affecte via la matrice sans reprendre le flux operateur', () {
     final String orders = read(
-      'lib/features/orders/presentation/pages/orders_page.dart',
+      'lib/app/modules/manager_orders/views/orders_page.dart',
     );
     expect(orders, contains('widget.user.permissions.canAssignOrders'));
   });
 
   test('Plus Manager ne publie aucune fonction Admin sensible', () {
-    final String more = read('lib/features/more/presentation/pages/more_page.dart');
+    final String more = read('lib/app/modules/home/views/more_page.dart');
     final int start = more.indexOf('Widget _buildManager');
     final int end = more.indexOf('void _historyUnavailable', start);
     expect(start, greaterThanOrEqualTo(0));
@@ -54,7 +54,7 @@ void main() {
 
   test('Dashboard Manager ne lit pas refunds Firestore en arriere plan', () {
     final String dashboard = compact(
-      read('lib/features/dashboard/presentation/pages/dashboard_page.dart'),
+      read('lib/app/modules/home/views/dashboard_page.dart'),
     );
     expect(
       dashboard,
@@ -64,7 +64,7 @@ void main() {
 
   test('Manager utilise Agents a la place des Finances Admin', () {
     final String shell = compact(
-      read('lib/features/navigation/presentation/pages/main_shell_page.dart'),
+      read('lib/app/modules/home/views/main_shell_page.dart'),
     );
     expect(shell, contains('widget.user.isManager ? AgentManagementPage('));
     expect(shell, contains(': FinancesPage('));

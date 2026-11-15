@@ -8,10 +8,10 @@ void main() {
 
   test('navigation Manager expose Agents sans remplacer Finances Admin', () {
     final String shell = compact(
-      read('lib/features/navigation/presentation/pages/main_shell_page.dart'),
+      read('lib/app/modules/home/views/main_shell_page.dart'),
     );
     final String navigation = read(
-      'lib/features/dashboard/presentation/widgets/dashboard_widgets.dart',
+      'lib/app/modules/home/widgets/dashboard_widgets.dart',
     );
 
     expect(shell, contains('widget.user.isManager ? AgentManagementPage('));
@@ -25,7 +25,7 @@ void main() {
 
   test('annuaire Manager est consultation uniquement', () {
     final String page = read(
-      'lib/features/agents/presentation/pages/agent_management_page.dart',
+      'lib/app/modules/agent_ops/views/agent_management_page.dart',
     );
 
     expect(page, contains('widget.user.permissions.canManageAgents'));
@@ -39,7 +39,7 @@ void main() {
 
   test('fiche Agent garde identite et territoire Admin-only mais autorise la gestion operationnelle Manager', () {
     final String detail = read(
-      'lib/features/agents/presentation/pages/agent_detail_page.dart',
+      'lib/app/modules/agent_ops/views/agent_detail_page.dart',
     );
 
     expect(detail, contains('this.readOnly = false'));
@@ -57,7 +57,7 @@ void main() {
 
   test('M4 ne demande aucun nouveau droit Manager sensible', () {
     final String permissions = read(
-      'lib/features/auth/domain/permissions/user_permissions.dart',
+      'lib/app/domain/permissions/user_permissions.dart',
     );
     final String manager = permissions.substring(
       permissions.indexOf('static const UserPermissions manager'),

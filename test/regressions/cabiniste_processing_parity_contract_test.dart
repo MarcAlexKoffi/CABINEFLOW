@@ -7,7 +7,7 @@ void main() {
 
   test('acceptation Cabiniste demarre puis ouvre directement le detail', () {
     final String shell = source(
-      'lib/features/partners/presentation/pages/partner_shell_page.dart',
+      'lib/app/modules/partners/views/partner_shell_page.dart',
     );
 
     expect(shell, contains('await widget.repository.accept(order.orderId)'));
@@ -18,7 +18,7 @@ void main() {
 
   test('detail Cabiniste reprend les blocs essentiels du detail Agent', () {
     final String shell = source(
-      'lib/features/partners/presentation/pages/partner_shell_page.dart',
+      'lib/app/modules/partners/views/partner_shell_page.dart',
     );
 
     for (final String label in <String>[
@@ -44,7 +44,7 @@ void main() {
 
   test('mise en attente utilise une bottom sheet possedant son controleur', () {
     final String shell = source(
-      'lib/features/partners/presentation/pages/partner_shell_page.dart',
+      'lib/app/modules/partners/views/partner_shell_page.dart',
     );
 
     expect(shell, contains('class _PartnerHoldReasonSheet extends StatefulWidget'));
@@ -56,10 +56,10 @@ void main() {
 
   test('snapshot Cabiniste transporte les donnees affichees par le detail', () {
     final String model = source(
-      'lib/features/partners/domain/models/partner_order_models.dart',
+      'lib/app/domain/entities/partners/partner_order_models.dart',
     );
     final String repository = source(
-      'lib/features/partners/data/repositories/supabase_partner_order_repository.dart',
+      'lib/app/data/repositories/supabase_partner_order_repository.dart',
     );
 
     for (final String field in <String>[

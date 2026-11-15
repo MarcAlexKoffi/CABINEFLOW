@@ -8,7 +8,7 @@ void main() {
   group('BO-7.1 iteration 2 - Modales premium et datavisualisation', () {
     test('le système modal centralise flou, animation et contenu scrollable', () {
       final String modal = _read(
-        'lib/backoffice/presentation/widgets/backoffice_modal.dart',
+        'lib/app/modules/backoffice/widgets/backoffice_modal.dart',
       );
       expect(modal, contains('showGeneralDialog'));
       expect(modal, contains('BackdropFilter'));
@@ -23,16 +23,16 @@ void main() {
 
     test('les modales prioritaires utilisent la couche premium', () {
       final String orders = _read(
-        'lib/backoffice/presentation/widgets/backoffice_order_widgets.dart',
+        'lib/app/modules/backoffice/widgets/backoffice_order_widgets.dart',
       );
       final String users = _read(
-        'lib/backoffice/presentation/pages/backoffice_users_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_users_page.dart',
       );
       final String payments = _read(
-        'lib/backoffice/presentation/pages/operations/backoffice_payments_page.dart',
+        'lib/app/modules/backoffice/views/operations/backoffice_payments_page.dart',
       );
       final String assignments = _read(
-        'lib/backoffice/presentation/pages/operations/backoffice_assignments_page.dart',
+        'lib/app/modules/backoffice/views/operations/backoffice_assignments_page.dart',
       );
 
       expect(orders, contains('showBackofficeModal<void>'));
@@ -55,7 +55,7 @@ void main() {
 
     test('les formulaires finance partagent aussi la présentation premium', () {
       final String finance = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart',
+        'lib/app/modules/backoffice/views/finances/backoffice_finance_page.dart',
       );
       expect(finance, contains('showBackofficeModal<bool>'));
       expect(finance, contains('BackofficeModalShell('));
@@ -64,10 +64,10 @@ void main() {
 
     test('les statistiques utilisent de vrais composants graphiques', () {
       final String charts = _read(
-        'lib/backoffice/presentation/widgets/backoffice_charts.dart',
+        'lib/app/modules/backoffice/widgets/backoffice_charts.dart',
       );
       final String control = _read(
-        'lib/backoffice/presentation/pages/control/backoffice_control_page.dart',
+        'lib/app/modules/backoffice/views/control/backoffice_control_page.dart',
       );
 
       expect(charts, contains('class BackofficeLineChart'));
@@ -87,10 +87,10 @@ void main() {
         'supabase/migrations/20260916112000_bo7_daily_statistics_trend.sql',
       );
       final String repo = _read(
-        'lib/features/control/data/repositories/supabase_control_repository.dart',
+        'lib/app/data/repositories/supabase_control_repository.dart',
       );
       final String model = _read(
-        'lib/features/control/domain/models/control_snapshot.dart',
+        'lib/app/domain/entities/control/control_snapshot.dart',
       );
 
       expect(migration, contains('izytel_bo7_daily_trend'));
@@ -105,7 +105,7 @@ void main() {
 
     test('la finance sensible reste conditionnée à auditAllowed', () {
       final String control = _read(
-        'lib/backoffice/presentation/pages/control/backoffice_control_page.dart',
+        'lib/app/modules/backoffice/views/control/backoffice_control_page.dart',
       );
       expect(control, contains('if (snapshot.auditAllowed)'));
       expect(control, contains("title: 'Exposition financière Administrateur'"));

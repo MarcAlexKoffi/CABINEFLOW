@@ -8,7 +8,7 @@ void main() {
   group('BO-7.1 - overflow et fluidite Web', () {
     test('les grands tableaux utilisent une liste paresseuse bornee', () {
       final String widgets = _read(
-        'lib/backoffice/presentation/widgets/backoffice_order_widgets.dart',
+        'lib/app/modules/backoffice/widgets/backoffice_order_widgets.dart',
       );
 
       expect(widgets, contains('ListView.builder('));
@@ -20,7 +20,7 @@ void main() {
 
     test('le Web evite le BackdropFilter couteux pendant le scroll modal', () {
       final String modal = _read(
-        'lib/backoffice/presentation/widgets/backoffice_modal.dart',
+        'lib/app/modules/backoffice/widgets/backoffice_modal.dart',
       );
 
       expect(modal, contains("import 'package:flutter/foundation.dart';"));
@@ -31,10 +31,10 @@ void main() {
 
     test('commandes et paiements donnent assez de largeur aux badges reseau', () {
       final String orders = _read(
-        'lib/backoffice/presentation/pages/operations/backoffice_orders_page.dart',
+        'lib/app/modules/backoffice/views/operations/backoffice_orders_page.dart',
       );
       final String payments = _read(
-        'lib/backoffice/presentation/pages/operations/backoffice_payments_page.dart',
+        'lib/app/modules/backoffice/views/operations/backoffice_payments_page.dart',
       );
 
       expect(orders, contains("BackofficeTableColumnSpec(label: 'COMMANDE', flex: 3)"));
@@ -45,7 +45,7 @@ void main() {
 
     test('le scroll principal du shell utilise une physique Web stable', () {
       final String shell = _read(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       );
       expect(shell, contains('physics: const ClampingScrollPhysics()'));
     });

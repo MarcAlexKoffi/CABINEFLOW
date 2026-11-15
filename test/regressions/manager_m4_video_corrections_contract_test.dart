@@ -8,23 +8,23 @@ void main() {
 
   test('Manager dispose d un avatar Supabase modifiable sans Firestore', () {
     final String repository = read(
-      'lib/features/auth/data/repositories/manager_avatar_repository.dart',
+      'lib/app/data/repositories/manager_avatar_repository.dart',
     );
     final String widget = read(
-      'lib/features/auth/presentation/widgets/manager_profile_avatar.dart',
+      'lib/app/modules/profile/widgets/manager_profile_avatar.dart',
     );
     final String dashboard = read(
-      'lib/features/dashboard/presentation/pages/dashboard_page.dart',
+      'lib/app/modules/home/views/dashboard_page.dart',
     );
     final String more = read(
-      'lib/features/more/presentation/pages/more_page.dart',
+      'lib/app/modules/home/views/more_page.dart',
     );
 
     expect(repository, contains("bucketName = 'agent-personal'"));
     expect(repository, contains("/avatar/profile.jpg"));
     expect(repository, isNot(contains('FirebaseStorage')));
     expect(widget, contains('ImageSource.gallery'));
-    expect(dashboard, contains("import 'package:cabine_flow/features/auth/presentation/widgets/manager_profile_avatar.dart';"));
+    expect(dashboard, contains("import 'package:cabine_flow/app/modules/profile/widgets/manager_profile_avatar.dart';"));
     expect(dashboard, contains('if (user.isManager)'));
     expect(dashboard, contains('ManagerProfileAvatar('));
     expect(more, contains('ManagerProfileAvatar'));
@@ -32,7 +32,7 @@ void main() {
 
   test('Dashboard Manager ne transforme plus les anciens echecs en taches', () {
     final String dashboard = compact(
-      read('lib/features/dashboard/presentation/pages/dashboard_page.dart'),
+      read('lib/app/modules/home/views/dashboard_page.dart'),
     );
     expect(
       dashboard,
@@ -44,7 +44,7 @@ void main() {
   test('Dashboard hybride utilise Supabase sans filtrer les affectations manuelles', () {
     final String hybrid = compact(
       read(
-        'lib/features/dashboard/data/repositories/hybrid_dashboard_repository.dart',
+        'lib/app/data/repositories/hybrid_dashboard_repository.dart',
       ),
     );
     expect(hybrid, contains('!item.legacyStateUnresolved'));
@@ -59,7 +59,7 @@ void main() {
 
   test('Manager ne peut pas affecter depuis un snapshot canonique indisponible', () {
     final String viewModel = read(
-      'lib/features/orders/presentation/view_models/agent_assignment_view_model.dart',
+      'lib/app/modules/manager_orders/controllers/agent_assignment_view_model.dart',
     );
     expect(viewModel, contains('required this.isManager'));
     expect(viewModel, contains('_canonicalStateVerified = false'));
@@ -67,7 +67,7 @@ void main() {
     expect(viewModel, contains('izytel_staff_access'));
 
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     expect(hybrid, contains("error.toString().contains('STAFF_REQUIRED')"));
     expect(hybrid, contains('rethrow;'));

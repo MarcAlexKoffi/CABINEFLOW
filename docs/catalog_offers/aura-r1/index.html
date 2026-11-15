@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Catalogue des offres · IzyTel · Prototype R1</title>
+  <link rel="icon" href="assets/izyTel_logo.png">
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.mjs"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Aller au catalogue</a>
+  <div class="demo-banner"><span class="demo-dot"></span> PROTOTYPE R1 <span class="demo-copy">Données de démonstration · aucune écriture Supabase</span><button id="reset" class="text-button">Réinitialiser</button></div>
+  <aside class="sidebar" aria-label="Navigation du prototype">
+    <a href="#main" class="brand"><img src="assets/izyTel_logo.png" alt="IzyTel"><span>BACK-OFFICE</span></a>
+    <p class="nav-caption">ESPACE ADMINISTRATEUR</p>
+    <div class="nav-item muted"><span data-icon="dashboard"></span>Vue d’ensemble</div>
+    <div class="nav-item muted"><span data-icon="orders"></span>Commandes</div>
+    <div class="nav-item active"><span data-icon="catalog"></span>Catalogue<span class="nav-count" id="nav-count">8</span></div>
+    <div class="subnav" aria-current="page">Offres opérateurs</div>
+    <button class="nav-item" id="revisions"><span data-icon="history"></span>Historique des imports</button>
+    <div class="sidebar-foot"><span class="avatar">AD</span><div><strong>Administrateur</strong><small>Environnement de conception</small></div></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><span class="breadcrumb">Catalogue <span>/</span> <strong>Offres</strong></span><span class="admin-label"><span class="status-dot"></span> Espace Admin</span></header>
+    <main id="main" tabindex="-1">
+      <div class="page-heading"><div><p class="eyebrow">CATALOGUE OPÉRATEURS</p><h1>Catalogue des offres</h1><p class="subtitle">Les bonnes offres, à jour. Un catalogue prêt pour vos clients.</p></div><div class="heading-actions"><button class="button secondary" id="export"><span data-icon="download"></span>Exporter</button><button class="button secondary" id="import"><span data-icon="upload"></span>Importer un fichier</button><button class="button primary" id="add"><span data-icon="plus"></span>Ajouter une offre</button></div></div>
+      <section class="summary" aria-label="Résumé du catalogue" id="summary"></section>
+      <section class="catalog-panel" aria-label="Offres opérateurs">
+        <div class="operator-tabs" id="operator-tabs" role="group" aria-label="Filtrer par opérateur"></div>
+        <div class="filter-bar"><label class="search"><span data-icon="search"></span><input id="search" type="search" placeholder="Rechercher un nom ou un code…" aria-label="Rechercher par nom ou code"><kbd>/</kbd></label><label class="select-wrap"><span class="sr-only">Famille</span><select id="family"><option value="">Toutes les familles</option></select></label><label class="select-wrap"><span class="sr-only">Statut</span><select id="status"><option value="">Tous les statuts</option><option value="ACTIF">Actif</option><option value="BROUILLON">Brouillon</option><option value="INACTIF">Inactif</option></select></label></div>
+        <div class="list-toolbar"><p id="result-count" role="status"></p><div class="view-tools"><label><span class="sr-only">Trier les offres</span><select id="sort"><option value="order">Ordre d’affichage</option><option value="price">Prix croissant</option><option value="updated">Dernière modification</option></select></label><div class="segmented" role="group" aria-label="Affichage"><button id="view-cards" aria-label="Vue cartes" aria-pressed="true"><span data-icon="grid"></span></button><button id="view-table" aria-label="Vue tableau" aria-pressed="false"><span data-icon="list"></span></button></div></div></div>
+        <div id="bulk-bar" hidden></div>
+        <div id="offers"></div>
+        <div class="list-footer"><span>Prix opérateur en FCFA · frais IzyTel calculés au paiement</span><span id="page-note"></span></div>
+      </section>
+      <footer class="page-foot"><span data-icon="shield"></span><span>Une offre modifiée conserve son identité et l’historique de ses commandes.</span><button class="text-button" id="snapshot">Voir un exemple</button></footer>
+    </main>
+  </div>
+  <dialog id="modal" aria-labelledby="modal-title"><div id="modal-content"></div></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

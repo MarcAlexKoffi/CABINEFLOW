@@ -7,10 +7,10 @@ void main() {
 
   test('ancien handoff Firestore v4 reste retire du parcours Agent', () {
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     final String phase4 = read(
-      'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
+      'lib/app/data/repositories/supabase_phase4_assignment_repository.dart',
     );
 
     expect(hybrid, contains('cutover operationnel Supabase'));
@@ -23,10 +23,10 @@ void main() {
 
   test('aucune Firestore Rule nest requise pour accepter une affectation Phase 4', () {
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     final String phase4 = read(
-      'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
+      'lib/app/data/repositories/supabase_phase4_assignment_repository.dart',
     );
 
     final int acceptStart = hybrid.indexOf(

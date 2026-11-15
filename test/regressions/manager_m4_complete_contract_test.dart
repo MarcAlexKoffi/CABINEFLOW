@@ -8,10 +8,10 @@ void main() {
 
   test('M4 couvre Agents, assistance, signalements et pilotage Manager', () {
     final String more = compact(
-      read('lib/features/more/presentation/pages/more_page.dart'),
+      read('lib/app/modules/home/views/more_page.dart'),
     );
     final String permissions = read(
-      'lib/features/auth/domain/permissions/user_permissions.dart',
+      'lib/app/domain/permissions/user_permissions.dart',
     );
     final int start = permissions.indexOf(
       'static const UserPermissions manager',
@@ -42,7 +42,7 @@ void main() {
 
   test('Admin garde ses fonctions sensibles hors du bloc Manager', () {
     final String more = read(
-      'lib/features/more/presentation/pages/more_page.dart',
+      'lib/app/modules/home/views/more_page.dart',
     );
     final int start = more.indexOf('Widget _buildManager');
     final int end = more.indexOf('void _historyUnavailable', start);
@@ -59,10 +59,10 @@ void main() {
     // M4 est valide par ses sources Flutter/Supabase, sans scanner `build/` ni
     // deduire l'origine d'un fichier a partir de son nom local.
     final String shell = read(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     );
     final String finance = read(
-      'lib/features/finances/presentation/pages/finances_page.dart',
+      'lib/app/modules/finance/views/finances_page.dart',
     );
 
     expect(shell, isNot(contains('firebase deploy --only firestore:rules')));

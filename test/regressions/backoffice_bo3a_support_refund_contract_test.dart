@@ -6,7 +6,7 @@ void main() {
   group('BO-3A - support transactionnel lié', () {
     test('Demandes clients reçoit commandes et remboursements dans le shell', () {
       final String shell = File(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       ).readAsStringSync();
       expect(shell, contains('refundRepository: refundRepository'));
       expect(shell, contains('orderHistoryRepository: historyRepository'));
@@ -19,7 +19,7 @@ void main() {
 
     test('une demande peut créer un remboursement lié', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/clients/backoffice_support_requests_page.dart',
+        'lib/app/modules/backoffice/views/clients/backoffice_support_requests_page.dart',
       ).readAsStringSync();
       expect(source, contains('widget.refundRepository.create('));
       expect(source, contains('origin: RefundOrigin.supportRequest'));
@@ -34,7 +34,7 @@ void main() {
 
     test('la notification support utilise la messagerie IzyTel avant de tracer', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/clients/backoffice_support_requests_page.dart',
+        'lib/app/modules/backoffice/views/clients/backoffice_support_requests_page.dart',
       ).readAsStringSync();
       expect(source, contains('CustomerMessagingDeliveryService().notifyOrder('));
       expect(source, contains('markCustomerNotified('));
@@ -45,7 +45,7 @@ void main() {
 
     test('la notification remboursement synchronise la demande client', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/clients/backoffice_refunds_page.dart',
+        'lib/app/modules/backoffice/views/clients/backoffice_refunds_page.dart',
       ).readAsStringSync();
       expect(source, contains('CustomerMessagingDeliveryService().notifyOrder('));
       expect(source, contains('support.resolve('));
@@ -57,7 +57,7 @@ void main() {
 
     test('aucun service WhatsApp opérationnel ne subsiste dans le back-office', () {
       expect(
-        File('lib/backoffice/presentation/services/backoffice_whatsapp_service.dart')
+        File('lib/app/services/backoffice_whatsapp_service.dart')
             .existsSync(),
         isFalse,
       );

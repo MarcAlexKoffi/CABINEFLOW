@@ -8,7 +8,7 @@ void main() {
   group('BO-7.5A2 - filtres périodiques Finances Web', () {
     test('les historiques financiers utilisent le filtre partagé et le calendrier ancien', () {
       final String page = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart',
+        'lib/app/modules/backoffice/views/finances/backoffice_finance_page.dart',
       );
       expect(page, contains("shared/widgets/izytel_period_filter.dart"));
       expect(page, contains('IzyTelPeriodFilterBar'));
@@ -19,7 +19,7 @@ void main() {
 
     test('une période active interroge Supabase au lieu de dépendre du snapshot limité', () {
       final String page = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart',
+        'lib/app/modules/backoffice/views/finances/backoffice_finance_page.dart',
       );
       expect(page, contains("'izytel_bo75_finance_period_history'"));
       expect(page, contains("'p_start'"));
@@ -35,7 +35,7 @@ void main() {
 
     test('les vues de position courante ne sont pas faussement filtrées', () {
       final String page = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart',
+        'lib/app/modules/backoffice/views/finances/backoffice_finance_page.dart',
       );
       expect(page, contains('widget.module != BackofficeFinanceModule.overview')); 
       expect(page, contains('BackofficeFinanceModule.workingCapital'));

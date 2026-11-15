@@ -7,7 +7,7 @@ void main() {
 
   test('profil Agent Cabiniste signale et cible les champs obligatoires', () {
     final String profile = source(
-      'lib/features/agents/presentation/pages/agent_personal_profile_page.dart',
+      'lib/app/modules/profile/views/agent_personal_profile_page.dart',
     );
 
     expect(profile, contains('Les champs marqués * sont obligatoires.'));
@@ -20,7 +20,7 @@ void main() {
 
   test('profil Staff applique la meme convention de champs obligatoires', () {
     final String profile = source(
-      'lib/features/auth/presentation/pages/staff_personal_profile_page.dart',
+      'lib/app/modules/profile/views/staff_personal_profile_page.dart',
     );
 
     expect(profile, contains('Les champs marqués * sont obligatoires.'));

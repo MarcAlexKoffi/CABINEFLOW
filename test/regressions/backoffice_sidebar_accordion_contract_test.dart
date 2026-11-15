@@ -6,7 +6,7 @@ void main() {
   group('Back-office - navigation par catégories', () {
     test('la sidebar utilise des catégories repliables premium', () {
       final String shell = File(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       ).readAsStringSync();
       expect(shell, contains('class _BackofficeSidebar extends StatefulWidget'));
       expect(shell, contains('class _BackofficeSectionMenu'));
@@ -24,7 +24,7 @@ void main() {
 
     test('le tableau de bord reste direct et les autres modules sont regroupés', () {
       final String shell = File(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       ).readAsStringSync();
       expect(shell, contains('BackofficeDestination.dashboard'));
       expect(shell, contains("return 'Opérations';"));
@@ -38,7 +38,7 @@ void main() {
 
     test('la catégorie de la destination active est réouverte automatiquement', () {
       final String shell = File(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       ).readAsStringSync();
       expect(shell, contains('didUpdateWidget'));
       expect(shell, contains('widget.selected.section'));

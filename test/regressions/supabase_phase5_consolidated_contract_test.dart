@@ -7,7 +7,7 @@ void main() {
 
   test('Phase 5 partage le registre financier Supabase entre les rôles', () {
     final String repository = read(
-      'lib/features/finances/data/repositories/supabase_phase5_finance_repository.dart',
+      'lib/app/data/repositories/supabase_phase5_finance_repository.dart',
     );
     for (final String token in <String>[
       'phase5_ensure_capacity_seed',
@@ -29,7 +29,7 @@ void main() {
 
   test('succès Agent finalise directement Phase 5 sans pont Firebase', () {
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     final int start = hybrid.indexOf('Future<QueueOrder> markAgentSuccessful');
     final int end = hybrid.indexOf('Future<QueueOrder> markAgentFailed', start);
@@ -44,7 +44,7 @@ void main() {
 
   test('finances fournisseur utilisent Supabase en lecture et miroir', () {
     final String hybrid = read(
-      'lib/features/finances/data/repositories/hybrid_finance_operations_repository.dart',
+      'lib/app/data/repositories/hybrid_finance_operations_repository.dart',
     );
     expect(hybrid, contains('_phase5Finance.watchSupplierAccounts()'));
     expect(hybrid, contains('_phase5Finance.watchSupplierRecharges()'));
@@ -58,10 +58,10 @@ void main() {
   test('commissions Agent gardent la page validée et agrégats serveur', () {
     final String app = read('lib/app/app.dart');
     final String hybrid = read(
-      'lib/features/commissions/data/repositories/hybrid_commission_repository.dart',
+      'lib/app/data/repositories/hybrid_commission_repository.dart',
     );
     final String page = read(
-      'lib/features/commissions/presentation/pages/agent_commissions_page.dart',
+      'lib/app/modules/commissions/views/agent_commissions_page.dart',
     );
     expect(app, contains('HybridCommissionRepository()'));
     expect(hybrid, contains('AgentCommissionSummaryRepository'));
@@ -74,10 +74,10 @@ void main() {
 
   test('mouvements réseau sont lus via le dépôt hybride', () {
     final String finances = read(
-      'lib/features/finances/presentation/pages/finances_page.dart',
+      'lib/app/modules/finance/views/finances_page.dart',
     );
     final String network = read(
-      'lib/features/finances/data/repositories/hybrid_network_finance_repository.dart',
+      'lib/app/data/repositories/hybrid_network_finance_repository.dart',
     );
     expect(finances, contains('HybridNetworkFinanceRepository()'));
     expect(network, contains('_phase5.watchNetworkMovements()'));
@@ -86,7 +86,7 @@ void main() {
 
   test('backfill consolidé ne saute pas silencieusement les documents', () {
     final String sync = read(
-      'lib/features/finances/data/services/phase5_consolidated_synchronizer.dart',
+      'lib/app/services/finance/phase5_consolidated_synchronizer.dart',
     );
     expect(sync, contains('if (cursor.backfillComplete) return'));
     expect(sync, contains('throw StateError'));
@@ -98,7 +98,7 @@ void main() {
 
   test('le Manager ne reçoit pas les écritures financières Admin par l UI', () {
     final String shell = read(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     );
     expect(shell, contains('widget.user.role == UserRole.administrator'));
     expect(shell, isNot(contains('UserRole.supervisor &&')));

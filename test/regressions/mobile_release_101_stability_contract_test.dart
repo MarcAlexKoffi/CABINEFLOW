@@ -8,13 +8,13 @@ void main() {
   test('release 1.0.1+2 auto-repare FCM au resume', () {
     final String pubspec = source('pubspec.yaml');
     final String messaging = source(
-      'lib/core/notifications/firebase_messaging_bootstrap.dart',
+      'lib/app/services/notifications/firebase_messaging_bootstrap.dart',
     );
     final String registry = source(
-      'lib/core/notifications/izytel_notification_device_registry.dart',
+      'lib/app/services/notifications/izytel_notification_device_registry.dart',
     );
     final String shell = source(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     );
 
     expect(pubspec, contains('version: 1.0.1+2'));
@@ -34,10 +34,10 @@ void main() {
 
   test('release 1.0.1+2 preserve la session sur coupure transitoire', () {
     final String auth = source(
-      'lib/features/auth/data/repositories/firebase_auth_repository.dart',
+      'lib/app/data/repositories/firebase_auth_repository.dart',
     );
     final String policy = source(
-      'lib/core/resilience/backend_failure_policy.dart',
+      'lib/app/core/resilience/backend_failure_policy.dart',
     );
 
     expect(auth, contains('BackendFailurePolicy.retryIdempotent'));
@@ -51,13 +51,13 @@ void main() {
 
   test('indisponibilite reseau n est plus presentee comme erreur rouge', () {
     final String viewModel = source(
-      'lib/features/auth/presentation/view_models/login_view_model.dart',
+      'lib/app/modules/auth/controllers/login_view_model.dart',
     );
     final String page = source(
-      'lib/features/auth/presentation/pages/login_page.dart',
+      'lib/app/modules/auth/views/login_page.dart',
     );
     final String shell = source(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     );
 
     expect(viewModel, contains('showsAvailabilityWarning'));

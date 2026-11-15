@@ -1,0 +1,37 @@
+name: Architecture et refactorisation
+description: Décrire un changement de structure IzyTel et ses impacts pour l’équipe.
+title: "[Architecture] "
+body:
+  - type: textarea
+    id: objectif
+    attributes:
+      label: Objectif
+      description: Quel problème de maintenance ou de repérage ce changement résout-il ?
+    validations:
+      required: true
+  - type: textarea
+    id: chemins
+    attributes:
+      label: Fichiers et déplacements
+      description: Indiquer les chemins actuels, les chemins cibles et les modules concernés.
+    validations:
+      required: true
+  - type: textarea
+    id: comportement
+    attributes:
+      label: Comportements à conserver
+      description: Rôles, navigation, contrats serveur et parcours concernés.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Critères d’acceptation et vérifications
+      description: Commandes exécutées, résultats, échecs préexistants et recette manuelle restante.
+    validations:
+      required: true
+  - type: textarea
+    id: dependances
+    attributes:
+      label: Dépendances et livraison
+      description: Issues préalables, ordre de fusion, risques et retour arrière.

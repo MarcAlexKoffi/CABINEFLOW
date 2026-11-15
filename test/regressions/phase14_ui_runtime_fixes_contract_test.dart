@@ -7,7 +7,7 @@ void main() {
 
   test('remboursement utilise le design clair IzyTel', () {
     final String value = source(
-      'lib/features/refunds/presentation/widgets/refund_creation_sheet.dart',
+      'lib/app/modules/refunds/widgets/refund_creation_sheet.dart',
     );
     expect(value, contains('color: IzyTelColors.surface'));
     expect(value, contains('fillColor: IzyTelColors.surfaceMuted'));
@@ -29,7 +29,7 @@ void main() {
       }
       expect(offenders, isEmpty);
       expect(
-        source('lib/shared/widgets/izytel/izytel_feedback.dart'),
+        source('lib/app/shared/widgets/izytel/izytel_feedback.dart'),
         contains('IgnorePointer'),
       );
     },
@@ -47,10 +47,10 @@ void main() {
 
   test('progression commande est synchronisee Admin et Agent', () {
     final String admin = source(
-      'lib/features/orders/presentation/pages/order_detail_page.dart',
+      'lib/app/modules/manager_orders/views/order_detail_page.dart',
     );
     final String agent = source(
-      'lib/features/orders/presentation/pages/agent_order_detail_view.dart',
+      'lib/app/modules/agent_orders/views/agent_order_detail_view.dart',
     );
     expect(admin, contains('QueueOrderStatus.awaitingCustomerConfirmation'));
     expect(
@@ -66,10 +66,10 @@ void main() {
 
   test('se souvenir de moi persiste sans stocker le mot de passe', () {
     final String login = source(
-      'lib/features/auth/presentation/pages/login_page.dart',
+      'lib/app/modules/auth/views/login_page.dart',
     );
     final String preferences = source(
-      'lib/core/services/session_preferences.dart',
+      'lib/app/services/session_preferences.dart',
     );
     final String android = source(
       'android/app/src/main/kotlin/com/izytel/app/MainActivity.kt',
@@ -83,7 +83,7 @@ void main() {
 
   test('Agents et zones ne montre plus le panneau signalements', () {
     final String page = source(
-      'lib/features/agents/presentation/pages/agent_management_page.dart',
+      'lib/app/modules/agent_ops/views/agent_management_page.dart',
     );
     expect(page, isNot(contains('Signalements agents')));
     expect(page, contains('Suspendus'));
@@ -91,7 +91,7 @@ void main() {
 
   test('suspension agent est enregistree immediatement', () {
     final String page = source(
-      'lib/features/agents/presentation/pages/agent_detail_page.dart',
+      'lib/app/modules/agent_ops/views/agent_detail_page.dart',
     );
     expect(page, contains('Future<void> _toggleAgentActiveState()'));
     expect(page, contains('_viewModel.setActive(targetActive)'));
@@ -100,7 +100,7 @@ void main() {
 
   test('retour Android privilegie navigation interne et double appui', () {
     final String shell = source(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     );
     expect(shell, contains('PopScope('));
     expect(shell, contains('await currentNavigator.maybePop()'));
@@ -110,7 +110,7 @@ void main() {
 
   test('les echecs remontent en temps reel au tableau Admin', () {
     final String dashboard = source(
-      'lib/features/dashboard/presentation/pages/dashboard_page.dart',
+      'lib/app/modules/home/views/dashboard_page.dart',
     );
     expect(dashboard, contains('_failedOrdersSubscription'));
     expect(dashboard, contains('QueueOrderStatus.failed'));
@@ -120,7 +120,7 @@ void main() {
 
   test('historique Agent separe reussites et echecs avec motif', () {
     final String history = source(
-      'lib/features/orders/presentation/pages/agent_history_page.dart',
+      'lib/app/modules/agent_orders/views/agent_history_page.dart',
     );
     expect(history, contains("'Échecs',"));
     expect(history, contains('_tabBox('));
@@ -133,7 +133,7 @@ void main() {
     'splash premium utilise exclusivement la nouvelle illustration fournie',
     () {
       final String splash = source(
-        'lib/features/splash/presentation/pages/splash_page.dart',
+        'lib/app/modules/splash/views/splash_page.dart',
       );
       expect(splash, contains('assets/images/New_splash_illustration.png'));
       expect(splash, contains('LinearGradient'));

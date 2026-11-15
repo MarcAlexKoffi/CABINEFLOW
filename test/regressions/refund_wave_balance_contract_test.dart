@@ -1,8 +1,8 @@
-import 'package:cabine_flow/features/commissions/domain/models/commission_models.dart';
-import 'package:cabine_flow/features/finances/domain/models/finance_operations_models.dart';
-import 'package:cabine_flow/features/finances/domain/services/finance_calculators.dart';
-import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
-import 'package:cabine_flow/features/refunds/domain/models/refund_case.dart';
+import 'package:cabine_flow/app/domain/entities/commissions/commission_models.dart';
+import 'package:cabine_flow/app/domain/entities/finance/finance_operations_models.dart';
+import 'package:cabine_flow/app/domain/policies/finance/finance_calculators.dart';
+import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
+import 'package:cabine_flow/app/domain/entities/refunds/refund_case.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

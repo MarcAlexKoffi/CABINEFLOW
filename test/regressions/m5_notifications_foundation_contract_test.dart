@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('M5 FCM reste isole de Firestore, App Check et Cloud Functions', () {
     final File source = File(
-      'lib/core/notifications/firebase_messaging_bootstrap.dart',
+      'lib/app/services/notifications/firebase_messaging_bootstrap.dart',
     );
     expect(source.existsSync(), isTrue);
 
@@ -26,7 +26,7 @@ void main() {
   });
 
   test('M5 initialise FCM apres Firebase et avant runApp', () {
-    final String main = File('lib/main.dart').readAsStringSync();
+    final String main = File('lib/main_staff.dart').readAsStringSync();
     final int firebase = main.indexOf('await FirebaseBootstrap.initialize();');
     final int messaging =
         main.indexOf('await FirebaseMessagingBootstrap.initialize();');

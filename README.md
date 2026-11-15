@@ -2,6 +2,29 @@
 
 Plateforme de commande, traitement et suivi de services télécoms en Côte d’Ivoire.
 
+**Pour les collaborateurs** : les [cinq issues GitHub prêtes à copier](docs/GITHUB_ISSUES.md)
+présentent la réorganisation, le nettoyage, le catalogue/imports, le correctif
+d’affichage et les étapes de recette/livraison restantes, avec les fichiers à relire.
+
+**Architecture du 14 novembre 2026** : le code est désormais organisé sous
+`lib/app`, en miroir des couches de `IzyTel-main`, avec les comportements existants
+conservés. Consulter le [guide de reprise](docs/architecture/README.md), la
+[table ancien → nouveau chemin](docs/architecture/path-map.json), les
+[issues GitHub prêtes à copier](docs/architecture/issues/README.md) et les
+[résultats de validation](docs/architecture/VALIDATION.md).
+
+Le [bilan du nettoyage](docs/architecture/CLEANUP.md) précise les archives,
+sorties générées et fichiers inutilisés retirés le 15 novembre 2026.
+
+**Catalogue et imports — candidate intégrée** : le [bilan d’implémentation](docs/catalog_offers/IMPLEMENTATION.md)
+décrit les imports XLSX serveur, les révisions, la reprise, la restauration et les
+contrôles réalisés. Le [style existant est protégé par comparaison visuelle](docs/catalog_offers/STYLE_NON_REGRESSION.md).
+Supabase reste canonique ; la migration et la fonction Edge ont été mises en service
+avec accord utilisateur le 15 novembre. Le [relevé de déploiement](docs/catalog_offers/deployment-results.json)
+confirme la conservation des 35 offres. Le frontend est compilé localement, sans publication d’hébergement.
+Les [issues fonctionnelles](docs/catalog_offers/issues/README.md)
+permettent de répartir la revue et la recette.
+
 IzyTel couvre plusieurs surfaces :
 
 - application mobile Flutter pour **Agent**, **Manager**, **Administrateur** et **Cabiniste** ;
@@ -16,7 +39,7 @@ IzyTel couvre plusieurs surfaces :
 ## 1. État actuel du projet
 
 **Baseline fonctionnelle actuelle : WC15D**  
-**Suite de tests complète : `All tests passed!`**  
+**Validation actuelle : voir le [bilan de réorganisation](docs/architecture/VALIDATION.md), qui relève aussi les échecs préexistants.**
 **Dernier audit global : WC15 — Back-office, performances, sécurité et Finance**
 
 Les principales corrections récentes incluent :
@@ -128,7 +151,7 @@ Le mobile Admin reste une surface valide. Le Back-office Web ne le remplace pas 
 Entrée dédiée au client :
 
 ```text
-lib/main_customer_web.dart
+lib/main_customer.dart
 ```
 
 Fonctions principales :
@@ -149,7 +172,7 @@ Fonctions principales :
 Entrée dédiée :
 
 ```text
-lib/main_backoffice_web.dart
+lib/main_backoffice.dart
 ```
 
 Destiné principalement à :
@@ -680,31 +703,31 @@ Les changements sensibles doivent utiliser la ré-authentification Firebase lors
 
 ## 17. Organisation du code
 
-Le projet suit globalement une organisation Flutter par fonctionnalités.
+Le projet centralise les couches sous `lib/app`, selon l’organisation de
+`IzyTel-main`. Les écrans restent regroupés par fonctionnalité dans `modules`.
 
 À inspecter en priorité :
 
 ```text
 lib/
-├─ core/
-├─ shared/
-├─ features/
-│  ├─ agents/
-│  ├─ auth/
-│  ├─ customer_order/
-│  ├─ dashboard/
-│  ├─ finances/
-│  ├─ messaging/
-│  ├─ offers/
-│  ├─ orders/
-│  ├─ refunds/
-│  └─ ...
-├─ main.dart
-├─ main_customer_web.dart
-└─ main_backoffice_web.dart
+├─ app/
+│  ├─ config/
+│  ├─ core/
+│  ├─ data/
+│  ├─ domain/
+│  ├─ modules/       # views, controllers, widgets par module
+│  ├─ routes/
+│  ├─ services/
+│  ├─ shared/
+│  └─ theme/
+├─ main_staff.dart
+├─ main_customer.dart
+└─ main_backoffice.dart
 
 test/
-├─ features/
+├─ app/
+├─ support/
+├─ shared_queue/
 └─ regressions/
 
 supabase/
@@ -715,7 +738,8 @@ web/
 assets/
 ```
 
-La structure exacte du dépôt courant doit toujours être vérifiée avant modification.
+Le [guide d’architecture](docs/architecture/README.md) décrit les responsabilités
+et les correspondances. Les anciens points d’entrée restent des relais compatibles.
 
 ---
 
@@ -757,19 +781,19 @@ Les développeurs doivent disposer des accès/configurations appropriés à :
 ### Mobile
 
 ```powershell
-flutter run
+flutter run -t lib/main_staff.dart
 ```
 
 ### Web Client
 
 ```powershell
-flutter run -d chrome -t .\lib\main_customer_web.dart
+flutter run -d chrome -t lib/main_customer.dart
 ```
 
 ### Back-office Web
 
 ```powershell
-flutter run -d chrome -t .\lib\main_backoffice_web.dart
+flutter run -d chrome -t lib/main_backoffice.dart
 ```
 
 Sous macOS/Linux, adapter les séparateurs de chemins.

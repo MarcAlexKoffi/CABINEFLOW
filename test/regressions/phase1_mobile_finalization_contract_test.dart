@@ -8,13 +8,13 @@ void main() {
 
   test('Admin mobile reste fonctionnel tant que le back-office Web ne le remplace pas', () {
     final String shell = compact(
-      read('lib/features/navigation/presentation/pages/main_shell_page.dart'),
+      read('lib/app/modules/home/views/main_shell_page.dart'),
     );
     final String more = compact(
-      read('lib/features/more/presentation/pages/more_page.dart'),
+      read('lib/app/modules/home/views/more_page.dart'),
     );
     final String permissions = compact(
-      read('lib/features/auth/domain/permissions/user_permissions.dart'),
+      read('lib/app/domain/permissions/user_permissions.dart'),
     );
 
     expect(shell, contains('widget.user.role == UserRole.administrator'));
@@ -34,10 +34,10 @@ void main() {
 
   test('Agent garde ses raccourcis operationnels officiels sans libelle V2', () {
     final String home = read(
-      'lib/features/agents/presentation/pages/agent_home_page.dart',
+      'lib/app/modules/agent_ops/views/agent_home_page.dart',
     );
     final String profile = read(
-      'lib/features/agents/presentation/pages/agent_personal_profile_page.dart',
+      'lib/app/modules/profile/views/agent_personal_profile_page.dart',
     );
 
     expect(home, contains("title: 'Mon activité détaillée'"));
@@ -50,10 +50,10 @@ void main() {
 
   test('Manager garde les fonctions operationnelles sans pouvoirs Admin', () {
     final String more = compact(
-      read('lib/features/more/presentation/pages/more_page.dart'),
+      read('lib/app/modules/home/views/more_page.dart'),
     );
     final String permissions = read(
-      'lib/features/auth/domain/permissions/user_permissions.dart',
+      'lib/app/domain/permissions/user_permissions.dart',
     );
     final int start = permissions.indexOf('static const UserPermissions manager');
     final int end = permissions.indexOf('static const UserPermissions legacyOperator', start);
@@ -74,10 +74,10 @@ void main() {
 
   test('les flux Finance Supabase survivent aux erreurs transitoires', () {
     final String repository = read(
-      'lib/features/finances/data/repositories/supabase_phase5_finance_repository.dart',
+      'lib/app/data/repositories/supabase_phase5_finance_repository.dart',
     );
     final String realtime = read(
-      'lib/core/supabase/supabase_realtime_refetch.dart',
+      'lib/app/data/sources/supabase_realtime_refetch.dart',
     );
 
     expect(repository, contains('SupabaseRealtimeRefetch.watch'));
@@ -89,7 +89,7 @@ void main() {
 
   test('un ancien profil Agent sans nom ne bloque plus le backfill des capacites', () {
     final String sync = read(
-      'lib/features/finances/data/services/phase5_consolidated_synchronizer.dart',
+      'lib/app/services/finance/phase5_consolidated_synchronizer.dart',
     );
 
     expect(sync, contains("'agent_name': _legacyAgentName("));
@@ -99,10 +99,10 @@ void main() {
 
   test('le bloc Notifications valide reste branche', () {
     final String shell = read(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     );
     final String bootstrap = read(
-      'lib/core/notifications/firebase_messaging_bootstrap.dart',
+      'lib/app/services/notifications/firebase_messaging_bootstrap.dart',
     );
 
     expect(shell, contains('IzyTelNotificationDeviceRegistry.start'));

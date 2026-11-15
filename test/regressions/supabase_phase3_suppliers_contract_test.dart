@@ -7,19 +7,18 @@ void main() {
 
   test('Phase 3 branche le registre fournisseurs sur Supabase', () {
     final String page = read(
-      'lib/features/finances/presentation/pages/finances_page.dart',
+      'lib/app/modules/finance/views/finances_page.dart',
     );
     final String hybrid = read(
-      'lib/features/finances/data/repositories/'
-      'hybrid_finance_operations_repository.dart',
+      'lib/app/data/repositories/hybrid_finance_operations_repository.dart',
     );
     final String supabase = read(
-      'lib/features/finances/data/repositories/'
-      'supabase_supplier_registry_repository.dart',
+      'lib/app/data/repositories/supabase_supplier_registry_repository.dart',
     );
 
     expect(page, contains('SupabaseBootstrap.isInitialized'));
-    expect(page, contains('HybridFinanceOperationsRepository()'));
+    expect(page, contains('SupabaseFinanceOperationsRepository()'));
+    expect(page, isNot(contains('HybridFinanceOperationsRepository()')));
     expect(supabase, contains("tableName = 'finance_suppliers'"));
     expect(supabase, contains(".eq('is_deleted', false)"));
     expect(supabase, contains('SupabaseRealtimeRefetch.watch'));
@@ -32,12 +31,10 @@ void main() {
 
   test('suppression fournisseur conserve la traçabilité financière', () {
     final String hybrid = read(
-      'lib/features/finances/data/repositories/'
-      'hybrid_finance_operations_repository.dart',
+      'lib/app/data/repositories/hybrid_finance_operations_repository.dart',
     );
     final String supabase = read(
-      'lib/features/finances/data/repositories/'
-      'supabase_supplier_registry_repository.dart',
+      'lib/app/data/repositories/supabase_supplier_registry_repository.dart',
     );
 
     expect(hybrid, contains('.watchSupplierAccounts()'));
@@ -50,12 +47,10 @@ void main() {
 
   test('Phase 5 conserve le pont Firebase mais lit les finances fournisseur sur Supabase', () {
     final String hybrid = read(
-      'lib/features/finances/data/repositories/'
-      'hybrid_finance_operations_repository.dart',
+      'lib/app/data/repositories/hybrid_finance_operations_repository.dart',
     );
     final String firestore = read(
-      'lib/features/finances/data/repositories/'
-      'firestore_finance_operations_repository.dart',
+      'lib/app/data/repositories/firestore_finance_operations_repository.dart',
     );
 
     expect(hybrid, contains('_firestore.recordSupplierRecharge('));
@@ -68,8 +63,7 @@ void main() {
 
   test('le miroir Firebase ne redevient pas la source des modifications', () {
     final String hybrid = read(
-      'lib/features/finances/data/repositories/'
-      'hybrid_finance_operations_repository.dart',
+      'lib/app/data/repositories/hybrid_finance_operations_repository.dart',
     );
 
     final int updateStart = hybrid.indexOf('Future<void> updateSupplier');

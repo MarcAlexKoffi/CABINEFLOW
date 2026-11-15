@@ -1,0 +1,990 @@
+{
+    "Date":  "2026-11-15",
+    "RemovedFiles":  59464,
+    "RemovedBytes":  7902541064,
+    "Removed":  [
+                    {
+                        "Path":  "build",
+                        "Files":  16456,
+                        "Bytes":  4511825075
+                    },
+                    {
+                        "Path":  "dist",
+                        "Files":  5,
+                        "Bytes":  142753468
+                    },
+                    {
+                        "Path":  ".firebase",
+                        "Files":  1,
+                        "Bytes":  6252
+                    },
+                    {
+                        "Path":  "izytel_correctif_wc5_v2",
+                        "Files":  9,
+                        "Bytes":  198638
+                    },
+                    {
+                        "Path":  ".izytel_backups/agent_detail_b2c_20260901_025753",
+                        "Files":  1,
+                        "Bytes":  28804
+                    },
+                    {
+                        "Path":  ".izytel_backups/mobile_1.0.1_build2_20260918-002720",
+                        "Files":  16,
+                        "Bytes":  220775
+                    },
+                    {
+                        "Path":  ".izytel_backups/mobile_1.0.1_build2_r2_20260918-003524",
+                        "Files":  17,
+                        "Bytes":  236331
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_android_qa",
+                        "Files":  4063,
+                        "Bytes":  1684520357
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-0FdXVe",
+                        "Files":  1116,
+                        "Bytes":  43266265
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-0jyvvX",
+                        "Files":  1116,
+                        "Bytes":  43301200
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-4hVSK9",
+                        "Files":  1117,
+                        "Bytes":  43696977
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-7M9OQl",
+                        "Files":  1116,
+                        "Bytes":  43490207
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-9LIUwP",
+                        "Files":  1116,
+                        "Bytes":  43348579
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-BynBAs",
+                        "Files":  1116,
+                        "Bytes":  43301200
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-ccy2Bq",
+                        "Files":  1116,
+                        "Bytes":  43245350
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-cTyRur",
+                        "Files":  1116,
+                        "Bytes":  43539753
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-DJWOCs",
+                        "Files":  1120,
+                        "Bytes":  45327185
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-DO8X9G",
+                        "Files":  1120,
+                        "Bytes":  45335574
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-dqgea8",
+                        "Files":  1117,
+                        "Bytes":  43713361
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-fEfdHr",
+                        "Files":  1120,
+                        "Bytes":  45368933
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-FYn1FH",
+                        "Files":  1116,
+                        "Bytes":  43281664
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-kEKKmK",
+                        "Files":  1117,
+                        "Bytes":  43729745
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-KezGaR",
+                        "Files":  986,
+                        "Bytes":  41519038
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-LJKyJu",
+                        "Files":  1116,
+                        "Bytes":  43314629
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-lMswDb",
+                        "Files":  1120,
+                        "Bytes":  45327382
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-nEYVJa",
+                        "Files":  1116,
+                        "Bytes":  43589102
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-Ogh6S0",
+                        "Files":  1116,
+                        "Bytes":  43315614
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-q8qCtp",
+                        "Files":  1116,
+                        "Bytes":  43301200
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-VQgv7k",
+                        "Files":  1116,
+                        "Bytes":  43348579
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-VsfYY1",
+                        "Files":  1117,
+                        "Bytes":  43721553
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-z97fIs",
+                        "Files":  986,
+                        "Bytes":  41518644
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-integration-zYCs2l",
+                        "Files":  1116,
+                        "Bytes":  43331998
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-pg-5OpOGN",
+                        "Files":  1017,
+                        "Bytes":  42026074
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-pg-a4px3q",
+                        "Files":  1017,
+                        "Bytes":  41959356
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-pg-fdGrOS",
+                        "Files":  1018,
+                        "Bytes":  42059227
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-pg-KOkO9L",
+                        "Files":  1017,
+                        "Bytes":  42026074
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-pg-KUUMLb",
+                        "Files":  1018,
+                        "Bytes":  42042843
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-pg-nEZeXy",
+                        "Files":  1018,
+                        "Bytes":  42075611
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-pg-oT2rU6",
+                        "Files":  1018,
+                        "Bytes":  41967942
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-pg-PdhIS1",
+                        "Files":  1017,
+                        "Bytes":  42026074
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-pg-seOz8v",
+                        "Files":  1018,
+                        "Bytes":  42051035
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-pg-t8r0CG",
+                        "Files":  1017,
+                        "Bytes":  42026074
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-pg-TvBCoH",
+                        "Files":  1018,
+                        "Bytes":  42042852
+                    },
+                    {
+                        "Path":  "scratch/shared-queue-pg-ulscVP",
+                        "Files":  1017,
+                        "Bytes":  41959356
+                    },
+                    {
+                        "Path":  "scratch/chrome-baseline-debug-9223",
+                        "Files":  0,
+                        "Bytes":  0
+                    },
+                    {
+                        "Path":  "scratch/chrome-debug-9223",
+                        "Files":  0,
+                        "Bytes":  0
+                    },
+                    {
+                        "Path":  "scratch/chrome-debug-9224",
+                        "Files":  0,
+                        "Bytes":  0
+                    },
+                    {
+                        "Path":  "scratch/chrome-release-9223",
+                        "Files":  0,
+                        "Bytes":  0
+                    },
+                    {
+                        "Path":  "original_dashboard_widgets.dart",
+                        "Files":  1,
+                        "Bytes":  45520
+                    },
+                    {
+                        "Path":  "IzyTel_sources_correction.zip",
+                        "Files":  1,
+                        "Bytes":  1926327
+                    },
+                    {
+                        "Path":  "cabineflow_phase9c.patch",
+                        "Files":  1,
+                        "Bytes":  116585
+                    },
+                    {
+                        "Path":  "firestore.rules.pre_agent_blob_activity_v2.bak",
+                        "Files":  1,
+                        "Bytes":  191543
+                    },
+                    {
+                        "Path":  "firestore.rules.pre_agent_profile_ab.bak",
+                        "Files":  1,
+                        "Bytes":  183332
+                    },
+                    {
+                        "Path":  "bloc3_final_validation.txt",
+                        "Files":  1,
+                        "Bytes":  306796
+                    },
+                    {
+                        "Path":  "wc4b_popup_full_regression.txt",
+                        "Files":  1,
+                        "Bytes":  373820
+                    },
+                    {
+                        "Path":  "IZYTEL_PROJECT_INFO.txt",
+                        "Files":  1,
+                        "Bytes":  913
+                    },
+                    {
+                        "Path":  "firebase-rules-debug.log",
+                        "Files":  1,
+                        "Bytes":  421606
+                    },
+                    {
+                        "Path":  "tools/phase3_patch_firestore_manual_handoff.ps1",
+                        "Files":  1,
+                        "Bytes":  301
+                    },
+                    {
+                        "Path":  "assets/images/splash_illustration.png",
+                        "Files":  1,
+                        "Bytes":  251401
+                    },
+                    {
+                        "Path":  "lib/app/data/repositories/firestore_customer_profile_repository.dart",
+                        "Files":  1,
+                        "Bytes":  4186
+                    },
+                    {
+                        "Path":  "lib/app/data/repositories/firestore_refund_repository.dart",
+                        "Files":  1,
+                        "Bytes":  13039
+                    },
+                    {
+                        "Path":  "lib/app/data/repositories/firestore_support_request_repository.dart",
+                        "Files":  1,
+                        "Bytes":  8669
+                    },
+                    {
+                        "Path":  "lib/app/domain/entities/customer/customer_beneficiary_target.dart",
+                        "Files":  1,
+                        "Bytes":  47
+                    },
+                    {
+                        "Path":  "lib/app/modules/customer/views/customer_step_placeholder_page.dart",
+                        "Files":  1,
+                        "Bytes":  3908
+                    },
+                    {
+                        "Path":  "lib/app/modules/staff_orders/views/customer_confirmation_page.dart",
+                        "Files":  1,
+                        "Bytes":  8098
+                    },
+                    {
+                        "Path":  "lib/app/services/finance/phase5_recharge_history_synchronizer.dart",
+                        "Files":  1,
+                        "Bytes":  1096
+                    },
+                    {
+                        "Path":  "lib/app/services/migrations/legacy_support_refund_backfill_service.dart",
+                        "Files":  1,
+                        "Bytes":  3751
+                    },
+                    {
+                        "Path":  "lib/app/shared/widgets/app_logo.dart",
+                        "Files":  1,
+                        "Bytes":  1772
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_android_build.log",
+                        "Files":  1,
+                        "Bytes":  9952
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_backoffice_build.log",
+                        "Files":  1,
+                        "Bytes":  3642
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_baseline_analyze.log",
+                        "Files":  1,
+                        "Bytes":  0
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_delivery_analyze.log",
+                        "Files":  1,
+                        "Bytes":  200
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_delivery_android_build.log",
+                        "Files":  1,
+                        "Bytes":  10462
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_delivery_backoffice_build.log",
+                        "Files":  1,
+                        "Bytes":  2494
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_delivery_suite.log",
+                        "Files":  1,
+                        "Bytes":  450184
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_final_analyze.log",
+                        "Files":  1,
+                        "Bytes":  8770
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_final_android_build.log",
+                        "Files":  1,
+                        "Bytes":  10462
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_final_backoffice_build.log",
+                        "Files":  1,
+                        "Bytes":  2494
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_final_customer_build.log",
+                        "Files":  1,
+                        "Bytes":  2488
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_final_suite.log",
+                        "Files":  1,
+                        "Bytes":  479730
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_initial_check.log",
+                        "Files":  1,
+                        "Bytes":  200
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_integrated_analyze.log",
+                        "Files":  1,
+                        "Bytes":  200
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_mobile_retry_tests.log",
+                        "Files":  1,
+                        "Bytes":  10384
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_mobile_retry_verified.log",
+                        "Files":  1,
+                        "Bytes":  1898
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_pubget.log",
+                        "Files":  1,
+                        "Bytes":  3240
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_session_recheck.log",
+                        "Files":  1,
+                        "Bytes":  3602
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_suite.log",
+                        "Files":  1,
+                        "Bytes":  433846
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_verified_suite.log",
+                        "Files":  1,
+                        "Bytes":  445064
+                    },
+                    {
+                        "Path":  "scratch/admin_finance_notifications_work_analyze.log",
+                        "Files":  1,
+                        "Bytes":  2662
+                    },
+                    {
+                        "Path":  "scratch/agent_capacity_analyze.log",
+                        "Files":  1,
+                        "Bytes":  200
+                    },
+                    {
+                        "Path":  "scratch/agent_capacity_build.log",
+                        "Files":  1,
+                        "Bytes":  3636
+                    },
+                    {
+                        "Path":  "scratch/agent_capacity_rules_compile.log",
+                        "Files":  1,
+                        "Bytes":  11668
+                    },
+                    {
+                        "Path":  "scratch/agent_capacity_rules_compile_retry.log",
+                        "Files":  1,
+                        "Bytes":  10098
+                    },
+                    {
+                        "Path":  "scratch/agent_capacity_rules_deploy.log",
+                        "Files":  1,
+                        "Bytes":  10684
+                    },
+                    {
+                        "Path":  "scratch/agent_capacity_rules_deploy_retry.log",
+                        "Files":  1,
+                        "Bytes":  10684
+                    },
+                    {
+                        "Path":  "scratch/agent_capacity_sql_tests.log",
+                        "Files":  1,
+                        "Bytes":  1556
+                    },
+                    {
+                        "Path":  "scratch/agent_capacity_targeted.log",
+                        "Files":  1,
+                        "Bytes":  17532
+                    },
+                    {
+                        "Path":  "scratch/agent_capacity_tests.log",
+                        "Files":  1,
+                        "Bytes":  674102
+                    },
+                    {
+                        "Path":  "scratch/atlas_full_tests.log",
+                        "Files":  1,
+                        "Bytes":  483648
+                    },
+                    {
+                        "Path":  "scratch/atlas_full_tests_final.log",
+                        "Files":  1,
+                        "Bytes":  782170
+                    },
+                    {
+                        "Path":  "scratch/fast_processing_analyze.log",
+                        "Files":  1,
+                        "Bytes":  772
+                    },
+                    {
+                        "Path":  "scratch/fast_processing_apk.log",
+                        "Files":  1,
+                        "Bytes":  12222
+                    },
+                    {
+                        "Path":  "scratch/fast_processing_capture.log",
+                        "Files":  1,
+                        "Bytes":  576
+                    },
+                    {
+                        "Path":  "scratch/fast_processing_flutter.log",
+                        "Files":  1,
+                        "Bytes":  22014
+                    },
+                    {
+                        "Path":  "scratch/fast_processing_integration.log",
+                        "Files":  1,
+                        "Bytes":  2754
+                    },
+                    {
+                        "Path":  "scratch/fast_processing_visual_final.log",
+                        "Files":  1,
+                        "Bytes":  8886
+                    },
+                    {
+                        "Path":  "scratch/fast_processing_web.log",
+                        "Files":  1,
+                        "Bytes":  3658
+                    },
+                    {
+                        "Path":  "scratch/finance_integrity_flutter.log",
+                        "Files":  1,
+                        "Bytes":  0
+                    },
+                    {
+                        "Path":  "scratch/finance_mobile_canonical_final_tests.log",
+                        "Files":  1,
+                        "Bytes":  2094
+                    },
+                    {
+                        "Path":  "scratch/finance_mobile_canonical_tests.log",
+                        "Files":  1,
+                        "Bytes":  10376
+                    },
+                    {
+                        "Path":  "scratch/finance_mobile_canonical_tests_v2.log",
+                        "Files":  1,
+                        "Bytes":  1736
+                    },
+                    {
+                        "Path":  "scratch/finance_refresh_all_tests.log",
+                        "Files":  1,
+                        "Bytes":  452492
+                    },
+                    {
+                        "Path":  "scratch/finance_refresh_analyze.log",
+                        "Files":  1,
+                        "Bytes":  200
+                    },
+                    {
+                        "Path":  "scratch/finance_refresh_release_build.log",
+                        "Files":  1,
+                        "Bytes":  3610
+                    },
+                    {
+                        "Path":  "scratch/finance_sql_results.log",
+                        "Files":  1,
+                        "Bytes":  782
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_android_prepare.log",
+                        "Files":  1,
+                        "Bytes":  8738
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_android_release_build.log",
+                        "Files":  1,
+                        "Bytes":  11714
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_android_test.log",
+                        "Files":  1,
+                        "Bytes":  14790
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_backoffice_web_build.log",
+                        "Files":  1,
+                        "Bytes":  3658
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_candidate_tests.log",
+                        "Files":  1,
+                        "Bytes":  6314
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_capture.log",
+                        "Files":  1,
+                        "Bytes":  576
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_contract_rechecks.log",
+                        "Files":  1,
+                        "Bytes":  9200
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_dispatch_test.log",
+                        "Files":  1,
+                        "Bytes":  2392
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_edge_check.log",
+                        "Files":  1,
+                        "Bytes":  1192
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_final_analyze.log",
+                        "Files":  1,
+                        "Bytes":  200
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_final_capture.log",
+                        "Files":  1,
+                        "Bytes":  576
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_final_tests.log",
+                        "Files":  1,
+                        "Bytes":  470604
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_final_visual_checks.log",
+                        "Files":  1,
+                        "Bytes":  5026
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_flutter_version.log",
+                        "Files":  1,
+                        "Bytes":  620
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_harmony_analyze.log",
+                        "Files":  1,
+                        "Bytes":  292
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_harmony_apk_build.log",
+                        "Files":  1,
+                        "Bytes":  11712
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_harmony_final_tests.log",
+                        "Files":  1,
+                        "Bytes":  8550
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_harmony_large_text.log",
+                        "Files":  1,
+                        "Bytes":  4398
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_harmony_tests.log",
+                        "Files":  1,
+                        "Bytes":  5974
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_harmony_web_build.log",
+                        "Files":  1,
+                        "Bytes":  3658
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_integration.log",
+                        "Files":  1,
+                        "Bytes":  2944
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_large_text_tests.log",
+                        "Files":  1,
+                        "Bytes":  2272
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_mobile_web_build.log",
+                        "Files":  1,
+                        "Bytes":  3650
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_payment_test.log",
+                        "Files":  1,
+                        "Bytes":  1054
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_publication_test.log",
+                        "Files":  1,
+                        "Bytes":  332
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_recovery_analyze.log",
+                        "Files":  1,
+                        "Bytes":  1524
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_recovery_flutter.log",
+                        "Files":  1,
+                        "Bytes":  8258
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_recovery_sql.log",
+                        "Files":  1,
+                        "Bytes":  2786
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_recovery_sql_diagnostic.log",
+                        "Files":  1,
+                        "Bytes":  2414
+                    },
+                    {
+                        "Path":  "scratch/shared_queue_server_tests.log",
+                        "Files":  1,
+                        "Bytes":  2470
+                    },
+                    {
+                        "Path":  "scratch/stabilisation_all_roles_navigation.log",
+                        "Files":  1,
+                        "Bytes":  3884
+                    },
+                    {
+                        "Path":  "scratch/stabilisation_analyze.log",
+                        "Files":  1,
+                        "Bytes":  198
+                    },
+                    {
+                        "Path":  "scratch/stabilisation_android_build.log",
+                        "Files":  1,
+                        "Bytes":  9952
+                    },
+                    {
+                        "Path":  "scratch/stabilisation_backoffice_web_build.log",
+                        "Files":  1,
+                        "Bytes":  3658
+                    },
+                    {
+                        "Path":  "scratch/stabilisation_baseline_tests.log",
+                        "Files":  1,
+                        "Bytes":  736542
+                    },
+                    {
+                        "Path":  "scratch/stabilisation_behaviour_tests.log",
+                        "Files":  1,
+                        "Bytes":  16614
+                    },
+                    {
+                        "Path":  "scratch/stabilisation_cabiniste_check.log",
+                        "Files":  1,
+                        "Bytes":  698
+                    },
+                    {
+                        "Path":  "scratch/stabilisation_customer_web_build.log",
+                        "Files":  1,
+                        "Bytes":  3654
+                    },
+                    {
+                        "Path":  "scratch/stabilisation_final_tests.log",
+                        "Files":  1,
+                        "Bytes":  390892
+                    },
+                    {
+                        "Path":  "scratch/stabilisation_navigation_behaviour.log",
+                        "Files":  1,
+                        "Bytes":  12864
+                    },
+                    {
+                        "Path":  "scratch/stabilisation_phase_b_tests.log",
+                        "Files":  1,
+                        "Bytes":  5556
+                    },
+                    {
+                        "Path":  "scratch/stabilisation_remaining_checks.log",
+                        "Files":  1,
+                        "Bytes":  17964
+                    },
+                    {
+                        "Path":  "scratch/territory_map_analyze.log",
+                        "Files":  1,
+                        "Bytes":  198
+                    },
+                    {
+                        "Path":  "scratch/territory_map_build.log",
+                        "Files":  1,
+                        "Bytes":  3660
+                    },
+                    {
+                        "Path":  "scratch/territory_map_tests.log",
+                        "Files":  1,
+                        "Bytes":  18854
+                    },
+                    {
+                        "Path":  "scratch/territory_map_visual.log",
+                        "Files":  1,
+                        "Bytes":  3320
+                    },
+                    {
+                        "Path":  "scratch/territory_recovery_test.log",
+                        "Files":  1,
+                        "Bytes":  2494
+                    },
+                    {
+                        "Path":  "scratch/user_admin_origin_analyze.log",
+                        "Files":  1,
+                        "Bytes":  200
+                    },
+                    {
+                        "Path":  "scratch/user_admin_origin_tests.log",
+                        "Files":  1,
+                        "Bytes":  8910
+                    },
+                    {
+                        "Path":  "scratch/ussd_deletion_analyze.log",
+                        "Files":  1,
+                        "Bytes":  200
+                    },
+                    {
+                        "Path":  "scratch/ussd_deletion_sql.log",
+                        "Files":  1,
+                        "Bytes":  13460
+                    },
+                    {
+                        "Path":  "scratch/ussd_deletion_tests.log",
+                        "Files":  1,
+                        "Bytes":  55004
+                    },
+                    {
+                        "Path":  "scratch/ussd_reprise_analyze.log",
+                        "Files":  1,
+                        "Bytes":  200
+                    },
+                    {
+                        "Path":  "scratch/ussd_reprise_android_build.log",
+                        "Files":  1,
+                        "Bytes":  10482
+                    },
+                    {
+                        "Path":  "scratch/ussd_reprise_backoffice_build.log",
+                        "Files":  1,
+                        "Bytes":  3644
+                    },
+                    {
+                        "Path":  "scratch/ussd_reprise_contracts.log",
+                        "Files":  1,
+                        "Bytes":  6254
+                    },
+                    {
+                        "Path":  "scratch/ussd_reprise_full_tests.log",
+                        "Files":  1,
+                        "Bytes":  431668
+                    },
+                    {
+                        "Path":  "scratch/ussd_reprise_full_tests_before_crlf_fix.log",
+                        "Files":  1,
+                        "Bytes":  1479662
+                    },
+                    {
+                        "Path":  "scratch/ussd_reprise_pubget.log",
+                        "Files":  1,
+                        "Bytes":  3240
+                    },
+                    {
+                        "Path":  "scratch/ussd_reprise_sql_validation.log",
+                        "Files":  1,
+                        "Bytes":  10706
+                    },
+                    {
+                        "Path":  "scratch/ussd_reprise_tests.log",
+                        "Files":  1,
+                        "Bytes":  49840
+                    },
+                    {
+                        "Path":  "scratch/ussd_reprise_ui_tests.log",
+                        "Files":  1,
+                        "Bytes":  18256
+                    },
+                    {
+                        "Path":  "scratch/ussd_reprise_ui_tests_plain.log",
+                        "Files":  1,
+                        "Bytes":  2970
+                    },
+                    {
+                        "Path":  "scratch/ussd_reprise_visual_tests.log",
+                        "Files":  1,
+                        "Bytes":  3380
+                    },
+                    {
+                        "Path":  "scratch/ussd_screen_fix_analyze.log",
+                        "Files":  1,
+                        "Bytes":  200
+                    },
+                    {
+                        "Path":  "scratch/ussd_screen_fix_build.log",
+                        "Files":  1,
+                        "Bytes":  3642
+                    },
+                    {
+                        "Path":  "scratch/ussd_screen_fix_tests.log",
+                        "Files":  1,
+                        "Bytes":  34852
+                    },
+                    {
+                        "Path":  "scratch/ussd_shell_before.log",
+                        "Files":  1,
+                        "Bytes":  404
+                    },
+                    {
+                        "Path":  "scratch/video_fix_tests.log",
+                        "Files":  1,
+                        "Bytes":  0
+                    },
+                    {
+                        "Path":  "scratch/restructure_architecture.cjs",
+                        "Files":  1,
+                        "Bytes":  10329
+                    },
+                    {
+                        "Path":  "scratch/fix_architecture_paths.cjs",
+                        "Files":  1,
+                        "Bytes":  1214
+                    },
+                    {
+                        "Path":  "scratch/verify_architecture_bodies.cjs",
+                        "Files":  1,
+                        "Bytes":  870
+                    },
+                    {
+                        "Path":  "scratch/audit_architecture_references.cjs",
+                        "Files":  1,
+                        "Bytes":  1014
+                    },
+                    {
+                        "Path":  "scratch/summarize_architecture_validation.cjs",
+                        "Files":  1,
+                        "Bytes":  2021
+                    },
+                    {
+                        "Path":  "scratch/remove_empty_architecture_dirs.cjs",
+                        "Files":  1,
+                        "Bytes":  768
+                    }
+                ],
+    "InitialAttempt":  {
+                           "Files":  13203,
+                           "Bytes":  3861226277
+                       },
+    "IncludesInitialAttempt":  true,
+    "Validation":  {
+                       "Architecture":  "passed",
+                       "Analyze":  "passed",
+                       "Passed":  1121,
+                       "Skipped":  2,
+                       "Failed":  13,
+                       "NewFailures":  [
+
+                                       ],
+                       "ResolvedFailures":  [
+
+                                            ],
+                       "Failures":  [
+                                        "test/app/modules/agent_orders/views/agent_orders_page_test.dart: affiche la file priorisée de la maquette et accepte",
+                                        "test/regressions/backoffice_bo3_real_recipe_fixes_contract_test.dart: BO-3 recette réelle - correctifs profils et zones les libellés du formulaire Zone restent visibles au-dessus de la carte",
+                                        "test/regressions/backoffice_bo3_team_support_contract_test.dart: BO-3 - équipe et support Back-office Zones utilise le référentiel territorial Supabase et les Agents existants",
+                                        "test/regressions/cabiniste_mobile_role_contract_test.dart: cabiniste order UI is wired to validated partner RPC layer",
+                                        "test/regressions/cabiniste_processing_parity_contract_test.dart: acceptation Cabiniste demarre puis ouvre directement le detail",
+                                        "test/regressions/cabiniste_processing_parity_contract_test.dart: detail Cabiniste reprend les blocs essentiels du detail Agent",
+                                        "test/regressions/order_queue_fallback_contract_test.dart: file Cabiniste bascule vers la premiere file non vide",
+                                        "test/regressions/phase3_terrain_proof_failed_home_contract_test.dart: preuve peut etre ajoutee pendant traitement ou attente",
+                                        "test/regressions/supabase_phase4_assignment_contract_test.dart: succes Agent finalise directement capacite et commission Supabase",
+                                        "test/regressions/supabase_phase5_consolidated_contract_test.dart: succès Agent finalise directement Phase 5 sans pont Firebase",
+                                        "test/regressions/supabase_phase5b_order_proofs_contract_test.dart: la finalisation Agent reste Supabase-only apres le cutover",
+                                        "test/regressions/wc14_round_robin_and_mobile_refresh_contract_test.dart: Agent pull-to-refresh no longer restarts live subscriptions",
+                                        "test/regressions/wc9_1_compile_scope_hotfix_contract_test.dart: WC9.1 - compile Partner + scope Manager Agents PartnerShell conserve les imports Flutter necessaires"
+                                    ]
+                   }
+}

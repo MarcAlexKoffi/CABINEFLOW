@@ -8,10 +8,10 @@ void main() {
   group('BO-4 - Catalogue Supabase', () {
     test('le Back-office expose une vraie page Offres & tarifs', () {
       final String shell = _read(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       );
       final String page = _read(
-        'lib/backoffice/presentation/pages/catalog/backoffice_offers_page.dart',
+        'lib/app/modules/backoffice/views/catalog/backoffice_offers_page.dart',
       );
 
       expect(shell, contains('BackofficeDestination.offers'));
@@ -30,7 +30,7 @@ void main() {
 
     test('le repository Admin utilise Supabase REST puis Realtime et des RPC', () {
       final String source = _read(
-        'lib/features/offers/data/repositories/supabase_admin_offer_repository.dart',
+        'lib/app/data/repositories/supabase_admin_offer_repository.dart',
       );
 
       expect(source, contains("tableName = 'catalog_offers'"));
@@ -45,14 +45,14 @@ void main() {
 
     test('le client Web et le staff lisent le même catalogue Supabase', () {
       final String staff = _read(
-        'lib/features/orders/data/repositories/supabase_offer_catalog_repository.dart',
+        'lib/app/data/repositories/supabase_offer_catalog_repository.dart',
       );
       final String customer = _read(
-        'lib/features/customer_order/data/repositories/supabase_customer_offer_repository.dart',
+        'lib/app/data/repositories/supabase_customer_offer_repository.dart',
       );
       final String app = _read('lib/app/app.dart');
       final String customerFlow = _read(
-        'lib/features/customer_order/presentation/pages/customer_order_flow_page.dart',
+        'lib/app/modules/customer/views/customer_order_flow_page.dart',
       );
 
       // Les repositories factorisent maintenant le nom de table dans _offersTable.
@@ -74,9 +74,9 @@ void main() {
 
     test('Firestore ne sert plus que de backfill historique ponctuel', () {
       final String backfill = _read(
-        'lib/core/migrations/legacy_catalog_backfill_service.dart',
+        'lib/app/services/migrations/legacy_catalog_backfill_service.dart',
       );
-      final String backoffice = _read('lib/backoffice/backoffice_app.dart');
+      final String backoffice = _read('lib/app/backoffice_app.dart');
 
       expect(backfill, contains("collection('offers').get()"));
       expect(backfill, contains('izytel_catalog_backfill_needed'));
@@ -123,10 +123,10 @@ void main() {
 
     test('le nouvel écran Catalogue ne crée pas de flux métier Firestore', () {
       final List<String> files = <String>[
-        'lib/backoffice/presentation/pages/catalog/backoffice_offers_page.dart',
-        'lib/features/offers/data/repositories/supabase_admin_offer_repository.dart',
-        'lib/features/orders/data/repositories/supabase_offer_catalog_repository.dart',
-        'lib/features/customer_order/data/repositories/supabase_customer_offer_repository.dart',
+        'lib/app/modules/backoffice/views/catalog/backoffice_offers_page.dart',
+        'lib/app/data/repositories/supabase_admin_offer_repository.dart',
+        'lib/app/data/repositories/supabase_offer_catalog_repository.dart',
+        'lib/app/data/repositories/supabase_customer_offer_repository.dart',
       ];
       for (final String path in files) {
         final String source = _read(path);

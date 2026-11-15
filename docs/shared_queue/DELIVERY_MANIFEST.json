@@ -1,0 +1,518 @@
+{
+    "schema_version":  2,
+    "generated_at":  "2026-11-06T23:21:14.8699190Z",
+    "branch":  "feat/shared-agent-queue-sla",
+    "base_commit":  "588ca83",
+    "state":  "fast processing implemented and built; no-photo requirement deployed for Agents and Cabinistes; shared queue and SLA remain active",
+    "production_mutations":  true,
+    "production_scope":  "two finalizer definitions updated and alert Realtime publication extended; no live order finalized or monetary balance changed",
+    "deployment_receipt":  "docs/shared_queue/DEPLOYMENT_RECEIPT_20261106.json",
+    "checks":  {
+                   "targeted_flutter_passed":  52,
+                   "targeted_static_analysis":  "no issues",
+                   "local_sql_integration_passed":  12,
+                   "final_visual_and_ussd_passed":  23,
+                   "overlap_note":  "23 overlap with 52; do not sum",
+                   "android_release":  "passed",
+                   "backoffice_web":  "passed",
+                   "full_flutter_suite":  "not rerun for scoped change",
+                   "physical_android":  "not rerun for this patch",
+                   "production_finalizers":  "photo requirement absent; owner and capacity guards preserved"
+               },
+    "prior_candidate_artifacts":  [
+                                      {
+                                          "path":  "build/app/outputs/flutter-apk/app-release.apk",
+                                          "bytes":  74433000,
+                                          "sha256":  "405345900ee6a7c2208fab4a84640604f6b975ec3f4fa20ea863a1cb408a51ca"
+                                      },
+                                      {
+                                          "path":  "build/shared_queue/mobile_web/main.dart.js",
+                                          "bytes":  5312715,
+                                          "sha256":  "5db4e730ece42f29234f9766f59fba2452f15ad61840b2cc6bca2c0152c9c77e"
+                                      },
+                                      {
+                                          "path":  "build/shared_queue/backoffice_web/main.dart.js",
+                                          "bytes":  4919596,
+                                          "sha256":  "7ee07c154b5d827a2bd26562b6049b8fda6f812adcd247f57b796e15a739ba0a"
+                                      },
+                                      {
+                                          "path":  "build/shared_queue/izytel-web-candidate-20261106.zip",
+                                          "bytes":  36457093,
+                                          "sha256":  "598b3b1772b0668e9d47fc57dd20c77e804eae2eabb2acea3715a0039a9965fb"
+                                      }
+                                  ],
+    "items":  [
+                  {
+                      "path":  "lib/features/orders/data/repositories/hybrid_orders_repository.dart",
+                      "bytes":  55763,
+                      "sha256":  "46df958625e259ae75ec89cd3465448823e07cda2a921e4e1a1d44bbb35d7d66"
+                  },
+                  {
+                      "path":  "lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart",
+                      "bytes":  41627,
+                      "sha256":  "a8fa53b514254b41f913304b07b24e15873f709d20876ab37f49f0c7824a63b3"
+                  },
+                  {
+                      "path":  "lib/features/orders/data/repositories/supabase_shared_order_queue_repository.dart",
+                      "bytes":  4786,
+                      "sha256":  "58006423c1e36c2769e0b91e8f7110c3808315d8d0e34960100a495167d8c605"
+                  },
+                  {
+                      "path":  "lib/features/orders/domain/repositories/shared_order_queue_repository.dart",
+                      "bytes":  2468,
+                      "sha256":  "4715b4ed899f5057c56bb66c477e319ac5c29d8a6fef6c75bfb748f0611bdde5"
+                  },
+                  {
+                      "path":  "lib/features/orders/presentation/pages/shared_agent_orders_page.dart",
+                      "bytes":  17529,
+                      "sha256":  "442aee062bcaa2793c771ad304c492bc7a5db3879cff06c96738c1e60c5f7cd3"
+                  },
+                  {
+                      "path":  "lib/features/orders/presentation/pages/agent_orders_page.dart",
+                      "bytes":  43378,
+                      "sha256":  "7958937f39f961770031bd8e502f5bd175f28c217385779eb0976845159c044e"
+                  },
+                  {
+                      "path":  "lib/features/orders/presentation/pages/agent_order_detail_view.dart",
+                      "bytes":  58813,
+                      "sha256":  "cf19203fefe7e5cd40e1b7b0c4e9c939990e30932230116d1797c00898176979"
+                  },
+                  {
+                      "path":  "lib/features/orders/presentation/pages/order_supervision_page.dart",
+                      "bytes":  18287,
+                      "sha256":  "e532d3ea3306ddb25a5e2143204ae36b2bf8e2068091c283ab0c63db84b0ce85"
+                  },
+                  {
+                      "path":  "lib/features/orders/presentation/pages/orders_page.dart",
+                      "bytes":  23005,
+                      "sha256":  "fbf61a32dd6c01c9530e27127b3baea837eed206a24faa44978c7c7506bac85d"
+                  },
+                  {
+                      "path":  "lib/features/orders/presentation/view_models/agent_orders_view_model.dart",
+                      "bytes":  26050,
+                      "sha256":  "dd5a48e89a93643360d984f85b4368f27e3ddf8bba92abc3615dc1a3f4d6eb49"
+                  },
+                  {
+                      "path":  "lib/features/orders/presentation/view_models/shared_order_queue_view_model.dart",
+                      "bytes":  3925,
+                      "sha256":  "e291ae7289057bdaa803efd4e2cd01e9f20c282e156f5811dc4a39f0cfb1cd47"
+                  },
+                  {
+                      "path":  "lib/features/navigation/presentation/pages/main_shell_page.dart",
+                      "bytes":  42909,
+                      "sha256":  "6672d7e9b76959db533ec5070b14ed036ba20816fc0548e8555f515b56348dbc"
+                  },
+                  {
+                      "path":  "lib/backoffice/presentation/pages/operations/backoffice_orders_page.dart",
+                      "bytes":  28364,
+                      "sha256":  "b84413e4ff5fe746d3490f9cf1d3a2fa0686709188c3285d64f7ca9a9ae57a48"
+                  },
+                  {
+                      "path":  "supabase/migrations/20261106004036_shared_agent_queue_and_sla.sql",
+                      "bytes":  48718,
+                      "sha256":  "7347127e1fdea63db58c79ad77b4ccfc62fe988802fbd8e2be944d0975d96177"
+                  },
+                  {
+                      "path":  "supabase/functions/izytel-notification-dispatch/index.ts",
+                      "bytes":  11731,
+                      "sha256":  "fa796d253821a068829bfeb2bb9075a4a43fe004b86c32e87b1e990cd335eace"
+                  },
+                  {
+                      "path":  "supabase/functions/izytel-notification-dispatch/deno.json",
+                      "bytes":  50,
+                      "sha256":  "fc9fc38c21441b7f67a91280ed28b8ca4ad67fc69d713db441f5c0fd9a6abf9f"
+                  },
+                  {
+                      "path":  "supabase/operations/shared_queue_activate.sql",
+                      "bytes":  1419,
+                      "sha256":  "b1e4eff1985f5e039660a1b79784022ead723b3609cd68968361ba8be911b736"
+                  },
+                  {
+                      "path":  "supabase/operations/shared_queue_rollback.sql",
+                      "bytes":  975,
+                      "sha256":  "83b0213fcd0763bc53d32790bf1d242bd6ddf2568a282d86d194dbba4d4cb425"
+                  },
+                  {
+                      "path":  "supabase/tests/notifications_dispatch_test.mjs",
+                      "bytes":  5286,
+                      "sha256":  "f482e50b0843b3df1c86bf650bb1b27697a8694f8411806ca265e5451fe59cfb"
+                  },
+                  {
+                      "path":  "test/features/orders/data/repositories/shared_queue_payment_publication_test.dart",
+                      "bytes":  4971,
+                      "sha256":  "ad4b75ca5bc7a73a6a6b3fb25b031cc1dc7aee429b52494fafe72d2aee33c8ee"
+                  },
+                  {
+                      "path":  "test/features/orders/presentation/shared_order_queue_test.dart",
+                      "bytes":  14990,
+                      "sha256":  "e81b46949e9978092c814913e11ec4d67a3b7fc821591330ddf18669cc8435ed"
+                  },
+                  {
+                      "path":  "test/features/orders/presentation/shared_order_queue_visual_test.dart",
+                      "bytes":  6839,
+                      "sha256":  "ffa7cd651b0ad365f6380b390e118d2331ceaf57fb96edba769f02db93cfa869"
+                  },
+                  {
+                      "path":  "test/shared_queue/package-lock.json",
+                      "bytes":  9773,
+                      "sha256":  "be5fae8340fb991e2d77c997e63f9ac720a5213c0cc99fe2a4b7a40d18e0d8c8"
+                  },
+                  {
+                      "path":  "test/shared_queue/run.mjs",
+                      "bytes":  16902,
+                      "sha256":  "f05c8e90f2eca1c5d6083d4b82af1403a4702ca78f368bf6ae1b9a993ebadef1"
+                  },
+                  {
+                      "path":  "test/shared_queue/integration.mjs",
+                      "bytes":  29253,
+                      "sha256":  "4ecacd2832ca0e638fd81bcdf1451cbd2187cd8a0368783a90ca4736e71f47be"
+                  },
+                  {
+                      "path":  "test/shared_queue/postgres.mjs",
+                      "bytes":  2022,
+                      "sha256":  "374bec172d9e0746dcedaa64cbf74b086f252fe5d3c1bb543476da3968176e97"
+                  },
+                  {
+                      "path":  "test/shared_queue/device_scenarios.dart.template",
+                      "bytes":  6702,
+                      "sha256":  "b1a6426b49a6e0e4fe493d0f8989c6ffbca8ce7f9dccaab0ae07422ef1c260bf"
+                  },
+                  {
+                      "path":  "test/shared_queue/prepare_visual_qa.ps1",
+                      "bytes":  1437,
+                      "sha256":  "c6b9341a3100965058544efec3d622669bd3e8c315015ecb42e083cb49984e16"
+                  },
+                  {
+                      "path":  "test/shared_queue/prepare_android_qa.ps1",
+                      "bytes":  2298,
+                      "sha256":  "dc76aadb30fee4994236553161985b316061206adba7a0dddd430a39f141056a"
+                  },
+                  {
+                      "path":  "docs/shared_queue/DESIGN_CONTRACT.md",
+                      "bytes":  5010,
+                      "sha256":  "7cbe9f5d74769b3931cc22c687210d4eabc472c92a5c95004ca5c92477949c6f"
+                  },
+                  {
+                      "path":  "docs/shared_queue/WORKFLOW_STATE.md",
+                      "bytes":  5339,
+                      "sha256":  "caaaa3074d2b3925ea18631c9099d34264b5aa072c74ad9750d63195cd52b23f"
+                  },
+                  {
+                      "path":  "docs/shared_queue/LIVRAISON_20261106.md",
+                      "bytes":  21496,
+                      "sha256":  "dfdd94b9911800496680c2bd4b019e7de06404d0028088aee05eaaf8af4cba1c"
+                  },
+                  {
+                      "path":  "docs/shared_queue/SQL_TEST_RESULTS.json",
+                      "bytes":  1700,
+                      "sha256":  "b96ab6c98b519eb51d6de9c5b475aad3e4db9e1ff44c2a87620bd434d50e16dd"
+                  },
+                  {
+                      "path":  "docs/shared_queue/INTEGRATION_TEST_RESULTS.json",
+                      "bytes":  2138,
+                      "sha256":  "0e18e14fa3d0598dddc9a5bf41b82247febe5e75c10ea54131e88316cdd2f4b1"
+                  },
+                  {
+                      "path":  "docs/shared_queue/SERVER_PREFLIGHT.json",
+                      "bytes":  264,
+                      "sha256":  "06788291887c18843454130fec74168ea47cc07d74e5c02a908ccddc4b5c3526"
+                  },
+                  {
+                      "path":  "docs/shared_queue/EDGE_PREFLIGHT.json",
+                      "bytes":  763,
+                      "sha256":  "0c2479fe983f7289706b3b4685b8a829a4a0f5c1ff6141733849ae762a781aa9"
+                  },
+                  {
+                      "path":  "docs/shared_queue/aura-r1/index.html",
+                      "bytes":  5725,
+                      "sha256":  "a6decb12bb1732eb9fad555b42049b4dffc812f343362363a173dbd6567dc0ee"
+                  },
+                  {
+                      "path":  "docs/shared_queue/aura-r1/prototype.css",
+                      "bytes":  24125,
+                      "sha256":  "31c5d6afa4f542f70317e0b91ff8b6ae7b8cdeb1609020ac988ab4128e06d288"
+                  },
+                  {
+                      "path":  "docs/shared_queue/aura-r1/prototype.js",
+                      "bytes":  35232,
+                      "sha256":  "fa220d3b1557410789fc90be15d4493e44ea5d5a369bf615e9b4f0a7fbf32ba4"
+                  },
+                  {
+                      "path":  "build/app/outputs/flutter-apk/app-release.apk",
+                      "bytes":  74396548,
+                      "sha256":  "6dfe8ca04a9120113fc3cbf99e8c0e6517a12bdaad4b5b395dcbf11e24d0e262"
+                  },
+                  {
+                      "path":  "build/shared_queue/backoffice_web/main.dart.js",
+                      "bytes":  4920988,
+                      "sha256":  "ee79ef19ac3b05fa1095588b230a97831c5db48fb4615b5afa6a89c899726a47"
+                  },
+                  {
+                      "path":  "scratch/shared_queue_final_analyze.log",
+                      "bytes":  200,
+                      "sha256":  "01030a9b1d8e7f0ec1c1ad5cf9960b9d0fb6bb228d66f8df5695124fda0a243c"
+                  },
+                  {
+                      "path":  "scratch/shared_queue_final_tests.log",
+                      "bytes":  470604,
+                      "sha256":  "57f6df7982a4eb9aca5aa72941b6e617c120a97a912687e76f04887a67e38da4"
+                  },
+                  {
+                      "path":  "scratch/shared_queue_final_visual_checks.log",
+                      "bytes":  5026,
+                      "sha256":  "94ecc3be96da08b518eb89b8a059bb6289f8103849058b6668880a2b79d00cd4"
+                  },
+                  {
+                      "path":  "scratch/shared_queue_android_test.log",
+                      "bytes":  14790,
+                      "sha256":  "e3cb8b4d835f82bb1ab5f2b29150691c7f7bf1be51bf62b26a3cb995ce8d3446"
+                  },
+                  {
+                      "path":  "scratch/shared_queue_dispatch_test.log",
+                      "bytes":  2392,
+                      "sha256":  "2ef108b8d7e129beff36173726ffa6df55861e5970e8112ce05945c8f7039365"
+                  },
+                  {
+                      "path":  "scratch/shared_queue_edge_check.log",
+                      "bytes":  1192,
+                      "sha256":  "ad851b4249e8612faf0f9b77684b2c3a1b70bd7d9b96acd0c2cd77435cc54bba"
+                  },
+                  {
+                      "path":  "scratch/shared_queue_mobile_web_build.log",
+                      "bytes":  3650,
+                      "sha256":  "fcb75c8ae8f388b6554571955649d3e84706b2fb962d726fc9c75f5070ba4e11"
+                  },
+                  {
+                      "path":  "scratch/shared_queue_backoffice_web_build.log",
+                      "bytes":  3658,
+                      "sha256":  "bbae5aa00dfa56674ca4fe320d63521587cfc09456d9fbb2a1a6a2d6e9a1e562"
+                  },
+                  {
+                      "path":  "scratch/shared_queue_android_release_build.log",
+                      "bytes":  11714,
+                      "sha256":  "88773fe34de2e1e585af8b45fb060f540d0cd4d220715dede97acdbd5dfe8325"
+                  },
+                  {
+                      "path":  "docs/shared_queue/visual_qa/agent-320.png",
+                      "bytes":  33855,
+                      "sha256":  "4254d9af92df1b72aa253048cf6d436a2318e4319301fc3b98b44615bd3d5090"
+                  },
+                  {
+                      "path":  "docs/shared_queue/visual_qa/agent-390.png",
+                      "bytes":  35189,
+                      "sha256":  "1c27654e528e2369952932b4943ce7ad755725a146ae4f5fc2df0c8fd928cce3"
+                  },
+                  {
+                      "path":  "docs/shared_queue/visual_qa/agent-accepted-390.png",
+                      "bytes":  50918,
+                      "sha256":  "148c4005475b32151a48abaeaeb5df01b0a0d1371943723c665f4b053f5e34a5"
+                  },
+                  {
+                      "path":  "docs/shared_queue/visual_qa/agent-empty-390.png",
+                      "bytes":  30253,
+                      "sha256":  "cda54f54fc2117811fbcd4a9001de01984492c5fae9fe8b2647f2d4dee4f5714"
+                  },
+                  {
+                      "path":  "docs/shared_queue/visual_qa/agent-offline-390.png",
+                      "bytes":  47188,
+                      "sha256":  "4cabe53fa5c2738740202a87f838c612f40291b3b7d70e238a4c380709b521ae"
+                  },
+                  {
+                      "path":  "docs/shared_queue/visual_qa/manager-1440.png",
+                      "bytes":  46236,
+                      "sha256":  "433b4e026331f5cc7b9ce3ab9d619544b536be777b2031dd7ed807f417e3bc78"
+                  },
+                  {
+                      "path":  "docs/shared_queue/visual_qa/manager-320.png",
+                      "bytes":  38949,
+                      "sha256":  "2d83d07d16b6a3fbcad8cf9c6c532d03136a84b04fd12772aac010a726a60ad6"
+                  },
+                  {
+                      "path":  "docs/shared_queue/visual_qa/manager-390.png",
+                      "bytes":  39696,
+                      "sha256":  "3fe1bb80bdb14e61cbd3f4ef9d66e934c1424eb33fed87ccac07dc87756e335c"
+                  },
+                  {
+                      "path":  "docs/shared_queue/visual_qa/manager-768.png",
+                      "bytes":  42080,
+                      "sha256":  "413da95c62c86764425bebd69f0d673450cd7cb8d18883732dfaf0d7142995f3"
+                  },
+                  {
+                      "path":  "docs/shared_queue/visual_qa/manager-alerts-1440.png",
+                      "bytes":  30672,
+                      "sha256":  "dc3a24df7e01c616868e505060ea5312cdde3d5574639b6e27f41ee708ef6bad"
+                  },
+                  {
+                      "path":  "docs/shared_queue/visual_qa/manager-alerts-320.png",
+                      "bytes":  24207,
+                      "sha256":  "87852b7953c9563bc052bb9a6a3ffa8b184e716aa6ad10f32744705ed2473dc9"
+                  },
+                  {
+                      "path":  "docs/shared_queue/visual_qa/manager-alerts-390.png",
+                      "bytes":  24538,
+                      "sha256":  "7c043638ec5be8b3d36d7b72b8459971b48e02d6dc3cf549a6ca6b93dab05c6b"
+                  },
+                  {
+                      "path":  "docs/shared_queue/visual_qa/manager-alerts-768.png",
+                      "bytes":  27394,
+                      "sha256":  "5c0f59b74abf3fa2a8955ba3e8b401e0d1c44081792f8dac3ffe15e3619a4414"
+                  },
+                  {
+                      "path":  "docs/shared_queue/CORRECTIF_20261106.md",
+                      "bytes":  5893,
+                      "sha256":  "cb5f33d5f9ae76a6e32f6bf6837cf3ed3748ca08c9b465d97944f30ea6f04616"
+                  },
+                  {
+                      "path":  "docs/shared_queue/DEPLOYMENT_RECEIPT_20261106.json",
+                      "bytes":  1733,
+                      "sha256":  "c0d558d104654e5bbac3056ece92eb08fa41098b538c8952a83bfae65d120ed3"
+                  },
+                  {
+                      "path":  "docs/shared_queue/visual_qa/agent-personal-390.png",
+                      "bytes":  26725,
+                      "sha256":  "dc0bbb99462b7dc1b7cc37ac59968b96f52515bb005f106f51224a3258f93432"
+                  },
+                  {
+                      "path":  "scratch/shared_queue_harmony_final_tests.log",
+                      "bytes":  8550,
+                      "sha256":  "121a97904906901c7e851c84a1ff701e51a917d51f468372fad9fea713a49507"
+                  },
+                  {
+                      "path":  "scratch/shared_queue_harmony_analyze.log",
+                      "bytes":  292,
+                      "sha256":  "3fc2d861b1bbc3fb27844a8c5b0807e58ae81fe550fedcdbf0f592bb561bf3dc"
+                  },
+                  {
+                      "path":  "scratch/shared_queue_harmony_apk_build.log",
+                      "bytes":  11712,
+                      "sha256":  "24620148b0908a8229010fbeab22aae2853415dcf8ec9eb9775ee373ab5ae982"
+                  },
+                  {
+                      "path":  "scratch/shared_queue_harmony_web_build.log",
+                      "bytes":  3658,
+                      "sha256":  "579323c7270aec3ce3ccc5e2fa1a63579f71ec4b0efaa427c087216468db5a93"
+                  },
+                  {
+                      "path":  "build/shared_queue/izytel-backoffice-correctif-20261106.zip",
+                      "bytes":  18209204,
+                      "sha256":  "1b91a297cd1fce4cd7a514d25ad8701e0187f50cb86316cff75504b142c8a7a2"
+                  },
+                  {
+                      "path":  "docs/shared_queue/ACTIVATION_RECEIPT_20261106.json",
+                      "bytes":  4508,
+                      "sha256":  "89da53ed03c21e3bee19fb42d88072a7f1e7f768aeea06b989ff0af7541dd9ae"
+                  },
+                  {
+                      "path":  "supabase/operations/shared_queue_publish_three_20261106.sql",
+                      "bytes":  4431,
+                      "sha256":  "620df15f361eb46794063e9cd95428aed3ed05a9e55d87b7e8f139fe24eaeb97"
+                  },
+                  {
+                      "path":  "supabase/operations/shared_queue_activation_executed_20261106.sql",
+                      "bytes":  5834,
+                      "sha256":  "cbbaed7fa278df35e794dfbb55753eae96ad71416fae1356440bd4032c364f3b"
+                  },
+                  {
+                      "path":  "scratch/shared_queue_publication_test.log",
+                      "bytes":  332,
+                      "sha256":  "fe80ad81f7062354ff51cf578cadc64382c39b510913d1d070d78aa0de0b21ae"
+                  },
+                  {
+                      "path":  "lib/features/ussd/presentation/ussd_quick_processing_card.dart",
+                      "bytes":  19118,
+                      "sha256":  "caa57e60638dba068c1b321e52b813361c761ebf13302f12014bdbea895bc945"
+                  },
+                  {
+                      "path":  "lib/features/partners/presentation/pages/partner_shell_page.dart",
+                      "bytes":  154293,
+                      "sha256":  "26402a53c7a58e2e8a02129f8a761745062bb53a114adf18b23b6c25cba55fdb"
+                  },
+                  {
+                      "path":  "lib/features/orders/data/repositories/fake_orders_repository.dart",
+                      "bytes":  39378,
+                      "sha256":  "6923e7918973be42c7a81e245677291632ddbe8d69f6736368f211e4b2f28e92"
+                  },
+                  {
+                      "path":  "test/features/orders/presentation/fast_processing_test.dart",
+                      "bytes":  4095,
+                      "sha256":  "0d4e87611102e4f0c6d042836b25aab719c91d4679bdc99aa161dae6e14849ec"
+                  },
+                  {
+                      "path":  "test/features/orders/data/repositories/fake_orders_agent_processing_test.dart",
+                      "bytes":  3140,
+                      "sha256":  "fc543cc38f0383b3556c0da6a18791c23b8c650fd59dfe19f1ed782a4c80a797"
+                  },
+                  {
+                      "path":  "test/features/ussd/ussd_mobile_widget_test.dart",
+                      "bytes":  15230,
+                      "sha256":  "fa3da201b81e3eb46e5e15785baca8fa7330c9702dac50f376009e6aadb14ea9"
+                  },
+                  {
+                      "path":  "supabase/migrations/20261106224728_fast_processing_without_proof.sql",
+                      "bytes":  13713,
+                      "sha256":  "c4cc498f4c0c1511c1fda1b52c0a654ffed590230f508c95edfdda9c92e651d6"
+                  },
+                  {
+                      "path":  "docs/shared_queue/FAST_PROCESSING_20261106.md",
+                      "bytes":  3702,
+                      "sha256":  "de062afaf693f3829d57ff5820d826938a277900253ff59c27227301f54acac3"
+                  },
+                  {
+                      "path":  "docs/shared_queue/FAST_PROCESSING_RECEIPT_20261106.json",
+                      "bytes":  3630,
+                      "sha256":  "7b46f108ccd589648321266c9a21492f827fb7ae9dbb1fcf342ab7a610608521"
+                  },
+                  {
+                      "path":  "docs/shared_queue/FAST_PROCESSING_INTEGRATION_RESULTS.json",
+                      "bytes":  2224,
+                      "sha256":  "9d1895310fb82bf3db31e9177b8daa8b78a2f0e291ef7044640d2b43e68542a6"
+                  },
+                  {
+                      "path":  "docs/shared_queue/visual_qa/agent-quick-processing-390.png",
+                      "bytes":  64122,
+                      "sha256":  "0b692415dabb12560344cd36837aae4f5d4200b464b36d870ebeae2015cf71d3"
+                  },
+                  {
+                      "path":  "build/shared_queue/izytel-traitement-rapide-20261106.apk",
+                      "bytes":  74396548,
+                      "sha256":  "6dfe8ca04a9120113fc3cbf99e8c0e6517a12bdaad4b5b395dcbf11e24d0e262"
+                  },
+                  {
+                      "path":  "build/shared_queue/izytel-backoffice-fast-processing-20261106.zip",
+                      "bytes":  18209380,
+                      "sha256":  "96e239757e657e1c7740247b2efab246c21a019f9ac55bbf67bd337af6b83f68"
+                  },
+                  {
+                      "path":  "scratch/fast_processing_flutter.log",
+                      "bytes":  22014,
+                      "sha256":  "45ab0fc611cad98b4565112945fc35cd62c192885cbee471de3c46f1af4d8478"
+                  },
+                  {
+                      "path":  "scratch/fast_processing_analyze.log",
+                      "bytes":  772,
+                      "sha256":  "28293199478c0f7a60911242c312ba957cff5040e59e70174fb5492a6ec273ae"
+                  },
+                  {
+                      "path":  "scratch/fast_processing_integration.log",
+                      "bytes":  2754,
+                      "sha256":  "5458932e9425fd673d369bf4ad0c87a64c8fcc84861a3d8fc2e6f02bdcecc401"
+                  },
+                  {
+                      "path":  "scratch/fast_processing_visual_final.log",
+                      "bytes":  8886,
+                      "sha256":  "32af79130b158a6c4b86721eedc4adebf7787857034440dd4d3c3dbec4a66bff"
+                  },
+                  {
+                      "path":  "scratch/fast_processing_apk.log",
+                      "bytes":  12222,
+                      "sha256":  "cd981dc638b6622921c93e66a75574b5c3700c57e72041a95c855a04f22ec2b2"
+                  },
+                  {
+                      "path":  "scratch/fast_processing_web.log",
+                      "bytes":  3658,
+                      "sha256":  "31ab30b29d1b6ea61e885d485fc6e45259198240935baba97d36e8595727881e"
+                  }
+              ],
+    "activation_receipt":  "docs/shared_queue/ACTIVATION_RECEIPT_20261106.json",
+    "fast_processing_receipt":  "docs/shared_queue/FAST_PROCESSING_RECEIPT_20261106.json"
+}

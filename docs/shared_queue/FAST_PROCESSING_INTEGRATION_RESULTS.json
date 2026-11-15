@@ -1,0 +1,40 @@
+{
+  "executed_at": "2026-11-06T22:51:02.966Z",
+  "fast_processing": true,
+  "supplemental_migration_sha256": "c4cc498f4c0c1511c1fda1b52c0a654ffed590230f508c95edfdda9c92e651d6",
+  "migration_sha256": "7347127e1fdea63db58c79ad77b4ccfc62fe988802fbd8e2be944d0975d96177",
+  "passed": 12,
+  "checks": [
+    "catalog grants and single territorial SELECT policy: direct cross-zone reads and writes cannot expose shared orders",
+    "obsolete Firebase reconciliation, closure and refusal import cannot undo or remove a shared order",
+    "real payment synchronization publishes once and preserves canonical amount, beneficiary and acceptance on replay",
+    "two real synchronization transactions preserve the first published amount even when the second upsert was already waiting",
+    "real outbox emits one available event per eligible territorial recipient, never on refetch; outbox RLS stays private",
+    "claim leaves money untouched; processing and proof-free finalization preserve ownership",
+    "real Agent finalization: one capacity debit, commission, economics row, ledger cycle and customer completion notification; retry is idempotent",
+    "actual delay enqueue is unique and territorial; reassignment obsoletes the alert and rejects a stale cycle",
+    "existing failure review notification survives independently of the five-minute delay cycle",
+    "Cabiniste proof-free finalization preserves one capacity debit and one idempotent settlement",
+    "real outbox creates one dispatch ticket per event and claims both new event types without immediate replay",
+    "a 1,000-order territorial backlog returns a bounded, masked 100-order page"
+  ],
+  "performance": {
+    "synthetic_backlog": 1000,
+    "page_size": 100,
+    "read_durations_ms": [
+      108,
+      129,
+      123
+    ],
+    "scope": "local fixture only; not a production capacity guarantee"
+  },
+  "fixture": {
+    "tables": 28,
+    "functions": 45,
+    "source": "catalog-only snapshot; synthetic rows"
+  },
+  "limits": [
+    "Foreign keys to unrelated account tables and account lifecycle audit hooks are outside this fixture.",
+    "External HTTP/FCM transport and customer-inbox storage are local sinks; no remote mutation or real FCM send."
+  ]
+}
