@@ -284,13 +284,15 @@ class _HomeHeader extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 7),
-                  Text(
+                  Flexible(child: Text(
                     availability?.label ?? 'Statut en cours de chargement',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: IzyTelColors.textSecondary,
                       fontWeight: FontWeight.w600,
                     ),
-                  ),
+                  )),
                 ],
               ),
             ],

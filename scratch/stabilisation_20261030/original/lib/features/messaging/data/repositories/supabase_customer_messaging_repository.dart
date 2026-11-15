@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/resilience/backend_read_stream.dart';
 import 'package:cabine_flow/features/messaging/domain/models/customer_conversation.dart';
 import 'package:cabine_flow/features/messaging/domain/repositories/customer_messaging_repository.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -21,66 +21,43 @@ class SupabaseCustomerMessagingRepository
   final FirebaseAuth _firebaseAuth;
 
   @override
-  Stream<List<CustomerConversation>> watchCustomerConversations() async* {
-    final String uid = await _requireUid();
-    yield await _fetchConversations(customerUid: uid);
-
-    yield* _conversationRealtimeStream(customerUid: uid);
+  Stream<List<CustomerConversation>> watchCustomerConversations() {
+    return _watchConversations(customer: true);
   }
 
   @override
-  Stream<List<CustomerConversation>> watchManagerInbox() async* {
-    yield await _fetchConversations();
-    yield* _conversationRealtimeStream();
+  Stream<List<CustomerConversation>> watchManagerInbox() {
+    return _watchConversations(customer: false);
   }
 
-  Stream<List<CustomerConversation>> _conversationRealtimeStream({
-    String? customerUid,
-  }) async* {
-    try {
-      await _syncRealtimeAuth();
-      dynamic query = _client
-          .from(conversationsTable)
-          .stream(primaryKey: const <String>['id']);
-      if (customerUid != null) {
-        query = query.eq('customer_auth_uid', customerUid);
-      }
-      final Stream<List<Map<String, dynamic>>> rowsStream = query;
-      await for (final List<Map<String, dynamic>> rows in rowsStream) {
-        yield _conversationRows(rows);
-      }
-    } catch (error, stackTrace) {
-      IzyTelLog.backendError(
-        'CustomerMessaging.conversations-realtime',
-        error,
-        stackTrace: stackTrace,
-      );
-    }
-
-    // Realtime reste un accélérateur. Si le WebSocket est indisponible ou
-    // si Supabase ferme le stream, on continue à rafraîchir l'état canonique
-    // via la Data API plutôt que de laisser l'interface figée.
-    while (true) {
-      await Future<void>.delayed(const Duration(seconds: 5));
-      try {
-        yield await _fetchConversations(customerUid: customerUid);
-      } catch (error, stackTrace) {
-        IzyTelLog.backendError(
-          'CustomerMessaging.conversations-fallback',
-          error,
-          stackTrace: stackTrace,
-        );
-      }
-    }
+  Stream<List<CustomerConversation>> _watchConversations({
+    required bool customer,
+  }) {
+    return BackendReadStream.watch(
+      fetch: () async {
+        final uid = customer ? await _requireUid() : null;
+        return _fetchConversations(customerUid: uid);
+      },
+      label: 'CustomerMessaging.conversations-fallback',
+      fallbackInterval: const Duration(seconds: 5),
+      refreshSignals: () async* {
+        final uid = customer ? await _requireUid() : null;
+        await _syncRealtimeAuth();
+        dynamic query = _client
+            .from(conversationsTable)
+            .stream(primaryKey: const <String>['id']);
+        if (uid != null) query = query.eq('customer_auth_uid', uid);
+        final Stream<List<Map<String, dynamic>>> rowsStream = query;
+        yield* rowsStream;
+      },
+    );
   }
 
   Future<List<CustomerConversation>> _fetchConversations({
     String? customerUid,
   }) async {
     dynamic query = _client.from(conversationsTable).select();
-    if (customerUid != null) {
-      query = query.eq('customer_auth_uid', customerUid);
-    }
+    if (customerUid != null) query = query.eq('customer_auth_uid', customerUid);
     final dynamic response = await query.order('updated_at', ascending: false);
     return _conversationRows(_rows(response));
   }
@@ -88,41 +65,20 @@ class SupabaseCustomerMessagingRepository
   @override
   Stream<List<CustomerMessage>> watchMessages({
     required String conversationId,
-  }) async* {
-    final String id = _requiredId(conversationId, 'conversation');
-    yield await _fetchMessages(id);
-
-    try {
-      await _syncRealtimeAuth();
-      final Stream<List<Map<String, dynamic>>> rowsStream = _client
-          .from(messagesTable)
-          .stream(primaryKey: const <String>['id'])
-          .eq('conversation_id', id);
-      await for (final List<Map<String, dynamic>> rows in rowsStream) {
-        yield _messageRows(rows);
-      }
-    } catch (error, stackTrace) {
-      IzyTelLog.backendError(
-        'CustomerMessaging.messages-realtime',
-        error,
-        stackTrace: stackTrace,
-      );
-    }
-
-    // Même si Realtime tombe, une conversation ouverte doit continuer à
-    // recevoir les réponses sans obliger le client à quitter puis revenir.
-    while (true) {
-      await Future<void>.delayed(const Duration(seconds: 2));
-      try {
-        yield await _fetchMessages(id);
-      } catch (error, stackTrace) {
-        IzyTelLog.backendError(
-          'CustomerMessaging.messages-fallback',
-          error,
-          stackTrace: stackTrace,
-        );
-      }
-    }
+  }) {
+    final id = _requiredId(conversationId, 'conversation');
+    return BackendReadStream.watch(
+      fetch: () => _fetchMessages(id),
+      label: 'CustomerMessaging.messages-fallback',
+      fallbackInterval: const Duration(seconds: 2),
+      refreshSignals: () async* {
+        await _syncRealtimeAuth();
+        yield* _client
+            .from(messagesTable)
+            .stream(primaryKey: const <String>['id'])
+            .eq('conversation_id', id);
+      },
+    );
   }
 
   Future<List<CustomerMessage>> _fetchMessages(String conversationId) async {
@@ -210,7 +166,10 @@ class SupabaseCustomerMessagingRepository
   Future<String> _requireUid() async {
     final User? user =
         _firebaseAuth.currentUser ??
-        await _firebaseAuth.authStateChanges().first;
+        await _firebaseAuth
+            .authStateChanges()
+            .firstWhere((user) => user != null)
+            .timeout(BackendReadStream.readTimeout);
     final String uid = user?.uid.trim() ?? '';
     if (uid.isEmpty) {
       throw StateError('Session client indisponible.');
@@ -219,9 +178,13 @@ class SupabaseCustomerMessagingRepository
   }
 
   Future<void> _syncRealtimeAuth() async {
-    final String? token = await _firebaseAuth.currentUser?.getIdToken();
+    final String? token = await _firebaseAuth.currentUser?.getIdToken().timeout(
+      BackendReadStream.readTimeout,
+    );
     if (token == null || token.trim().isEmpty) return;
-    await _client.realtime.setAuth(token);
+    await _client.realtime
+        .setAuth(token)
+        .timeout(BackendReadStream.readTimeout);
   }
 
   List<CustomerConversation> _conversationRows(

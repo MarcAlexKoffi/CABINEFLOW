@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/resilience/backend_read_stream.dart';
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
 import 'package:cabine_flow/core/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
@@ -44,7 +45,7 @@ class SupportRequestCenterPage extends StatefulWidget {
 class _SupportRequestCenterPageState extends State<SupportRequestCenterPage> {
   Timer? _clockTimer;
   final TextEditingController _searchController = TextEditingController();
-  late final Stream<List<SupportRequest>> _requestsStream;
+  late Stream<List<SupportRequest>> _requestsStream;
   _SupportInboxTab _selectedTab = _SupportInboxTab.newRequests;
   String _query = '';
 
@@ -83,8 +84,13 @@ class _SupportRequestCenterPageState extends State<SupportRequestCenterPage> {
               ) {
                 if (snapshot.hasError) {
                   return _ErrorState(
-                    message: 'Impossible de charger les demandes clients.',
-                    onRetry: () => setState(() {}),
+                    message: BackendReadStream.readErrorMessage(
+                      snapshot.error!,
+                      fallback: 'Impossible de charger les demandes clients.',
+                    ),
+                    onRetry: () => setState(() {
+                      _requestsStream = widget.repository.watchAllRequests();
+                    }),
                   );
                 }
                 if (!snapshot.hasData) {

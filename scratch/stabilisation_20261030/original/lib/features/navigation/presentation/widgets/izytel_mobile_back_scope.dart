@@ -3,6 +3,27 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+/// Keeps the shell in charge of Android Back, even when an inactive tab emits
+/// a NavigationNotification saying that its own stack is empty. Flutter's root
+/// Navigator otherwise forwards that notification to the Android embedding.
+class IzyTelBackNavigationBoundary extends StatelessWidget {
+  const IzyTelBackNavigationBoundary({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return NotificationListener<NavigationNotification>(
+      onNotification: (notification) {
+        if (notification.canHandlePop) return false;
+        const NavigationNotification(canHandlePop: true).dispatch(context);
+        return true;
+      },
+      child: child,
+    );
+  }
+}
+
 /// Politique unique du bouton Retour Android pour les shells mobiles IzyTel.
 ///
 /// Ordre strict :
@@ -65,13 +86,15 @@ class _IzyTelMobileBackScopeState extends State<IzyTelMobileBackScope> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope<Object?>(
-      canPop: false,
-      onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (didPop) return;
-        unawaited(_handleBack());
-      },
-      child: widget.child,
+    return IzyTelBackNavigationBoundary(
+      child: PopScope<Object?>(
+        canPop: false,
+        onPopInvokedWithResult: (bool didPop, Object? result) {
+          if (didPop) return;
+          unawaited(_handleBack());
+        },
+        child: widget.child,
+      ),
     );
   }
 }
