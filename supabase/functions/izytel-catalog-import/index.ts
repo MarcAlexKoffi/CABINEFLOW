@@ -29,7 +29,7 @@ export async function handle(request:Request):Promise<Response>{
     const decoded=atob(body.contentBase64),bytes=Uint8Array.from(decoded,c=>c.charCodeAt(0));
     const rows=readOffers(bytes);
     const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(byte=>byte.toString(16).padStart(2,'0')).join('');
-    const prepared=await sql.rpc('izytel_catalog_import_prepare',{p_id:body.requestId,p_name:body.name,p_hash:hash,p_rows:rows});
+    const prepared=await sql.rpc('izytel_catalog_file_import_prepare',{p_id:body.requestId,p_name:body.name,p_hash:hash,p_rows:rows});
     if(prepared.error)throw Error(prepared.error.message);
     return reply({id:prepared.data});
   }catch(error){

@@ -87,6 +87,26 @@ try{
     await rpc('bulk_prepare',[id,JSON.stringify(change)],['uuid','jsonb']);assert.equal((await get(id)).summary.update,1);assert.notEqual((await offer('NEW-2')).display_order,99);await run(id);assert.equal((await offer('NEW-2')).display_order,99);
     assert.equal(await rpc('bulk_prepare',[id,JSON.stringify(change)],['uuid','jsonb']),id);await assert.rejects(()=>rpc('bulk_prepare',[crypto.randomUUID(),JSON.stringify(change)],['uuid','jsonb']),/VERSION_CONFLICT/);
   });
+  await test('100-offer publication: eligibility summary, explicit exclusions, two batches, concurrent change and idempotent retry',async()=>{
+    const data=rows(100,'PUBLICATION').map((row,i)=>({...fixtures[0],_row:i+2,code_offre:row.code_offre,activable_pour_tiers:i%5===0?'A_VERIFIER':'OUI',canal_activation:'MANUEL',verifie_le:new Date().toISOString().slice(0,10)}));
+    await run(await prepare(data));
+    const selected=(await rpc('offers_admin')).filter(value=>value.offer_code.startsWith('PUBLICATION-'));
+    const id=crypto.randomUUID(),change={operation:'activate',items:selected.map(value=>({id:value.id,version:value.catalog_version}))};
+    await identity('manager');await assert.rejects(()=>rpc('bulk_prepare',[id,JSON.stringify(change)],['uuid','jsonb']),/ADMIN_REQUIRED/);await identity();
+    await rpc('bulk_prepare',[id,JSON.stringify(change)],['uuid','jsonb']);
+    const preview=await get(id);assert.equal(preview.summary.update,80);assert.equal(preview.summary.error,20);assert.equal(preview.lines.length,20);
+    assert.equal((await rpc('offers_admin')).filter(value=>value.offer_code.startsWith('PUBLICATION-')&&value.is_active).length,0);
+    await assert.rejects(()=>rpc('import_confirm',[id,false],['uuid','boolean']),/ERRORS_REQUIRE_CONFIRMATION/);
+    const concurrent=selected.find(value=>value.offer_code==='PUBLICATION-1');
+    await rpc('offer_save',[concurrent.id,concurrent.catalog_version,JSON.stringify({...data[1],prix_fcfa:'777'}),null],['text','bigint','jsonb','text']);
+    await rpc('import_confirm',[id,true],['uuid','boolean']);
+    const first=await rpc('import_apply',[id],['uuid']);assert.equal(first.job.status,'running');assert.equal(first.job.cursor,50);
+    const result=await rpc('import_apply',[id],['uuid']);assert.equal(result.job.status,'completed');assert.equal(result.job.cursor,100);assert.equal(result.summary.applied,79);assert.equal(result.summary.conflict,1);
+    const after=await rpc('offers_admin');assert.equal(after.filter(value=>value.offer_code.startsWith('PUBLICATION-')&&value.is_active).length,79);
+    const blocked=after.find(value=>value.offer_code==='PUBLICATION-0');assert.equal(blocked.catalog_status,'BROUILLON');assert.equal(blocked.catalog_version,selected.find(value=>value.id===blocked.id).catalog_version);
+    assert.equal((await offer('PUBLICATION-1')).selling_price,777);assert.equal((await offer('PUBLICATION-1')).is_active,false);
+    await rpc('import_apply',[id],['uuid']);assert.deepEqual(await rpc('offers_admin'),after);
+  });
   await test('new canonical orders freeze price, volume, fees and label; later import never changes snapshot',async()=>{
     const before=await offer('NEW-2');await db.exec('reset role');
     await db.query('insert into public.customer_order_recovery_registry values($1,$2,$3,$4,25,10,null)',['snapshot-order',before.id,'Historical selected label',before.selling_price]);
@@ -110,6 +130,98 @@ try{
   await test('internal comments and delivery evidence are excluded from the public catalogue and available only to Admin',async()=>{
     await identity('customer');const visible=(await db.query("select catalog_data,delivery_proof from public.catalog_offers where offer_code='CONDITIONAL'")).rows[0];assert.equal(visible.delivery_proof,'CONFIRMED');assert.equal(visible.catalog_data.commentaire,undefined);assert.equal(visible.catalog_data.source_url,undefined);assert.equal(visible.catalog_data.reference_operateur,undefined);await assert.rejects(()=>rpc('offers_admin'),/ADMIN_REQUIRED/);await assert.rejects(()=>db.query('select * from public.catalog_offer_import_metadata'),/permission denied/);
     await identity();const full=(await rpc('offers_admin')).find(offer=>offer.offer_code==='CONDITIONAL');assert.equal(full.delivery_proof,'Livraison testée pour un tiers');assert.ok(full.catalog_data.commentaire.length>0);
+  });
+  // Upgrade the exact historical pipeline above, then verify the new file-only
+  // publication policy without weakening commercial validation or access.
+  await db.exec('reset role');
+  await db.exec(await readFile(resolve(root,'supabase/migrations/20261115205903_catalog_direct_file_publication.sql'),'utf8'));
+  await identity();
+  async function filePreview(data){const id=crypto.randomUUID();await rpc('file_import_prepare',[id,'direct.xlsx','b'.repeat(64),JSON.stringify(data)],['uuid','text','text','jsonb']);return id;}
+  let directRows,directOffers;
+  await test('53 file offers publish on confirmation without verification policy, channel or conditional delivery evidence',async()=>{
+    const config=await rpc('configuration');await rpc('save_configuration',[config.settings.version,null,JSON.stringify(config.families)],['bigint','integer','jsonb']);
+    directRows=rows(53,'DIRECT');const id=await filePreview(directRows),preview=await get(id);
+    assert.equal(preview.summary.error,0);assert.equal(preview.summary.create,53);assert.ok(preview.lines.every(line=>line.data.statut==='ACTIF'));
+    assert.equal(await offer('DIRECT-0'),undefined);await assert.rejects(()=>rpc('import_apply',[id],['uuid']),/CONFIRMATION_REQUIRED/);
+    const result=await run(id);assert.equal(result.summary.applied,53);
+    directOffers=(await rpc('offers_admin')).filter(value=>value.offer_code.startsWith('DIRECT-'));assert.equal(directOffers.length,53);assert.ok(directOffers.every(value=>value.is_active&&value.catalog_status==='ACTIF'));
+    assert.ok(directOffers.every(value=>value.catalog_data.activable_pour_tiers==='A_VERIFIER'&&value.catalog_data.canal_activation==='A_VERIFIER'&&value.catalog_data.verifie_le===''&&value.delivery_proof===null));
+    await identity('customer');assert.equal((await db.query("select count(*)::integer n from public.catalog_offers where offer_code like 'DIRECT-%' and is_active")).rows[0].n,53);await identity();
+  });
+  await test('same draft workbook reimport leaves published IDs, values and versions unchanged',async()=>{
+    const id=await filePreview(directRows);assert.equal((await get(id)).summary.unchanged,53);await run(id);
+    assert.deepEqual((await rpc('offers_admin')).filter(value=>value.offer_code.startsWith('DIRECT-')),directOffers);
+  });
+  await test('file import retains explicit inactive/deactivation and does not auto-publish editor or bulk-priority drafts',async()=>{
+    const id=await filePreview([{...rows(1,'KEEP-INACTIVE')[0],statut:'INACTIF'},{_row:3,action:'DESACTIVER',code_offre:'DIRECT-0'}]);await run(id);
+    assert.equal((await offer('KEEP-INACTIVE-0')).is_active,false);assert.equal((await offer('DIRECT-0')).is_active,false);
+    await run(await prepare(rows(1,'MANUAL-DRAFT')));const before=await offer('MANUAL-DRAFT-0');assert.equal(before.catalog_status,'BROUILLON');
+    const bulk=crypto.randomUUID();await rpc('bulk_prepare',[bulk,JSON.stringify({operation:'priority',value:'77',items:[{id:before.id,version:before.catalog_version}]})],['uuid','jsonb']);await run(bulk);assert.equal((await offer('MANUAL-DRAFT-0')).catalog_status,'BROUILLON');
+  });
+  await test('100-row direct import retains duplicate/price errors and explicit partial consent, applying only 97 valid offers',async()=>{
+    const data=rows(100,'DIRECT-LARGE');data[1].code_offre=data[0].code_offre;data[2].prix_fcfa='-1';const id=await filePreview(data),preview=await get(id);
+    assert.equal(preview.summary.error,3);assert.equal(preview.summary.create,97);await assert.rejects(()=>run(id),/ERRORS_REQUIRE_CONFIRMATION/);const result=await run(id,true);assert.equal(result.summary.applied,97);
+    const visible=(await rpc('offers_admin')).filter(value=>value.offer_code.startsWith('DIRECT-LARGE-'));assert.equal(visible.length,97);assert.ok(visible.every(value=>value.is_active));
+  });
+  await test('direct publication preserves version conflicts, rollback and retry idempotency',async()=>{
+    const before=await offer('DIRECT-1'),data=[{...directRows[1],prix_fcfa:'987'}],a=await filePreview(data),b=await filePreview(data);await run(a);
+    const conflict=await run(b);assert.equal(conflict.summary.conflict,1);assert.equal(conflict.summary.applied,0);const changed=await offer('DIRECT-1');assert.equal(changed.id,before.id);assert.equal(changed.selling_price,987);
+    await rpc('import_apply',[a],['uuid']);assert.equal((await offer('DIRECT-1')).catalog_version,changed.catalog_version);await rpc('import_restore',[a],['uuid']);assert.equal((await offer('DIRECT-1')).selling_price,before.selling_price);
+  });
+  await test('direct import rejects non-admin and foreign tokens; malformed fields and invalid families remain blocked',async()=>{
+    for(const uid of ['manager','agent','customer']){await identity(uid);await assert.rejects(()=>filePreview(rows(1,'DENIED')),/ADMIN_REQUIRED/);}
+    await identity('admin','foreign');await assert.rejects(()=>filePreview(rows(1,'DENIED')),/ADMIN_REQUIRED/);await identity();
+    const id=await filePreview([{...rows(1,'BAD-DIRECT')[0],prix_fcfa:'oops'},{...rows(1,'BAD-FAMILY')[0],_row:3,famille:'UNKNOWN'}]);assert.equal((await get(id)).summary.error,2);
+  });
+  const presentationRows=[
+    {...fixtures[0],_row:2,code_offre:'PRESENT-DEC',operateur:'MTN',nom_affiche:'2,2 GO',volume_data:'2.2000000000000002',unite_data:'GO',reference_operateur:'  Packs   Internet  ',source_url:'https://internal.invalid/private',commentaire:'Private note'},
+    {...fixtures[0],_row:3,code_offre:'PRESENT-MAX',famille:'MAXIT',mis_en_avant:'OUI',reference_operateur:'Pass Max it'},
+    {...fixtures[0],_row:4,code_offre:'PRESENT-CHIC',operateur:'MTN',famille:'CCHIC',reference_operateur:"C'Chic"},
+    {...fixtures[0],_row:5,code_offre:'PRESENT-MIX',operateur:'MTN',famille:'MIX',type_forfait:'MIXTE',minutes_appels:'55',nombre_sms:'100',reference_operateur:'Free Plus'},
+    {...fixtures[0],_row:6,code_offre:'PRESENT-CLASSICS',operateur:'MOOV',mis_en_avant:'OUI',reference_operateur:'Internet   Classics'},
+  ];
+  await run(await filePreview(presentationRows));
+  const presentationBefore=(await rpc('offers_admin')).filter(value=>value.offer_code.startsWith('PRESENT-'));
+  const decimalBefore=await offer('PRESENT-DEC');
+  const featuredBefore=(await rpc('offers_admin')).filter(value=>value.badge_label!==null).map(value=>value.id).sort();
+  assert.equal((await offer('PRESENT-DEC')).volume,'2.2000000000000002 GO');
+  await db.exec('reset role');
+  await db.query('insert into public.customer_order_recovery_registry(order_id,offer_id,offer_label,amount,izytel_fee,payment_fee) values($1,$2,$3,200,25,10)', ['presentation-order',presentationBefore.find(value=>value.offer_code==='PRESENT-DEC').id,'Original label']);
+  const frozenPresentationOrder=(await db.query("select * from public.customer_order_recovery_registry where order_id='presentation-order'")).rows[0];
+  await db.exec(await readFile(resolve(root,'supabase/migrations/20261115213025_catalog_offer_presentation.sql'),'utf8'));
+  await identity();
+  await test('existing 2.2 GB display becomes French 2,2 GO, keeping source decimal, identity, price, units and status',async()=>{
+    const after=await offer('PRESENT-DEC'),before=decimalBefore;
+    assert.equal(after.volume,'2,2 GO');assert.equal(after.details[0],'Packs Internet · 2,2 GO');assert.equal(after.details[1],'Validité 2 jours');
+    for(const field of ['id','offer_code','title','selling_price','is_active','catalog_status','created_at','catalog_data'])assert.deepEqual(after[field],before[field],field);
+    assert.equal(after.catalog_data.volume_data,'2.2000000000000002');assert.equal(after.catalog_data.unite_data,'GO');assert.equal(after.catalog_version,before.catalog_version+1);
+  });
+  await test('family uses existing badges only for featured offers; non-featured mixed offers retain all four details and validity',async()=>{
+    const after=await rpc('offers_admin');assert.deepEqual(after.filter(value=>value.badge_label!==null).map(value=>value.id).sort(),featuredBefore);
+    assert.equal((await offer('PRESENT-MAX')).badge_label,'Pass Max it');assert.equal((await offer('PRESENT-CLASSICS')).badge_label,'Internet Classics');
+    const chic=await offer('PRESENT-CHIC'),mixed=await offer('PRESENT-MIX');assert.equal(chic.badge_label,null);assert.equal(chic.details[0],"C'Chic · 220 MO");
+    assert.deepEqual(mixed.details,['Free Plus · 220 MO','55 min','100 SMS','Validité 2 jours']);
+  });
+  await test('presentation persists through reimport and legacy status updates without repeated family prefixes',async()=>{
+    const before=await offer('PRESENT-DEC'),id=await filePreview(presentationRows);assert.equal((await get(id)).summary.unchanged,5);await run(id);assert.equal((await offer('PRESENT-DEC')).catalog_version,before.catalog_version);
+    await db.query('select public.izytel_set_catalog_offer_active($1,false)',[before.id]);await db.query('select public.izytel_set_catalog_offer_active($1,true)',[before.id]);
+    assert.equal((await offer('PRESENT-DEC')).details[0],'Packs Internet · 2,2 GO');
+  });
+  await test('future imports normalize volume display and family spaces; missing and long names keep existing badge semantics',async()=>{
+    const data=[{...fixtures[0],_row:2,code_offre:'NEW-PRESENT',operateur:'MOOV',famille:'FOLIE',volume_data:'7.4000000000000004',unite_data:'GO',mis_en_avant:'OUI',reference_operateur:' Folie   Internet '},
+      {...fixtures[0],_row:3,code_offre:'LONG-PRESENT',mis_en_avant:'OUI',reference_operateur:'Une famille avec un libellé commercial très long'},
+      {...fixtures[0],_row:4,code_offre:'EMPTY-PRESENT',mis_en_avant:'OUI',reference_operateur:''}];
+    await run(await filePreview(data));assert.equal((await offer('NEW-PRESENT')).volume,'7,4 GO');assert.equal((await offer('NEW-PRESENT')).badge_label,'Folie Internet');
+    assert.equal((await offer('LONG-PRESENT')).badge_label,'Mis en avant');assert.match((await offer('LONG-PRESENT')).details[0],/^Une famille avec un libellé commercial très long · 220 MO$/);
+    assert.equal((await offer('EMPTY-PRESENT')).badge_label,'Mis en avant');assert.equal((await offer('EMPTY-PRESENT')).details[0],'220 MO');
+  });
+  await test('presentation backfill leaves frozen orders and financial fields intact; backup and internal metadata remain private',async()=>{
+    await db.exec('reset role');assert.deepEqual((await db.query("select * from public.customer_order_recovery_registry where order_id='presentation-order'")).rows[0],frozenPresentationOrder);
+    const backup=(await db.query('select * from private.catalog_presentation_backup_20261115213025 where offer_id=$1',[presentationBefore[0].id])).rows[0];assert.ok(backup);assert.equal(backup.before_state.id,presentationBefore[0].id);
+    assert.equal((await db.query("select private.catalog_quantity_label('0.000000001') label")).rows[0].label,'0,000000001');
+    await identity('customer');await assert.rejects(()=>db.query('select * from private.catalog_presentation_backup_20261115213025'),/permission denied/);
+    const visible=(await db.query("select * from public.catalog_offers where offer_code='PRESENT-DEC'")).rows[0];assert.equal(visible.catalog_data.source_url,undefined);assert.equal(visible.catalog_data.commentaire,undefined);assert.equal(visible.catalog_data.reference_operateur,undefined);
+    await identity();assert.ok((await rpc('offer_history',[visible.id],['text'])).some(event=>event.action==='catalog_presentation_updated'));
   });
   console.log(`${passed} SQL integration cases passed.`);
   await writeFile(resolve(root,'docs/catalog_offers/sql-results.json'),JSON.stringify({date:new Date().toISOString(),passed,failed:0,engine:'PGlite isolated PostgreSQL',remote:false},null,2)+'\n');
