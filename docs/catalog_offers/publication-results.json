@@ -1,0 +1,29 @@
+{
+  "feature": "Publication groupée des offres vérifiées",
+  "deliveredAt": "2026-11-15T20:48:25.348Z",
+  "sourceBaseCommit": "cf368891ca317ab7611e85c1e7779eb25b40da56",
+  "workingTreeChangesIncluded": true,
+  "backendChanges": false,
+  "realOffersPublishedByAgent": false,
+  "validation": {
+    "flutterTargetedTests": {"passed": 21, "failed": 0},
+    "existingCardGoldens": "unchanged, 390 and 930 px",
+    "sqlIsolatedTests": {"passed": 17, "failed": 0},
+    "publicationScenario": "100 drafts: 80 eligible, 20 blocked; 79 published, 1 concurrent change preserved",
+    "scopedDartAnalysis": {"issues": 0, "files": 4},
+    "globalDartAnalysis": {"issues": 68, "scope": "pre-existing legacy USSD and resilience files, unchanged"},
+    "backofficeWebBuild": "passed",
+    "authenticatedProductionAcceptance": "not executed"
+  },
+  "hosting": {
+    "url": "https://izytel-backoffice-4bca7.web.app",
+    "project": "cabineflow-4bca7",
+    "site": "izytel-backoffice-4bca7",
+    "version": "7cba1e9be87fd860",
+    "previousVersion": "f866232c3bac613e",
+    "mainDartJsSha256": "cd47ed1e6af882eac9139e93d2bc313656f45ac66bc0c88460e2dc78ed11ca24",
+    "readOnlyHttpChecks": {"passed": 13, "failed": 0},
+    "deployCommand": "firebase deploy --only hosting:backoffice --project cabineflow-4bca7 --non-interactive --json"
+  },
+  "manualAcceptance": "docs/catalog_offers/RECETTE.md#publication-groupée-des-offres-vérifiées"
+}

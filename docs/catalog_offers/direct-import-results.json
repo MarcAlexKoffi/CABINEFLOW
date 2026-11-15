@@ -1,0 +1,46 @@
+{
+  "feature": "Import et publication en une confirmation",
+  "deliveredAt": "2026-11-15T21:15:17.512Z",
+  "sourceBaseCommit": "cf368891ca317ab7611e85c1e7779eb25b40da56",
+  "workingTreeChangesIncluded": true,
+  "policy": {
+    "fileUpsertsDraftOrEmptyStatus": "ACTIF after import confirmation",
+    "explicitInactiveAndDeactivate": "preserved",
+    "verificationAgeThirdPartyChannelDeliveryProof": "optional; no metadata fabricated",
+    "commercialValidationAuthorizationAuditVersions": "preserved",
+    "editorAndOtherBulkDraftStatus": "preserved"
+  },
+  "validation": {
+    "flutterTargetedTestsPassed": 22,
+    "sqlIsolatedTestsPassed": 23,
+    "xlsxTestsPassed": 5,
+    "scopedDartAnalysisIssues": 0,
+    "existingCardGoldens": "passed without baseline updates",
+    "webBuild": "passed",
+    "readOnlyProductionValidation": {"offers": 53, "publishable": 53, "blocked": 0},
+    "authenticatedProductionImport": "not executed by agent",
+    "realOffersPublishedByAgent": false
+  },
+  "supabase": {
+    "project": "zrxeztxaxnzxevjuhzcc",
+    "localMigration": "20261115205903_catalog_direct_file_publication.sql",
+    "remoteMigrationVersion": "20261115211043",
+    "edgeFunction": "izytel-catalog-import",
+    "edgeVersion": 3,
+    "edgeBundleSha256": "fddcf4d94ef18663795bb8a39a821b7e69d56c094ba41f941474196e4fa69a1d",
+    "advisorReview": "Intentional anon/authenticated SECURITY DEFINER RPC, matching Firebase JWT integration. private.catalog_admin checks active Admin before parsing; non-admin and foreign-issuer refusals tested.",
+    "advisorReferences": [
+      "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
+      "https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable"
+    ]
+  },
+  "hosting": {
+    "url": "https://izytel-backoffice-4bca7.web.app",
+    "version": "7118b910604dda10",
+    "previousVersion": "7cba1e9be87fd860",
+    "mainDartJsSha256": "acebeca433a151cfc6d3705bba193663fd216825f394e12d0c189fc9fc358a71",
+    "httpChecksPassed": 13,
+    "httpChecksFailed": 0
+  },
+  "acceptanceAndRollback": "docs/catalog_offers/RECETTE.md"
+}

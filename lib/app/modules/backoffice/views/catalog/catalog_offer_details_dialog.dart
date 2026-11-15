@@ -191,7 +191,7 @@ class _CatalogOfferDetailsDialogState extends State<CatalogOfferDetailsDialog> {
     title: widget.duplicate
         ? 'Dupliquer l’offre'
         : _editing
-        ? 'Code et vérification de l’offre'
+        ? 'Modifier l’offre'
         : 'Nouvelle offre',
     subtitle:
         'Prix opérateur hors frais IzyTel. Les commandes existantes restent inchangées.',
@@ -241,16 +241,13 @@ class _CatalogOfferDetailsDialogState extends State<CatalogOfferDetailsDialog> {
             enabled: !_busy,
             decoration: const InputDecoration(
               labelText: 'Preuve de livraison pour un tiers',
-              hintText:
-                  'Référence du contrôle effectué ; obligatoire si famille conditionnelle',
+              hintText: 'Information facultative',
             ),
             minLines: 2,
             maxLines: 3,
           ),
           catalogNotice(
-            widget.configuration.verificationDays == null
-                ? 'Publication ACTIF bloquée jusqu’à la configuration du délai de vérification. Les brouillons restent enregistrables.'
-                : 'Publication : vérification de moins de ${widget.configuration.verificationDays} jours, activation pour un tiers OUI, canal confirmé et preuve de livraison si nécessaire. Toutes les règles sont vérifiées côté serveur.',
+            'Le statut ACTIF rend l’offre disponible. Les informations de vérification et la preuve de livraison sont facultatives.',
           ),
           if (_editing && !widget.offer!.codeConfirmed)
             CheckboxListTile(
@@ -357,8 +354,7 @@ class _CatalogConfigurationDialogState
           keyboardType: TextInputType.number,
           decoration: const InputDecoration(
             labelText: 'Vérification récente : nombre maximum de jours',
-            helperText:
-                '1 à 366 jours. Vide : publication bloquée, brouillons autorisés.',
+            helperText: 'Information facultative, sans blocage de publication.',
           ),
         ),
         const SizedBox(height: 16),
@@ -402,7 +398,7 @@ class _CatalogConfigurationDialogState
                                   () => family['conditional'] = value,
                                 ),
                         ),
-                        const Text('Preuve de livraison requise'),
+                        const Text('Famille conditionnelle'),
                       ],
                     ),
                   ],

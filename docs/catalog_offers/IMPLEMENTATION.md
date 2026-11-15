@@ -2,6 +2,8 @@
 
 15 novembre 2026 · CAT-IMPORT-01 · **code intégré et vérifié localement ; backend déployé avec accord utilisateur**.
 
+**Actualisation de livraison :** le Back-office est désormais en ligne. L’import publie en une confirmation, sans prérequis de vérification ; les volumes et les natures commerciales sont corrigés côté serveur. Voir [CAT-08](issues/08-import-publication-presentation.md), [la préparation GitHub](GITHUB_DELIVERY.md), `direct-import-results.json` et `presentation-results.json`. Les sections suivantes conservent le bilan de l’intégration initiale et sont complétées par ces documents pour le comportement actuel.
+
 La dernière consigne utilisateur demande l’implémentation directe avec le style déjà en place, illustré par la vidéo du 15 novembre à 13:02. Cette référence remplace le prototype HTML R1 comme référence de présentation. Le [contrat de non-régression](STYLE_NON_REGRESSION.md) précise les composants conservés et leurs preuves.
 
 ## Fonctionnement intégré

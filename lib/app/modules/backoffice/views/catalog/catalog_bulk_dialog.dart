@@ -83,7 +83,7 @@ class _CatalogBulkDialogState extends State<CatalogBulkDialog> {
             ),
           ),
         catalogNotice(
-          'Les règles de publication, la compatibilité des familles et les versions seront contrôlées côté serveur. Les offres historiques non structurées doivent être vérifiées dans leur fiche avant activation ou changement de famille.',
+          'Les données commerciales, la compatibilité des familles et les versions seront contrôlées côté serveur. Les offres historiques non structurées doivent être complétées dans leur fiche avant activation ou changement de famille.',
         ),
         for (final offer in widget.offers)
           ListTile(

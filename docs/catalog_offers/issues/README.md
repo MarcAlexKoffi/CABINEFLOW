@@ -2,7 +2,7 @@
 
 Brouillons locaux prêts à copier sur GitHub. Aucune issue distante créée. Les identifiants CAT ci-dessous sont des repères documentaires, à remplacer par les numéros et liens réels.
 
-Le [dossier GitHub consolidé](../../GITHUB_ISSUES.md) propose les cinq issues principales de l’ensemble du chantier. Les lots CAT-01 à CAT-05 ci-dessous permettent de répartir la revue plus finement ; CAT-06 décrit le correctif vidéo et CAT-07 les étapes de livraison restantes.
+Pour les changements actuels, utiliser l’issue unique **[CAT-08](08-import-publication-presentation.md)** et le [dossier de livraison GitHub](../GITHUB_DELIVERY.md). Les lots CAT-01 à CAT-05 décrivent l’intégration initiale ; CAT-06 décrit le correctif vidéo et CAT-07 la recette authentifiée restante.
 
 | Repère | Sujet | État du travail | Dépendances |
 |---|---|---|---|
@@ -13,8 +13,9 @@ Le [dossier GitHub consolidé](../../GITHUB_ISSUES.md) propose les cinq issues p
 | [CAT-04](04-revisions.md) | Révisions, reprise et restauration | Persistance serveur, reprise et restauration testées | recette après mise en service |
 | [CAT-05](05-acceptance.md) | Recette et non-régression | 36 tests Flutter, 16 SQL, 5 parseur réussis | recette authentifiée et opérationnelle restante |
 | [CAT-06](06-responsive-intro.md) | Débordement des actions du catalogue | Corrigé ; 16 tests UI/repository/style réussis | contrôle visuel dans la session utilisateur |
-| [CAT-07](07-production-acceptance.md) | Recette authentifiée et publication frontend | À réaliser ; [recette détaillée](../RECETTE.md) | frontend compatible, comptes de recette et créneau de livraison |
+| [CAT-07](07-production-acceptance.md) | Recette authentifiée du Back-office déployé | Hébergement publié ; recette complète restante | comptes de recette et preuves de validation |
+| [CAT-08](08-import-publication-presentation.md) | Publication directe, volumes et natures commerciales | Implémenté et déployé ; revue et recette restantes | livraison GitHub actuelle |
 
-Décision confirmée : Supabase canonique et imports sécurisés côté serveur. L’utilisateur a demandé l’implémentation directe avec le style existant, puis autorisé la mise en service du backend. Le [bilan d’implémentation](../IMPLEMENTATION.md) et le [relevé de déploiement](../deployment-results.json) sont les références courantes. Les cases des tickets servent à la revue/recette et ne signifient pas que le code est absent. Publier l’epic puis les sous-issues ; l’hébergement frontend et la recette authentifiée restent à effectuer.
+Décision confirmée : Supabase canonique, imports réservés à l’Admin et publication directe après confirmation. Backend et Back-office sont déployés. Les bilans initiaux restent consultables ; `direct-import-results.json` et `presentation-results.json` décrivent la livraison actuelle. Les cases des tickets servent à la revue/recette et ne signifient pas que le code est absent.
 
 Les [issues d’architecture](../../architecture/issues/README.md) décrivent un lot distinct : déplacement de code et imports, sans changement de comportement. Ne pas mélanger leurs critères avec les évolutions fonctionnelles de ce catalogue.
