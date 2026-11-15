@@ -2,6 +2,24 @@
 
 Document établi le **9 novembre 2026**, heure d’Abidjan. Périmètre documentaire : travaux retrouvés du **30 octobre au 7 novembre 2026**, complétés par les commits locaux récents.
 
+> Complément du **14 novembre 2026** : la structure du code a été réorganisée
+> selon les couches de `IzyTel-main`. Les chemins cités dans ce compte rendu
+> historique sont conservés ; retrouver leurs destinations avec la
+> [table de correspondance](docs/architecture/path-map.json). Le
+> [guide de reprise](docs/architecture/README.md) et les
+> [descriptions d’issues GitHub](docs/architecture/issues/README.md) documentent
+> ce chantier de structure, avec le comportement existant conservé.
+>
+> Nettoyage du **15 novembre 2026** : les archives redondantes, sorties générées
+> et fichiers inutilisés ont été retirés. Les mentions « Présent » dans les
+> inventaires ci-dessous décrivent l’état historique à la rédaction. Consulter
+> le [bilan du nettoyage](docs/architecture/CLEANUP.md) pour les suppressions.
+
+> Publication GitHub — **15 novembre 2026** : le [dossier de cinq issues prêtes à copier](docs/GITHUB_ISSUES.md)
+> rassemble architecture, nettoyage, catalogue/imports Supabase, correctif d’affichage
+> et recette/livraison restantes. Chaque description indique les fichiers actuels,
+> les travaux réalisés et les vérifications à terminer.
+
 ## 1. Objet et méthode
 
 Ce document concerne uniquement **IzyTel**, dont le nom technique historique est `cabine_flow`. Il décrit les changements, les validations consignées, leur état de livraison et les fichiers concernés.

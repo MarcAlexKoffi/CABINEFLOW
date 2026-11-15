@@ -1,0 +1,20 @@
+{
+  "revision": "R1",
+  "status": "DESIGN_REVIEW",
+  "date": "2026-11-15T12:49:28.717Z",
+  "browser": "157.0.4341.46",
+  "checks": [
+    "catalogue: 8 cards, two columns, operator families, search",
+    "keyboard: search shortcut, menu, modal Escape and focus return",
+    "responsive: 320, 390, 768 and 1440 px with no page overflow",
+    "real XLSX: 40 rows from OFFRES only; preview does not change catalog",
+    "four drafts: create then reimport unchanged",
+    "price change: stable ID and historical order snapshot",
+    "duplicate codes: all lines blocked; partial import requires explicit choice",
+    "large import: pagination, interruption, same importId, resumed result and restore",
+    "file rejection: missing OFFRES, formula, macro and oversized input",
+    "table selection, bulk impact preview, manual duplicate editor and no HTML execution"
+  ],
+  "errors": [],
+  "productionBackendTested": false
+}

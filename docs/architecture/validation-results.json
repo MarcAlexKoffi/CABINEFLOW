@@ -1,0 +1,144 @@
+{
+  "date": "2026-11-15",
+  "baseCommit": "84f4d3a",
+  "sdk": {
+    "flutter": "3.44.8",
+    "dart": "3.12.2"
+  },
+  "architecture": {
+    "dartFiles": 660,
+    "moves": 521
+  },
+  "baseline": {
+    "duration": "04:02",
+    "passed": 1121,
+    "skipped": 2,
+    "failed": 13,
+    "failures": [
+      {
+        "file": "test/app/modules/agent_orders/views/agent_orders_page_test.dart",
+        "name": "affiche la file priorisée de la maquette et accepte"
+      },
+      {
+        "file": "test/regressions/backoffice_bo3_real_recipe_fixes_contract_test.dart",
+        "name": "BO-3 recette réelle - correctifs profils et zones les libellés du formulaire Zone restent visibles au-dessus de la carte"
+      },
+      {
+        "file": "test/regressions/backoffice_bo3_team_support_contract_test.dart",
+        "name": "BO-3 - équipe et support Back-office Zones utilise le référentiel territorial Supabase et les Agents existants"
+      },
+      {
+        "file": "test/regressions/cabiniste_mobile_role_contract_test.dart",
+        "name": "cabiniste order UI is wired to validated partner RPC layer"
+      },
+      {
+        "file": "test/regressions/cabiniste_processing_parity_contract_test.dart",
+        "name": "acceptation Cabiniste demarre puis ouvre directement le detail"
+      },
+      {
+        "file": "test/regressions/cabiniste_processing_parity_contract_test.dart",
+        "name": "detail Cabiniste reprend les blocs essentiels du detail Agent"
+      },
+      {
+        "file": "test/regressions/order_queue_fallback_contract_test.dart",
+        "name": "file Cabiniste bascule vers la premiere file non vide"
+      },
+      {
+        "file": "test/regressions/phase3_terrain_proof_failed_home_contract_test.dart",
+        "name": "preuve peut etre ajoutee pendant traitement ou attente"
+      },
+      {
+        "file": "test/regressions/supabase_phase4_assignment_contract_test.dart",
+        "name": "succes Agent finalise directement capacite et commission Supabase"
+      },
+      {
+        "file": "test/regressions/supabase_phase5_consolidated_contract_test.dart",
+        "name": "succès Agent finalise directement Phase 5 sans pont Firebase"
+      },
+      {
+        "file": "test/regressions/supabase_phase5b_order_proofs_contract_test.dart",
+        "name": "la finalisation Agent reste Supabase-only apres le cutover"
+      },
+      {
+        "file": "test/regressions/wc14_round_robin_and_mobile_refresh_contract_test.dart",
+        "name": "Agent pull-to-refresh no longer restarts live subscriptions"
+      },
+      {
+        "file": "test/regressions/wc9_1_compile_scope_hotfix_contract_test.dart",
+        "name": "WC9.1 - compile Partner + scope Manager Agents PartnerShell conserve les imports Flutter necessaires"
+      }
+    ]
+  },
+  "after": {
+    "duration": "04:26",
+    "passed": 1121,
+    "skipped": 2,
+    "failed": 13,
+    "failures": [
+      {
+        "file": "test/app/modules/agent_orders/views/agent_orders_page_test.dart",
+        "name": "affiche la file priorisée de la maquette et accepte"
+      },
+      {
+        "file": "test/regressions/backoffice_bo3_real_recipe_fixes_contract_test.dart",
+        "name": "BO-3 recette réelle - correctifs profils et zones les libellés du formulaire Zone restent visibles au-dessus de la carte"
+      },
+      {
+        "file": "test/regressions/backoffice_bo3_team_support_contract_test.dart",
+        "name": "BO-3 - équipe et support Back-office Zones utilise le référentiel territorial Supabase et les Agents existants"
+      },
+      {
+        "file": "test/regressions/cabiniste_mobile_role_contract_test.dart",
+        "name": "cabiniste order UI is wired to validated partner RPC layer"
+      },
+      {
+        "file": "test/regressions/cabiniste_processing_parity_contract_test.dart",
+        "name": "acceptation Cabiniste demarre puis ouvre directement le detail"
+      },
+      {
+        "file": "test/regressions/cabiniste_processing_parity_contract_test.dart",
+        "name": "detail Cabiniste reprend les blocs essentiels du detail Agent"
+      },
+      {
+        "file": "test/regressions/order_queue_fallback_contract_test.dart",
+        "name": "file Cabiniste bascule vers la premiere file non vide"
+      },
+      {
+        "file": "test/regressions/phase3_terrain_proof_failed_home_contract_test.dart",
+        "name": "preuve peut etre ajoutee pendant traitement ou attente"
+      },
+      {
+        "file": "test/regressions/supabase_phase4_assignment_contract_test.dart",
+        "name": "succes Agent finalise directement capacite et commission Supabase"
+      },
+      {
+        "file": "test/regressions/supabase_phase5_consolidated_contract_test.dart",
+        "name": "succès Agent finalise directement Phase 5 sans pont Firebase"
+      },
+      {
+        "file": "test/regressions/supabase_phase5b_order_proofs_contract_test.dart",
+        "name": "la finalisation Agent reste Supabase-only apres le cutover"
+      },
+      {
+        "file": "test/regressions/wc14_round_robin_and_mobile_refresh_contract_test.dart",
+        "name": "Agent pull-to-refresh no longer restarts live subscriptions"
+      },
+      {
+        "file": "test/regressions/wc9_1_compile_scope_hotfix_contract_test.dart",
+        "name": "WC9.1 - compile Partner + scope Manager Agents PartnerShell conserve les imports Flutter necessaires"
+      }
+    ]
+  },
+  "addedFailures": [],
+  "resolvedFailures": [],
+  "targeted": {
+    "file": "test/regressions/backoffice_bo3a_support_refund_contract_test.dart",
+    "passed": 5,
+    "failed": 0
+  },
+  "buildExitCodes": {
+    "backoffice": 0,
+    "customer": 0,
+    "staff": 0
+  }
+}

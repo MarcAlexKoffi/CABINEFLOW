@@ -1,0 +1,72 @@
+{
+  "verifiedAt": "2026-11-15T14:19:32Z",
+  "projectId": "zrxeztxaxnzxevjuhzcc",
+  "projectName": "IzyTel",
+  "authorization": "Explicit user reply: Oui, mettre le backend en service",
+  "backup": {
+    "table": "private.catalog_import_backup_20261115133000",
+    "migrationVersion": "20261115141724",
+    "migrationName": "catalog_import_predeployment_backup_20261115",
+    "localFile": "supabase/migrations/20261115132900_catalog_import_predeployment_backup.sql",
+    "catalogueRows": 35,
+    "auditRows": 0,
+    "rlsEnabled": true,
+    "anonSelect": false,
+    "authenticatedSelect": false,
+    "commercialRowsExportedLocally": false
+  },
+  "catalogueMigration": {
+    "version": "20261115141733",
+    "name": "catalog_offer_imports",
+    "localFile": "supabase/migrations/20261115133000_catalog_offer_imports.sql",
+    "localFileSha256": "D3AAD7660F8F86992D01EADA11447FD9F75D3B598391024E14EACDF3BEA223F5",
+    "applied": true
+  },
+  "edgeFunction": {
+    "name": "izytel-catalog-import",
+    "id": "c8a51f7f-88c9-4056-868a-1d5b101d6738",
+    "version": 1,
+    "status": "ACTIVE",
+    "verifyJwtAtGateway": false,
+    "authentication": "Firebase bearer forwarded to the Data API for verification; active Admin checked by SQL before XLSX parsing",
+    "entrypoint": "index.ts",
+    "runtimeConfig": "deno.json",
+    "deployedBundleSha256": "43dfb9b21c7df7e00d5f7cb62d854d2ddacc69a6acab3fb29d5649bc522af15a",
+    "localSourceSha256": {
+      "index.ts": "6127D77EFAE2839FCDD6DF7673BA497D34D913D2361FCBE50ECECE28B223478C",
+      "xlsx.ts": "3777ABD19FA43EB23A407999CDF33D3D08824C7BBA3D5DC827BC3053A5167AB6",
+      "deno.json": "473A70ED3F6F964DEA7ACA657939583E6A44E74663EF4A8737F5D70ED133CA45",
+      "deno.lock": "CB3001A31495ED5B8E27B0A454EA4218CFD7721258359C0DC6DF1431AF6B65A2"
+    }
+  },
+  "remoteVerification": {
+    "offersBefore": 35,
+    "offersAfter": 35,
+    "offersStillPresent": 35,
+    "rowsWithChangedOriginalFields": 0,
+    "auditEventsBefore": 0,
+    "auditEventsAfter": 0,
+    "importJobs": 0,
+    "verificationMaxAgeDays": null,
+    "anonymousConfigurationRpc": "denied: ADMIN_REQUIRED",
+    "fiveImportTables": "RLS enabled; no direct SELECT grant to anon/authenticated",
+    "snapshotTriggersEnabled": ["customer_order_recovery_registry", "phase4_assignment_orders"],
+    "httpChecks": [
+      {"case":"unauthenticated_post","status":401,"passed":true},
+      {"case":"invalid_token_post","status":403,"passed":true},
+      {"case":"allowed_preflight","status":200,"allowOrigin":"https://cabineflow-4bca7.web.app","passed":true},
+      {"case":"denied_origin","status":403,"passed":true},
+      {"case":"unsupported_get","status":405,"passed":true}
+    ]
+  },
+  "frontendHostingDeployed": false,
+  "productionAuthenticatedAcceptanceRun": false,
+  "modelOffersImported": false,
+  "githubIssuesPublished": false,
+  "remainingOperationalSteps": [
+    "Publish the compatible Back-office build when hosting deployment is requested.",
+    "Run authenticated Admin/non-Admin acceptance with the compatible frontend.",
+    "Configure verification age in Règles et familles before publishing new verified offers.",
+    "Explicitly map historical permanent codes before importing updates."
+  ]
+}
