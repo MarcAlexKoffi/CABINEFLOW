@@ -5,7 +5,7 @@ import {maxFileBytes,readOffers} from './xlsx.ts';
 // using the existing Firebase integration. No service-role key is used here.
 export async function handle(request:Request):Promise<Response>{
   const origin=request.headers.get('origin');
-  const origins=(Deno.env.get('IZYTEL_ADMIN_ALLOWED_ORIGINS')||'http://localhost:8080,http://127.0.0.1:8080,https://cabineflow-4bca7.web.app,https://cabineflow-4bca7.firebaseapp.com').split(',').map(v=>v.trim());
+  const origins=(Deno.env.get('IZYTEL_ADMIN_ALLOWED_ORIGINS')||'http://localhost:8080,http://127.0.0.1:8080,https://cabineflow-4bca7.web.app,https://cabineflow-4bca7.firebaseapp.com,https://izytel-backoffice-4bca7.web.app,https://izytel-backoffice-4bca7.firebaseapp.com').split(',').map(v=>v.trim());
   const headers:Record<string,string>={'Content-Type':'application/json','Vary':'Origin','Access-Control-Allow-Headers':'authorization,apikey,content-type,x-client-info','Access-Control-Allow-Methods':'POST,OPTIONS'};
   const reply=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers});
   if(origin&&!origins.includes(origin))return reply({error:'ORIGIN_DENIED'},403);
