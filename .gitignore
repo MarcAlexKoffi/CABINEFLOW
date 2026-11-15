@@ -3,6 +3,7 @@
 *.log
 *.pyc
 *.swp
+*.bak
 .DS_Store
 .atom/
 .build/
@@ -64,7 +65,4 @@ node_modules/
 *.pfx
 service-account*.json
 serviceAccount*.json
-node_modules/
-scratch/**/node_modules/
 *.exe
-scratch/**/node_modules/
