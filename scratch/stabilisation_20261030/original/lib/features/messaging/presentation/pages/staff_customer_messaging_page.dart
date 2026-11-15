@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/core/resilience/backend_read_stream.dart';
 import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
 import 'package:cabine_flow/features/auth/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/features/messaging/domain/models/customer_conversation.dart';
@@ -74,6 +75,10 @@ class _StaffCustomerMessagingPageState extends State<StaffCustomerMessagingPage>
 
   void _subscribeInbox() {
     _inboxSubscription?.cancel();
+    setState(() {
+      _loadingInbox = true;
+      _inboxError = null;
+    });
     _inboxSubscription = widget.repository.watchManagerInbox().listen(
       (List<CustomerConversation> conversations) {
         if (!mounted) return;
@@ -106,12 +111,12 @@ class _StaffCustomerMessagingPageState extends State<StaffCustomerMessagingPage>
 
         _openInitialConversationIfAvailable(conversations);
       },
-      onError: (Object _, StackTrace _) {
+      onError: (Object error, StackTrace _) {
         if (!mounted) return;
         setState(() {
           _loadingInbox = false;
-          _inboxError =
-              'La messagerie clients est momentanément indisponible.';
+          _inboxError = BackendReadStream.readErrorMessage(error,
+              fallback: 'La messagerie clients est momentanément indisponible.');
         });
       },
     );
@@ -193,14 +198,14 @@ class _StaffCustomerMessagingPageState extends State<StaffCustomerMessagingPage>
             });
             _scrollMessagesToBottom();
           },
-          onError: (Object _, StackTrace _) {
+          onError: (Object error, StackTrace _) {
             if (!mounted || _selectedConversation?.id != conversation.id) {
               return;
             }
             setState(() {
               _loadingMessages = false;
-              _messageError =
-                  'Impossible de charger les messages pour le moment.';
+              _messageError = BackendReadStream.readErrorMessage(error,
+                  fallback: 'Impossible de charger les messages pour le moment.');
             });
           },
         );

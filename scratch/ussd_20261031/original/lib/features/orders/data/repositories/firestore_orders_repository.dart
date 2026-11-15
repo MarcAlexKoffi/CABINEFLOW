@@ -139,6 +139,7 @@ class FirestoreOrdersRepository
       beneficiaryPhone: request.beneficiaryPhone.trim(),
       operationType: request.operationType,
       offerLabel: request.offerLabel.trim(),
+      offerId: request.isCustomOffer ? null : request.offerId,
       amount: request.amount,
       originalWhatsappMessage: _cleanNullable(request.originalWhatsappMessage),
       internalNotes: _cleanNullable(request.internalNotes),

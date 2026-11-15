@@ -39,6 +39,7 @@ import 'package:cabine_flow/features/orders/presentation/navigation/staff_order_
 import 'package:cabine_flow/features/orders/presentation/pages/agent_orders_page.dart';
 import 'package:cabine_flow/features/payments/presentation/pages/payments_page.dart';
 import 'package:cabine_flow/features/payments/domain/repositories/payment_link_repository.dart';
+import 'package:cabine_flow/features/navigation/presentation/widgets/izytel_mobile_back_scope.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -529,6 +530,7 @@ class _MainShellPageState extends State<MainShellPage>
   }
 
   Future<void> _handleSystemBack() async {
+    if (!mounted || ModalRoute.of(context)?.isCurrent == false) return;
     if (_handlingSystemBack) return;
     _handlingSystemBack = true;
     try {
@@ -544,6 +546,15 @@ class _MainShellPageState extends State<MainShellPage>
         await currentNavigator.maybePop();
         return;
       }
+
+      // A root route can consume Back via LocalHistoryEntry or PopScope even
+      // when there is no additional Navigator route above it.
+      if (currentNavigator == null) return;
+      if (await currentNavigator.maybePop()) {
+        _disarmExit();
+        return;
+      }
+      if (!mounted) return;
 
       // La racine d'un onglet secondaire revient d'abord a Accueil.
       if (_selectedIndex != 0) {
@@ -677,24 +688,26 @@ class _MainShellPageState extends State<MainShellPage>
       ),
     ];
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (!didPop) unawaited(_handleSystemBack());
-      },
-      child: Scaffold(
-        backgroundColor: IzyTelColors.background,
-        body: IndexedStack(
-          index: _selectedIndex,
-          children: List<Widget>.generate(
-            pages.length,
-            (int index) => _buildTabNavigator(index, pages[index]),
+    return IzyTelBackNavigationBoundary(
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (bool didPop, Object? result) {
+          if (!didPop) unawaited(_handleSystemBack());
+        },
+        child: Scaffold(
+          backgroundColor: IzyTelColors.background,
+          body: IndexedStack(
+            index: _selectedIndex,
+            children: List<Widget>.generate(
+              pages.length,
+              (int index) => _buildTabNavigator(index, pages[index]),
+            ),
           ),
-        ),
-        bottomNavigationBar: CabineBottomNavigationBar(
-          selectedIndex: _selectedIndex,
-          onDestinationSelected: _selectDestination,
-          managerMode: widget.user.isManager,
+          bottomNavigationBar: CabineBottomNavigationBar(
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: _selectDestination,
+            managerMode: widget.user.isManager,
+          ),
         ),
       ),
     );
@@ -888,6 +901,7 @@ class _AgentShellState extends State<_AgentShell> {
   }
 
   Future<void> _handleSystemBack() async {
+    if (!mounted || ModalRoute.of(context)?.isCurrent == false) return;
     if (_handlingSystemBack) return;
     _handlingSystemBack = true;
     try {
@@ -899,6 +913,13 @@ class _AgentShellState extends State<_AgentShell> {
         await currentNavigator.maybePop();
         return;
       }
+
+      if (currentNavigator == null) return;
+      if (await currentNavigator.maybePop()) {
+        _disarmExit();
+        return;
+      }
+      if (!mounted) return;
 
       if (_selectedIndex != 0) {
         _disarmExit();
@@ -1046,23 +1067,25 @@ class _AgentShellState extends State<_AgentShell> {
       ),
     ];
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (!didPop) unawaited(_handleSystemBack());
-      },
-      child: Scaffold(
-        backgroundColor: IzyTelColors.background,
-        body: IndexedStack(
-          index: _selectedIndex,
-          children: List<Widget>.generate(
-            pages.length,
-            (int index) => _buildTabNavigator(index, pages[index]),
+    return IzyTelBackNavigationBoundary(
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (bool didPop, Object? result) {
+          if (!didPop) unawaited(_handleSystemBack());
+        },
+        child: Scaffold(
+          backgroundColor: IzyTelColors.background,
+          body: IndexedStack(
+            index: _selectedIndex,
+            children: List<Widget>.generate(
+              pages.length,
+              (int index) => _buildTabNavigator(index, pages[index]),
+            ),
           ),
-        ),
-        bottomNavigationBar: _AgentBottomNavigationBar(
-          selectedIndex: _selectedIndex,
-          onDestinationSelected: _selectDestination,
+          bottomNavigationBar: _AgentBottomNavigationBar(
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: _selectDestination,
+          ),
         ),
       ),
     );

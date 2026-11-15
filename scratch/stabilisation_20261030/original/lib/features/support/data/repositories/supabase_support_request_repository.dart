@@ -1,4 +1,4 @@
-import 'package:cabine_flow/core/diagnostics/izytel_log.dart';
+import 'package:cabine_flow/core/resilience/backend_read_stream.dart';
 import 'package:cabine_flow/features/support/domain/models/support_request.dart';
 import 'package:cabine_flow/features/support/domain/repositories/support_request_repository.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -64,38 +64,30 @@ class SupabaseSupportRequestRepository implements SupportRequestRepository {
   @override
   Stream<List<SupportRequest>> watchAllRequests() => _watch();
 
-  Stream<List<SupportRequest>> _watch({String? orderId, String? status}) async* {
-    // Premier affichage via Data API : le centre Support reste disponible même
-    // si l'abonnement Realtime n'a pas encore reçu le JWT Firebase restauré.
-    yield await _fetch(orderId: orderId, status: status);
-
-    try {
-      final String? token = await FirebaseAuth.instance.currentUser?.getIdToken();
-      if (token == null || token.trim().isEmpty) return;
-      await _client.realtime.setAuth(token);
-
-      dynamic realtimeQuery = _client
-          .from(tableName)
-          .stream(primaryKey: const <String>['id']);
-      if (orderId != null) {
-        realtimeQuery = realtimeQuery.eq('order_id', orderId);
-      } else if (status != null) {
-        realtimeQuery = realtimeQuery.eq('status', status);
-      }
-      final Stream<List<Map<String, dynamic>>> rowsStream = realtimeQuery;
-
-      await for (final List<Map<String, dynamic>> rows in rowsStream) {
-        yield _mapRows(rows);
-      }
-    } catch (error, stackTrace) {
-      IzyTelLog.backendError(
-        'SupabaseSupportRequestRepository.Realtime',
-        error,
-        stackTrace: stackTrace,
-      );
-      // Realtime est best-effort. Une panne WebSocket ne doit plus transformer
-      // toute la page en « indisponible » si la Data API fonctionne.
-    }
+  Stream<List<SupportRequest>> _watch({String? orderId, String? status}) {
+    return BackendReadStream.watch(
+      fetch: () => _fetch(orderId: orderId, status: status),
+      label: 'SupabaseSupportRequestRepository.Realtime',
+      refreshSignals: () async* {
+        final token = await FirebaseAuth.instance.currentUser
+            ?.getIdToken()
+            .timeout(BackendReadStream.readTimeout);
+        if (token == null || token.trim().isEmpty) return;
+        await _client.realtime
+            .setAuth(token)
+            .timeout(BackendReadStream.readTimeout);
+        dynamic query = _client
+            .from(tableName)
+            .stream(primaryKey: const <String>['id']);
+        if (orderId != null) {
+          query = query.eq('order_id', orderId);
+        } else if (status != null) {
+          query = query.eq('status', status);
+        }
+        final Stream<List<Map<String, dynamic>>> rowsStream = query;
+        yield* rowsStream;
+      },
+    );
   }
 
   Future<List<SupportRequest>> _fetch({String? orderId, String? status}) async {
@@ -116,14 +108,12 @@ class SupabaseSupportRequestRepository implements SupportRequestRepository {
   }
 
   List<SupportRequest> _mapRows(List<Map<String, dynamic>> rows) {
-    final List<SupportRequest> requests = rows
-        .map(_fromRow)
-        .whereType<SupportRequest>()
-        .toList(growable: false)
-      ..sort(
-        (SupportRequest a, SupportRequest b) =>
-            b.updatedAt.compareTo(a.updatedAt),
-      );
+    final List<SupportRequest> requests =
+        rows.map(_fromRow).whereType<SupportRequest>().toList(growable: false)
+          ..sort(
+            (SupportRequest a, SupportRequest b) =>
+                b.updatedAt.compareTo(a.updatedAt),
+          );
     return List<SupportRequest>.unmodifiable(requests);
   }
 
@@ -133,10 +123,9 @@ class SupabaseSupportRequestRepository implements SupportRequestRepository {
     required String staffId,
     required String staffName,
   }) {
-    return _rpcVoid(
-      'izytel_take_support_request',
-      <String, dynamic>{'p_request_id': requestId.trim()},
-    );
+    return _rpcVoid('izytel_take_support_request', <String, dynamic>{
+      'p_request_id': requestId.trim(),
+    });
   }
 
   @override
@@ -150,13 +139,10 @@ class SupabaseSupportRequestRepository implements SupportRequestRepository {
     if (note.length < 3 || note.length > 1000) {
       throw ArgumentError('Ajoutez une note de résolution valide.');
     }
-    return _rpcVoid(
-      'izytel_resolve_support_request',
-      <String, dynamic>{
-        'p_request_id': requestId.trim(),
-        'p_resolution_note': note,
-      },
-    );
+    return _rpcVoid('izytel_resolve_support_request', <String, dynamic>{
+      'p_request_id': requestId.trim(),
+      'p_resolution_note': note,
+    });
   }
 
   @override
@@ -165,10 +151,9 @@ class SupabaseSupportRequestRepository implements SupportRequestRepository {
     required String staffId,
     required String staffName,
   }) {
-    return _rpcVoid(
-      'izytel_mark_support_customer_notified',
-      <String, dynamic>{'p_request_id': requestId.trim()},
-    );
+    return _rpcVoid('izytel_mark_support_customer_notified', <String, dynamic>{
+      'p_request_id': requestId.trim(),
+    });
   }
 
   @override
@@ -177,10 +162,9 @@ class SupabaseSupportRequestRepository implements SupportRequestRepository {
     required String staffId,
     required String staffName,
   }) {
-    return _rpcVoid(
-      'izytel_close_support_request',
-      <String, dynamic>{'p_request_id': requestId.trim()},
-    );
+    return _rpcVoid('izytel_close_support_request', <String, dynamic>{
+      'p_request_id': requestId.trim(),
+    });
   }
 
   Future<void> _rpcVoid(String function, Map<String, dynamic> params) async {
