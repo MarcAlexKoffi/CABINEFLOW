@@ -4,13 +4,13 @@
 
 Permettre à l’Admin de gérer le catalogue et d’importer plusieurs offres depuis le modèle Excel, avec aperçu, confirmation, compte rendu et restauration. Un code permanent met à jour la même offre ; les lignes absentes restent intactes et les commandes historiques sont conservées.
 
-**Au 15 novembre 2026 : fonctionnalité intégrée et vérifiée localement ; migration et fonction Supabase déployées avec accord utilisateur. Frontend compilé, publication d’hébergement et recette authentifiée restantes.**
+**Actualisation du 15 novembre 2026 : backend et Back-office déployés. L’import publie désormais en une confirmation et les natures/volumes sont corrigés, voir CAT-08. La recette authentifiée complète reste à réaliser.** Les chiffres de l’intégration initiale ci-dessous restent des preuves historiques ; les bilans récents sont `direct-import-results.json` et `presentation-results.json`.
 
 ## Modifications réalisées dans le Back-office
 
 - Conservation du style existant : surfaces, cartes, boutons, badges et navigation. Comparaisons visuelles d’origine conservées.
 - Recherche par nom/code, filtres réseau/service/famille/statut, tri, pagination et vues cartes/tableau.
-- Création et duplication en brouillon, formulaire structuré, rattachement explicite d’un code permanent aux offres historiques, règles de vérification et familles configurables.
+- Création et duplication en brouillon depuis l’éditeur, formulaire structuré, rattachement explicite d’un code permanent aux offres historiques, métadonnées de vérification facultatives et familles configurables. Les lignes UPSERT importées sont publiées après confirmation.
 - Import XLSX avec modèle téléchargeable, aperçu des écarts et erreurs, confirmation explicite, progression, reprise, rapport JSON et restauration contrôlée.
 - Export CSV, historique des offres/imports et aperçu des changements groupés.
 
@@ -50,9 +50,9 @@ Preuves partageables : `docs/catalog_offers/IMPLEMENTATION.md`, `implementation-
 ## Actions restantes
 
 - [ ] Relire les changements et rattacher les commits/PR à cette issue.
-- [ ] Publier le frontend compatible selon le créneau de livraison retenu.
+- [x] Publier le Back-office compatible ; version Hosting actuelle `7118b910604dda10`.
 - [ ] Exécuter la recette authentifiée Admin/non-Admin et joindre les résultats.
-- [ ] Configurer le délai de vérification selon la règle métier retenue avant toute nouvelle publication ACTIF.
+- [x] Appliquer la décision utilisateur de publication directe ; les métadonnées de vérification ne sont plus un prérequis de publication.
 - [ ] Rattacher explicitement les codes historiques avant d’importer leurs mises à jour.
 
 Les travaux techniques détaillés CAT-01 à CAT-05 sont dans `docs/catalog_offers/issues/`. Le correctif d’affichage est suivi par CAT-06 ; la recette et la publication par CAT-07. La suite globale du projet comporte des échecs préexistants documentés dans le bilan d’architecture ; les résultats ci-dessus concernent les contrôles ciblés exécutés.

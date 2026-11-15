@@ -177,9 +177,13 @@ class CatalogImportDialog extends StatefulWidget {
     super.key,
     required this.repository,
     this.importId,
+    this.publicationOffers,
+    this.publicationScope = 'Catalogue filtré, toutes les pages',
   });
   final CatalogImportRepository repository;
   final String? importId;
+  final List<AdminOffer>? publicationOffers;
+  final String publicationScope;
   @override
   State<CatalogImportDialog> createState() => _CatalogImportDialogState();
 }
@@ -191,6 +195,21 @@ class _CatalogImportDialogState extends State<CatalogImportDialog> {
   String _filter = 'all';
   String? _error, _requestId, _fileName;
   Uint8List? _bytes;
+  bool get _publication =>
+      widget.publicationOffers != null ||
+      _page?.job['file_name'] == 'Modification groupée : activate';
+  bool get _fileImport =>
+      !_publication &&
+      (_page == null ||
+          _page!.job['file_name'].toString().toLowerCase().endsWith('.xlsx'));
+  Map<String, String> get _labels => _publication
+      ? const {
+          'update': 'Activables',
+          'unchanged': 'Déjà publiées',
+          'error': 'Bloquées',
+          'conflict': 'Conflits',
+        }
+      : _kindLabels;
   @override
   void initState() {
     super.initState();
@@ -268,6 +287,31 @@ class _CatalogImportDialogState extends State<CatalogImportDialog> {
         _confirmed = false;
       });
     }
+  });
+  Future<void> _preparePublication() => _guard(() async {
+    final offers = widget.publicationOffers!;
+    if (offers.isEmpty || offers.length > 500) {
+      setState(
+        () => _error =
+            'Sélectionnez entre 1 et 500 offres. Affinez les filtres du catalogue.',
+      );
+      return;
+    }
+    _requestId ??= newCatalogImportId();
+    final id = await widget.repository.prepareBulk(
+      requestId: _requestId!,
+      operation: 'activate',
+      items: [
+        for (final offer in offers)
+          {'id': offer.id, 'version': offer.catalogVersion},
+      ],
+    );
+    final value = await widget.repository.importPage(id);
+    if (!mounted) return;
+    setState(() {
+      _page = value;
+      _step = value.status == 'preview' ? 1 : 3;
+    });
   });
   Future<void> _downloadTemplate() => _guard(() async {
     final data = await rootBundle.load(
@@ -354,9 +398,10 @@ class _CatalogImportDialogState extends State<CatalogImportDialog> {
   Widget build(BuildContext context) {
     final page = _page;
     return CatalogPanelDialog(
-      title: 'Importer des offres',
-      subtitle:
-          'Validation serveur, aperçu des écarts et confirmation explicite.',
+      title: _publication ? 'Publier les offres' : 'Importer des offres',
+      subtitle: _publication
+          ? 'Contrôle serveur de chaque offre avant publication groupée.'
+          : 'Choisissez votre fichier, puis confirmez pour importer et publier.',
       busy: _busy,
       actions: [
         TextButton(
@@ -365,10 +410,15 @@ class _CatalogImportDialogState extends State<CatalogImportDialog> {
         ),
         if (_step == 1)
           FilledButton(
-            onPressed: _busy || (page!.count('error') > 0 && !_partial)
+            onPressed:
+                _busy ||
+                    (page!.count('error') > 0 && !_partial) ||
+                    (_publication && page.count('update') == 0)
                 ? null
+                : _fileImport
+                ? _run
                 : () => setState(() => _step = 2),
-            child: const Text('Continuer'),
+            child: Text(_fileImport ? 'Importer et publier' : 'Continuer'),
           ),
         if (_step == 2)
           OutlinedButton(
@@ -378,7 +428,11 @@ class _CatalogImportDialogState extends State<CatalogImportDialog> {
         if (_step == 2)
           FilledButton(
             onPressed: _busy || !_confirmed ? null : _run,
-            child: const Text('Confirmer l’import'),
+            child: Text(
+              _publication
+                  ? 'Publier ${page!.count('update')} offres'
+                  : 'Confirmer l’import',
+            ),
           ),
         if (_step == 3 && page?.status == 'running')
           FilledButton(
@@ -393,20 +447,42 @@ class _CatalogImportDialogState extends State<CatalogImportDialog> {
             spacing: 10,
             runSpacing: 8,
             children: [
-              for (var index = 0; index < 4; index++)
+              for (var index = 0; index < (_fileImport ? 3 : 4); index++)
                 Chip(
-                  backgroundColor: _step == index
+                  backgroundColor:
+                      _step == (_fileImport && index == 2 ? 3 : index)
                       ? BackofficePalette.primarySoft
                       : null,
                   label: Text(
-                    '${index + 1}. ${['Fichier', 'Aperçu', 'Confirmation', 'Résultat'][index]}',
+                    '${index + 1}. ${(_fileImport ? ['Fichier', 'Aperçu', 'Résultat'] : [_publication ? 'Périmètre' : 'Fichier', 'Aperçu', 'Confirmation', 'Résultat'])[index]}',
                   ),
                 ),
             ],
           ),
           const SizedBox(height: 14),
           if (_error != null) catalogNotice(_error!, error: true),
-          if (_step == 0) ...[
+          if (_step == 0 && _publication) ...[
+            Text(
+              widget.publicationScope,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${widget.publicationOffers!.length} offres non publiées à contrôler',
+            ),
+            catalogNotice(
+              'Un brouillon reste masqué côté client. Cet aperçu examine toutes les offres du périmètre, au-delà de la page affichée. Aucune offre ne sera publiée avant votre confirmation.',
+            ),
+            catalogNotice(
+              'La publication contrôle les données commerciales et les versions des offres. Aucun délai de vérification, canal confirmé ou justificatif de livraison n’est requis.',
+            ),
+            FilledButton.icon(
+              onPressed: _busy ? null : _preparePublication,
+              icon: const Icon(Symbols.fact_check_rounded),
+              label: const Text('Vérifier les offres'),
+            ),
+          ],
+          if (_step == 0 && !_publication) ...[
             catalogNotice(
               'Seule la feuille OFFRES est importée. GUIDE, REFERENTIEL et EXEMPLES_MAJ sont ignorées. Maximum : 5 Mo, 20 Mo décompressés, 5 000 offres. Aucune formule ni macro.',
             ),
@@ -441,7 +517,7 @@ class _CatalogImportDialogState extends State<CatalogImportDialog> {
               ),
             ),
             catalogNotice(
-              'Le modèle contient 40 propositions en brouillon, non vérifiées. Les offres absentes du fichier restent intactes. Le code offre est permanent ; les prix opérateurs excluent les frais IzyTel du paiement.',
+              'Les offres du fichier seront publiées dès confirmation, même si elles sont en BROUILLON. Les lignes INACTIF ou DESACTIVER restent désactivées. Les offres absentes du fichier sont conservées.',
             ),
             if (_requestId != null) ...[
               SelectableText(
@@ -457,21 +533,36 @@ class _CatalogImportDialogState extends State<CatalogImportDialog> {
           ],
           if (page != null && _step > 0) ...[
             Text(
-              page.job['file_name'].toString(),
+              _publication
+                  ? 'Récapitulatif de publication'
+                  : page.job['file_name'].toString(),
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
             _summary(page),
             if (_step == 1) ...[
               catalogNotice(
-                'Aucune modification d’offre pendant cet aperçu. Une ligne identique ne produit pas d’écriture. Les doublons de code sont tous bloqués.',
+                _publication
+                    ? 'Les offres aux données commerciales valides pourront être publiées. Les motifs de blocage figurent ci-dessous.'
+                    : _fileImport
+                    ? 'Cliquez sur Importer et publier pour rendre vos offres disponibles. Aucune modification avant confirmation. Les lignes INACTIF ou DESACTIVER conservent leur effet ; les doublons et données invalides restent signalés.'
+                    : 'Aucune modification d’offre pendant cet aperçu. Une ligne identique ne produit pas d’écriture. Les doublons de code sont tous bloqués.',
               ),
+              if (_publication && page.count('update') == 0)
+                catalogNotice(
+                  'Aucune offre activable. Corrigez les motifs de blocage, puis relancez la vérification.',
+                  error: true,
+                ),
               Wrap(
                 spacing: 12,
                 runSpacing: 8,
                 alignment: WrapAlignment.spaceBetween,
                 children: [
-                  Text('${page.total} lignes dans OFFRES'),
+                  Text(
+                    _publication
+                        ? '${page.total} offres contrôlées'
+                        : '${page.total} lignes dans OFFRES',
+                  ),
                   SizedBox(
                     width: 210,
                     child: DropdownButtonFormField<String>(
@@ -479,11 +570,15 @@ class _CatalogImportDialogState extends State<CatalogImportDialog> {
                       initialValue: _filter,
                       decoration: const InputDecoration(labelText: 'Résultats'),
                       items: [
-                        const DropdownMenuItem(
+                        DropdownMenuItem(
                           value: 'all',
-                          child: Text('Toutes les lignes'),
+                          child: Text(
+                            _publication
+                                ? 'Toutes les offres'
+                                : 'Toutes les lignes',
+                          ),
                         ),
-                        for (final entry in _kindLabels.entries)
+                        for (final entry in _labels.entries)
                           DropdownMenuItem(
                             value: entry.key,
                             child: Text(entry.value),
@@ -538,25 +633,34 @@ class _CatalogImportDialogState extends State<CatalogImportDialog> {
                   onChanged: _busy
                       ? null
                       : (value) => setState(() => _partial = value ?? false),
-                  title: const Text('Traiter uniquement les lignes valides'),
+                  title: Text(
+                    _publication
+                        ? 'Publier uniquement les offres activables'
+                        : 'Traiter uniquement les lignes valides',
+                  ),
                   subtitle: Text(
-                    '${page.count('error')} lignes seront exclues. Les codes concernés restent inchangés.',
+                    _publication
+                        ? '${page.count('error')} offres bloquées seront exclues et resteront inchangées.'
+                        : '${page.count('error')} lignes seront exclues. Les codes concernés restent inchangés.',
                   ),
                 ),
-              TextButton(
-                onPressed: _busy
-                    ? null
-                    : () => setState(() {
-                        _step = 0;
-                        _page = null;
-                        _confirmed = false;
-                      }),
-                child: const Text('Choisir un autre fichier'),
-              ),
+              if (!_publication)
+                TextButton(
+                  onPressed: _busy
+                      ? null
+                      : () => setState(() {
+                          _step = 0;
+                          _page = null;
+                          _confirmed = false;
+                        }),
+                  child: const Text('Choisir un autre fichier'),
+                ),
             ],
             if (_step == 2) ...[
               catalogNotice(
-                '${page.changes} changements proposés, ${page.count('error')} lignes exclues. Les IDs, les dates de création et les commandes historiques sont conservés. Les lots déjà appliqués ne sont pas annulés en cas de perte réseau.',
+                _publication
+                    ? '${page.count('update')} offres seront publiées et visibles pour les nouvelles commandes. ${page.count('error')} offres bloquées resteront inchangées. Les contrôles seront refaits à la publication ; une offre modifiée entre-temps sera signalée en conflit.'
+                    : '${page.changes} changements proposés, ${page.count('error')} lignes exclues. Les IDs, les dates de création et les commandes historiques sont conservés. Les lots déjà appliqués ne sont pas annulés en cas de perte réseau.',
               ),
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
@@ -564,8 +668,10 @@ class _CatalogImportDialogState extends State<CatalogImportDialog> {
                 onChanged: _busy
                     ? null
                     : (value) => setState(() => _confirmed = value ?? false),
-                title: const Text(
-                  'Je confirme ces changements et le périmètre des lignes exclues.',
+                title: Text(
+                  _publication
+                      ? 'Je confirme la publication des offres activables uniquement.'
+                      : 'Je confirme ces changements et le périmètre des lignes exclues.',
                 ),
                 subtitle: const Text(
                   'L’autorisation, les valeurs et les versions seront de nouveau vérifiées côté serveur.',
@@ -578,15 +684,21 @@ class _CatalogImportDialogState extends State<CatalogImportDialog> {
                 page.status == 'restored'
                     ? 'Révision restaurée'
                     : page.status == 'completed'
-                    ? 'Traitement terminé'
-                    : 'Import reprenable',
+                    ? (_publication
+                          ? 'Publication terminée'
+                          : 'Traitement terminé')
+                    : (_publication
+                          ? 'Publication reprenable'
+                          : 'Import reprenable'),
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 12),
               LinearProgressIndicator(value: page.cursor / page.total),
               const SizedBox(height: 8),
               Text(
-                '${page.cursor} / ${page.total} lignes examinées · ${page.count('applied')} changements appliqués · ${page.count('conflict')} conflits',
+                _publication
+                    ? '${page.count('applied')} offres publiées · ${page.count('error')} bloquées · ${page.count('conflict')} conflits · ${page.cursor} / ${page.total} examinées'
+                    : '${page.cursor} / ${page.total} lignes examinées · ${page.count('applied')} changements appliqués · ${page.count('conflict')} conflits',
               ),
               const SizedBox(height: 8),
               SelectableText(
@@ -631,15 +743,12 @@ class _CatalogImportDialogState extends State<CatalogImportDialog> {
     spacing: 8,
     runSpacing: 8,
     children: [
-      for (final key in [
-        'create',
-        'update',
-        'deactivate',
-        'unchanged',
-        'error',
-      ])
+      for (final key
+          in _publication
+              ? ['update', 'error', 'unchanged']
+              : ['create', 'update', 'deactivate', 'unchanged', 'error'])
         Chip(
-          label: Text('${page.count(key)} ${_kindLabels[key]}'),
+          label: Text('${page.count(key)} ${_labels[key]}'),
           backgroundColor: key == 'error' && page.count(key) > 0
               ? BackofficePalette.danger.withValues(alpha: .08)
               : null,
@@ -664,11 +773,13 @@ class _CatalogImportDialogState extends State<CatalogImportDialog> {
               runSpacing: 4,
               children: [
                 Text(
-                  'Ligne ${line['line_number']} · ${line['code']}',
+                  _publication
+                      ? '${line['code']}'
+                      : 'Ligne ${line['line_number']} · ${line['code']}',
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
                 Text(
-                  _kindLabels[line['kind']] ?? line['kind'].toString(),
+                  _labels[line['kind']] ?? line['kind'].toString(),
                   style: TextStyle(
                     color: errors.isEmpty
                         ? BackofficePalette.primary
@@ -677,7 +788,7 @@ class _CatalogImportDialogState extends State<CatalogImportDialog> {
                 ),
               ],
             ),
-            if (line['kind'] == 'create')
+            if (_publication || line['kind'] == 'create')
               Text(
                 '${catalogMap(line['data'])['nom_affiche']} · ${catalogMap(line['data'])['prix_fcfa']} FCFA · ${catalogMap(line['data'])['statut']}',
               ),

@@ -2,6 +2,17 @@
   "projects": {
     "default": "cabineflow-4bca7"
   },
-  "targets": {},
+  "targets": {
+    "cabineflow-4bca7": {
+      "hosting": {
+        "client": [
+          "cabineflow-4bca7"
+        ],
+        "backoffice": [
+          "izytel-backoffice-4bca7"
+        ]
+      }
+    }
+  },
   "etags": {}
 }

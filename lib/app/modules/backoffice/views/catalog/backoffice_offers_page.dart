@@ -153,6 +153,15 @@ class _BackofficeOffersPageState extends State<BackofficeOffersPage> {
                               icon: const Icon(Symbols.upload_file_rounded),
                               label: const Text('Importer un fichier'),
                             ),
+                            FilledButton.icon(
+                              onPressed:
+                                  _busy ||
+                                      !filtered.any((offer) => !offer.isActive)
+                                  ? null
+                                  : () => _publishOffers(filtered),
+                              icon: const Icon(Symbols.publish_rounded),
+                              label: const Text('Publier les offres'),
+                            ),
                             OutlinedButton.icon(
                               onPressed: _busy ? null : () => _export(all),
                               icon: const Icon(Symbols.download_rounded),
@@ -208,6 +217,27 @@ class _BackofficeOffersPageState extends State<BackofficeOffersPage> {
                     OutlinedButton(
                       onPressed: () => _bulkEdit(all),
                       child: const Text('Modifier la sélection'),
+                    ),
+                    FilledButton.icon(
+                      onPressed:
+                          _busy ||
+                              !all.any(
+                                (offer) =>
+                                    _selectedOffers.contains(offer.id) &&
+                                    !offer.isActive,
+                              )
+                          ? null
+                          : () => _publishOffers(
+                              all
+                                  .where(
+                                    (offer) =>
+                                        _selectedOffers.contains(offer.id),
+                                  )
+                                  .toList(),
+                              scope: 'Sélection du catalogue, toutes les pages',
+                            ),
+                      icon: const Icon(Symbols.publish_rounded),
+                      label: const Text('Publier la sélection'),
                     ),
                     TextButton(
                       onPressed: () => setState(_selectedOffers.clear),
@@ -437,6 +467,30 @@ class _BackofficeOffersPageState extends State<BackofficeOffersPage> {
       if (changed == true) await _loadImportConfiguration();
     } catch (error) {
       if (mounted) IzyTelFeedback.error(context, catalogImportError(error));
+    }
+  }
+
+  Future<void> _publishOffers(
+    List<AdminOffer> offers, {
+    String scope = 'Catalogue filtré, toutes les pages',
+  }) async {
+    if (!_canManage || _imports == null || _busy) return;
+    final candidates = offers
+        .where((offer) => !offer.isActive)
+        .toList(growable: false);
+    if (candidates.isEmpty) return;
+    await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => CatalogImportDialog(
+        repository: _imports!,
+        publicationOffers: candidates,
+        publicationScope: scope,
+      ),
+    );
+    if (mounted) {
+      setState(_selectedOffers.clear);
+      _reloadStream();
     }
   }
 
@@ -1001,6 +1055,8 @@ class _BackofficeOffersPageState extends State<BackofficeOffersPage> {
                                     title: Text(
                                       offer.isActive
                                           ? 'Suspendre'
+                                          : offer.catalogStatus == 'BROUILLON'
+                                          ? 'Publier'
                                           : 'Réactiver',
                                     ),
                                     contentPadding: EdgeInsets.zero,
@@ -1154,7 +1210,13 @@ class _BackofficeOffersPageState extends State<BackofficeOffersPage> {
                             ? Symbols.pause_circle_rounded
                             : Symbols.play_circle_rounded,
                       ),
-                      label: Text(offer.isActive ? 'Suspendre' : 'Réactiver'),
+                      label: Text(
+                        offer.isActive
+                            ? 'Suspendre'
+                            : offer.catalogStatus == 'BROUILLON'
+                            ? 'Publier'
+                            : 'Réactiver',
+                      ),
                     ),
                   ),
                 ],

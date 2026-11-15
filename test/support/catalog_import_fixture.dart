@@ -33,7 +33,7 @@ class CatalogImportFixture implements CatalogImportRepository {
         'data': {
           'nom_affiche': '1,5 GO',
           'prix_fcfa': '1000',
-          'statut': 'BROUILLON',
+          'statut': 'ACTIF',
         },
         'changes': {},
         'errors': [],

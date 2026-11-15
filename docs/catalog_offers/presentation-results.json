@@ -1,0 +1,37 @@
+{
+  "feature": "Notation des volumes et nature commerciale des offres",
+  "date": "2026-11-15",
+  "clientRuntimeCodeChanged": false,
+  "clientHostingRedeployed": false,
+  "backend": {
+    "project": "zrxeztxaxnzxevjuhzcc",
+    "localMigration": "20261115213025_catalog_offer_presentation.sql",
+    "remoteMigrationVersion": "20261115213833",
+    "status": "applied",
+    "offersUpdated": 53,
+    "offersBackedUp": 53,
+    "auditEventsCreated": 53,
+    "activeOffersBeforeAndAfter": 53,
+    "featuredOffersBeforeAndAfter": 16,
+    "commercialFingerprintBefore": "34957523a4449faf113b341663dcfe17",
+    "commercialFingerprintAfter": "34957523a4449faf113b341663dcfe17"
+  },
+  "verifiedExamples": {
+    "MT-DAT-005": {"volume": "2,2 GO", "firstDetail": "Packs Internet · 2,2 GO"},
+    "OR-MAX-001": {"badge": "Pass Max it"},
+    "MT-CHC-001": {"firstDetail": "C'Chic · 650 MO"},
+    "MO-FOL-001": {"badge": "Folie Internet"}
+  },
+  "validation": {
+    "isolatedSqlTestsPassed": 28,
+    "customerUiTestsPassed": 6,
+    "customerUiWidths": [320, 390, 930, 1440],
+    "testDartAnalysisIssues": 0,
+    "sourceDecimalsAndUnits": "preserved; formatting affects public presentation only",
+    "historicalOrderSnapshotsAndFees": "unchanged in isolated regression test; no production order updated",
+    "securityAdvisor": "INFO only for intentional deny-all RLS on private backup; client read denied by test",
+    "securityAdvisorReference": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "manualLiveBrowserAcceptance": "not executed"
+  },
+  "implementationAndRollback": "docs/catalog_offers/CATALOG_PRESENTATION.md"
+}

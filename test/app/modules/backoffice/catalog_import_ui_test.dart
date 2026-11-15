@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:cabine_flow/app/data/repositories/fake_admin_offer_repository.dart';
 import 'package:cabine_flow/app/domain/entities/auth/app_user.dart';
 import 'package:cabine_flow/app/domain/entities/offers/admin_offer.dart';
+import 'package:cabine_flow/app/domain/entities/offers/catalog_import.dart';
 import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
 import 'package:cabine_flow/app/modules/backoffice/views/catalog/backoffice_offers_page.dart';
 import 'package:cabine_flow/app/modules/backoffice/views/catalog/catalog_import_dialog.dart';
@@ -13,6 +14,39 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import '../../../support/catalog_import_fixture.dart';
 import '../../../support/catalog_visual_fonts.dart';
+
+class _ValidFileImport extends CatalogImportFixture {
+  @override
+  Map<String, dynamic> get document {
+    final value = super.document;
+    return {
+      ...value,
+      'job': {...value['job'] as Map, 'total': 1},
+      'summary': {...value['summary'] as Map, 'error': 0},
+      'filteredTotal': 1,
+      'lines': (value['lines'] as List).take(1).toList(),
+    };
+  }
+
+  @override
+  Future<CatalogImportPage> confirmImport(
+    String id, {
+    required bool allowPartial,
+  }) async {
+    expect(allowPartial, false);
+    calls.add('confirm:$id');
+    status = 'running';
+    return CatalogImportPage(document);
+  }
+
+  @override
+  Future<CatalogImportPage> applyImportBatch(String id) async {
+    calls.add('apply:$id');
+    status = 'completed';
+    cursor = 1;
+    return CatalogImportPage(document);
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -61,7 +95,7 @@ void main() {
   }
 
   testWidgets(
-    'preview has no writes, duplicate exclusion and confirmation are both explicit; lost reply resumes same ID',
+    'preview has no writes; one import-and-publish confirmation with explicit duplicate exclusion; lost reply resumes same ID',
     (tester) async {
       viewport(tester, 1440);
       final repo = CatalogImportFixture()..loseReply = true;
@@ -75,26 +109,19 @@ void main() {
       expect(
         tester
             .widget<FilledButton>(
-              find.widgetWithText(FilledButton, 'Continuer'),
+              find.widgetWithText(FilledButton, 'Importer et publier'),
             )
             .onPressed,
         isNull,
       );
       await tap(tester, 'Traiter uniquement les lignes valides');
-      await tap(tester, 'Continuer');
       expect(
-        tester
-            .widget<FilledButton>(
-              find.widgetWithText(FilledButton, 'Confirmer l’import'),
-            )
-            .onPressed,
-        isNull,
+        find.text(
+          'Je confirme ces changements et le périmètre des lignes exclues.',
+        ),
+        findsNothing,
       );
-      await tap(
-        tester,
-        'Je confirme ces changements et le périmètre des lignes exclues.',
-      );
-      await tap(tester, 'Confirmer l’import');
+      await tap(tester, 'Importer et publier');
       expect(repo.calls.where((call) => call.startsWith('confirm:')).length, 1);
       expect(find.textContaining('Opération interrompue.'), findsOneWidget);
       await tap(tester, 'Reprendre le traitement');
@@ -106,6 +133,23 @@ void main() {
       await tap(tester, 'Restaurer');
       expect(find.text('Révision restaurée'), findsOneWidget);
       expect(repo.calls.last, 'restore:$id');
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'valid file publishes with one button, without verification or extra confirmation screens',
+    (tester) async {
+      viewport(tester, 390);
+      final repo = _ValidFileImport();
+      await open(tester, repo, id: repo.document['job']['id'] as String);
+      expect(find.textContaining('ACTIF'), findsWidgets);
+      expect(find.byType(CheckboxListTile), findsNothing);
+      expect(find.text('Continuer'), findsNothing);
+      expect(repo.calls.where((call) => call.startsWith('confirm:')), isEmpty);
+      await tap(tester, 'Importer et publier');
+      expect(find.text('Traitement terminé'), findsOneWidget);
+      expect(repo.calls.where((call) => call.startsWith('confirm:')).length, 1);
+      expect(repo.calls.where((call) => call.startsWith('apply:')).length, 1);
       expect(tester.takeException(), isNull);
     },
   );
@@ -173,6 +217,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Importer un fichier'), findsNothing);
+      expect(find.text('Publier les offres'), findsNothing);
       expect(find.text('Nouvelle offre'), findsNothing);
       expect(find.text('Règles et familles'), findsNothing);
       expect(imports.calls, isEmpty);
@@ -214,6 +259,7 @@ void main() {
         expect(intro.height, lessThan(500), reason: '$width px');
         for (final label in [
           'Importer un fichier',
+          'Publier les offres',
           'Exporter le catalogue',
           'Historique des imports',
           'Règles et familles',
@@ -320,12 +366,25 @@ void main() {
       await tester.ensureVisible(find.byType(Checkbox).first);
       await tester.tap(find.byType(Checkbox).first);
       await tester.pumpAndSettle();
+      await tap(tester, 'Publier la sélection');
+      expect(
+        find.text('Sélection du catalogue, toutes les pages'),
+        findsOneWidget,
+      );
+      expect(find.text('1 offres non publiées à contrôler'), findsOneWidget);
+      await tap(tester, 'Fermer');
+      await tester.ensureVisible(find.byType(Checkbox).first);
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pumpAndSettle();
       await tap(tester, 'Modifier la sélection');
       expect(find.text('Voir les impacts'), findsOneWidget);
       await tap(tester, 'Annuler');
       await tap(tester, 'Nouvelle offre');
       expect(find.text('Code permanent'), findsOneWidget);
-      expect(find.textContaining('Publication ACTIF bloquée'), findsOneWidget);
+      expect(
+        find.textContaining('Le statut ACTIF rend l’offre disponible.'),
+        findsOneWidget,
+      );
       for (final entry in {
         'Code permanent': 'OR-CREATE',
         'Nom affiché': 'Nouveau brouillon',
