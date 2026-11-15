@@ -10,14 +10,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:google_fonts/src/google_fonts_base.dart' as fonts;
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:cabine_flow/core/theme/app_theme.dart';
-import 'package:cabine_flow/core/notifications/izytel_notification_payload.dart';
-import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
-import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
-import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
-import 'package:cabine_flow/features/orders/domain/repositories/shared_order_queue_repository.dart';
-import 'package:cabine_flow/features/orders/presentation/pages/shared_agent_orders_page.dart';
-import 'package:cabine_flow/features/orders/presentation/pages/order_supervision_page.dart';
+import 'package:cabine_flow/app/theme/app_theme.dart';
+import 'package:cabine_flow/app/domain/entities/notifications/izytel_notification_payload.dart';
+import 'package:cabine_flow/app/domain/entities/auth/app_user.dart';
+import 'package:cabine_flow/app/data/repositories/fake_orders_repository.dart';
+import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
+import 'package:cabine_flow/app/domain/repositories/shared_order_queue_repository.dart';
+import 'package:cabine_flow/app/modules/agent_orders/views/shared_agent_orders_page.dart';
+import 'package:cabine_flow/app/modules/manager_orders/views/order_supervision_page.dart';
 
 const actor = AppUser(id: 'AGENT-001', name: 'Agent de recette', phoneNumber: '0700000000', role: UserRole.agent);
 

@@ -7,7 +7,7 @@ void main() {
 
   test('Manager peut gérer ses fournisseurs et recharger ses Agents par RPC', () {
     final String repository = source(
-      'lib/features/finances/data/repositories/manager_read_only_finance_operations_repository.dart',
+      'lib/app/data/repositories/manager_read_only_finance_operations_repository.dart',
     );
 
     expect(repository, contains("'izytel_manager_save_supplier'"));
@@ -20,7 +20,7 @@ void main() {
 
   test('Interface fournisseur Manager autorise gestion zone mais pas règlement', () {
     final String page = source(
-      'lib/features/finances/presentation/pages/supplier_finance_page.dart',
+      'lib/app/modules/finance/views/supplier_finance_page.dart',
     );
 
     expect(page, contains('_canManageSuppliers'));
@@ -32,7 +32,7 @@ void main() {
 
   test('Plus Manager expose fournisseurs de zone', () {
     final String more = source(
-      'lib/features/more/presentation/pages/more_page.dart',
+      'lib/app/modules/home/views/more_page.dart',
     );
 
     expect(more, contains("title: 'Fournisseurs de ma zone'"));

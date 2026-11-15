@@ -7,7 +7,7 @@ void main() {
 
   test('le filtre periodique partage couvre le calendrier historique', () {
     final String source = read(
-      'lib/shared/widgets/izytel_period_filter.dart',
+      'lib/app/shared/widgets/izytel_period_filter.dart',
     );
 
     expect(source, contains('IzyTelPeriodPreset.last7Days'));
@@ -20,19 +20,19 @@ void main() {
 
   test('Agent et Manager disposent des filtres periodiques mobiles', () {
     final String history = read(
-      'lib/features/orders/presentation/pages/agent_history_page.dart',
+      'lib/app/modules/agent_orders/views/agent_history_page.dart',
     );
     final String commissions = read(
-      'lib/features/commissions/presentation/pages/agent_commissions_page.dart',
+      'lib/app/modules/commissions/views/agent_commissions_page.dart',
     );
     final String ownIssues = read(
-      'lib/features/agents/presentation/pages/agent_issues_page.dart',
+      'lib/app/modules/agent_issues/views/agent_issues_page.dart',
     );
     final String issueCenter = read(
-      'lib/features/agents/presentation/pages/agent_issue_center_page.dart',
+      'lib/app/modules/agent_issues/views/agent_issue_center_page.dart',
     );
     final String payments = read(
-      'lib/features/payments/presentation/pages/payments_page.dart',
+      'lib/app/modules/payments/views/payments_page.dart',
     );
 
     for (final String source in <String>[
@@ -55,13 +55,13 @@ void main() {
 
   test('Admin mobile filtre ses historiques financiers et operationnels', () {
     final String journal = read(
-      'lib/features/more/presentation/pages/admin_activity_journal_page.dart',
+      'lib/app/modules/control/views/admin_activity_journal_page.dart',
     );
     final String movements = read(
-      'lib/features/finances/presentation/pages/financial_movements_page.dart',
+      'lib/app/modules/finance/views/financial_movements_page.dart',
     );
     final String refunds = read(
-      'lib/features/refunds/presentation/pages/refund_management_page.dart',
+      'lib/app/modules/refunds/views/refund_management_page.dart',
     );
 
     expect(journal, contains('IzyTelPeriodFilterBar('));
@@ -74,13 +74,13 @@ void main() {
 
   test('historique commandes mobile accepte une plage calendrier ancienne', () {
     final String filters = read(
-      'lib/features/orders/domain/models/order_history_filters.dart',
+      'lib/app/domain/entities/orders/order_history_filters.dart',
     );
     final String page = read(
-      'lib/features/orders/presentation/pages/order_history_page.dart',
+      'lib/app/modules/staff_history/views/order_history_page.dart',
     );
     final String viewModel = read(
-      'lib/features/orders/presentation/view_models/order_history_view_model.dart',
+      'lib/app/modules/staff_history/controllers/order_history_view_model.dart',
     );
 
     expect(filters, contains('customStart'));

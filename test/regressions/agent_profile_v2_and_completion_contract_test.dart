@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('une réussite Agent termine immédiatement la commande', () {
     final String repository = File(
-      'lib/features/orders/data/repositories/firestore_orders_repository.dart',
+      'lib/app/data/repositories/firestore_orders_repository.dart',
     ).readAsStringSync();
     final String rules = File('firestore.rules').readAsStringSync();
 
@@ -39,7 +39,7 @@ void main() {
     'après une fin de traitement le prochain onglet est En cours sinon À accepter',
     () {
       final String source = File(
-        'lib/features/orders/presentation/view_models/agent_orders_view_model.dart',
+        'lib/app/modules/agent_orders/controllers/agent_orders_view_model.dart',
       ).readAsStringSync();
 
       expect(source, contains('void _selectNextWorkTabAfterCompletion()'));
@@ -51,7 +51,7 @@ void main() {
 
   test('le profil Agent V2 est isolé du profil opérationnel', () {
     final String repository = File(
-      'lib/features/agents/data/repositories/firestore_agent_repository.dart',
+      'lib/app/data/repositories/firestore_agent_repository.dart',
     ).readAsStringSync();
     final String rules = File('firestore.rules').readAsStringSync();
     final String pubspec = File('pubspec.yaml').readAsStringSync();
@@ -70,13 +70,13 @@ void main() {
 
   test('le legacy À confirmer est présenté comme terminé dans les écrans', () {
     final String agentQueue = File(
-      'lib/features/orders/presentation/pages/agent_orders_page.dart',
+      'lib/app/modules/agent_orders/views/agent_orders_page.dart',
     ).readAsStringSync();
     final String displayHelpers = File(
-      'lib/features/orders/presentation/widgets/order_display_helpers.dart',
+      'lib/app/modules/staff_orders/widgets/order_display_helpers.dart',
     ).readAsStringSync();
     final String dashboard = File(
-      'lib/features/dashboard/data/repositories/firestore_dashboard_repository.dart',
+      'lib/app/data/repositories/firestore_dashboard_repository.dart',
     ).readAsStringSync();
 
     expect(agentQueue, isNot(contains("'À confirmer'")));

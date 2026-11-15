@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:cabine_flow/features/orders/data/repositories/supabase_phase4_assignment_repository.dart';
-import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/app/data/repositories/supabase_phase4_assignment_repository.dart';
+import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -10,7 +10,7 @@ void main() {
   test('Phase 4 branche les commandes sur le repository hybride', () {
     final String app = read('lib/app/app.dart');
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     expect(app, contains('HybridOrdersRepository()'));
     expect(app, contains('SupabaseBootstrap.isInitialized'));
@@ -20,7 +20,7 @@ void main() {
 
   test('une commande payee est synchronisee par le RPC Phase 3', () {
     final String supabase = read(
-      'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
+      'lib/app/data/repositories/supabase_phase4_assignment_repository.dart',
     );
     expect(supabase, contains("'phase3_sync_order'"));
     expect(supabase, contains("'p_customer_auth_uid'"));
@@ -30,7 +30,7 @@ void main() {
 
   test('acceptation et refus Agent restent atomiques dans Supabase', () {
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     final int acceptStart = hybrid.indexOf(
       'Future<QueueOrder> acceptAgentAssignment',
@@ -58,10 +58,10 @@ void main() {
 
   test('affectation et eligibilite utilisent les capacites Supabase', () {
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     final String supabase = read(
-      'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
+      'lib/app/data/repositories/supabase_phase4_assignment_repository.dart',
     );
     expect(
       hybrid.replaceAll(RegExp(r'\s+'), ''),
@@ -76,7 +76,7 @@ void main() {
 
   test('affectation manuelle necrit aucun miroir Firestore', () {
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     final int start = hybrid.indexOf('Future<QueueOrder> assignToAgent');
     final int end = hybrid.indexOf(
@@ -94,10 +94,10 @@ void main() {
 
   test('traitement Agent post acceptation est Supabase-only', () {
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     final String supabase = read(
-      'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
+      'lib/app/data/repositories/supabase_phase4_assignment_repository.dart',
     );
     expect(hybrid, contains('_phase4.startProcessing('));
     expect(hybrid, contains('_phase4.resumeProcessing('));
@@ -112,7 +112,7 @@ void main() {
 
   test('succes Agent finalise directement capacite et commission Supabase', () {
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     final int start = hybrid.indexOf('Future<QueueOrder> markAgentSuccessful');
     final int end = hybrid.indexOf('Future<QueueOrder> markAgentFailed', start);
@@ -127,7 +127,7 @@ void main() {
 
   test('le fallback preuve Firestore est uniquement legacy', () {
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     final int start = hybrid.indexOf('Future<OrderProof?> fetchOrderProof');
     final int end = hybrid.indexOf('Future<OrderProof> saveOrderProof', start);
@@ -141,10 +141,10 @@ void main() {
     'les watchers Phase 4 conservent la derniere valeur en panne transitoire',
     () {
       final String supabase = read(
-        'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
+        'lib/app/data/repositories/supabase_phase4_assignment_repository.dart',
       );
       final String realtime = read(
-        'lib/core/supabase/supabase_realtime_refetch.dart',
+        'lib/app/data/sources/supabase_realtime_refetch.dart',
       );
 
       // WC15 centralise la resilience dans SupabaseRealtimeRefetch au lieu de
@@ -194,13 +194,13 @@ void main() {
 
   test('historique Agent conserve les refus Supabase Phase 4', () {
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     final String supabase = read(
-      'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
+      'lib/app/data/repositories/supabase_phase4_assignment_repository.dart',
     );
     final String historyPage = read(
-      'lib/features/orders/presentation/pages/agent_history_page.dart',
+      'lib/app/modules/agent_orders/views/agent_history_page.dart',
     );
     expect(hybrid, contains('watchAgentRefusedOrders'));
     expect(supabase, contains(".eq('status', 'refused')"));
@@ -212,7 +212,7 @@ void main() {
     'la file staff est reveillee par Firestore pre-sync et Supabase canonique',
     () {
       final String hybrid = read(
-        'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+        'lib/app/data/repositories/hybrid_orders_repository.dart',
       );
       final int start = hybrid.indexOf('watchAutomaticAssignmentQueue()');
       final int end = hybrid.indexOf(

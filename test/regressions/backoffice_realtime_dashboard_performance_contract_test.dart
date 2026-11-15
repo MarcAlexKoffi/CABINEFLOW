@@ -8,10 +8,10 @@ void main() {
   group('Back-office - performance, filtres Support et dashboard temps reel', () {
     test('Support et remboursements n utilisent plus un polling toutes les 4 secondes', () {
       final String support = read(
-        'lib/features/support/data/repositories/supabase_support_request_repository.dart',
+        'lib/app/data/repositories/supabase_support_request_repository.dart',
       );
       final String refunds = read(
-        'lib/features/refunds/data/repositories/supabase_refund_repository.dart',
+        'lib/app/data/repositories/supabase_refund_repository.dart',
       );
 
       expect(support, contains("stream(primaryKey: const <String>['id'])"));
@@ -23,14 +23,14 @@ void main() {
     });
 
     test('le backfill Firestore historique n est plus relance a chaque connexion Admin', () {
-      final String app = read('lib/backoffice/backoffice_app.dart');
+      final String app = read('lib/app/backoffice_app.dart');
       expect(app, isNot(contains('LegacySupportRefundBackfillService')));
       expect(app, isNot(contains('_startLegacyBackfillIfNeeded')));
     });
 
     test('une demande prise en charge reste visible sans changer manuellement de filtre', () {
       final String page = read(
-        'lib/backoffice/presentation/pages/clients/backoffice_support_requests_page.dart',
+        'lib/app/modules/backoffice/views/clients/backoffice_support_requests_page.dart',
       );
       expect(page, contains('_SupportScope _scope = _SupportScope.all;'));
       expect(page, contains('if (_scope != _SupportScope.all)'));
@@ -39,10 +39,10 @@ void main() {
 
     test('le tableau de bord affiche des donnees operationnelles et non les cartes placeholder', () {
       final String dashboard = read(
-        'lib/backoffice/presentation/pages/backoffice_dashboard_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_dashboard_page.dart',
       );
       final String shell = read(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       );
 
       expect(dashboard, contains('BackofficeDashboardSnapshot'));

@@ -8,10 +8,10 @@ void main() {
 
   test('M4 Manager lit les finances via des dépôts Supabase dédiés', () {
     final String financeRepo = read(
-      'lib/features/finances/data/repositories/manager_read_only_finance_operations_repository.dart',
+      'lib/app/data/repositories/manager_read_only_finance_operations_repository.dart',
     );
     final String commissionRepo = read(
-      'lib/features/commissions/data/repositories/manager_read_only_commission_repository.dart',
+      'lib/app/data/repositories/manager_read_only_commission_repository.dart',
     );
 
     expect(financeRepo, contains('SupabasePhase5FinanceRepository'));
@@ -31,7 +31,7 @@ void main() {
 
   test('FinancesPage sépare strictement Manager et Admin', () {
     final String page = compact(
-      read('lib/features/finances/presentation/pages/finances_page.dart'),
+      read('lib/app/modules/finance/views/finances_page.dart'),
     );
 
     expect(page, contains('if (widget.user.isManager) { return _buildManagerOperationalFinance(context); }'));
@@ -48,10 +48,10 @@ void main() {
 
   test('écrans Fournisseurs et Commissions neutralisent les écritures Manager', () {
     final String suppliers = compact(
-      read('lib/features/finances/presentation/pages/supplier_finance_page.dart'),
+      read('lib/app/modules/finance/views/supplier_finance_page.dart'),
     );
     final String performance = compact(
-      read('lib/features/commissions/presentation/pages/agent_performance_page.dart'),
+      read('lib/app/modules/commissions/views/agent_performance_page.dart'),
     );
 
     expect(suppliers, contains('bool get _canManageSuppliers'));
@@ -64,10 +64,10 @@ void main() {
 
   test('Espace Manager garde le pilotage mais n expose plus les finances', () {
     final String more = compact(
-      read('lib/features/more/presentation/pages/more_page.dart'),
+      read('lib/app/modules/home/views/more_page.dart'),
     );
     final String shell = compact(
-      read('lib/features/navigation/presentation/pages/main_shell_page.dart'),
+      read('lib/app/modules/home/views/main_shell_page.dart'),
     );
     final int start = more.indexOf('Widget _buildManager');
     final int end = more.indexOf('void _historyUnavailable', start);

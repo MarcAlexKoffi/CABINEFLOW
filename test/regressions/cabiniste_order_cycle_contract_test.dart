@@ -7,7 +7,7 @@ void main() {
 
   test('cabiniste repository uses dedicated partner RPCs', () {
     final String repository = source(
-      'lib/features/partners/data/repositories/supabase_partner_order_repository.dart',
+      'lib/app/data/repositories/supabase_partner_order_repository.dart',
     );
 
     expect(repository, contains("'phase4_partner_action'"));
@@ -19,7 +19,7 @@ void main() {
 
   test('cabiniste proof remains private and namespaced', () {
     final String repository = source(
-      'lib/features/partners/data/repositories/supabase_partner_order_repository.dart',
+      'lib/app/data/repositories/supabase_partner_order_repository.dart',
     );
 
     expect(repository, contains("proofBucket = 'order-proofs'"));
@@ -30,10 +30,10 @@ void main() {
 
   test('cabiniste economics stay server derived', () {
     final String repository = source(
-      'lib/features/partners/data/repositories/supabase_partner_order_repository.dart',
+      'lib/app/data/repositories/supabase_partner_order_repository.dart',
     );
     final String models = source(
-      'lib/features/partners/domain/models/partner_order_models.dart',
+      'lib/app/domain/entities/partners/partner_order_models.dart',
     );
 
     expect(repository, isNot(contains('partner_margin_share_bps')));

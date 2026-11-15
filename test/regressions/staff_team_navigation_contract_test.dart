@@ -10,7 +10,7 @@ void main() {
     'Admin mobile expose Agents Cabinistes Managers et performance dans Equipe',
     () {
       final String more = source(
-        'lib/features/more/presentation/pages/more_page.dart',
+        'lib/app/modules/home/views/more_page.dart',
       );
 
       expect(more, contains("const _SectionLabel('Équipe')"));
@@ -26,10 +26,10 @@ void main() {
 
   test('page mobile Managers ouvre le dossier detaille commun', () {
     final String managers = source(
-      'lib/features/managers/presentation/pages/manager_accounts_page.dart',
+      'lib/app/modules/team/views/manager_accounts_page.dart',
     );
     final String detail = source(
-      'lib/features/team/presentation/pages/team_member_detail_page.dart',
+      'lib/app/modules/team/views/team_member_detail_page.dart',
     );
 
     expect(managers, contains("title: 'Comptes Managers'"));
@@ -47,10 +47,10 @@ void main() {
     'Back Office rend Cabinistes adjacent a Agents et Managers dans Equipe',
     () {
       final String shell = source(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       );
       final String managers = source(
-        'lib/backoffice/presentation/pages/team/backoffice_managers_page.dart',
+        'lib/app/modules/backoffice/views/team/backoffice_managers_page.dart',
       );
 
       expect(shell, contains('agents,\n  cabinisteFinances,\n  managers,'));

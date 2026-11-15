@@ -17,7 +17,7 @@ void main() {
       'Paiements ne delegue plus directement toute la lecture a Firestore',
       () {
         final String hybrid = read(
-          'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+          'lib/app/data/repositories/hybrid_orders_repository.dart',
         );
 
         final int fetchStart = hybrid.indexOf(
@@ -51,7 +51,7 @@ void main() {
       'Firestore reste primaire et Supabase ne peut plus casser Paiements',
       () {
         final String hybrid = read(
-          'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+          'lib/app/data/repositories/hybrid_orders_repository.dart',
         );
 
         expect(hybrid, contains("'Payments.legacy-tracking-watch'"));
@@ -76,7 +76,7 @@ void main() {
       'le filtre Paiements conserve declarations et confirmations uniquement',
       () {
         final String hybrid = read(
-          'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+          'lib/app/data/repositories/hybrid_orders_repository.dart',
         );
 
         expect(
@@ -96,7 +96,7 @@ void main() {
 
     test('le rafraichissement Commandes garde aussi le fallback hybride', () {
       final String hybrid = read(
-        'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+        'lib/app/data/repositories/hybrid_orders_repository.dart',
       );
 
       final int start = hybrid.indexOf(
@@ -120,7 +120,7 @@ void main() {
       'une expiration legacy non modifiable ne casse plus une lecture complete',
       () {
         final String firestore = read(
-          'lib/features/orders/data/repositories/firestore_orders_repository.dart',
+          'lib/app/data/repositories/firestore_orders_repository.dart',
         );
 
         expect(
@@ -139,10 +139,10 @@ void main() {
 
     test('les ecritures metier Paiement restent strictes et inchangees', () {
       final String hybrid = read(
-        'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+        'lib/app/data/repositories/hybrid_orders_repository.dart',
       );
       final String firestore = read(
-        'lib/features/orders/data/repositories/firestore_orders_repository.dart',
+        'lib/app/data/repositories/firestore_orders_repository.dart',
       );
 
       // The committed server timestamp is re-read after the same strict write.

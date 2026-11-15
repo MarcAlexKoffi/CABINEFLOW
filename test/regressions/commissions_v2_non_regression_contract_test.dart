@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('D reste une couche de lecture des collections de commissions', () {
     final String repository = _read(
-      'lib/features/commissions/data/repositories/firestore_commission_v2_repository.dart',
+      'lib/app/data/repositories/firestore_commission_v2_repository.dart',
     );
 
     expect(
@@ -44,16 +44,16 @@ void main() {
 
   test('les points d’accès Agent/Admin vers D sont présents', () {
     final String activity = _read(
-      'lib/features/agents/presentation/pages/agent_activity_v2_dashboard_page.dart',
+      'lib/app/modules/agent_ops/views/agent_activity_v2_dashboard_page.dart',
     );
     final String adminProfile = _read(
-      'lib/features/agents/presentation/pages/admin_agent_profile_activity_page.dart',
+      'lib/app/modules/agent_ops/views/admin_agent_profile_activity_page.dart',
     );
     final String home = _read(
-      'lib/features/agents/presentation/pages/agent_home_page.dart',
+      'lib/app/modules/agent_ops/views/agent_home_page.dart',
     );
     final String shell = _read(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     );
 
     expect(activity, contains('AdminAgentCommissionsV2Page'));

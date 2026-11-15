@@ -8,7 +8,7 @@ void main() {
       'shell Agent et Manager restaurent la politique Retour mobile eprouvee',
       () {
         final String shell = File(
-          'lib/features/navigation/presentation/pages/main_shell_page.dart',
+          'lib/app/modules/home/views/main_shell_page.dart',
         ).readAsStringSync().replaceAll('\r\n', '\n');
 
         expect(
@@ -40,7 +40,7 @@ void main() {
       'barre mobile desarme la sortie et ramene la destination a sa racine',
       () {
         final String shell = File(
-          'lib/features/navigation/presentation/pages/main_shell_page.dart',
+          'lib/app/modules/home/views/main_shell_page.dart',
         ).readAsStringSync().replaceAll('\r\n', '\n');
 
         expect(shell, contains('void _disarmExit()'));
@@ -62,7 +62,7 @@ void main() {
       'Cabiniste suit la meme arborescence et double Retour depuis Accueil',
       () {
         final String partner = File(
-          'lib/features/partners/presentation/pages/partner_shell_page.dart',
+          'lib/app/modules/partners/views/partner_shell_page.dart',
         ).readAsStringSync();
 
         expect(partner, contains('Future<void> _handleBack() async'));
@@ -84,10 +84,10 @@ void main() {
 
     test('Agents Manager: refresh borne sans restart permanent des streams', () {
       final String page = File(
-        'lib/features/agents/presentation/pages/agent_management_page.dart',
+        'lib/app/modules/agent_ops/views/agent_management_page.dart',
       ).readAsStringSync();
       final String viewModel = File(
-        'lib/features/agents/presentation/view_models/agent_management_view_model.dart',
+        'lib/app/modules/agent_ops/controllers/agent_management_view_model.dart',
       ).readAsStringSync();
 
       expect(page, contains('onRefresh: _viewModel.refresh'));
@@ -101,10 +101,10 @@ void main() {
 
     test('Manager ne depend plus de Firestore pour afficher ses Agents zones', () {
       final String repository = File(
-        'lib/features/agents/data/repositories/firestore_agent_repository.dart',
+        'lib/app/data/repositories/firestore_agent_repository.dart',
       ).readAsStringSync();
       final String operations = File(
-        'lib/features/agents/data/repositories/supabase_agent_operations_repository.dart',
+        'lib/app/data/repositories/supabase_agent_operations_repository.dart',
       ).readAsStringSync();
 
       expect(repository, contains('if (_isManager)'));

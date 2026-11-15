@@ -39,10 +39,10 @@ void main() {
 
   test('Phase 4 FCM couvre background, cold start et token refresh', () {
     final String messaging = File(
-      'lib/core/notifications/firebase_messaging_bootstrap.dart',
+      'lib/app/services/notifications/firebase_messaging_bootstrap.dart',
     ).readAsStringSync();
     final String registry = File(
-      'lib/core/notifications/izytel_notification_device_registry.dart',
+      'lib/app/services/notifications/izytel_notification_device_registry.dart',
     ).readAsStringSync();
 
     expect(messaging, contains('FirebaseMessaging.onBackgroundMessage'));

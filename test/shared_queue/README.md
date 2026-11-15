@@ -33,7 +33,7 @@ Traitement sans photo : `node test/shared_queue/integration.mjs --fast-processin
 
 ```powershell
 flutter analyze --no-pub
-flutter test --no-pub test/features/orders/presentation/shared_order_queue_test.dart test/features/orders/data/repositories/shared_queue_payment_publication_test.dart --reporter expanded
+flutter test --no-pub test/app/modules/agent_orders/shared_order_queue_test.dart test/app/data/orders/repositories/shared_queue_payment_publication_test.dart --reporter expanded
 ```
 
 Pour produire les captures avec Manrope et les icônes réelles :
@@ -42,7 +42,7 @@ Pour produire les captures avec Manrope et les icônes réelles :
 & ./test/shared_queue/prepare_visual_qa.ps1
 $env:IZYTEL_SHARED_CAPTURE = '1'
 try {
-    flutter test --no-pub test/features/orders/presentation/shared_order_queue_visual_test.dart --reporter expanded
+    flutter test --no-pub test/app/modules/agent_orders/shared_order_queue_visual_test.dart --reporter expanded
 } finally {
     Remove-Item Env:IZYTEL_SHARED_CAPTURE
 }

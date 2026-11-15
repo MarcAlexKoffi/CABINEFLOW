@@ -1,7 +1,7 @@
-import 'package:cabine_flow/backoffice/backoffice_app.dart';
-import 'package:cabine_flow/backoffice/data/repositories/fake_backoffice_user_repository.dart';
-import 'package:cabine_flow/backoffice/domain/models/backoffice_user_account.dart';
-import 'package:cabine_flow/features/auth/data/repositories/fake_auth_repository.dart';
+import 'package:cabine_flow/app/backoffice_app.dart';
+import 'package:cabine_flow/app/data/repositories/fake_backoffice_user_repository.dart';
+import 'package:cabine_flow/app/domain/entities/backoffice/backoffice_user_account.dart';
+import 'package:cabine_flow/app/data/repositories/fake_auth_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

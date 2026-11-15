@@ -6,7 +6,7 @@ void main() {
   group('Back-office - feedback remboursements du 14/09', () {
     test('une demande client ne cree jamais automatiquement un remboursement', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/clients/backoffice_support_requests_page.dart',
+        'lib/app/modules/backoffice/views/clients/backoffice_support_requests_page.dart',
       ).readAsStringSync();
 
       expect(source, contains("child: const Text('Traiter')"));
@@ -18,7 +18,7 @@ void main() {
 
     test('la page remboursements permet une creation manuelle tracee sur une commande payee', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/clients/backoffice_refunds_page.dart',
+        'lib/app/modules/backoffice/views/clients/backoffice_refunds_page.dart',
       ).readAsStringSync();
 
       expect(source, contains("label: const Text('Nouveau remboursement')"));
@@ -31,7 +31,7 @@ void main() {
 
     test('une commande echouee payee propose un choix et le credit ne devient pas un remboursement Wave', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/operations/backoffice_failed_orders_page.dart',
+        'lib/app/modules/backoffice/views/operations/backoffice_failed_orders_page.dart',
       ).readAsStringSync();
 
       expect(source, contains('order.paymentStatus == OrderPaymentStatus.confirmed'));
@@ -44,7 +44,7 @@ void main() {
 
     test('les filtres remboursements distinguent total de vue et resultats recherches', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/clients/backoffice_refunds_page.dart',
+        'lib/app/modules/backoffice/views/clients/backoffice_refunds_page.dart',
       ).readAsStringSync();
 
       expect(source, contains("tooltip: 'Effacer la recherche'"));
@@ -54,14 +54,14 @@ void main() {
     });
 
     test('Support et remboursements sont operationnels Supabase et non Firestore', () {
-      final String app = File('lib/backoffice/backoffice_app.dart').readAsStringSync();
+      final String app = File('lib/app/backoffice_app.dart').readAsStringSync();
       final String support = File(
-        'lib/features/support/data/repositories/supabase_support_request_repository.dart',
+        'lib/app/data/repositories/supabase_support_request_repository.dart',
       ).readAsStringSync();
       final String refunds = File(
-        'lib/features/refunds/data/repositories/supabase_refund_repository.dart',
+        'lib/app/data/repositories/supabase_refund_repository.dart',
       ).readAsStringSync();
-      final String customerWeb = File('lib/main_customer_web.dart').readAsStringSync();
+      final String customerWeb = File('lib/main_customer.dart').readAsStringSync();
 
       expect(app, contains('createOperationalSupportRequestRepository()'));
       expect(app, contains('createOperationalRefundRepository()'));

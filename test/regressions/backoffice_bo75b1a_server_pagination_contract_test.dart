@@ -8,7 +8,7 @@ void main() {
   group('BO-7.5B1a - pagination serveur Clients, Signalements et Controle', () {
     test('la pagination partagee expose tailles, compteurs et navigation', () {
       final String source = _read(
-        'lib/backoffice/presentation/widgets/backoffice_pagination.dart',
+        'lib/app/modules/backoffice/widgets/backoffice_pagination.dart',
       );
       expect(source, contains('class BackofficePaginationBar'));
       expect(source, contains("Text('25 / page')"));
@@ -20,13 +20,13 @@ void main() {
 
     test('demandes clients et remboursements utilisent les RPC pagines', () {
       final String repo = _read(
-        'lib/backoffice/data/repositories/supabase_backoffice_case_pagination_repository.dart',
+        'lib/app/data/repositories/supabase_backoffice_case_pagination_repository.dart',
       );
       final String support = _read(
-        'lib/backoffice/presentation/pages/clients/backoffice_support_requests_page.dart',
+        'lib/app/modules/backoffice/views/clients/backoffice_support_requests_page.dart',
       );
       final String refunds = _read(
-        'lib/backoffice/presentation/pages/clients/backoffice_refunds_page.dart',
+        'lib/app/modules/backoffice/views/clients/backoffice_refunds_page.dart',
       );
 
       expect(repo, contains("'izytel_bo75b1_support_page'"));
@@ -43,10 +43,10 @@ void main() {
 
     test('signalements gardent le scope Manager et paginent apres filtres', () {
       final String repo = _read(
-        'lib/backoffice/data/repositories/supabase_backoffice_case_pagination_repository.dart',
+        'lib/app/data/repositories/supabase_backoffice_case_pagination_repository.dart',
       );
       final String page = _read(
-        'lib/backoffice/presentation/pages/team/backoffice_agent_issues_page.dart',
+        'lib/app/modules/backoffice/views/team/backoffice_agent_issues_page.dart',
       );
       final String migration = _read(
         'supabase/migrations/20260917022652_bo75b1a_issue_search_agent_identity.sql',
@@ -64,10 +64,10 @@ void main() {
 
     test('journal et audit utilisent toujours leurs RPC serveur avec offset et limit', () {
       final String page = _read(
-        'lib/backoffice/presentation/pages/control/backoffice_control_page.dart',
+        'lib/app/modules/backoffice/views/control/backoffice_control_page.dart',
       );
       final String repository = _read(
-        'lib/features/control/data/repositories/supabase_control_repository.dart',
+        'lib/app/data/repositories/supabase_control_repository.dart',
       );
 
       expect(page, contains('offset: (_page - 1) * _pageSize'));

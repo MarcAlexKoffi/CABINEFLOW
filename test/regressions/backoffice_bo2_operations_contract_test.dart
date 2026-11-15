@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('BO-2 - opérations Back-office', () {
     test('le back-office partage les repositories operationnels du mobile', () {
-      final String app = File('lib/backoffice/backoffice_app.dart').readAsStringSync();
+      final String app = File('lib/app/backoffice_app.dart').readAsStringSync();
 
       expect(app, contains('HybridOrdersRepository()'));
       expect(app, contains('FirestoreOrdersRepository()'));
@@ -19,7 +19,7 @@ void main() {
 
     test('les quatre destinations BO-2 ne sont plus des placeholders', () {
       final String shell = File(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       ).readAsStringSync();
 
       expect(shell, contains('BackofficeOrdersPage('));
@@ -31,7 +31,7 @@ void main() {
 
     test('Commandes garde recherche filtres detail et passage vers affectation', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/operations/backoffice_orders_page.dart',
+        'lib/app/modules/backoffice/views/operations/backoffice_orders_page.dart',
       ).readAsStringSync();
 
       expect(source, contains("title: 'Centre des commandes'"));
@@ -43,7 +43,7 @@ void main() {
 
     test('Paiements reutilise le ViewModel valide et confirme via le repository', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/operations/backoffice_payments_page.dart',
+        'lib/app/modules/backoffice/views/operations/backoffice_payments_page.dart',
       ).readAsStringSync();
 
       expect(source, contains('PaymentsViewModel('));
@@ -54,7 +54,7 @@ void main() {
 
     test('Affectations reutilise les regles eligibilite et capacite existantes', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/operations/backoffice_assignments_page.dart',
+        'lib/app/modules/backoffice/views/operations/backoffice_assignments_page.dart',
       ).readAsStringSync();
 
       expect(source, contains('AgentAssignmentViewModel('));
@@ -65,7 +65,7 @@ void main() {
 
     test('Echecs choisit entre reaffectation et remboursement selon le paiement', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/operations/backoffice_failed_orders_page.dart',
+        'lib/app/modules/backoffice/views/operations/backoffice_failed_orders_page.dart',
       ).readAsStringSync();
 
       expect(source, contains('prepareFailedOrderForReassignment'));
@@ -80,7 +80,7 @@ void main() {
 
     test('BO-2 reste dans le design system light premium IzyTel', () {
       final String widgets = File(
-        'lib/backoffice/presentation/widgets/backoffice_order_widgets.dart',
+        'lib/app/modules/backoffice/widgets/backoffice_order_widgets.dart',
       ).readAsStringSync();
 
       expect(widgets, contains('BackofficePalette.primarySoft'));

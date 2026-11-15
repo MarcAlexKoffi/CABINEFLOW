@@ -7,7 +7,7 @@ String _read(String path) => File(path).readAsStringSync();
 void main() {
   group('BO-7.3 - sécurité session, signalements, catalogue et alignement', () {
     test('le Back-office Web ferme la session après 15 minutes d’inactivité', () {
-      final String app = _read('lib/backoffice/backoffice_app.dart');
+      final String app = _read('lib/app/backoffice_app.dart');
 
       expect(app, contains('Duration(minutes: 15)'));
       expect(app, contains('_BackofficeWebActivityBoundary'));
@@ -35,13 +35,13 @@ void main() {
 
     test('une offre peut être supprimée sans effacer l’historique métier', () {
       final String contract = _read(
-        'lib/features/offers/domain/repositories/admin_offer_repository.dart',
+        'lib/app/domain/repositories/admin_offer_repository.dart',
       );
       final String repo = _read(
-        'lib/features/offers/data/repositories/supabase_admin_offer_repository.dart',
+        'lib/app/data/repositories/supabase_admin_offer_repository.dart',
       );
       final String page = _read(
-        'lib/backoffice/presentation/pages/catalog/backoffice_offers_page.dart',
+        'lib/app/modules/backoffice/views/catalog/backoffice_offers_page.dart',
       );
       final String migration = _read(
         'supabase/migrations/20260916231644_bo73_catalog_delete_and_issue_scope_fix.sql',
@@ -60,13 +60,13 @@ void main() {
 
     test('Finances, Contrôle et Pilotage utilisent l’espacement unique du shell', () {
       final String finance = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart',
+        'lib/app/modules/backoffice/views/finances/backoffice_finance_page.dart',
       );
       final String control = _read(
-        'lib/backoffice/presentation/pages/control/backoffice_control_page.dart',
+        'lib/app/modules/backoffice/views/control/backoffice_control_page.dart',
       );
       final String shell = _read(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       );
 
       expect(finance, isNot(contains('EdgeInsets.fromLTRB(24, 22, 24, 40)')));

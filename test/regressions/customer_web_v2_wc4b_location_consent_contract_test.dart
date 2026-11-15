@@ -14,22 +14,22 @@ void main() {
 
     setUpAll(() {
       flow = File(
-        'lib/features/customer_order/presentation/pages/customer_order_flow_page.dart',
+        'lib/app/modules/customer/views/customer_order_flow_page.dart',
       ).readAsStringSync();
       summary = File(
-        'lib/features/customer_order/presentation/pages/customer_summary_page.dart',
+        'lib/app/modules/customer/views/customer_summary_page.dart',
       ).readAsStringSync();
       locationDialog = File(
-        'lib/features/customer_order/presentation/widgets/customer_location_consent_dialog.dart',
+        'lib/app/modules/customer/widgets/customer_location_consent_dialog.dart',
       ).readAsStringSync();
       locationWeb = File(
-        'lib/features/customer_order/data/geolocation/customer_geolocation_web.dart',
+        'lib/app/data/platform/customer/geolocation/customer_geolocation_web.dart',
       ).readAsStringSync();
       locationConsentStoreWeb = File(
-        'lib/features/customer_order/data/local/customer_location_consent_store_web.dart',
+        'lib/app/data/platform/customer/local/customer_location_consent_store_web.dart',
       ).readAsStringSync();
       viewModel = File(
-        'lib/features/customer_order/presentation/view_models/customer_order_view_model.dart',
+        'lib/app/modules/customer/controllers/customer_order_view_model.dart',
       ).readAsStringSync();
       migration = File(
         'supabase/migrations/20260927002759_wc4b_location_consent_zone_id.sql',

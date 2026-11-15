@@ -8,10 +8,10 @@ void main() {
   group('Cabinistes - Finance Back-office', () {
     test('le Back Office expose un module Règlements Cabinistes distinct', () {
       final String shell = _read(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       );
       final String page = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_cabiniste_finance_page.dart',
+        'lib/app/modules/backoffice/views/finances/backoffice_cabiniste_finance_page.dart',
       );
 
       expect(shell, contains('BackofficeDestination.cabinisteFinances'));
@@ -23,7 +23,7 @@ void main() {
 
     test('le snapshot consolide acquis, payé et solde Cabiniste', () {
       final String model = _read(
-        'lib/backoffice/domain/models/backoffice_finance_snapshot.dart',
+        'lib/app/domain/entities/backoffice/backoffice_finance_snapshot.dart',
       );
 
       expect(model, contains('cabinisteFinance'));
@@ -37,10 +37,10 @@ void main() {
 
     test('le repository utilise les RPC Cabinistes canoniques', () {
       final String repository = _read(
-        'lib/backoffice/data/repositories/supabase_backoffice_finance_repository.dart',
+        'lib/app/data/repositories/supabase_backoffice_finance_repository.dart',
       );
       final String contract = _read(
-        'lib/backoffice/domain/repositories/backoffice_finance_repository.dart',
+        'lib/app/domain/repositories/backoffice_finance_repository.dart',
       );
 
       expect(repository, contains('izytel_admin_cabiniste_finance_snapshot'));
@@ -54,7 +54,7 @@ void main() {
 
     test('le paiement est rattaché à une période et conserve une référence', () {
       final String repository = _read(
-        'lib/backoffice/data/repositories/supabase_backoffice_finance_repository.dart',
+        'lib/app/data/repositories/supabase_backoffice_finance_repository.dart',
       );
 
       expect(repository, contains("'p_period_id'"));
@@ -64,10 +64,10 @@ void main() {
 
     test('le module Cabiniste garde une position courante non filtrée artificiellement', () {
       final String shell = _read(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       );
       final String page = _read(
-        'lib/backoffice/presentation/pages/finances/backoffice_cabiniste_finance_page.dart',
+        'lib/app/modules/backoffice/views/finances/backoffice_cabiniste_finance_page.dart',
       );
 
       expect(shell, contains('BackofficeDestination.cabinisteFinances'));

@@ -7,10 +7,10 @@ void main() {
 
   test('refus retourne atomiquement l issue Phase 4 sans relecture RLS', () {
     final String phase4 = read(
-      'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
+      'lib/app/data/repositories/supabase_phase4_assignment_repository.dart',
     );
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     final String migration = read(
       'supabase/migrations/20260911_phase3_refusal_atomic_outcome.sql',

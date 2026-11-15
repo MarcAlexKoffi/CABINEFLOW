@@ -7,7 +7,7 @@ void main() {
 
   test('WC15 centralise le refetch Realtime avec fallback lent', () {
     final String helper = read(
-      'lib/core/supabase/supabase_realtime_refetch.dart',
+      'lib/app/data/sources/supabase_realtime_refetch.dart',
     );
 
     expect(helper, contains('class SupabaseRealtimeRefetch'));
@@ -19,16 +19,13 @@ void main() {
 
   test('Finance et fournisseurs ne pollent plus toutes les 3 ou 4 secondes', () {
     final String finance = read(
-      'lib/features/finances/data/repositories/'
-      'supabase_phase5_finance_repository.dart',
+      'lib/app/data/repositories/supabase_phase5_finance_repository.dart',
     );
     final String suppliers = read(
-      'lib/features/finances/data/repositories/'
-      'supabase_supplier_registry_repository.dart',
+      'lib/app/data/repositories/supabase_supplier_registry_repository.dart',
     );
     final String backoffice = read(
-      'lib/backoffice/data/repositories/'
-      'supabase_backoffice_finance_repository.dart',
+      'lib/app/data/repositories/supabase_backoffice_finance_repository.dart',
     );
 
     for (final String source in <String>[finance, suppliers, backoffice]) {
@@ -41,11 +38,10 @@ void main() {
 
   test('Commandes et historique utilisent Realtime au lieu du polling chaud', () {
     final String phase4 = read(
-      'lib/features/orders/data/repositories/'
-      'supabase_phase4_assignment_repository.dart',
+      'lib/app/data/repositories/supabase_phase4_assignment_repository.dart',
     );
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
 
     expect(phase4, contains('SupabaseRealtimeRefetch.watch'));
@@ -71,12 +67,10 @@ void main() {
 
   test('Signalements utilisent le signal Realtime et gardent le dernier bon etat', () {
     final String issues = read(
-      'lib/features/agents/data/repositories/'
-      'supabase_agent_issue_repository.dart',
+      'lib/app/data/repositories/supabase_agent_issue_repository.dart',
     );
     final String center = read(
-      'lib/features/agents/data/repositories/'
-      'supabase_agent_issue_center_repository.dart',
+      'lib/app/data/repositories/supabase_agent_issue_center_repository.dart',
     );
 
     expect(issues, contains('SupabaseRealtimeRefetch.watch'));
@@ -91,17 +85,16 @@ void main() {
 
   test('Pages Finance et commissions reutilisent leurs streams entre rebuilds', () {
     final String finances = read(
-      'lib/features/finances/presentation/pages/finances_page.dart',
+      'lib/app/modules/finance/views/finances_page.dart',
     );
     final String supplier = read(
-      'lib/features/finances/presentation/pages/supplier_finance_page.dart',
+      'lib/app/modules/finance/views/supplier_finance_page.dart',
     );
     final String commissions = read(
-      'lib/features/commissions/presentation/pages/'
-      'commission_management_page.dart',
+      'lib/app/modules/commissions/views/commission_management_page.dart',
     );
     final String agentCommissions = read(
-      'lib/features/commissions/presentation/pages/agent_commissions_page.dart',
+      'lib/app/modules/commissions/views/agent_commissions_page.dart',
     );
 
     expect(finances, contains('void initState()'));

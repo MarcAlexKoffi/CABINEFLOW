@@ -8,7 +8,7 @@ void main() {
   group('Phase 3 - correctifs de cloture terrain', () {
     test('un refus ne relit pas une ligne devenue invisible par RLS', () {
       final String phase4 = read(
-        'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
+        'lib/app/data/repositories/supabase_phase4_assignment_repository.dart',
       );
       final String migration = read(
         'supabase/migrations/20260911_phase3_refusal_atomic_outcome.sql',
@@ -51,10 +51,10 @@ void main() {
 
     test('une erreur temporaire conserve une file Agent deja chargee', () {
       final String viewModel = read(
-        'lib/features/orders/presentation/view_models/agent_orders_view_model.dart',
+        'lib/app/modules/agent_orders/controllers/agent_orders_view_model.dart',
       );
       final String page = read(
-        'lib/features/orders/presentation/pages/agent_orders_page.dart',
+        'lib/app/modules/agent_orders/views/agent_orders_page.dart',
       );
 
       expect(viewModel, contains('if (_orders.isEmpty)'));

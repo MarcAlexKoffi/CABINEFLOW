@@ -7,7 +7,7 @@ void main() {
 
   test('Agent post paiement ne depend plus du handoff Firestore', () {
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     expect(hybrid, contains('cutover operationnel Supabase'));
     expect(hybrid, isNot(contains('ensureHybridAssignmentQueue(')));
@@ -18,10 +18,10 @@ void main() {
 
   test('affectation traitement et finalisation ont leurs RPC Supabase', () {
     final String phase4 = read(
-      'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
+      'lib/app/data/repositories/supabase_phase4_assignment_repository.dart',
     );
     final String phase5 = read(
-      'lib/features/finances/data/repositories/supabase_phase5_finance_repository.dart',
+      'lib/app/data/repositories/supabase_phase5_finance_repository.dart',
     );
     for (final String rpc in <String>[
       'phase3_sync_order',
@@ -38,10 +38,10 @@ void main() {
 
   test('capacites et disponibilite Agent ont Supabase pour source canonique', () {
     final String agent = read(
-      'lib/features/agents/data/repositories/firestore_agent_repository.dart',
+      'lib/app/data/repositories/firestore_agent_repository.dart',
     );
     final String operations = read(
-      'lib/features/agents/data/repositories/supabase_agent_operations_repository.dart',
+      'lib/app/data/repositories/supabase_agent_operations_repository.dart',
     );
     expect(agent, contains('_watchAgentsWithSupabaseOperations'));
     expect(agent, contains('SupabaseAgentOperationsRepository().watchProfile'));
@@ -54,10 +54,10 @@ void main() {
 
   test('client relit le statut operationnel Supabase sans attendre Firestore', () {
     final String customer = read(
-      'lib/features/customer_order/data/repositories/firestore_customer_order_repository.dart',
+      'lib/app/data/repositories/firestore_customer_order_repository.dart',
     );
     final String status = read(
-      'lib/features/customer_order/data/repositories/supabase_customer_order_status_repository.dart',
+      'lib/app/data/repositories/supabase_customer_order_status_repository.dart',
     );
     expect(customer, contains('_overlayOperationalStatus'));
     expect(customer, contains('SupabaseCustomerOrderStatusRepository.pollInterval'));
@@ -70,7 +70,7 @@ void main() {
 
   test('Firestore reste seulement pre-sync ou fallback historique dans le flux Agent', () {
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     final int acceptStart = hybrid.indexOf('Future<QueueOrder> acceptAgentAssignment');
     final int historyStart = hybrid.indexOf('Future<List<QueueOrder>> fetchOrderHistory', acceptStart);
@@ -86,7 +86,7 @@ void main() {
   test('aucun patch Firestore Rules nest requis par le cutover', () {
     final String notes = read('PHASE3_COMPLETE_NOTES.md');
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     final File obsoletePatch = File(
       'tools/phase3_patch_firestore_manual_handoff.ps1',
@@ -111,7 +111,7 @@ void main() {
 
   test('activite Agent et commissions lisent les sources canoniques Supabase', () {
     final String activity = read(
-      'lib/features/agents/data/repositories/firestore_agent_activity_v2_repository.dart',
+      'lib/app/data/repositories/firestore_agent_activity_v2_repository.dart',
     );
     expect(activity, contains('watchAgentAssignmentState(agentId)'));
     expect(activity, contains('watchAgentAssignmentHistory(agentId)'));
@@ -140,7 +140,7 @@ void main() {
 
   test('file Agent et detail restent utilisables sans lecture Firestore', () {
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     expect(hybrid, contains('Firestore is legacy enrichment only after the Phase 3 cutover'));
     expect(hybrid, contains('Phase3.order-detail-legacy-enrichment'));
@@ -159,7 +159,7 @@ void main() {
 
   test('dashboard bascule les statuts post-sync sur Supabase', () {
     final String dashboard = read(
-      'lib/features/dashboard/data/repositories/hybrid_dashboard_repository.dart',
+      'lib/app/data/repositories/hybrid_dashboard_repository.dart',
     );
     expect(dashboard, contains('item.orderStatus == QueueOrderStatus.inProgress'));
     expect(dashboard, contains('item.orderStatus == QueueOrderStatus.completed'));

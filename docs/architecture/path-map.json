@@ -1,0 +1,2118 @@
+{
+  "date": "2026-11-14",
+  "reference": "IzyTel-main",
+  "package": "cabine_flow",
+  "moves": [
+    {
+      "from": "lib/app/app_routes.dart",
+      "to": "lib/app/routes/app_routes.dart"
+    },
+    {
+      "from": "lib/backoffice/backoffice_app.dart",
+      "to": "lib/app/backoffice_app.dart"
+    },
+    {
+      "from": "lib/backoffice/data/repositories/backoffice_user_administration_repository.dart",
+      "to": "lib/app/data/repositories/backoffice_user_administration_repository.dart"
+    },
+    {
+      "from": "lib/backoffice/data/repositories/fake_backoffice_user_repository.dart",
+      "to": "lib/app/data/repositories/fake_backoffice_user_repository.dart"
+    },
+    {
+      "from": "lib/backoffice/data/repositories/fake_territory_repository.dart",
+      "to": "lib/app/data/repositories/fake_territory_repository.dart"
+    },
+    {
+      "from": "lib/backoffice/data/repositories/firestore_backoffice_user_repository.dart",
+      "to": "lib/app/data/repositories/firestore_backoffice_user_repository.dart"
+    },
+    {
+      "from": "lib/backoffice/data/repositories/supabase_backoffice_case_pagination_repository.dart",
+      "to": "lib/app/data/repositories/supabase_backoffice_case_pagination_repository.dart"
+    },
+    {
+      "from": "lib/backoffice/data/repositories/supabase_backoffice_finance_repository.dart",
+      "to": "lib/app/data/repositories/supabase_backoffice_finance_repository.dart"
+    },
+    {
+      "from": "lib/backoffice/data/repositories/supabase_territory_repository.dart",
+      "to": "lib/app/data/repositories/supabase_territory_repository.dart"
+    },
+    {
+      "from": "lib/backoffice/domain/models/backoffice_finance_snapshot.dart",
+      "to": "lib/app/domain/entities/backoffice/backoffice_finance_snapshot.dart"
+    },
+    {
+      "from": "lib/backoffice/domain/models/backoffice_user_account.dart",
+      "to": "lib/app/domain/entities/backoffice/backoffice_user_account.dart"
+    },
+    {
+      "from": "lib/backoffice/domain/models/territory_models.dart",
+      "to": "lib/app/domain/entities/backoffice/territory_models.dart"
+    },
+    {
+      "from": "lib/backoffice/domain/repositories/backoffice_finance_repository.dart",
+      "to": "lib/app/domain/repositories/backoffice_finance_repository.dart"
+    },
+    {
+      "from": "lib/backoffice/domain/repositories/backoffice_user_repository.dart",
+      "to": "lib/app/domain/repositories/backoffice_user_repository.dart"
+    },
+    {
+      "from": "lib/backoffice/domain/repositories/territory_repository.dart",
+      "to": "lib/app/domain/repositories/territory_repository.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/pages/backoffice_dashboard_page.dart",
+      "to": "lib/app/modules/backoffice/views/backoffice_dashboard_page.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/pages/backoffice_login_page.dart",
+      "to": "lib/app/modules/backoffice/views/backoffice_login_page.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/pages/backoffice_shell_page.dart",
+      "to": "lib/app/modules/backoffice/views/backoffice_shell_page.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/pages/backoffice_users_page.dart",
+      "to": "lib/app/modules/backoffice/views/backoffice_users_page.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/pages/catalog/backoffice_offers_page.dart",
+      "to": "lib/app/modules/backoffice/views/catalog/backoffice_offers_page.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/pages/clients/backoffice_refunds_page.dart",
+      "to": "lib/app/modules/backoffice/views/clients/backoffice_refunds_page.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/pages/clients/backoffice_support_requests_page.dart",
+      "to": "lib/app/modules/backoffice/views/clients/backoffice_support_requests_page.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/pages/control/backoffice_control_page.dart",
+      "to": "lib/app/modules/backoffice/views/control/backoffice_control_page.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/pages/finances/backoffice_cabiniste_finance_page.dart",
+      "to": "lib/app/modules/backoffice/views/finances/backoffice_cabiniste_finance_page.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/pages/finances/backoffice_finance_page.dart",
+      "to": "lib/app/modules/backoffice/views/finances/backoffice_finance_page.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/pages/operations/backoffice_assignments_page.dart",
+      "to": "lib/app/modules/backoffice/views/operations/backoffice_assignments_page.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/pages/operations/backoffice_failed_orders_page.dart",
+      "to": "lib/app/modules/backoffice/views/operations/backoffice_failed_orders_page.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/pages/operations/backoffice_orders_page.dart",
+      "to": "lib/app/modules/backoffice/views/operations/backoffice_orders_page.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/pages/operations/backoffice_payments_page.dart",
+      "to": "lib/app/modules/backoffice/views/operations/backoffice_payments_page.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/pages/profile/backoffice_my_profile_page.dart",
+      "to": "lib/app/modules/backoffice/views/profile/backoffice_my_profile_page.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/pages/team/backoffice_agents_page.dart",
+      "to": "lib/app/modules/backoffice/views/team/backoffice_agents_page.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/pages/team/backoffice_agent_issues_page.dart",
+      "to": "lib/app/modules/backoffice/views/team/backoffice_agent_issues_page.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/pages/team/backoffice_managers_page.dart",
+      "to": "lib/app/modules/backoffice/views/team/backoffice_managers_page.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/pages/team/backoffice_zones_page.dart",
+      "to": "lib/app/modules/backoffice/views/team/backoffice_zones_page.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/theme/backoffice_theme.dart",
+      "to": "lib/app/theme/backoffice_theme.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/widgets/backoffice_charts.dart",
+      "to": "lib/app/modules/backoffice/widgets/backoffice_charts.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/widgets/backoffice_modal.dart",
+      "to": "lib/app/modules/backoffice/widgets/backoffice_modal.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/widgets/backoffice_order_widgets.dart",
+      "to": "lib/app/modules/backoffice/widgets/backoffice_order_widgets.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/widgets/backoffice_pagination.dart",
+      "to": "lib/app/modules/backoffice/widgets/backoffice_pagination.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/widgets/backoffice_territory_map.dart",
+      "to": "lib/app/modules/backoffice/widgets/backoffice_territory_map.dart"
+    },
+    {
+      "from": "lib/backoffice/presentation/widgets/backoffice_user_admin_dialog.dart",
+      "to": "lib/app/modules/backoffice/widgets/backoffice_user_admin_dialog.dart"
+    },
+    {
+      "from": "lib/core/diagnostics/izytel_log.dart",
+      "to": "lib/app/core/logging/izytel_log.dart"
+    },
+    {
+      "from": "lib/core/diagnostics/startup_trace.dart",
+      "to": "lib/app/core/logging/startup_trace.dart"
+    },
+    {
+      "from": "lib/core/firebase/firebase_bootstrap.dart",
+      "to": "lib/app/data/sources/firebase_bootstrap.dart"
+    },
+    {
+      "from": "lib/core/migrations/legacy_catalog_backfill_service.dart",
+      "to": "lib/app/services/migrations/legacy_catalog_backfill_service.dart"
+    },
+    {
+      "from": "lib/core/migrations/legacy_finance_backfill_service.dart",
+      "to": "lib/app/services/migrations/legacy_finance_backfill_service.dart"
+    },
+    {
+      "from": "lib/core/migrations/legacy_support_refund_backfill_service.dart",
+      "to": "lib/app/services/migrations/legacy_support_refund_backfill_service.dart",
+      "status": "removed",
+      "removedOn": "2026-11-15",
+      "reason": "No application, test import or source-contract dependency."
+    },
+    {
+      "from": "lib/core/migrations/legacy_territory_backfill_service.dart",
+      "to": "lib/app/services/migrations/legacy_territory_backfill_service.dart"
+    },
+    {
+      "from": "lib/core/navigation/customer_web_history.dart",
+      "to": "lib/app/core/platform/customer_web_history.dart"
+    },
+    {
+      "from": "lib/core/navigation/customer_web_history_stub.dart",
+      "to": "lib/app/core/platform/customer_web_history_stub.dart"
+    },
+    {
+      "from": "lib/core/navigation/customer_web_history_web.dart",
+      "to": "lib/app/core/platform/customer_web_history_web.dart"
+    },
+    {
+      "from": "lib/core/notifications/firebase_messaging_bootstrap.dart",
+      "to": "lib/app/services/notifications/firebase_messaging_bootstrap.dart"
+    },
+    {
+      "from": "lib/core/notifications/izytel_notification_device_registry.dart",
+      "to": "lib/app/services/notifications/izytel_notification_device_registry.dart"
+    },
+    {
+      "from": "lib/core/notifications/izytel_notification_payload.dart",
+      "to": "lib/app/domain/entities/notifications/izytel_notification_payload.dart"
+    },
+    {
+      "from": "lib/core/resilience/backend_failure_policy.dart",
+      "to": "lib/app/core/resilience/backend_failure_policy.dart"
+    },
+    {
+      "from": "lib/core/resilience/backend_read_stream.dart",
+      "to": "lib/app/core/resilience/backend_read_stream.dart"
+    },
+    {
+      "from": "lib/core/services/session_preferences.dart",
+      "to": "lib/app/services/session_preferences.dart"
+    },
+    {
+      "from": "lib/core/services/wave_payment_link_builder.dart",
+      "to": "lib/app/services/wave_payment_link_builder.dart"
+    },
+    {
+      "from": "lib/core/supabase/supabase_bootstrap.dart",
+      "to": "lib/app/data/sources/supabase_bootstrap.dart"
+    },
+    {
+      "from": "lib/core/supabase/supabase_realtime_refetch.dart",
+      "to": "lib/app/data/sources/supabase_realtime_refetch.dart"
+    },
+    {
+      "from": "lib/core/theme/app_colors.dart",
+      "to": "lib/app/theme/app_colors.dart"
+    },
+    {
+      "from": "lib/core/theme/app_theme.dart",
+      "to": "lib/app/theme/app_theme.dart"
+    },
+    {
+      "from": "lib/core/theme/customer_app_colors.dart",
+      "to": "lib/app/theme/customer_app_colors.dart"
+    },
+    {
+      "from": "lib/core/theme/customer_app_theme.dart",
+      "to": "lib/app/theme/customer_app_theme.dart"
+    },
+    {
+      "from": "lib/core/theme/izytel_colors.dart",
+      "to": "lib/app/theme/izytel_colors.dart"
+    },
+    {
+      "from": "lib/core/theme/izytel_design_tokens.dart",
+      "to": "lib/app/theme/izytel_design_tokens.dart"
+    },
+    {
+      "from": "lib/core/utils/currency_formatter.dart",
+      "to": "lib/app/core/utils/currency_formatter.dart"
+    },
+    {
+      "from": "lib/customer_order_app.dart",
+      "to": "lib/app/customer_order_app.dart"
+    },
+    {
+      "from": "lib/features/agents/data/repositories/fake_agent_repository.dart",
+      "to": "lib/app/data/repositories/fake_agent_repository.dart"
+    },
+    {
+      "from": "lib/features/agents/data/repositories/firestore_agent_activity_v2_repository.dart",
+      "to": "lib/app/data/repositories/firestore_agent_activity_v2_repository.dart"
+    },
+    {
+      "from": "lib/features/agents/data/repositories/firestore_agent_personal_media_repository.dart",
+      "to": "lib/app/data/repositories/firestore_agent_personal_media_repository.dart"
+    },
+    {
+      "from": "lib/features/agents/data/repositories/firestore_agent_repository.dart",
+      "to": "lib/app/data/repositories/firestore_agent_repository.dart"
+    },
+    {
+      "from": "lib/features/agents/data/repositories/supabase_agent_issue_center_repository.dart",
+      "to": "lib/app/data/repositories/supabase_agent_issue_center_repository.dart"
+    },
+    {
+      "from": "lib/features/agents/data/repositories/supabase_agent_issue_repository.dart",
+      "to": "lib/app/data/repositories/supabase_agent_issue_repository.dart"
+    },
+    {
+      "from": "lib/features/agents/data/repositories/supabase_agent_operations_repository.dart",
+      "to": "lib/app/data/repositories/supabase_agent_operations_repository.dart"
+    },
+    {
+      "from": "lib/features/agents/data/repositories/supabase_agent_personal_profile_repository.dart",
+      "to": "lib/app/data/repositories/supabase_agent_personal_profile_repository.dart"
+    },
+    {
+      "from": "lib/features/agents/data/repositories/supabase_agent_zone_repository.dart",
+      "to": "lib/app/data/repositories/supabase_agent_zone_repository.dart"
+    },
+    {
+      "from": "lib/features/agents/domain/models/agent_activity_v2_models.dart",
+      "to": "lib/app/domain/entities/agents/agent_activity_v2_models.dart"
+    },
+    {
+      "from": "lib/features/agents/domain/models/agent_issue_center_models.dart",
+      "to": "lib/app/domain/entities/agents/agent_issue_center_models.dart"
+    },
+    {
+      "from": "lib/features/agents/domain/models/agent_models.dart",
+      "to": "lib/app/domain/entities/agents/agent_models.dart"
+    },
+    {
+      "from": "lib/features/agents/domain/models/agent_personal_media.dart",
+      "to": "lib/app/domain/entities/agents/agent_personal_media.dart"
+    },
+    {
+      "from": "lib/features/agents/domain/repositories/agent_repository.dart",
+      "to": "lib/app/domain/repositories/agent_repository.dart"
+    },
+    {
+      "from": "lib/features/agents/presentation/pages/admin_agent_profile_activity_page.dart",
+      "to": "lib/app/modules/agent_ops/views/admin_agent_profile_activity_page.dart"
+    },
+    {
+      "from": "lib/features/agents/presentation/pages/agent_activity_page.dart",
+      "to": "lib/app/modules/agent_ops/views/agent_activity_page.dart"
+    },
+    {
+      "from": "lib/features/agents/presentation/pages/agent_activity_v2_dashboard_page.dart",
+      "to": "lib/app/modules/agent_ops/views/agent_activity_v2_dashboard_page.dart"
+    },
+    {
+      "from": "lib/features/agents/presentation/pages/agent_detail_page.dart",
+      "to": "lib/app/modules/agent_ops/views/agent_detail_page.dart"
+    },
+    {
+      "from": "lib/features/agents/presentation/pages/agent_home_page.dart",
+      "to": "lib/app/modules/agent_ops/views/agent_home_page.dart"
+    },
+    {
+      "from": "lib/features/agents/presentation/pages/agent_issues_page.dart",
+      "to": "lib/app/modules/agent_issues/views/agent_issues_page.dart"
+    },
+    {
+      "from": "lib/features/agents/presentation/pages/agent_issue_center_page.dart",
+      "to": "lib/app/modules/agent_issues/views/agent_issue_center_page.dart"
+    },
+    {
+      "from": "lib/features/agents/presentation/pages/agent_management_page.dart",
+      "to": "lib/app/modules/agent_ops/views/agent_management_page.dart"
+    },
+    {
+      "from": "lib/features/agents/presentation/pages/agent_personal_profile_page.dart",
+      "to": "lib/app/modules/profile/views/agent_personal_profile_page.dart"
+    },
+    {
+      "from": "lib/features/agents/presentation/view_models/agent_activity_view_model.dart",
+      "to": "lib/app/modules/agent_ops/controllers/agent_activity_view_model.dart"
+    },
+    {
+      "from": "lib/features/agents/presentation/view_models/agent_detail_view_model.dart",
+      "to": "lib/app/modules/agent_ops/controllers/agent_detail_view_model.dart"
+    },
+    {
+      "from": "lib/features/agents/presentation/view_models/agent_management_view_model.dart",
+      "to": "lib/app/modules/agent_ops/controllers/agent_management_view_model.dart"
+    },
+    {
+      "from": "lib/features/agents/presentation/widgets/agent_directory_avatar.dart",
+      "to": "lib/app/modules/agent_ops/widgets/agent_directory_avatar.dart"
+    },
+    {
+      "from": "lib/features/audit/data/repositories/fake_order_audit_repository.dart",
+      "to": "lib/app/data/repositories/fake_order_audit_repository.dart"
+    },
+    {
+      "from": "lib/features/audit/data/repositories/firestore_order_audit_repository.dart",
+      "to": "lib/app/data/repositories/firestore_order_audit_repository.dart"
+    },
+    {
+      "from": "lib/features/audit/domain/models/order_audit_entry.dart",
+      "to": "lib/app/domain/entities/audit/order_audit_entry.dart"
+    },
+    {
+      "from": "lib/features/audit/domain/repositories/order_audit_repository.dart",
+      "to": "lib/app/domain/repositories/order_audit_repository.dart"
+    },
+    {
+      "from": "lib/features/auth/data/repositories/fake_auth_repository.dart",
+      "to": "lib/app/data/repositories/fake_auth_repository.dart"
+    },
+    {
+      "from": "lib/features/auth/data/repositories/firebase_auth_repository.dart",
+      "to": "lib/app/data/repositories/firebase_auth_repository.dart"
+    },
+    {
+      "from": "lib/features/auth/data/repositories/manager_avatar_repository.dart",
+      "to": "lib/app/data/repositories/manager_avatar_repository.dart"
+    },
+    {
+      "from": "lib/features/auth/data/repositories/supabase_staff_profile_repository.dart",
+      "to": "lib/app/data/repositories/supabase_staff_profile_repository.dart"
+    },
+    {
+      "from": "lib/features/auth/domain/models/app_user.dart",
+      "to": "lib/app/domain/entities/auth/app_user.dart"
+    },
+    {
+      "from": "lib/features/auth/domain/models/auth_login_result.dart",
+      "to": "lib/app/domain/entities/auth/auth_login_result.dart"
+    },
+    {
+      "from": "lib/features/auth/domain/models/staff_profile.dart",
+      "to": "lib/app/domain/entities/auth/staff_profile.dart"
+    },
+    {
+      "from": "lib/features/auth/domain/permissions/user_permissions.dart",
+      "to": "lib/app/domain/permissions/user_permissions.dart"
+    },
+    {
+      "from": "lib/features/auth/domain/repositories/auth_repository.dart",
+      "to": "lib/app/domain/repositories/auth_repository.dart"
+    },
+    {
+      "from": "lib/features/auth/presentation/pages/login_page.dart",
+      "to": "lib/app/modules/auth/views/login_page.dart"
+    },
+    {
+      "from": "lib/features/auth/presentation/pages/pending_account_page.dart",
+      "to": "lib/app/modules/auth/views/pending_account_page.dart"
+    },
+    {
+      "from": "lib/features/auth/presentation/pages/staff_personal_profile_page.dart",
+      "to": "lib/app/modules/profile/views/staff_personal_profile_page.dart"
+    },
+    {
+      "from": "lib/features/auth/presentation/view_models/login_view_model.dart",
+      "to": "lib/app/modules/auth/controllers/login_view_model.dart"
+    },
+    {
+      "from": "lib/features/auth/presentation/view_models/pending_account_view_model.dart",
+      "to": "lib/app/modules/auth/controllers/pending_account_view_model.dart"
+    },
+    {
+      "from": "lib/features/auth/presentation/widgets/manager_profile_avatar.dart",
+      "to": "lib/app/modules/profile/widgets/manager_profile_avatar.dart"
+    },
+    {
+      "from": "lib/features/auth/presentation/widgets/session_access_boundary.dart",
+      "to": "lib/app/modules/auth/widgets/session_access_boundary.dart"
+    },
+    {
+      "from": "lib/features/auth/presentation/widgets/staff_profile_avatar.dart",
+      "to": "lib/app/modules/profile/widgets/staff_profile_avatar.dart"
+    },
+    {
+      "from": "lib/features/commissions/data/repositories/fake_commission_repository.dart",
+      "to": "lib/app/data/repositories/fake_commission_repository.dart"
+    },
+    {
+      "from": "lib/features/commissions/data/repositories/firestore_commission_repository.dart",
+      "to": "lib/app/data/repositories/firestore_commission_repository.dart"
+    },
+    {
+      "from": "lib/features/commissions/data/repositories/firestore_commission_v2_repository.dart",
+      "to": "lib/app/data/repositories/firestore_commission_v2_repository.dart"
+    },
+    {
+      "from": "lib/features/commissions/data/repositories/hybrid_commission_repository.dart",
+      "to": "lib/app/data/repositories/hybrid_commission_repository.dart"
+    },
+    {
+      "from": "lib/features/commissions/data/repositories/manager_read_only_commission_repository.dart",
+      "to": "lib/app/data/repositories/manager_read_only_commission_repository.dart"
+    },
+    {
+      "from": "lib/features/commissions/data/repositories/supabase_commission_v2_repository.dart",
+      "to": "lib/app/data/repositories/supabase_commission_v2_repository.dart"
+    },
+    {
+      "from": "lib/features/commissions/domain/models/commission_models.dart",
+      "to": "lib/app/domain/entities/commissions/commission_models.dart"
+    },
+    {
+      "from": "lib/features/commissions/domain/models/commission_v2_models.dart",
+      "to": "lib/app/domain/entities/commissions/commission_v2_models.dart"
+    },
+    {
+      "from": "lib/features/commissions/domain/repositories/agent_commission_summary_repository.dart",
+      "to": "lib/app/domain/repositories/agent_commission_summary_repository.dart"
+    },
+    {
+      "from": "lib/features/commissions/domain/repositories/commission_repository.dart",
+      "to": "lib/app/domain/repositories/commission_repository.dart"
+    },
+    {
+      "from": "lib/features/commissions/domain/repositories/commission_v2_repository.dart",
+      "to": "lib/app/domain/repositories/commission_v2_repository.dart"
+    },
+    {
+      "from": "lib/features/commissions/domain/services/commission_performance_calculator.dart",
+      "to": "lib/app/domain/policies/commissions/commission_performance_calculator.dart"
+    },
+    {
+      "from": "lib/features/commissions/presentation/pages/agent_commissions_page.dart",
+      "to": "lib/app/modules/commissions/views/agent_commissions_page.dart"
+    },
+    {
+      "from": "lib/features/commissions/presentation/pages/agent_performance_page.dart",
+      "to": "lib/app/modules/commissions/views/agent_performance_page.dart"
+    },
+    {
+      "from": "lib/features/commissions/presentation/pages/commission_management_page.dart",
+      "to": "lib/app/modules/commissions/views/commission_management_page.dart"
+    },
+    {
+      "from": "lib/features/commissions/presentation/pages/commission_v2_dashboard_page.dart",
+      "to": "lib/app/modules/commissions/views/commission_v2_dashboard_page.dart"
+    },
+    {
+      "from": "lib/features/commissions/presentation/widgets/commission_payout_sheet.dart",
+      "to": "lib/app/modules/commissions/widgets/commission_payout_sheet.dart"
+    },
+    {
+      "from": "lib/features/control/data/repositories/supabase_control_repository.dart",
+      "to": "lib/app/data/repositories/supabase_control_repository.dart"
+    },
+    {
+      "from": "lib/features/control/domain/models/control_snapshot.dart",
+      "to": "lib/app/domain/entities/control/control_snapshot.dart"
+    },
+    {
+      "from": "lib/features/control/domain/repositories/control_repository.dart",
+      "to": "lib/app/domain/repositories/control_repository.dart"
+    },
+    {
+      "from": "lib/features/control/presentation/pages/manager_pilotage_page.dart",
+      "to": "lib/app/modules/control/views/manager_pilotage_page.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/acquisition/customer_acquisition_source.dart",
+      "to": "lib/app/data/platform/customer/acquisition/customer_acquisition_source.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/acquisition/customer_acquisition_source_common.dart",
+      "to": "lib/app/data/platform/customer/acquisition/customer_acquisition_source_common.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/acquisition/customer_acquisition_source_stub.dart",
+      "to": "lib/app/data/platform/customer/acquisition/customer_acquisition_source_stub.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/acquisition/customer_acquisition_source_web.dart",
+      "to": "lib/app/data/platform/customer/acquisition/customer_acquisition_source_web.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/geolocation/customer_geolocation.dart",
+      "to": "lib/app/data/platform/customer/geolocation/customer_geolocation.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/geolocation/customer_geolocation_stub.dart",
+      "to": "lib/app/data/platform/customer/geolocation/customer_geolocation_stub.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/geolocation/customer_geolocation_web.dart",
+      "to": "lib/app/data/platform/customer/geolocation/customer_geolocation_web.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/local/customer_location_consent_store.dart",
+      "to": "lib/app/data/platform/customer/local/customer_location_consent_store.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/local/customer_location_consent_store_stub.dart",
+      "to": "lib/app/data/platform/customer/local/customer_location_consent_store_stub.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/local/customer_location_consent_store_web.dart",
+      "to": "lib/app/data/platform/customer/local/customer_location_consent_store_web.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/local/customer_order_session_store.dart",
+      "to": "lib/app/data/platform/customer/local/customer_order_session_store.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/local/customer_order_session_store_stub.dart",
+      "to": "lib/app/data/platform/customer/local/customer_order_session_store_stub.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/local/customer_order_session_store_web.dart",
+      "to": "lib/app/data/platform/customer/local/customer_order_session_store_web.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/repositories/fake_customer_offer_repository.dart",
+      "to": "lib/app/data/repositories/fake_customer_offer_repository.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/repositories/fake_customer_order_context_repository.dart",
+      "to": "lib/app/data/repositories/fake_customer_order_context_repository.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/repositories/fake_customer_order_repository.dart",
+      "to": "lib/app/data/repositories/fake_customer_order_repository.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/repositories/fake_customer_profile_repository.dart",
+      "to": "lib/app/data/repositories/fake_customer_profile_repository.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/repositories/firestore_customer_offer_repository.dart",
+      "to": "lib/app/data/repositories/firestore_customer_offer_repository.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/repositories/firestore_customer_order_repository.dart",
+      "to": "lib/app/data/repositories/firestore_customer_order_repository.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/repositories/firestore_customer_profile_repository.dart",
+      "to": "lib/app/data/repositories/firestore_customer_profile_repository.dart",
+      "status": "removed",
+      "removedOn": "2026-11-15",
+      "reason": "No application, test import or source-contract dependency."
+    },
+    {
+      "from": "lib/features/customer_order/data/repositories/operational_customer_order_context_repository.dart",
+      "to": "lib/app/data/repositories/operational_customer_order_context_repository.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/repositories/supabase_customer_offer_repository.dart",
+      "to": "lib/app/data/repositories/supabase_customer_offer_repository.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/repositories/supabase_customer_order_context_repository.dart",
+      "to": "lib/app/data/repositories/supabase_customer_order_context_repository.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/repositories/supabase_customer_order_history_repository.dart",
+      "to": "lib/app/data/repositories/supabase_customer_order_history_repository.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/repositories/supabase_customer_order_recovery_repository.dart",
+      "to": "lib/app/data/repositories/supabase_customer_order_recovery_repository.dart"
+    },
+    {
+      "from": "lib/features/customer_order/data/repositories/supabase_customer_order_status_repository.dart",
+      "to": "lib/app/data/repositories/supabase_customer_order_status_repository.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/models/beneficiary_phone_number.dart",
+      "to": "lib/app/domain/entities/customer/beneficiary_phone_number.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/models/customer_beneficiary_target.dart",
+      "to": "lib/app/domain/entities/customer/customer_beneficiary_target.dart",
+      "status": "removed",
+      "removedOn": "2026-11-15",
+      "reason": "No application, test import or source-contract dependency."
+    },
+    {
+      "from": "lib/features/customer_order/domain/models/customer_identity.dart",
+      "to": "lib/app/domain/entities/customer/customer_identity.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/models/customer_offer.dart",
+      "to": "lib/app/domain/entities/customer/customer_offer.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/models/customer_order_context.dart",
+      "to": "lib/app/domain/entities/customer/customer_order_context.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/models/customer_order_draft.dart",
+      "to": "lib/app/domain/entities/customer/customer_order_draft.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/models/customer_order_receipt.dart",
+      "to": "lib/app/domain/entities/customer/customer_order_receipt.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/models/customer_order_recovery_key.dart",
+      "to": "lib/app/domain/entities/customer/customer_order_recovery_key.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/models/customer_order_session.dart",
+      "to": "lib/app/domain/entities/customer/customer_order_session.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/models/customer_profile.dart",
+      "to": "lib/app/domain/entities/customer/customer_profile.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/models/customer_service.dart",
+      "to": "lib/app/domain/entities/customer/customer_service.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/models/frequent_beneficiary_contact.dart",
+      "to": "lib/app/domain/entities/customer/frequent_beneficiary_contact.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/models/payment_declaration.dart",
+      "to": "lib/app/domain/entities/customer/payment_declaration.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/models/whatsapp_phone_number.dart",
+      "to": "lib/app/domain/entities/customer/whatsapp_phone_number.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/repositories/customer_location_consent_store.dart",
+      "to": "lib/app/domain/repositories/customer_location_consent_store.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/repositories/customer_offer_repository.dart",
+      "to": "lib/app/domain/repositories/customer_offer_repository.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/repositories/customer_order_context_repository.dart",
+      "to": "lib/app/domain/repositories/customer_order_context_repository.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/repositories/customer_order_repository.dart",
+      "to": "lib/app/domain/repositories/customer_order_repository.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/repositories/customer_order_session_store.dart",
+      "to": "lib/app/domain/repositories/customer_order_session_store.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/repositories/customer_profile_repository.dart",
+      "to": "lib/app/domain/repositories/customer_profile_repository.dart"
+    },
+    {
+      "from": "lib/features/customer_order/domain/services/customer_geolocation_service.dart",
+      "to": "lib/app/domain/policies/customer/customer_geolocation_service.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/pages/customer_beneficiary_page.dart",
+      "to": "lib/app/modules/customer/views/customer_beneficiary_page.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/pages/customer_catalog_page.dart",
+      "to": "lib/app/modules/customer/views/customer_catalog_page.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/pages/customer_confirmation_page.dart",
+      "to": "lib/app/modules/customer/views/customer_confirmation_page.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/pages/customer_home_page.dart",
+      "to": "lib/app/modules/customer/views/customer_home_page.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/pages/customer_identification_page.dart",
+      "to": "lib/app/modules/customer/views/customer_identification_page.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/pages/customer_network_page.dart",
+      "to": "lib/app/modules/customer/views/customer_network_page.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/pages/customer_offer_page.dart",
+      "to": "lib/app/modules/customer/views/customer_offer_page.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/pages/customer_order_flow_page.dart",
+      "to": "lib/app/modules/customer/views/customer_order_flow_page.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/pages/customer_order_history_page.dart",
+      "to": "lib/app/modules/customer/views/customer_order_history_page.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/pages/customer_order_recovery_page.dart",
+      "to": "lib/app/modules/customer/views/customer_order_recovery_page.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/pages/customer_payment_page.dart",
+      "to": "lib/app/modules/customer/views/customer_payment_page.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/pages/customer_service_page.dart",
+      "to": "lib/app/modules/customer/views/customer_service_page.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/pages/customer_step_placeholder_page.dart",
+      "to": "lib/app/modules/customer/views/customer_step_placeholder_page.dart",
+      "status": "removed",
+      "removedOn": "2026-11-15",
+      "reason": "No application, test import or source-contract dependency."
+    },
+    {
+      "from": "lib/features/customer_order/presentation/pages/customer_summary_page.dart",
+      "to": "lib/app/modules/customer/views/customer_summary_page.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/view_models/customer_order_view_model.dart",
+      "to": "lib/app/modules/customer/controllers/customer_order_view_model.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/widgets/customer_bottom_actions.dart",
+      "to": "lib/app/modules/customer/widgets/customer_bottom_actions.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/widgets/customer_flow_scaffold.dart",
+      "to": "lib/app/modules/customer/widgets/customer_flow_scaffold.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/widgets/customer_location_consent_card.dart",
+      "to": "lib/app/modules/customer/widgets/customer_location_consent_card.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/widgets/customer_location_consent_dialog.dart",
+      "to": "lib/app/modules/customer/widgets/customer_location_consent_dialog.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/widgets/customer_order_labels.dart",
+      "to": "lib/app/modules/customer/widgets/customer_order_labels.dart"
+    },
+    {
+      "from": "lib/features/customer_order/presentation/widgets/customer_progress_indicator.dart",
+      "to": "lib/app/modules/customer/widgets/customer_progress_indicator.dart"
+    },
+    {
+      "from": "lib/features/dashboard/data/repositories/fake_dashboard_repository.dart",
+      "to": "lib/app/data/repositories/fake_dashboard_repository.dart"
+    },
+    {
+      "from": "lib/features/dashboard/data/repositories/firestore_dashboard_repository.dart",
+      "to": "lib/app/data/repositories/firestore_dashboard_repository.dart"
+    },
+    {
+      "from": "lib/features/dashboard/data/repositories/hybrid_dashboard_repository.dart",
+      "to": "lib/app/data/repositories/hybrid_dashboard_repository.dart"
+    },
+    {
+      "from": "lib/features/dashboard/domain/models/dashboard_data.dart",
+      "to": "lib/app/domain/entities/dashboard/dashboard_data.dart"
+    },
+    {
+      "from": "lib/features/dashboard/domain/repositories/dashboard_repository.dart",
+      "to": "lib/app/domain/repositories/dashboard_repository.dart"
+    },
+    {
+      "from": "lib/features/dashboard/presentation/pages/dashboard_page.dart",
+      "to": "lib/app/modules/home/views/dashboard_page.dart"
+    },
+    {
+      "from": "lib/features/dashboard/presentation/view_models/dashboard_view_model.dart",
+      "to": "lib/app/modules/home/controllers/dashboard_view_model.dart"
+    },
+    {
+      "from": "lib/features/dashboard/presentation/widgets/dashboard_widgets.dart",
+      "to": "lib/app/modules/home/widgets/dashboard_widgets.dart"
+    },
+    {
+      "from": "lib/features/finances/data/repositories/fake_finance_operations_repository.dart",
+      "to": "lib/app/data/repositories/fake_finance_operations_repository.dart"
+    },
+    {
+      "from": "lib/features/finances/data/repositories/fake_financial_reconciliation_repository.dart",
+      "to": "lib/app/data/repositories/fake_financial_reconciliation_repository.dart"
+    },
+    {
+      "from": "lib/features/finances/data/repositories/fake_network_finance_repository.dart",
+      "to": "lib/app/data/repositories/fake_network_finance_repository.dart"
+    },
+    {
+      "from": "lib/features/finances/data/repositories/firestore_finance_operations_repository.dart",
+      "to": "lib/app/data/repositories/firestore_finance_operations_repository.dart"
+    },
+    {
+      "from": "lib/features/finances/data/repositories/firestore_financial_reconciliation_repository.dart",
+      "to": "lib/app/data/repositories/firestore_financial_reconciliation_repository.dart"
+    },
+    {
+      "from": "lib/features/finances/data/repositories/firestore_network_finance_repository.dart",
+      "to": "lib/app/data/repositories/firestore_network_finance_repository.dart"
+    },
+    {
+      "from": "lib/features/finances/data/repositories/hybrid_finance_operations_repository.dart",
+      "to": "lib/app/data/repositories/hybrid_finance_operations_repository.dart"
+    },
+    {
+      "from": "lib/features/finances/data/repositories/hybrid_network_finance_repository.dart",
+      "to": "lib/app/data/repositories/hybrid_network_finance_repository.dart"
+    },
+    {
+      "from": "lib/features/finances/data/repositories/manager_read_only_finance_operations_repository.dart",
+      "to": "lib/app/data/repositories/manager_read_only_finance_operations_repository.dart"
+    },
+    {
+      "from": "lib/features/finances/data/repositories/supabase_agent_recharge_history_repository.dart",
+      "to": "lib/app/data/repositories/supabase_agent_recharge_history_repository.dart"
+    },
+    {
+      "from": "lib/features/finances/data/repositories/supabase_finance_operations_repository.dart",
+      "to": "lib/app/data/repositories/supabase_finance_operations_repository.dart"
+    },
+    {
+      "from": "lib/features/finances/data/repositories/supabase_phase5_finance_repository.dart",
+      "to": "lib/app/data/repositories/supabase_phase5_finance_repository.dart"
+    },
+    {
+      "from": "lib/features/finances/data/repositories/supabase_phase5_history_repository.dart",
+      "to": "lib/app/data/repositories/supabase_phase5_history_repository.dart"
+    },
+    {
+      "from": "lib/features/finances/data/repositories/supabase_supplier_registry_repository.dart",
+      "to": "lib/app/data/repositories/supabase_supplier_registry_repository.dart"
+    },
+    {
+      "from": "lib/features/finances/data/services/phase5_consolidated_synchronizer.dart",
+      "to": "lib/app/services/finance/phase5_consolidated_synchronizer.dart"
+    },
+    {
+      "from": "lib/features/finances/data/services/phase5_recharge_history_synchronizer.dart",
+      "to": "lib/app/services/finance/phase5_recharge_history_synchronizer.dart",
+      "status": "removed",
+      "removedOn": "2026-11-15",
+      "reason": "No application, test import or source-contract dependency."
+    },
+    {
+      "from": "lib/features/finances/domain/models/agent_recharge_history_models.dart",
+      "to": "lib/app/domain/entities/finance/agent_recharge_history_models.dart"
+    },
+    {
+      "from": "lib/features/finances/domain/models/finance_operations_models.dart",
+      "to": "lib/app/domain/entities/finance/finance_operations_models.dart"
+    },
+    {
+      "from": "lib/features/finances/domain/models/financial_reconciliation_models.dart",
+      "to": "lib/app/domain/entities/finance/financial_reconciliation_models.dart"
+    },
+    {
+      "from": "lib/features/finances/domain/models/network_finance_models.dart",
+      "to": "lib/app/domain/entities/finance/network_finance_models.dart"
+    },
+    {
+      "from": "lib/features/finances/domain/repositories/agent_recharge_history_repository.dart",
+      "to": "lib/app/domain/repositories/agent_recharge_history_repository.dart"
+    },
+    {
+      "from": "lib/features/finances/domain/repositories/finance_operations_repository.dart",
+      "to": "lib/app/domain/repositories/finance_operations_repository.dart"
+    },
+    {
+      "from": "lib/features/finances/domain/repositories/financial_reconciliation_repository.dart",
+      "to": "lib/app/domain/repositories/financial_reconciliation_repository.dart"
+    },
+    {
+      "from": "lib/features/finances/domain/repositories/network_finance_repository.dart",
+      "to": "lib/app/domain/repositories/network_finance_repository.dart"
+    },
+    {
+      "from": "lib/features/finances/domain/services/finance_calculators.dart",
+      "to": "lib/app/domain/policies/finance/finance_calculators.dart"
+    },
+    {
+      "from": "lib/features/finances/domain/services/finance_operation_key.dart",
+      "to": "lib/app/domain/policies/finance/finance_operation_key.dart"
+    },
+    {
+      "from": "lib/features/finances/domain/services/financial_reconciliation_engine.dart",
+      "to": "lib/app/domain/policies/finance/financial_reconciliation_engine.dart"
+    },
+    {
+      "from": "lib/features/finances/domain/services/network_finance_calculator.dart",
+      "to": "lib/app/domain/policies/finance/network_finance_calculator.dart"
+    },
+    {
+      "from": "lib/features/finances/presentation/pages/cabiniste_finance_supervision_page.dart",
+      "to": "lib/app/modules/finance/views/cabiniste_finance_supervision_page.dart"
+    },
+    {
+      "from": "lib/features/finances/presentation/pages/customer_credits_page.dart",
+      "to": "lib/app/modules/finance/views/customer_credits_page.dart"
+    },
+    {
+      "from": "lib/features/finances/presentation/pages/daily_financial_closing_page.dart",
+      "to": "lib/app/modules/finance/views/daily_financial_closing_page.dart"
+    },
+    {
+      "from": "lib/features/finances/presentation/pages/finances_page.dart",
+      "to": "lib/app/modules/finance/views/finances_page.dart"
+    },
+    {
+      "from": "lib/features/finances/presentation/pages/finance_expenses_page.dart",
+      "to": "lib/app/modules/finance/views/finance_expenses_page.dart"
+    },
+    {
+      "from": "lib/features/finances/presentation/pages/financial_movements_page.dart",
+      "to": "lib/app/modules/finance/views/financial_movements_page.dart"
+    },
+    {
+      "from": "lib/features/finances/presentation/pages/financial_reconciliation_page.dart",
+      "to": "lib/app/modules/finance/views/financial_reconciliation_page.dart"
+    },
+    {
+      "from": "lib/features/finances/presentation/pages/supplier_finance_page.dart",
+      "to": "lib/app/modules/finance/views/supplier_finance_page.dart"
+    },
+    {
+      "from": "lib/features/finances/presentation/pages/wave_cash_page.dart",
+      "to": "lib/app/modules/finance/views/wave_cash_page.dart"
+    },
+    {
+      "from": "lib/features/finances/presentation/pages/working_capital_page.dart",
+      "to": "lib/app/modules/finance/views/working_capital_page.dart"
+    },
+    {
+      "from": "lib/features/finances/presentation/widgets/financial_intent_retry.dart",
+      "to": "lib/app/modules/finance/widgets/financial_intent_retry.dart"
+    },
+    {
+      "from": "lib/features/finances/presentation/widgets/financial_ui.dart",
+      "to": "lib/app/modules/finance/widgets/financial_ui.dart"
+    },
+    {
+      "from": "lib/features/managers/presentation/pages/manager_accounts_page.dart",
+      "to": "lib/app/modules/team/views/manager_accounts_page.dart"
+    },
+    {
+      "from": "lib/features/messaging/data/repositories/fake_customer_messaging_repository.dart",
+      "to": "lib/app/data/repositories/fake_customer_messaging_repository.dart"
+    },
+    {
+      "from": "lib/features/messaging/data/repositories/operational_customer_messaging_repository.dart",
+      "to": "lib/app/data/repositories/operational_customer_messaging_repository.dart"
+    },
+    {
+      "from": "lib/features/messaging/data/repositories/supabase_customer_messaging_repository.dart",
+      "to": "lib/app/data/repositories/supabase_customer_messaging_repository.dart"
+    },
+    {
+      "from": "lib/features/messaging/data/services/customer_messaging_delivery_service.dart",
+      "to": "lib/app/services/messaging/customer_messaging_delivery_service.dart"
+    },
+    {
+      "from": "lib/features/messaging/domain/models/customer_conversation.dart",
+      "to": "lib/app/domain/entities/messaging/customer_conversation.dart"
+    },
+    {
+      "from": "lib/features/messaging/domain/repositories/customer_messaging_repository.dart",
+      "to": "lib/app/domain/repositories/customer_messaging_repository.dart"
+    },
+    {
+      "from": "lib/features/messaging/presentation/pages/customer_messaging_page.dart",
+      "to": "lib/app/modules/messaging/views/customer_messaging_page.dart"
+    },
+    {
+      "from": "lib/features/messaging/presentation/pages/staff_customer_messaging_page.dart",
+      "to": "lib/app/modules/messaging/views/staff_customer_messaging_page.dart"
+    },
+    {
+      "from": "lib/features/more/presentation/pages/admin_activity_journal_page.dart",
+      "to": "lib/app/modules/control/views/admin_activity_journal_page.dart"
+    },
+    {
+      "from": "lib/features/more/presentation/pages/more_page.dart",
+      "to": "lib/app/modules/home/views/more_page.dart"
+    },
+    {
+      "from": "lib/features/navigation/presentation/pages/main_shell_page.dart",
+      "to": "lib/app/modules/home/views/main_shell_page.dart"
+    },
+    {
+      "from": "lib/features/navigation/presentation/widgets/izytel_mobile_back_scope.dart",
+      "to": "lib/app/modules/home/widgets/izytel_mobile_back_scope.dart"
+    },
+    {
+      "from": "lib/features/offers/data/models/firestore_offer_data.dart",
+      "to": "lib/app/data/models/firestore_offer_data.dart"
+    },
+    {
+      "from": "lib/features/offers/data/repositories/fake_admin_offer_repository.dart",
+      "to": "lib/app/data/repositories/fake_admin_offer_repository.dart"
+    },
+    {
+      "from": "lib/features/offers/data/repositories/firestore_admin_offer_repository.dart",
+      "to": "lib/app/data/repositories/firestore_admin_offer_repository.dart"
+    },
+    {
+      "from": "lib/features/offers/data/repositories/supabase_admin_offer_repository.dart",
+      "to": "lib/app/data/repositories/supabase_admin_offer_repository.dart"
+    },
+    {
+      "from": "lib/features/offers/domain/models/admin_offer.dart",
+      "to": "lib/app/domain/entities/offers/admin_offer.dart"
+    },
+    {
+      "from": "lib/features/offers/domain/repositories/admin_offer_repository.dart",
+      "to": "lib/app/domain/repositories/admin_offer_repository.dart"
+    },
+    {
+      "from": "lib/features/offers/presentation/pages/offer_editor_page.dart",
+      "to": "lib/app/modules/offers/views/offer_editor_page.dart"
+    },
+    {
+      "from": "lib/features/offers/presentation/pages/offer_management_page.dart",
+      "to": "lib/app/modules/offers/views/offer_management_page.dart"
+    },
+    {
+      "from": "lib/features/offers/presentation/view_models/offer_editor_view_model.dart",
+      "to": "lib/app/modules/offers/controllers/offer_editor_view_model.dart"
+    },
+    {
+      "from": "lib/features/offers/presentation/view_models/offer_management_view_model.dart",
+      "to": "lib/app/modules/offers/controllers/offer_management_view_model.dart"
+    },
+    {
+      "from": "lib/features/orders/data/mappers/firestore_order_mapper.dart",
+      "to": "lib/app/data/mappers/firestore_order_mapper.dart"
+    },
+    {
+      "from": "lib/features/orders/data/repositories/fake_offer_catalog_repository.dart",
+      "to": "lib/app/data/repositories/fake_offer_catalog_repository.dart"
+    },
+    {
+      "from": "lib/features/orders/data/repositories/fake_orders_repository.dart",
+      "to": "lib/app/data/repositories/fake_orders_repository.dart"
+    },
+    {
+      "from": "lib/features/orders/data/repositories/firestore_offer_catalog_repository.dart",
+      "to": "lib/app/data/repositories/firestore_offer_catalog_repository.dart"
+    },
+    {
+      "from": "lib/features/orders/data/repositories/firestore_orders_repository.dart",
+      "to": "lib/app/data/repositories/firestore_orders_repository.dart"
+    },
+    {
+      "from": "lib/features/orders/data/repositories/hybrid_orders_repository.dart",
+      "to": "lib/app/data/repositories/hybrid_orders_repository.dart"
+    },
+    {
+      "from": "lib/features/orders/data/repositories/supabase_offer_catalog_repository.dart",
+      "to": "lib/app/data/repositories/supabase_offer_catalog_repository.dart"
+    },
+    {
+      "from": "lib/features/orders/data/repositories/supabase_order_proof_repository.dart",
+      "to": "lib/app/data/repositories/supabase_order_proof_repository.dart"
+    },
+    {
+      "from": "lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart",
+      "to": "lib/app/data/repositories/supabase_phase4_assignment_repository.dart"
+    },
+    {
+      "from": "lib/features/orders/data/repositories/supabase_shared_order_queue_repository.dart",
+      "to": "lib/app/data/repositories/supabase_shared_order_queue_repository.dart"
+    },
+    {
+      "from": "lib/features/orders/domain/models/automatic_assignment.dart",
+      "to": "lib/app/domain/entities/orders/automatic_assignment.dart"
+    },
+    {
+      "from": "lib/features/orders/domain/models/create_order_request.dart",
+      "to": "lib/app/domain/entities/orders/create_order_request.dart"
+    },
+    {
+      "from": "lib/features/orders/domain/models/offer_catalog_item.dart",
+      "to": "lib/app/domain/entities/orders/offer_catalog_item.dart"
+    },
+    {
+      "from": "lib/features/orders/domain/models/order_event.dart",
+      "to": "lib/app/domain/entities/orders/order_event.dart"
+    },
+    {
+      "from": "lib/features/orders/domain/models/order_history_filters.dart",
+      "to": "lib/app/domain/entities/orders/order_history_filters.dart"
+    },
+    {
+      "from": "lib/features/orders/domain/models/order_proof.dart",
+      "to": "lib/app/domain/entities/orders/order_proof.dart"
+    },
+    {
+      "from": "lib/features/orders/domain/models/queue_order.dart",
+      "to": "lib/app/domain/entities/orders/queue_order.dart"
+    },
+    {
+      "from": "lib/features/orders/domain/repositories/agent_assignment_history_repository.dart",
+      "to": "lib/app/domain/repositories/agent_assignment_history_repository.dart"
+    },
+    {
+      "from": "lib/features/orders/domain/repositories/offer_catalog_repository.dart",
+      "to": "lib/app/domain/repositories/offer_catalog_repository.dart"
+    },
+    {
+      "from": "lib/features/orders/domain/repositories/orders_repository.dart",
+      "to": "lib/app/domain/repositories/orders_repository.dart"
+    },
+    {
+      "from": "lib/features/orders/domain/repositories/order_history_repository.dart",
+      "to": "lib/app/domain/repositories/order_history_repository.dart"
+    },
+    {
+      "from": "lib/features/orders/domain/repositories/shared_order_queue_repository.dart",
+      "to": "lib/app/domain/repositories/shared_order_queue_repository.dart"
+    },
+    {
+      "from": "lib/features/orders/domain/services/agent_capacity_policy.dart",
+      "to": "lib/app/domain/policies/orders/agent_capacity_policy.dart"
+    },
+    {
+      "from": "lib/features/orders/domain/services/agent_order_priority_policy.dart",
+      "to": "lib/app/domain/policies/orders/agent_order_priority_policy.dart"
+    },
+    {
+      "from": "lib/features/orders/domain/services/automatic_assignment_selector.dart",
+      "to": "lib/app/domain/policies/orders/automatic_assignment_selector.dart"
+    },
+    {
+      "from": "lib/features/orders/domain/services/order_expiration_policy.dart",
+      "to": "lib/app/domain/policies/orders/order_expiration_policy.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/navigation/staff_order_navigation.dart",
+      "to": "lib/app/modules/staff_orders/navigation/staff_order_navigation.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/pages/agent_assignment_page.dart",
+      "to": "lib/app/modules/manager_orders/views/agent_assignment_page.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/pages/agent_history_page.dart",
+      "to": "lib/app/modules/agent_orders/views/agent_history_page.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/pages/agent_orders_page.dart",
+      "to": "lib/app/modules/agent_orders/views/agent_orders_page.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/pages/agent_order_detail_route_page.dart",
+      "to": "lib/app/modules/agent_orders/views/agent_order_detail_route_page.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/pages/agent_order_detail_view.dart",
+      "to": "lib/app/modules/agent_orders/views/agent_order_detail_view.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/pages/create_order_page.dart",
+      "to": "lib/app/modules/staff_orders/views/create_order_page.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/pages/customer_confirmation_page.dart",
+      "to": "lib/app/modules/staff_orders/views/customer_confirmation_page.dart",
+      "status": "removed",
+      "removedOn": "2026-11-15",
+      "reason": "No application, test import or source-contract dependency."
+    },
+    {
+      "from": "lib/features/orders/presentation/pages/failed_orders_page.dart",
+      "to": "lib/app/modules/manager_orders/views/failed_orders_page.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/pages/orders_page.dart",
+      "to": "lib/app/modules/manager_orders/views/orders_page.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/pages/order_detail_page.dart",
+      "to": "lib/app/modules/manager_orders/views/order_detail_page.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/pages/order_history_page.dart",
+      "to": "lib/app/modules/staff_history/views/order_history_page.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/pages/order_processing_page.dart",
+      "to": "lib/app/modules/manager_orders/views/order_processing_page.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/pages/order_supervision_page.dart",
+      "to": "lib/app/modules/manager_orders/views/order_supervision_page.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/pages/shared_agent_orders_page.dart",
+      "to": "lib/app/modules/agent_orders/views/shared_agent_orders_page.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/view_models/agent_assignment_view_model.dart",
+      "to": "lib/app/modules/manager_orders/controllers/agent_assignment_view_model.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/view_models/agent_orders_view_model.dart",
+      "to": "lib/app/modules/agent_orders/controllers/agent_orders_view_model.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/view_models/create_order_view_model.dart",
+      "to": "lib/app/modules/staff_orders/controllers/create_order_view_model.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/view_models/orders_view_model.dart",
+      "to": "lib/app/modules/manager_orders/controllers/orders_view_model.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/view_models/order_history_view_model.dart",
+      "to": "lib/app/modules/staff_history/controllers/order_history_view_model.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/view_models/shared_order_queue_view_model.dart",
+      "to": "lib/app/modules/agent_orders/controllers/shared_order_queue_view_model.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/widgets/orders_widgets.dart",
+      "to": "lib/app/modules/manager_orders/widgets/orders_widgets.dart"
+    },
+    {
+      "from": "lib/features/orders/presentation/widgets/order_display_helpers.dart",
+      "to": "lib/app/modules/staff_orders/widgets/order_display_helpers.dart"
+    },
+    {
+      "from": "lib/features/partners/data/repositories/supabase_cabiniste_finance_supervision_repository.dart",
+      "to": "lib/app/data/repositories/supabase_cabiniste_finance_supervision_repository.dart"
+    },
+    {
+      "from": "lib/features/partners/data/repositories/supabase_partner_order_repository.dart",
+      "to": "lib/app/data/repositories/supabase_partner_order_repository.dart"
+    },
+    {
+      "from": "lib/features/partners/domain/models/cabiniste_finance_supervision_models.dart",
+      "to": "lib/app/domain/entities/partners/cabiniste_finance_supervision_models.dart"
+    },
+    {
+      "from": "lib/features/partners/domain/models/partner_order_models.dart",
+      "to": "lib/app/domain/entities/partners/partner_order_models.dart"
+    },
+    {
+      "from": "lib/features/partners/presentation/pages/partner_shell_page.dart",
+      "to": "lib/app/modules/partners/views/partner_shell_page.dart"
+    },
+    {
+      "from": "lib/features/payments/data/repositories/wave_payment_link_repository.dart",
+      "to": "lib/app/data/repositories/wave_payment_link_repository.dart"
+    },
+    {
+      "from": "lib/features/payments/domain/models/payment_link_data.dart",
+      "to": "lib/app/domain/entities/payments/payment_link_data.dart"
+    },
+    {
+      "from": "lib/features/payments/domain/repositories/payment_link_repository.dart",
+      "to": "lib/app/domain/repositories/payment_link_repository.dart"
+    },
+    {
+      "from": "lib/features/payments/presentation/pages/payments_page.dart",
+      "to": "lib/app/modules/payments/views/payments_page.dart"
+    },
+    {
+      "from": "lib/features/payments/presentation/pages/send_wave_link_page.dart",
+      "to": "lib/app/modules/payments/views/send_wave_link_page.dart"
+    },
+    {
+      "from": "lib/features/payments/presentation/view_models/payments_view_model.dart",
+      "to": "lib/app/modules/payments/controllers/payments_view_model.dart"
+    },
+    {
+      "from": "lib/features/payments/presentation/view_models/payment_request_view_model.dart",
+      "to": "lib/app/modules/payments/controllers/payment_request_view_model.dart"
+    },
+    {
+      "from": "lib/features/payments/presentation/widgets/payments_widgets.dart",
+      "to": "lib/app/modules/payments/widgets/payments_widgets.dart"
+    },
+    {
+      "from": "lib/features/refunds/data/repositories/fake_refund_repository.dart",
+      "to": "lib/app/data/repositories/fake_refund_repository.dart"
+    },
+    {
+      "from": "lib/features/refunds/data/repositories/firestore_refund_repository.dart",
+      "to": "lib/app/data/repositories/firestore_refund_repository.dart",
+      "status": "removed",
+      "removedOn": "2026-11-15",
+      "reason": "No application, test import or source-contract dependency."
+    },
+    {
+      "from": "lib/features/refunds/data/repositories/operational_refund_repository.dart",
+      "to": "lib/app/data/repositories/operational_refund_repository.dart"
+    },
+    {
+      "from": "lib/features/refunds/data/repositories/supabase_refund_repository.dart",
+      "to": "lib/app/data/repositories/supabase_refund_repository.dart"
+    },
+    {
+      "from": "lib/features/refunds/domain/models/refund_case.dart",
+      "to": "lib/app/domain/entities/refunds/refund_case.dart"
+    },
+    {
+      "from": "lib/features/refunds/domain/repositories/refund_repository.dart",
+      "to": "lib/app/domain/repositories/refund_repository.dart"
+    },
+    {
+      "from": "lib/features/refunds/presentation/pages/refund_management_page.dart",
+      "to": "lib/app/modules/refunds/views/refund_management_page.dart"
+    },
+    {
+      "from": "lib/features/refunds/presentation/widgets/refund_creation_sheet.dart",
+      "to": "lib/app/modules/refunds/widgets/refund_creation_sheet.dart"
+    },
+    {
+      "from": "lib/features/refunds/presentation/widgets/refund_text_input_sheet.dart",
+      "to": "lib/app/modules/refunds/widgets/refund_text_input_sheet.dart"
+    },
+    {
+      "from": "lib/features/splash/presentation/pages/splash_page.dart",
+      "to": "lib/app/modules/splash/views/splash_page.dart"
+    },
+    {
+      "from": "lib/features/support/data/repositories/fake_support_request_repository.dart",
+      "to": "lib/app/data/repositories/fake_support_request_repository.dart"
+    },
+    {
+      "from": "lib/features/support/data/repositories/firestore_support_request_repository.dart",
+      "to": "lib/app/data/repositories/firestore_support_request_repository.dart",
+      "status": "removed",
+      "removedOn": "2026-11-15",
+      "reason": "No application, test import or source-contract dependency."
+    },
+    {
+      "from": "lib/features/support/data/repositories/operational_support_request_repository.dart",
+      "to": "lib/app/data/repositories/operational_support_request_repository.dart"
+    },
+    {
+      "from": "lib/features/support/data/repositories/supabase_support_request_repository.dart",
+      "to": "lib/app/data/repositories/supabase_support_request_repository.dart"
+    },
+    {
+      "from": "lib/features/support/domain/models/support_request.dart",
+      "to": "lib/app/domain/entities/support/support_request.dart"
+    },
+    {
+      "from": "lib/features/support/domain/repositories/support_request_repository.dart",
+      "to": "lib/app/domain/repositories/support_request_repository.dart"
+    },
+    {
+      "from": "lib/features/support/presentation/pages/customer_help_page.dart",
+      "to": "lib/app/modules/support/views/customer_help_page.dart"
+    },
+    {
+      "from": "lib/features/support/presentation/pages/support_request_center_page.dart",
+      "to": "lib/app/modules/support/views/support_request_center_page.dart"
+    },
+    {
+      "from": "lib/features/support/presentation/widgets/customer_support_request_button.dart",
+      "to": "lib/app/modules/support/widgets/customer_support_request_button.dart"
+    },
+    {
+      "from": "lib/features/support/presentation/widgets/support_resolution_note_dialog.dart",
+      "to": "lib/app/modules/support/widgets/support_resolution_note_dialog.dart"
+    },
+    {
+      "from": "lib/features/team/data/repositories/supabase_team_supervision_repository.dart",
+      "to": "lib/app/data/repositories/supabase_team_supervision_repository.dart"
+    },
+    {
+      "from": "lib/features/team/domain/models/team_supervision_models.dart",
+      "to": "lib/app/domain/entities/team/team_supervision_models.dart"
+    },
+    {
+      "from": "lib/features/team/presentation/pages/team_member_detail_page.dart",
+      "to": "lib/app/modules/team/views/team_member_detail_page.dart"
+    },
+    {
+      "from": "lib/features/team/presentation/pages/team_performance_page.dart",
+      "to": "lib/app/modules/team/views/team_performance_page.dart"
+    },
+    {
+      "from": "lib/features/team/presentation/widgets/manager_compensation_history_card.dart",
+      "to": "lib/app/modules/team/widgets/manager_compensation_history_card.dart"
+    },
+    {
+      "from": "lib/features/ussd/data/supabase_ussd_repository.dart",
+      "to": "lib/app/data/repositories/supabase_ussd_repository.dart"
+    },
+    {
+      "from": "lib/features/ussd/domain/ussd_engine.dart",
+      "to": "lib/app/domain/policies/ussd/ussd_engine.dart"
+    },
+    {
+      "from": "lib/features/ussd/domain/ussd_repository.dart",
+      "to": "lib/app/domain/repositories/ussd_repository.dart"
+    },
+    {
+      "from": "lib/features/ussd/platform/ussd_dialer.dart",
+      "to": "lib/app/data/platform/ussd_dialer.dart"
+    },
+    {
+      "from": "lib/features/ussd/presentation/backoffice_ussd_page.dart",
+      "to": "lib/app/modules/ussd/views/backoffice_ussd_page.dart"
+    },
+    {
+      "from": "lib/features/ussd/presentation/ussd_activity_page.dart",
+      "to": "lib/app/modules/ussd/views/ussd_activity_page.dart"
+    },
+    {
+      "from": "lib/features/ussd/presentation/ussd_deletion_dialogs.dart",
+      "to": "lib/app/modules/ussd/widgets/ussd_deletion_dialogs.dart"
+    },
+    {
+      "from": "lib/features/ussd/presentation/ussd_quick_processing_card.dart",
+      "to": "lib/app/modules/ussd/widgets/ussd_quick_processing_card.dart"
+    },
+    {
+      "from": "lib/features/ussd/presentation/ussd_rule_dialogs.dart",
+      "to": "lib/app/modules/ussd/widgets/ussd_rule_dialogs.dart"
+    },
+    {
+      "from": "lib/firebase_options.dart",
+      "to": "lib/app/config/firebase_options.dart"
+    },
+    {
+      "from": "lib/main.dart",
+      "to": "lib/main_staff.dart"
+    },
+    {
+      "from": "lib/main_backoffice_web.dart",
+      "to": "lib/main_backoffice.dart"
+    },
+    {
+      "from": "lib/main_customer_web.dart",
+      "to": "lib/main_customer.dart"
+    },
+    {
+      "from": "lib/shared/widgets/app_logo.dart",
+      "to": "lib/app/shared/widgets/app_logo.dart",
+      "status": "removed",
+      "removedOn": "2026-11-15",
+      "reason": "No application, test import or source-contract dependency."
+    },
+    {
+      "from": "lib/shared/widgets/design_system/izy_tel_bottom_navigation.dart",
+      "to": "lib/app/shared/widgets/design_system/izy_tel_bottom_navigation.dart"
+    },
+    {
+      "from": "lib/shared/widgets/design_system/izy_tel_buttons.dart",
+      "to": "lib/app/shared/widgets/design_system/izy_tel_buttons.dart"
+    },
+    {
+      "from": "lib/shared/widgets/design_system/izy_tel_cards.dart",
+      "to": "lib/app/shared/widgets/design_system/izy_tel_cards.dart"
+    },
+    {
+      "from": "lib/shared/widgets/design_system/izy_tel_copy_button.dart",
+      "to": "lib/app/shared/widgets/design_system/izy_tel_copy_button.dart"
+    },
+    {
+      "from": "lib/shared/widgets/design_system/izy_tel_inputs.dart",
+      "to": "lib/app/shared/widgets/design_system/izy_tel_inputs.dart"
+    },
+    {
+      "from": "lib/shared/widgets/design_system/izy_tel_operator_brand.dart",
+      "to": "lib/app/shared/widgets/design_system/izy_tel_operator_brand.dart"
+    },
+    {
+      "from": "lib/shared/widgets/design_system/izy_tel_shell.dart",
+      "to": "lib/app/shared/widgets/design_system/izy_tel_shell.dart"
+    },
+    {
+      "from": "lib/shared/widgets/design_system/izy_tel_states.dart",
+      "to": "lib/app/shared/widgets/design_system/izy_tel_states.dart"
+    },
+    {
+      "from": "lib/shared/widgets/feature_placeholder_page.dart",
+      "to": "lib/app/shared/widgets/feature_placeholder_page.dart"
+    },
+    {
+      "from": "lib/shared/widgets/izytel/izytel_brand.dart",
+      "to": "lib/app/shared/widgets/izytel/izytel_brand.dart"
+    },
+    {
+      "from": "lib/shared/widgets/izytel/izytel_feedback.dart",
+      "to": "lib/app/shared/widgets/izytel/izytel_feedback.dart"
+    },
+    {
+      "from": "lib/shared/widgets/izytel/izytel_ui.dart",
+      "to": "lib/app/shared/widgets/izytel/izytel_ui.dart"
+    },
+    {
+      "from": "lib/shared/widgets/izytel_period_filter.dart",
+      "to": "lib/app/shared/widgets/izytel_period_filter.dart"
+    },
+    {
+      "from": "test/backoffice/finance_read_recovery_test.dart",
+      "to": "test/app/modules/backoffice/finance_read_recovery_test.dart"
+    },
+    {
+      "from": "test/backoffice/supabase_backoffice_finance_repository_test.dart",
+      "to": "test/app/modules/backoffice/supabase_backoffice_finance_repository_test.dart"
+    },
+    {
+      "from": "test/backoffice/territory_map_test.dart",
+      "to": "test/app/modules/backoffice/territory_map_test.dart"
+    },
+    {
+      "from": "test/backoffice/territory_map_visual_test.dart",
+      "to": "test/app/modules/backoffice/territory_map_visual_test.dart"
+    },
+    {
+      "from": "test/backoffice/territory_repository_http_test.dart",
+      "to": "test/app/modules/backoffice/territory_repository_http_test.dart"
+    },
+    {
+      "from": "test/backoffice/user_administration_dialog_test.dart",
+      "to": "test/app/modules/backoffice/user_administration_dialog_test.dart"
+    },
+    {
+      "from": "test/backoffice/user_administration_repository_test.dart",
+      "to": "test/app/modules/backoffice/user_administration_repository_test.dart"
+    },
+    {
+      "from": "test/core/notifications/izytel_notification_payload_test.dart",
+      "to": "test/app/core/notifications/izytel_notification_payload_test.dart"
+    },
+    {
+      "from": "test/core/resilience/backend_failure_policy_test.dart",
+      "to": "test/app/core/resilience/backend_failure_policy_test.dart"
+    },
+    {
+      "from": "test/core/resilience/backend_read_stream_test.dart",
+      "to": "test/app/core/resilience/backend_read_stream_test.dart"
+    },
+    {
+      "from": "test/core/resilience/operational_repositories_http_test.dart",
+      "to": "test/app/core/resilience/operational_repositories_http_test.dart"
+    },
+    {
+      "from": "test/core/resilience/supabase_finance_refresh_test.dart",
+      "to": "test/app/core/resilience/supabase_finance_refresh_test.dart"
+    },
+    {
+      "from": "test/core/services/wave_payment_link_builder_test.dart",
+      "to": "test/app/core/services/wave_payment_link_builder_test.dart"
+    },
+    {
+      "from": "test/features/agents/data/fake_agent_personal_profile_test.dart",
+      "to": "test/app/data/agents/fake_agent_personal_profile_test.dart"
+    },
+    {
+      "from": "test/features/agents/data/firestore_rules_agent_profile_v2_contract_test.dart",
+      "to": "test/app/data/agents/firestore_rules_agent_profile_v2_contract_test.dart"
+    },
+    {
+      "from": "test/features/agents/domain/agent_personal_profile_model_test.dart",
+      "to": "test/app/domain/agents/agent_personal_profile_model_test.dart"
+    },
+    {
+      "from": "test/features/agents/domain/models/agent_models_test.dart",
+      "to": "test/app/domain/agents/models/agent_models_test.dart"
+    },
+    {
+      "from": "test/features/agents/domain/models/app_user_agent_role_test.dart",
+      "to": "test/app/domain/agents/models/app_user_agent_role_test.dart"
+    },
+    {
+      "from": "test/features/agents/presentation/agent_logout_contract_test.dart",
+      "to": "test/app/modules/agent_ops/agent_logout_contract_test.dart"
+    },
+    {
+      "from": "test/features/agents/presentation/view_models/agent_activity_view_model_test.dart",
+      "to": "test/app/modules/agent_ops/controllers/agent_activity_view_model_test.dart"
+    },
+    {
+      "from": "test/features/agents/presentation/view_models/agent_management_view_model_test.dart",
+      "to": "test/app/modules/agent_ops/controllers/agent_management_view_model_test.dart"
+    },
+    {
+      "from": "test/features/audit/data/firestore_rules_phase11c_contract_test.dart",
+      "to": "test/app/data/audit/firestore_rules_phase11c_contract_test.dart"
+    },
+    {
+      "from": "test/features/audit/data/order_audit_source_contract_test.dart",
+      "to": "test/app/data/audit/order_audit_source_contract_test.dart"
+    },
+    {
+      "from": "test/features/audit/data/repositories/fake_order_audit_repository_test.dart",
+      "to": "test/app/data/audit/repositories/fake_order_audit_repository_test.dart"
+    },
+    {
+      "from": "test/features/audit/domain/models/order_audit_entry_test.dart",
+      "to": "test/app/domain/audit/models/order_audit_entry_test.dart"
+    },
+    {
+      "from": "test/features/audit/presentation/order_detail_audit_timeline_responsive_test.dart",
+      "to": "test/app/modules/audit/order_detail_audit_timeline_responsive_test.dart"
+    },
+    {
+      "from": "test/features/auth/data/firebase_auth_access_failure_test.dart",
+      "to": "test/app/data/auth/firebase_auth_access_failure_test.dart"
+    },
+    {
+      "from": "test/features/auth/domain/models/app_user_manager_role_test.dart",
+      "to": "test/app/domain/auth/models/app_user_manager_role_test.dart"
+    },
+    {
+      "from": "test/features/auth/domain/models/auth_login_result_test.dart",
+      "to": "test/app/domain/auth/models/auth_login_result_test.dart"
+    },
+    {
+      "from": "test/features/auth/presentation/session_access_boundary_test.dart",
+      "to": "test/app/modules/auth/session_access_boundary_test.dart"
+    },
+    {
+      "from": "test/features/auth/presentation/view_models/pending_account_view_model_test.dart",
+      "to": "test/app/modules/auth/controllers/pending_account_view_model_test.dart"
+    },
+    {
+      "from": "test/features/commissions/commission_v2_responsive_test.dart",
+      "to": "test/app/modules/commissions/commission_v2_responsive_test.dart"
+    },
+    {
+      "from": "test/features/commissions/data/fake_commission_repository_test.dart",
+      "to": "test/app/data/commissions/fake_commission_repository_test.dart"
+    },
+    {
+      "from": "test/features/commissions/data/firestore_orders_commission_generation_contract_test.dart",
+      "to": "test/app/data/commissions/firestore_orders_commission_generation_contract_test.dart"
+    },
+    {
+      "from": "test/features/commissions/data/firestore_rules_phase12_contract_test.dart",
+      "to": "test/app/data/commissions/firestore_rules_phase12_contract_test.dart"
+    },
+    {
+      "from": "test/features/commissions/data/supabase_commission_v2_repository_test.dart",
+      "to": "test/app/data/commissions/supabase_commission_v2_repository_test.dart"
+    },
+    {
+      "from": "test/features/commissions/domain/commission_performance_calculator_test.dart",
+      "to": "test/app/domain/commissions/commission_performance_calculator_test.dart"
+    },
+    {
+      "from": "test/features/commissions/domain/commission_v2_models_test.dart",
+      "to": "test/app/domain/commissions/commission_v2_models_test.dart"
+    },
+    {
+      "from": "test/features/commissions/presentation/admin_logout_contract_test.dart",
+      "to": "test/app/modules/commissions/admin_logout_contract_test.dart"
+    },
+    {
+      "from": "test/features/commissions/presentation/pages/commission_management_page_responsive_test.dart",
+      "to": "test/app/modules/commissions/views/commission_management_page_responsive_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/data/acquisition/customer_acquisition_source_common_test.dart",
+      "to": "test/app/data/customer/acquisition/customer_acquisition_source_common_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/data/geolocation/customer_location_capture_test.dart",
+      "to": "test/app/data/customer/geolocation/customer_location_capture_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/data/repositories/customer_order_expiration_test.dart",
+      "to": "test/app/data/customer/repositories/customer_order_expiration_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/data/repositories/fake_customer_offer_repository_test.dart",
+      "to": "test/app/data/customer/repositories/fake_customer_offer_repository_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/data/repositories/fake_customer_order_repository_test.dart",
+      "to": "test/app/data/customer/repositories/fake_customer_order_repository_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/data/repositories/fake_customer_profile_repository_test.dart",
+      "to": "test/app/data/customer/repositories/fake_customer_profile_repository_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/domain/customer_order_context_test.dart",
+      "to": "test/app/domain/customer/customer_order_context_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/domain/models/beneficiary_phone_number_test.dart",
+      "to": "test/app/domain/customer/models/beneficiary_phone_number_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/domain/models/customer_order_recovery_key_test.dart",
+      "to": "test/app/domain/customer/models/customer_order_recovery_key_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/domain/models/payment_declaration_test.dart",
+      "to": "test/app/domain/customer/models/payment_declaration_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/domain/models/whatsapp_phone_number_test.dart",
+      "to": "test/app/domain/customer/models/whatsapp_phone_number_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/presentation/customer_catalog_retry_filter_test.dart",
+      "to": "test/app/modules/customer/customer_catalog_retry_filter_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/presentation/customer_currency_display_contract_test.dart",
+      "to": "test/app/modules/customer/customer_currency_display_contract_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/presentation/customer_location_consent_card_test.dart",
+      "to": "test/app/modules/customer/customer_location_consent_card_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/presentation/customer_location_consent_dialog_test.dart",
+      "to": "test/app/modules/customer/customer_location_consent_dialog_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/presentation/view_models/customer_frequent_beneficiary_test.dart",
+      "to": "test/app/modules/customer/controllers/customer_frequent_beneficiary_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/presentation/view_models/customer_order_completion_test.dart",
+      "to": "test/app/modules/customer/controllers/customer_order_completion_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/presentation/view_models/customer_order_history_test.dart",
+      "to": "test/app/modules/customer/controllers/customer_order_history_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/presentation/view_models/customer_order_navigation_state_test.dart",
+      "to": "test/app/modules/customer/controllers/customer_order_navigation_state_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/presentation/view_models/customer_order_recovery_test.dart",
+      "to": "test/app/modules/customer/controllers/customer_order_recovery_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/presentation/view_models/customer_order_view_model_test.dart",
+      "to": "test/app/modules/customer/controllers/customer_order_view_model_test.dart"
+    },
+    {
+      "from": "test/features/customer_order/presentation/widgets/customer_bottom_actions_test.dart",
+      "to": "test/app/modules/customer/widgets/customer_bottom_actions_test.dart"
+    },
+    {
+      "from": "test/features/dashboard/presentation/widgets/priority_order_item_card_responsive_test.dart",
+      "to": "test/app/modules/home/widgets/priority_order_item_card_responsive_test.dart"
+    },
+    {
+      "from": "test/features/finances/data/fake_finance_operations_repository_test.dart",
+      "to": "test/app/data/finance/fake_finance_operations_repository_test.dart"
+    },
+    {
+      "from": "test/features/finances/data/finances_credit_sync_contract_test.dart",
+      "to": "test/app/data/finance/finances_credit_sync_contract_test.dart"
+    },
+    {
+      "from": "test/features/finances/data/finance_operation_key_transport_test.dart",
+      "to": "test/app/data/finance/finance_operation_key_transport_test.dart"
+    },
+    {
+      "from": "test/features/finances/data/firestore_finance_operations_repository_contract_test.dart",
+      "to": "test/app/data/finance/firestore_finance_operations_repository_contract_test.dart"
+    },
+    {
+      "from": "test/features/finances/data/firestore_orders_network_transaction_contract_test.dart",
+      "to": "test/app/data/finance/firestore_orders_network_transaction_contract_test.dart"
+    },
+    {
+      "from": "test/features/finances/data/firestore_rules_phase13a_contract_test.dart",
+      "to": "test/app/data/finance/firestore_rules_phase13a_contract_test.dart"
+    },
+    {
+      "from": "test/features/finances/data/firestore_rules_phase13_complete_contract_test.dart",
+      "to": "test/app/data/finance/firestore_rules_phase13_complete_contract_test.dart"
+    },
+    {
+      "from": "test/features/finances/data/supabase_finance_operations_repository_test.dart",
+      "to": "test/app/data/finance/supabase_finance_operations_repository_test.dart"
+    },
+    {
+      "from": "test/features/finances/domain/exact_wave_totals_test.dart",
+      "to": "test/app/domain/finance/exact_wave_totals_test.dart"
+    },
+    {
+      "from": "test/features/finances/domain/finance_calculators_test.dart",
+      "to": "test/app/domain/finance/finance_calculators_test.dart"
+    },
+    {
+      "from": "test/features/finances/domain/financial_reconciliation_engine_test.dart",
+      "to": "test/app/domain/finance/financial_reconciliation_engine_test.dart"
+    },
+    {
+      "from": "test/features/finances/domain/network_finance_calculator_test.dart",
+      "to": "test/app/domain/finance/network_finance_calculator_test.dart"
+    },
+    {
+      "from": "test/features/finances/financial_intent_retry_widget_test.dart",
+      "to": "test/app/modules/finance/financial_intent_retry_widget_test.dart"
+    },
+    {
+      "from": "test/features/messaging/data/repositories/fake_customer_messaging_repository_test.dart",
+      "to": "test/app/data/messaging/repositories/fake_customer_messaging_repository_test.dart"
+    },
+    {
+      "from": "test/features/messaging/domain/customer_conversation_test.dart",
+      "to": "test/app/domain/messaging/customer_conversation_test.dart"
+    },
+    {
+      "from": "test/features/messaging/presentation/customer_messaging_page_test.dart",
+      "to": "test/app/modules/messaging/customer_messaging_page_test.dart"
+    },
+    {
+      "from": "test/features/messaging/presentation/staff_customer_messaging_page_test.dart",
+      "to": "test/app/modules/messaging/staff_customer_messaging_page_test.dart"
+    },
+    {
+      "from": "test/features/navigation/cabiniste_back_regression_test.dart",
+      "to": "test/app/modules/home/cabiniste_back_regression_test.dart"
+    },
+    {
+      "from": "test/features/navigation/izytel_mobile_back_scope_test.dart",
+      "to": "test/app/modules/home/izytel_mobile_back_scope_test.dart"
+    },
+    {
+      "from": "test/features/navigation/izytel_nested_tab_back_chain_test.dart",
+      "to": "test/app/modules/home/izytel_nested_tab_back_chain_test.dart"
+    },
+    {
+      "from": "test/features/navigation/mobile_back_platform_regression_test.dart",
+      "to": "test/app/modules/home/mobile_back_platform_regression_test.dart"
+    },
+    {
+      "from": "test/features/navigation/navigation_and_search_regression_contract_test.dart",
+      "to": "test/app/modules/home/navigation_and_search_regression_contract_test.dart"
+    },
+    {
+      "from": "test/features/offers/presentation/pages/offer_management_page_test.dart",
+      "to": "test/app/modules/offers/views/offer_management_page_test.dart"
+    },
+    {
+      "from": "test/features/offers/presentation/view_models/offer_editor_view_model_test.dart",
+      "to": "test/app/modules/offers/controllers/offer_editor_view_model_test.dart"
+    },
+    {
+      "from": "test/features/offers/presentation/view_models/offer_management_view_model_test.dart",
+      "to": "test/app/modules/offers/controllers/offer_management_view_model_test.dart"
+    },
+    {
+      "from": "test/features/orders/data/mappers/firestore_order_mapper_test.dart",
+      "to": "test/app/data/orders/mappers/firestore_order_mapper_test.dart"
+    },
+    {
+      "from": "test/features/orders/data/repositories/fake_orders_agent_processing_test.dart",
+      "to": "test/app/data/orders/repositories/fake_orders_agent_processing_test.dart"
+    },
+    {
+      "from": "test/features/orders/data/repositories/fake_orders_assignment_test.dart",
+      "to": "test/app/data/orders/repositories/fake_orders_assignment_test.dart"
+    },
+    {
+      "from": "test/features/orders/data/repositories/fake_orders_audit_security_test.dart",
+      "to": "test/app/data/orders/repositories/fake_orders_audit_security_test.dart"
+    },
+    {
+      "from": "test/features/orders/data/repositories/fake_orders_automatic_assignment_test.dart",
+      "to": "test/app/data/orders/repositories/fake_orders_automatic_assignment_test.dart"
+    },
+    {
+      "from": "test/features/orders/data/repositories/fake_orders_realtime_test.dart",
+      "to": "test/app/data/orders/repositories/fake_orders_realtime_test.dart"
+    },
+    {
+      "from": "test/features/orders/data/repositories/firestore_orders_capacity_deduction_contract_test.dart",
+      "to": "test/app/data/orders/repositories/firestore_orders_capacity_deduction_contract_test.dart"
+    },
+    {
+      "from": "test/features/orders/data/repositories/firestore_rules_phase10a_contract_test.dart",
+      "to": "test/app/data/orders/repositories/firestore_rules_phase10a_contract_test.dart"
+    },
+    {
+      "from": "test/features/orders/data/repositories/firestore_rules_phase10b_contract_test.dart",
+      "to": "test/app/data/orders/repositories/firestore_rules_phase10b_contract_test.dart"
+    },
+    {
+      "from": "test/features/orders/data/repositories/firestore_rules_phase9d_assignment_v2_contract_test.dart",
+      "to": "test/app/data/orders/repositories/firestore_rules_phase9d_assignment_v2_contract_test.dart"
+    },
+    {
+      "from": "test/features/orders/data/repositories/firestore_rules_phase9d_contract_test.dart",
+      "to": "test/app/data/orders/repositories/firestore_rules_phase9d_contract_test.dart"
+    },
+    {
+      "from": "test/features/orders/data/repositories/firestore_rules_phase9e_contract_test.dart",
+      "to": "test/app/data/orders/repositories/firestore_rules_phase9e_contract_test.dart"
+    },
+    {
+      "from": "test/features/orders/data/repositories/shared_queue_payment_publication_test.dart",
+      "to": "test/app/data/orders/repositories/shared_queue_payment_publication_test.dart"
+    },
+    {
+      "from": "test/features/orders/domain/order_event_test.dart",
+      "to": "test/app/domain/orders/order_event_test.dart"
+    },
+    {
+      "from": "test/features/orders/domain/services/agent_capacity_policy_test.dart",
+      "to": "test/app/domain/orders/services/agent_capacity_policy_test.dart"
+    },
+    {
+      "from": "test/features/orders/domain/services/automatic_assignment_legacy_limits_test.dart",
+      "to": "test/app/domain/orders/services/automatic_assignment_legacy_limits_test.dart"
+    },
+    {
+      "from": "test/features/orders/domain/services/automatic_assignment_selector_test.dart",
+      "to": "test/app/domain/orders/services/automatic_assignment_selector_test.dart"
+    },
+    {
+      "from": "test/features/orders/domain/services/order_expiration_policy_test.dart",
+      "to": "test/app/domain/orders/services/order_expiration_policy_test.dart"
+    },
+    {
+      "from": "test/features/orders/presentation/fast_processing_test.dart",
+      "to": "test/app/modules/staff_orders/fast_processing_test.dart"
+    },
+    {
+      "from": "test/features/orders/presentation/pages/agent_orders_page_test.dart",
+      "to": "test/app/modules/agent_orders/views/agent_orders_page_test.dart"
+    },
+    {
+      "from": "test/features/orders/presentation/shared_order_queue_test.dart",
+      "to": "test/app/modules/agent_orders/shared_order_queue_test.dart"
+    },
+    {
+      "from": "test/features/orders/presentation/shared_order_queue_visual_test.dart",
+      "to": "test/app/modules/agent_orders/shared_order_queue_visual_test.dart"
+    },
+    {
+      "from": "test/features/orders/presentation/view_models/agent_orders_auto_assignment_test.dart",
+      "to": "test/app/modules/agent_orders/controllers/agent_orders_auto_assignment_test.dart"
+    },
+    {
+      "from": "test/features/orders/presentation/view_models/agent_orders_view_model_test.dart",
+      "to": "test/app/modules/agent_orders/controllers/agent_orders_view_model_test.dart"
+    },
+    {
+      "from": "test/features/payments/data/repositories/fake_orders_payment_flow_test.dart",
+      "to": "test/app/data/payments/repositories/fake_orders_payment_flow_test.dart"
+    },
+    {
+      "from": "test/features/refunds/data/firestore_rules_phase11b_contract_test.dart",
+      "to": "test/app/data/refunds/firestore_rules_phase11b_contract_test.dart"
+    },
+    {
+      "from": "test/features/refunds/data/repositories/fake_refund_repository_test.dart",
+      "to": "test/app/data/refunds/repositories/fake_refund_repository_test.dart"
+    },
+    {
+      "from": "test/features/refunds/domain/models/refund_case_test.dart",
+      "to": "test/app/domain/refunds/models/refund_case_test.dart"
+    },
+    {
+      "from": "test/features/refunds/presentation/pages/refund_management_page_responsive_test.dart",
+      "to": "test/app/modules/refunds/views/refund_management_page_responsive_test.dart"
+    },
+    {
+      "from": "test/features/support/data/firestore_rules_phase10d_contract_test.dart",
+      "to": "test/app/data/support/firestore_rules_phase10d_contract_test.dart"
+    },
+    {
+      "from": "test/features/support/data/repositories/fake_support_request_repository_test.dart",
+      "to": "test/app/data/support/repositories/fake_support_request_repository_test.dart"
+    },
+    {
+      "from": "test/features/support/domain/models/support_request_test.dart",
+      "to": "test/app/domain/support/models/support_request_test.dart"
+    },
+    {
+      "from": "test/features/support/presentation/support_retry_regression_test.dart",
+      "to": "test/app/modules/support/support_retry_regression_test.dart"
+    },
+    {
+      "from": "test/features/support/presentation/widgets/support_resolution_note_dialog_test.dart",
+      "to": "test/app/modules/support/widgets/support_resolution_note_dialog_test.dart"
+    },
+    {
+      "from": "test/features/ussd/ussd_backoffice_widget_test.dart",
+      "to": "test/app/modules/ussd/ussd_backoffice_widget_test.dart"
+    },
+    {
+      "from": "test/features/ussd/ussd_dialer_test.dart",
+      "to": "test/app/data/platform/ussd_dialer_test.dart"
+    },
+    {
+      "from": "test/features/ussd/ussd_engine_test.dart",
+      "to": "test/app/domain/ussd/ussd_engine_test.dart"
+    },
+    {
+      "from": "test/features/ussd/ussd_mobile_widget_test.dart",
+      "to": "test/app/modules/ussd/ussd_mobile_widget_test.dart"
+    },
+    {
+      "from": "test/features/ussd/ussd_repository_http_test.dart",
+      "to": "test/app/data/ussd/ussd_repository_http_test.dart"
+    },
+    {
+      "from": "test/features/ussd/ussd_test_doubles.dart",
+      "to": "test/support/ussd_test_doubles.dart"
+    },
+    {
+      "from": "test/shared/widgets/design_system/izy_tel_bottom_navigation_test.dart",
+      "to": "test/app/shared/widgets/design_system/izy_tel_bottom_navigation_test.dart"
+    },
+    {
+      "from": "test/shared/widgets/design_system/izy_tel_shell_drawer_test.dart",
+      "to": "test/app/shared/widgets/design_system/izy_tel_shell_drawer_test.dart"
+    },
+    {
+      "from": "test/shared/widgets/izytel_search_field_focus_regression_test.dart",
+      "to": "test/app/shared/widgets/izytel_search_field_focus_regression_test.dart"
+    }
+  ]
+}

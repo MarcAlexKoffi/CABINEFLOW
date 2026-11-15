@@ -8,7 +8,7 @@ void main() {
       'le registre territorial ne reprovisionne plus les accès depuis Firestore',
       () {
         final String repository = File(
-          'lib/backoffice/data/repositories/supabase_territory_repository.dart',
+          'lib/app/data/repositories/supabase_territory_repository.dart',
         ).readAsStringSync();
         expect(repository, isNot(contains("collection('users').get()")));
         expect(
@@ -21,7 +21,7 @@ void main() {
 
     test('Zones consulte le registre sans mutation préalable', () {
       final String zones = File(
-        'lib/backoffice/presentation/pages/team/backoffice_zones_page.dart',
+        'lib/app/modules/backoffice/views/team/backoffice_zones_page.dart',
       ).readAsStringSync();
       expect(zones, isNot(contains('syncManagersFromStaffRegistry()')));
       expect(zones, contains('fetchManagers()'));
@@ -30,10 +30,10 @@ void main() {
 
     test('Utilisateurs propose un accès direct à Comptes Managers', () {
       final String users = File(
-        'lib/backoffice/presentation/pages/backoffice_users_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_users_page.dart',
       ).readAsStringSync();
       final String shell = File(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       ).readAsStringSync();
       expect(users, contains('Gérer dans Comptes Managers'));
       expect(users, contains('Gérer dans Agents'));

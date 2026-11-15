@@ -6,8 +6,8 @@ String _read(String path) => File(path).readAsStringSync();
 
 void main() {
   test('Phase Supabase 1 initialise le client avec le JWT Firebase', () {
-    final String main = _read('lib/main.dart');
-    final String bootstrap = _read('lib/core/supabase/supabase_bootstrap.dart');
+    final String main = _read('lib/main_staff.dart');
+    final String bootstrap = _read('lib/app/data/sources/supabase_bootstrap.dart');
 
     expect(main, contains('SupabaseBootstrap.initialize()'));
     expect(bootstrap, contains('Supabase.initialize('));
@@ -22,11 +22,10 @@ void main() {
 
   test('le profil Agent écrit uniquement dans Supabase', () {
     final String page = _read(
-      'lib/features/agents/presentation/pages/agent_personal_profile_page.dart',
+      'lib/app/modules/profile/views/agent_personal_profile_page.dart',
     );
     final String repository = _read(
-      'lib/features/agents/data/repositories/'
-      'supabase_agent_personal_profile_repository.dart',
+      'lib/app/data/repositories/supabase_agent_personal_profile_repository.dart',
     );
 
     expect(page, contains('SupabaseAgentPersonalProfileRepository'));
@@ -42,8 +41,7 @@ void main() {
 
   test('photo et pièce restent privées et liées au Firebase UID', () {
     final String repository = _read(
-      'lib/features/agents/data/repositories/'
-      'supabase_agent_personal_profile_repository.dart',
+      'lib/app/data/repositories/supabase_agent_personal_profile_repository.dart',
     );
 
     expect(repository, contains("avatarPath = '\$agentId/avatar/profile.jpg'"));
@@ -59,11 +57,10 @@ void main() {
 
   test('le profil général Agent lit son profil Supabase en temps réel', () {
     final String firestoreRepository = _read(
-      'lib/features/agents/data/repositories/firestore_agent_repository.dart',
+      'lib/app/data/repositories/firestore_agent_repository.dart',
     );
     final String supabaseRepository = _read(
-      'lib/features/agents/data/repositories/'
-      'supabase_agent_personal_profile_repository.dart',
+      'lib/app/data/repositories/supabase_agent_personal_profile_repository.dart',
     );
 
     expect(firestoreRepository, contains('SupabaseBootstrap.isInitialized'));
@@ -75,7 +72,7 @@ void main() {
 
   test('Accueil Agent affiche la photo privée Supabase', () {
     final String home = _read(
-      'lib/features/agents/presentation/pages/agent_home_page.dart',
+      'lib/app/modules/agent_ops/views/agent_home_page.dart',
     );
 
     expect(home, contains('watchPersonalProfile(widget.agentId)'));

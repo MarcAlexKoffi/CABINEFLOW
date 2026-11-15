@@ -7,7 +7,7 @@ void main() {
 
   test('system back is centralized in each mobile shell with a gesture lock', () {
     final String shell = source(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     );
 
     expect(shell, contains('PopScope('));
@@ -26,7 +26,7 @@ void main() {
 
   test('bottom tabs preserve independent stacks and reselect pops locally', () {
     final String shell = source(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     );
 
     expect(shell, contains('if (index == _selectedIndex)'));
@@ -36,10 +36,10 @@ void main() {
 
   test('staff customer history is pushed above detail instead of replacing it', () {
     final String navigation = source(
-      'lib/features/orders/presentation/navigation/staff_order_navigation.dart',
+      'lib/app/modules/staff_orders/navigation/staff_order_navigation.dart',
     );
     final String orders = source(
-      'lib/features/orders/presentation/pages/orders_page.dart',
+      'lib/app/modules/manager_orders/views/orders_page.dart',
     );
 
     expect(navigation, contains('staff-customer-order-history'));
@@ -52,10 +52,10 @@ void main() {
 
   test('agent order details use real Navigator routes', () {
     final String orders = source(
-      'lib/features/orders/presentation/pages/agent_orders_page.dart',
+      'lib/app/modules/agent_orders/views/agent_orders_page.dart',
     );
     final String history = source(
-      'lib/features/orders/presentation/pages/agent_history_page.dart',
+      'lib/app/modules/agent_orders/views/agent_history_page.dart',
     );
 
     expect(orders, contains('AgentOrderDetailRoutePage'));

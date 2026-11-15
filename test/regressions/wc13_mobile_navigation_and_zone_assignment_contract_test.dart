@@ -8,7 +8,7 @@ void main() {
 
   test('mobile tabs preserve each nested navigation stack', () {
     final String shell = read(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     );
     expect(
       shell,
@@ -27,7 +27,7 @@ void main() {
 
   test('cabiniste tabs follow the same mobile navigation contract', () {
     final String shell = read(
-      'lib/features/partners/presentation/pages/partner_shell_page.dart',
+      'lib/app/modules/partners/views/partner_shell_page.dart',
     );
     expect(
       shell,
@@ -38,10 +38,10 @@ void main() {
 
   test('canonical zone survives Phase 4 conversion into QueueOrder', () {
     final String order = read(
-      'lib/features/orders/domain/models/queue_order.dart',
+      'lib/app/domain/entities/orders/queue_order.dart',
     );
     final String phase4 = read(
-      'lib/features/orders/data/repositories/supabase_phase4_assignment_repository.dart',
+      'lib/app/data/repositories/supabase_phase4_assignment_repository.dart',
     );
     expect(order, contains('final String? zoneId;'));
     expect(phase4, contains('zoneId: zoneId ?? legacy?.zoneId'));
@@ -49,10 +49,10 @@ void main() {
 
   test('manual assignment UI filters and displays the canonical order zone', () {
     final String vm = read(
-      'lib/features/orders/presentation/view_models/agent_assignment_view_model.dart',
+      'lib/app/modules/manager_orders/controllers/agent_assignment_view_model.dart',
     );
     final String page = read(
-      'lib/features/orders/presentation/pages/agent_assignment_page.dart',
+      'lib/app/modules/manager_orders/views/agent_assignment_page.dart',
     );
     expect(vm, contains("reason = 'Hors zone de la commande'"));
     expect(vm, contains('String get orderZoneLabel'));

@@ -4,10 +4,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 $projectRoot = (Resolve-Path -LiteralPath $Root).Path
-$target = Join-Path $projectRoot "lib\features\agents\presentation\pages\agent_detail_page.dart"
+$target = Join-Path $projectRoot "lib\app\modules\agent_ops\views\agent_detail_page.dart"
 
 if (-not (Test-Path -LiteralPath $target)) {
-  throw "Fichier Admin introuvable: lib\features\agents\presentation\pages\agent_detail_page.dart"
+  throw "Fichier Admin introuvable: lib\app\modules\agent_ops\views\agent_detail_page.dart"
 }
 
 $content = Get-Content -LiteralPath $target -Raw -Encoding UTF8
@@ -26,7 +26,7 @@ foreach ($token in $requiredTokens) {
   }
 }
 
-$importLine = "import 'package:cabine_flow/features/agents/presentation/pages/admin_agent_profile_activity_page.dart';"
+$importLine = "import 'package:cabine_flow/app/modules/agent_ops/views/admin_agent_profile_activity_page.dart';"
 if (-not $content.Contains($importLine)) {
   $imports = [regex]::Matches($content, "(?m)^import .+;\r?$")
   if ($imports.Count -eq 0) {

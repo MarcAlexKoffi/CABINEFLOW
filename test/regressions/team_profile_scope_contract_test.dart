@@ -9,7 +9,7 @@ void main() {
     'Agent detaille laisse au Manager la gestion operationnelle de ses Agents',
     () {
       final String detail = source(
-        'lib/features/agents/presentation/pages/agent_detail_page.dart',
+        'lib/app/modules/agent_ops/views/agent_detail_page.dart',
       );
 
       expect(
@@ -32,7 +32,7 @@ void main() {
     'Cabiniste detaille expose identité finance et capacités toujours en lecture seule',
     () {
       final String detail = source(
-        'lib/features/team/presentation/pages/team_member_detail_page.dart',
+        'lib/app/modules/team/views/team_member_detail_page.dart',
       );
 
       // La fiche Cabiniste est bien prise en charge.
@@ -65,7 +65,7 @@ void main() {
 
   test('Annuaire Agent Manager masque les profils hors périmètre Supabase', () {
     final String page = source(
-      'lib/features/agents/presentation/pages/agent_management_page.dart',
+      'lib/app/modules/agent_ops/views/agent_management_page.dart',
     );
 
     expect(page, contains('widget.user.isManager'));

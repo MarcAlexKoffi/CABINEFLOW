@@ -6,10 +6,10 @@ void main() {
   group('WC6 - Messagerie Client navigation reelle et RPC Web', () {
     test('le retour navigateur mobile utilise une vraie route Flutter', () {
       final String flow = File(
-        'lib/features/customer_order/presentation/pages/customer_order_flow_page.dart',
+        'lib/app/modules/customer/views/customer_order_flow_page.dart',
       ).readAsStringSync();
       final String messaging = File(
-        'lib/features/messaging/presentation/pages/customer_messaging_page.dart',
+        'lib/app/modules/messaging/views/customer_messaging_page.dart',
       ).readAsStringSync();
 
       expect(flow, contains('_pushMessagingRoute'));
@@ -23,7 +23,7 @@ void main() {
 
     test('le CTA nouvelle conversation est lisible et premium', () {
       final String messaging = File(
-        'lib/features/messaging/presentation/pages/customer_messaging_page.dart',
+        'lib/app/modules/messaging/views/customer_messaging_page.dart',
       ).readAsStringSync();
 
       expect(messaging, contains('_PremiumNewConversationButton'));

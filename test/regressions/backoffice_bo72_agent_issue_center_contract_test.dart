@@ -8,10 +8,10 @@ void main() {
   group('BO-7.2 - Centre de signalements Agents', () {
     test('le Back-office utilise un snapshot Supabase dédié et scoped', () {
       final String page = _read(
-        'lib/backoffice/presentation/pages/team/backoffice_agent_issues_page.dart',
+        'lib/app/modules/backoffice/views/team/backoffice_agent_issues_page.dart',
       );
       final String repo = _read(
-        'lib/features/agents/data/repositories/supabase_agent_issue_center_repository.dart',
+        'lib/app/data/repositories/supabase_agent_issue_center_repository.dart',
       );
 
       expect(page, contains('SupabaseAgentIssueCenterRepository'));
@@ -23,7 +23,7 @@ void main() {
 
     test('la vue propose filtres, tri et rendu premium du détail', () {
       final String page = _read(
-        'lib/backoffice/presentation/pages/team/backoffice_agent_issues_page.dart',
+        'lib/app/modules/backoffice/views/team/backoffice_agent_issues_page.dart',
       );
 
       expect(page, contains('enum _IssueNetworkScope'));
@@ -39,7 +39,7 @@ void main() {
 
     test('résolution et classement exigent une note de clôture', () {
       final String page = _read(
-        'lib/backoffice/presentation/pages/team/backoffice_agent_issues_page.dart',
+        'lib/app/modules/backoffice/views/team/backoffice_agent_issues_page.dart',
       );
       final String migration = _read(
         'supabase/migrations/20260916224500_bo72_agent_issue_center.sql',
@@ -58,7 +58,7 @@ void main() {
         'supabase/migrations/20260916224500_bo72_agent_issue_center.sql',
       );
       final String model = _read(
-        'lib/features/agents/domain/models/agent_issue_center_models.dart',
+        'lib/app/domain/entities/agents/agent_issue_center_models.dart',
       );
 
       expect(migration, contains('create table if not exists public.agent_issue_events'));
@@ -87,7 +87,7 @@ void main() {
         'supabase/migrations/20260916224500_bo72_agent_issue_center.sql',
       );
       final String legacyRepo = _read(
-        'lib/features/agents/data/repositories/supabase_agent_issue_repository.dart',
+        'lib/app/data/repositories/supabase_agent_issue_repository.dart',
       );
 
       expect(migration, contains('agent_id = (select auth.jwt()->>\'sub\')'));

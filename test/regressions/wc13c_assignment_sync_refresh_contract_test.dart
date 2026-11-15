@@ -7,10 +7,10 @@ void main() {
 
   test('manual assignment pull-to-refresh does not restart polling streams', () {
     final String page = read(
-      'lib/features/orders/presentation/pages/agent_assignment_page.dart',
+      'lib/app/modules/manager_orders/views/agent_assignment_page.dart',
     );
     final String vm = read(
-      'lib/features/orders/presentation/view_models/agent_assignment_view_model.dart',
+      'lib/app/modules/manager_orders/controllers/agent_assignment_view_model.dart',
     );
 
     expect(page, contains('onRefresh: _viewModel.refresh'));
@@ -21,10 +21,10 @@ void main() {
 
   test('manual assignment fails closed without a canonical order zone', () {
     final String vm = read(
-      'lib/features/orders/presentation/view_models/agent_assignment_view_model.dart',
+      'lib/app/modules/manager_orders/controllers/agent_assignment_view_model.dart',
     );
     final String page = read(
-      'lib/features/orders/presentation/pages/agent_assignment_page.dart',
+      'lib/app/modules/manager_orders/views/agent_assignment_page.dart',
     );
 
     expect(vm, contains('bool get canAssignCanonically'));

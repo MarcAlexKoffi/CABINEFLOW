@@ -17,10 +17,10 @@ void main() {
         'supabase/migrations/20260926202027_wc3_customer_message_order_access_hardening.sql',
       ).readAsStringSync();
       supabaseRepository = File(
-        'lib/features/messaging/data/repositories/supabase_customer_messaging_repository.dart',
+        'lib/app/data/repositories/supabase_customer_messaging_repository.dart',
       ).readAsStringSync();
       operationalRepository = File(
-        'lib/features/messaging/data/repositories/operational_customer_messaging_repository.dart',
+        'lib/app/data/repositories/operational_customer_messaging_repository.dart',
       ).readAsStringSync();
     });
 

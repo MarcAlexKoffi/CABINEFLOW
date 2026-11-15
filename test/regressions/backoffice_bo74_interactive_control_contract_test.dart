@@ -8,7 +8,7 @@ void main() {
   group('BO-7.4 - Journal interactif et audit détaillé', () {
     test('le journal est recherchable, filtrable et chaque événement est cliquable', () {
       final String page = _read(
-        'lib/backoffice/presentation/pages/control/backoffice_control_page.dart',
+        'lib/app/modules/backoffice/views/control/backoffice_control_page.dart',
       );
 
       expect(page, contains('enum _ActivityDomainFilter'));
@@ -22,7 +22,7 @@ void main() {
 
     test('le détail activité utilise les modals premium et expose les données métier', () {
       final String page = _read(
-        'lib/backoffice/presentation/pages/control/backoffice_control_page.dart',
+        'lib/app/modules/backoffice/views/control/backoffice_control_page.dart',
       );
 
       expect(page, contains('showBackofficeModal<void>'));
@@ -35,7 +35,7 @@ void main() {
 
     test('le shell route les événements vers leur module existant sans contourner les permissions', () {
       final String shell = _read(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       );
 
       expect(shell, contains('void _openActivityModule(ControlActivityEvent event)'));
@@ -50,7 +50,7 @@ void main() {
 
     test('l’audit reste réservé à l’Admin mais ses lignes deviennent inspectables', () {
       final String page = _read(
-        'lib/backoffice/presentation/pages/control/backoffice_control_page.dart',
+        'lib/app/modules/backoffice/views/control/backoffice_control_page.dart',
       );
 
       expect(page, contains("title: 'Audit réservé à l’Administrateur'"));
@@ -63,7 +63,7 @@ void main() {
 
     test('aucune nouvelle permission backend ou écriture métier n’est introduite', () {
       final String page = _read(
-        'lib/backoffice/presentation/pages/control/backoffice_control_page.dart',
+        'lib/app/modules/backoffice/views/control/backoffice_control_page.dart',
       );
 
       expect(page, isNot(contains('Supabase.instance.client.from(')));

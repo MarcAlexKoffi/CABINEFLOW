@@ -7,11 +7,10 @@ String _read(String path) => File(path).readAsStringSync();
 void main() {
   test('le refus Agent passe par Supabase Phase 4 sans cycle Firestore', () {
     final String hybrid = _read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     final String phase4 = _read(
-      'lib/features/orders/data/repositories/'
-      'supabase_phase4_assignment_repository.dart',
+      'lib/app/data/repositories/supabase_phase4_assignment_repository.dart',
     );
 
     expect(hybrid, contains('Future<QueueOrder> refuseAgentAssignment'));
@@ -25,11 +24,10 @@ void main() {
 
   test('le suivi des signalements Supabase accepte en cours et trace la cloture', () {
     final String repository = _read(
-      'lib/features/agents/data/repositories/'
-      'supabase_agent_issue_repository.dart',
+      'lib/app/data/repositories/supabase_agent_issue_repository.dart',
     );
     final String page = _read(
-      'lib/features/agents/presentation/pages/agent_issues_page.dart',
+      'lib/app/modules/agent_issues/views/agent_issues_page.dart',
     );
 
     expect(repository, contains("'in_progress'"));
@@ -45,11 +43,10 @@ void main() {
 
   test('la photo Agent est migrée vers Supabase Storage', () {
     final String profile = _read(
-      'lib/features/agents/presentation/pages/agent_personal_profile_page.dart',
+      'lib/app/modules/profile/views/agent_personal_profile_page.dart',
     );
     final String repository = _read(
-      'lib/features/agents/data/repositories/'
-      'supabase_agent_personal_profile_repository.dart',
+      'lib/app/data/repositories/supabase_agent_personal_profile_repository.dart',
     );
 
     expect(profile, contains('SupabaseAgentPersonalProfileRepository'));
@@ -60,13 +57,13 @@ void main() {
 
   test('l espace Agent possede un accueil et les raccourcis officiels', () {
     final String shell = _read(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     );
     final String home = _read(
-      'lib/features/agents/presentation/pages/agent_home_page.dart',
+      'lib/app/modules/agent_ops/views/agent_home_page.dart',
     );
     final String profile = _read(
-      'lib/features/agents/presentation/pages/agent_personal_profile_page.dart',
+      'lib/app/modules/profile/views/agent_personal_profile_page.dart',
     );
 
     expect(shell, contains('AgentHomePage('));
@@ -82,13 +79,13 @@ void main() {
 
   test('les commandes sans Agent sont visibles cote Admin', () {
     final String cards = _read(
-      'lib/features/orders/presentation/widgets/orders_widgets.dart',
+      'lib/app/modules/manager_orders/widgets/orders_widgets.dart',
     );
     final String page = _read(
-      'lib/features/orders/presentation/pages/orders_page.dart',
+      'lib/app/modules/manager_orders/views/orders_page.dart',
     );
     final String dashboard = _read(
-      'lib/features/dashboard/presentation/pages/dashboard_page.dart',
+      'lib/app/modules/home/views/dashboard_page.dart',
     );
 
     expect(cards, contains("'Non affectée'"));
@@ -103,7 +100,7 @@ void main() {
 
   test('le profil Admin Agent ne contient plus la bulle superposee', () {
     final String page = _read(
-      'lib/features/agents/presentation/pages/agent_detail_page.dart',
+      'lib/app/modules/agent_ops/views/agent_detail_page.dart',
     );
 
     expect(page, isNot(contains('floatingActionButton:')));
@@ -116,18 +113,16 @@ void main() {
 
   test('les fournisseurs sont modifies et supprimes via Supabase', () {
     final String interface = _read(
-      'lib/features/finances/domain/repositories/finance_operations_repository.dart',
+      'lib/app/domain/repositories/finance_operations_repository.dart',
     );
     final String hybridRepository = _read(
-      'lib/features/finances/data/repositories/'
-      'hybrid_finance_operations_repository.dart',
+      'lib/app/data/repositories/hybrid_finance_operations_repository.dart',
     );
     final String supplierRegistry = _read(
-      'lib/features/finances/data/repositories/'
-      'supabase_supplier_registry_repository.dart',
+      'lib/app/data/repositories/supabase_supplier_registry_repository.dart',
     );
     final String page = _read(
-      'lib/features/finances/presentation/pages/supplier_finance_page.dart',
+      'lib/app/modules/finance/views/supplier_finance_page.dart',
     );
 
     expect(interface, contains('Future<void> updateSupplier'));

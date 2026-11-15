@@ -5,10 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('WC10.3 - un seul gestionnaire consomme Retour Android', () {
     final String shell = File(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     ).readAsStringSync();
     final String partner = File(
-      'lib/features/partners/presentation/pages/partner_shell_page.dart',
+      'lib/app/modules/partners/views/partner_shell_page.dart',
     ).readAsStringSync();
 
     // Aucun second PopScope/handler imbrique ne doit traiter le meme geste.

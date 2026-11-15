@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('le Web client ne réintroduit pas SelectionArea global', () {
-    final File source = File('lib/customer_order_app.dart');
+    final File source = File('lib/app/customer_order_app.dart');
     final String text = source.readAsStringSync();
 
     expect(text.contains('SelectionArea('), isFalse);

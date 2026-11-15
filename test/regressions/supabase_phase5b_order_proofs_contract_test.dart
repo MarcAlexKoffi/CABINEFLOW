@@ -7,7 +7,7 @@ String read(String path) => File(path).readAsStringSync();
 void main() {
   test('les nouvelles preuves utilisent Supabase Storage et metadata SQL', () {
     final String repository = read(
-      'lib/features/orders/data/repositories/supabase_order_proof_repository.dart',
+      'lib/app/data/repositories/supabase_order_proof_repository.dart',
     );
 
     expect(repository, contains("tableName = 'phase5_order_proofs'"));
@@ -20,7 +20,7 @@ void main() {
 
   test('le depot hybride necrit plus les nouvelles preuves dans Firestore', () {
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
 
     final int saveStart = hybrid.indexOf('Future<OrderProof> saveOrderProof');
@@ -41,7 +41,7 @@ void main() {
 
   test('la finalisation Agent reste Supabase-only apres le cutover', () {
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     final int successStart = hybrid.indexOf(
       'Future<QueueOrder> markAgentSuccessful',
@@ -59,7 +59,7 @@ void main() {
 
   test('les anciennes preuves Firestore restent lisibles en transition', () {
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
 
     expect(hybrid, contains('fallback Firestore est strictement historique'));
@@ -68,8 +68,7 @@ void main() {
 
   test('le rapprochement financier reconnait aussi les preuves Supabase', () {
     final String reconciliation = read(
-      'lib/features/finances/data/repositories/'
-      'firestore_financial_reconciliation_repository.dart',
+      'lib/app/data/repositories/firestore_financial_reconciliation_repository.dart',
     );
 
     expect(reconciliation, contains('SupabaseOrderProofRepository'));
@@ -79,7 +78,7 @@ void main() {
 
   test('Firestore garde son controle de preuve hors du depot hybride', () {
     final String firestore = read(
-      'lib/features/orders/data/repositories/firestore_orders_repository.dart',
+      'lib/app/data/repositories/firestore_orders_repository.dart',
     );
 
     expect(firestore, contains('bool requireFirestoreProof = true'));

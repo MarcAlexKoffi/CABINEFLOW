@@ -7,8 +7,8 @@ String _read(String path) => File(path).readAsStringSync();
 void main() {
   group('BO-6 - Controle et Pilotage', () {
     test('les trois destinations BO-6 sont routees vers une vraie page', () {
-      final String shell = _read('lib/backoffice/presentation/pages/backoffice_shell_page.dart');
-      final String page = _read('lib/backoffice/presentation/pages/control/backoffice_control_page.dart');
+      final String shell = _read('lib/app/modules/backoffice/views/backoffice_shell_page.dart');
+      final String page = _read('lib/app/modules/backoffice/views/control/backoffice_control_page.dart');
       expect(shell, contains('BackofficeControlModule.activity'));
       expect(shell, contains('BackofficeControlModule.audit'));
       expect(shell, contains('BackofficeControlModule.statistics'));
@@ -19,8 +19,8 @@ void main() {
     });
 
     test('les dix modules Finances sont reserves a l Administrateur', () {
-      final String permissions = _read('lib/features/auth/domain/permissions/user_permissions.dart');
-      final String shell = _read('lib/backoffice/presentation/pages/backoffice_shell_page.dart');
+      final String permissions = _read('lib/app/domain/permissions/user_permissions.dart');
+      final String shell = _read('lib/app/modules/backoffice/views/backoffice_shell_page.dart');
       expect(permissions, contains('static const UserPermissions manager'));
       expect(permissions, contains('canViewOperationalFinances: false'));
       expect(shell, contains('case BackofficeDestination.closings:'));
@@ -41,9 +41,9 @@ void main() {
     });
 
     test('l application Manager expose le pilotage mais pas les finances BO-5', () {
-      final String more = _read('lib/features/more/presentation/pages/more_page.dart');
-      final String page = _read('lib/features/control/presentation/pages/manager_pilotage_page.dart');
-      final String permissions = _read('lib/features/auth/domain/permissions/user_permissions.dart');
+      final String more = _read('lib/app/modules/home/views/more_page.dart');
+      final String page = _read('lib/app/modules/control/views/manager_pilotage_page.dart');
+      final String permissions = _read('lib/app/domain/permissions/user_permissions.dart');
       expect(more, contains('Pilotage opérationnel'));
       expect(more, contains('ManagerPilotagePage('));
       final int moreManagerStart = more.indexOf('Widget _buildManager');
@@ -60,7 +60,7 @@ void main() {
     });
 
     test('le dashboard Manager ne met plus en avant les encaissements', () {
-      final String dashboard = _read('lib/features/dashboard/presentation/pages/dashboard_page.dart');
+      final String dashboard = _read('lib/app/modules/home/views/dashboard_page.dart');
       expect(dashboard, contains('managerMode: widget.user.isManager'));
       expect(dashboard, contains("managerMode ? 'Supervision du jour' : 'Encaissements aujourd’hui'"));
       expect(dashboard, contains('managerMode ? Symbols.monitoring_rounded'));
@@ -68,8 +68,8 @@ void main() {
 
 
     test('le correctif analyse BO-6 garde le switch exhaustif et l icone Manager non const', () {
-      final String shell = _read('lib/backoffice/presentation/pages/backoffice_shell_page.dart');
-      final String dashboard = _read('lib/features/dashboard/presentation/pages/dashboard_page.dart');
+      final String shell = _read('lib/app/modules/backoffice/views/backoffice_shell_page.dart');
+      final String dashboard = _read('lib/app/modules/home/views/dashboard_page.dart');
       expect(shell, isNot(contains('_BackofficeModulePlaceholder')));
       expect(shell, isNot(contains('String get milestone')));
       expect(shell, isNot(contains('izytel_design_tokens.dart')));

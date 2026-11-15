@@ -5,12 +5,12 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('BO-3 - équipe et support Back-office', () {
     test('Support et Remboursements utilisent Supabase comme source operationnelle', () {
-      final String app = File('lib/backoffice/backoffice_app.dart').readAsStringSync();
+      final String app = File('lib/app/backoffice_app.dart').readAsStringSync();
       final String supportFactory = File(
-        'lib/features/support/data/repositories/operational_support_request_repository.dart',
+        'lib/app/data/repositories/operational_support_request_repository.dart',
       ).readAsStringSync();
       final String refundFactory = File(
-        'lib/features/refunds/data/repositories/operational_refund_repository.dart',
+        'lib/app/data/repositories/operational_refund_repository.dart',
       ).readAsStringSync();
 
       expect(app, contains('createOperationalSupportRequestRepository()'));
@@ -25,7 +25,7 @@ void main() {
 
     test('les destinations BO-3 ne sont plus des placeholders', () {
       final String shell = File(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       ).readAsStringSync();
       expect(shell, contains('BackofficeSupportRequestsPage('));
       expect(shell, contains('BackofficeRefundsPage('));
@@ -37,7 +37,7 @@ void main() {
 
     test('Demandes clients réutilise le repository et ses actions métier', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/clients/backoffice_support_requests_page.dart',
+        'lib/app/modules/backoffice/views/clients/backoffice_support_requests_page.dart',
       ).readAsStringSync();
       expect(source, contains('fetchSupportPage'));
       expect(source, contains('SupabaseBackofficeCasePaginationRepository'));
@@ -52,7 +52,7 @@ void main() {
 
     test('Remboursements conserve validation exécution notification et rapprochement', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/clients/backoffice_refunds_page.dart',
+        'lib/app/modules/backoffice/views/clients/backoffice_refunds_page.dart',
       ).readAsStringSync();
       expect(source, contains('fetchRefundPage'));
       expect(source, contains('SupabaseBackofficeCasePaginationRepository'));
@@ -67,7 +67,7 @@ void main() {
 
     test('Agents expose annuaire réseaux capacités zones et gestion Admin', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/team/backoffice_agents_page.dart',
+        'lib/app/modules/backoffice/views/team/backoffice_agents_page.dart',
       ).readAsStringSync();
       expect(source, contains('watchAgents()'));
       expect(source, contains('watchZones()'));
@@ -79,7 +79,7 @@ void main() {
 
     test('Zones utilise le référentiel territorial Supabase et les Agents existants', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/team/backoffice_zones_page.dart',
+        'lib/app/modules/backoffice/views/team/backoffice_zones_page.dart',
       ).readAsStringSync();
       expect(source, contains('territoryRepository.fetchZones()'));
       expect(source, contains('territoryRepository.fetchManagers()'));
@@ -92,7 +92,7 @@ void main() {
 
     test('Signalements Agents garde le workflow open in_progress resolved cancelled', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/team/backoffice_agent_issues_page.dart',
+        'lib/app/modules/backoffice/views/team/backoffice_agent_issues_page.dart',
       ).readAsStringSync();
       expect(source, contains('fetchAgentIssuePage'));
       expect(source, contains('BackofficePaginationBar'));
@@ -105,7 +105,7 @@ void main() {
 
     test('le centre de notifications couvre désormais les alertes BO-3', () {
       final String shell = File(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       ).readAsStringSync();
       expect(shell, contains('Backoffice.notifications.support'));
       expect(shell, contains('Backoffice.notifications.agent-issues'));

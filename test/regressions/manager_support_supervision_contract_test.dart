@@ -8,7 +8,7 @@ void main() {
 
   test('Manager accede aux demandes clients en supervision', () {
     final String more = compact(
-      read('lib/features/more/presentation/pages/more_page.dart'),
+      read('lib/app/modules/home/views/more_page.dart'),
     );
 
     expect(more, contains('permissions.canViewSupportRequests'));
@@ -20,7 +20,7 @@ void main() {
   test('centre assistance bloque les actions de traitement Manager', () {
     final String support = compact(
       read(
-        'lib/features/support/presentation/pages/support_request_center_page.dart',
+        'lib/app/modules/support/views/support_request_center_page.dart',
       ),
     );
 
@@ -37,10 +37,10 @@ void main() {
 
   test('Dashboard ouvre les demandes et le Manager peut les traiter sans administrer les remboursements', () {
     final String dashboard = compact(
-      read('lib/features/dashboard/presentation/pages/dashboard_page.dart'),
+      read('lib/app/modules/home/views/dashboard_page.dart'),
     );
     final String permissions = read(
-      'lib/features/auth/domain/permissions/user_permissions.dart',
+      'lib/app/domain/permissions/user_permissions.dart',
     );
     final String manager = permissions.substring(
       permissions.indexOf('static const UserPermissions manager'),

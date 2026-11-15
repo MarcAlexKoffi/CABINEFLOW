@@ -7,7 +7,7 @@ void main() {
 
   test('preuve Agent valide et rafraichit le JWT avant Storage Supabase', () {
     final String proof = read(
-      'lib/features/orders/data/repositories/supabase_order_proof_repository.dart',
+      'lib/app/data/repositories/supabase_order_proof_repository.dart',
     );
     expect(proof, contains('getIdToken(true)'));
     expect(proof, contains('_assertWritableOrder('));
@@ -19,7 +19,7 @@ void main() {
 
   test('preuve peut etre ajoutee pendant traitement ou attente', () {
     final String detail = read(
-      'lib/features/orders/presentation/pages/agent_order_detail_view.dart',
+      'lib/app/modules/agent_orders/views/agent_order_detail_view.dart',
     );
     expect(detail, contains('QueueOrderStatus.inProgress'));
     expect(detail, contains('QueueOrderStatus.onHold'));
@@ -40,7 +40,7 @@ void main() {
 
   test('historique staff ajoute les commandes Supabase absentes de Firestore', () {
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     expect(hybrid, contains('if (!firebaseById.containsKey(snapshot.orderId))'));
     expect(hybrid, contains('snapshot.toQueueOrder()'));
@@ -50,10 +50,10 @@ void main() {
 
   test('centre echecs garde Supabase si Firestore legacy refuse la lecture', () {
     final String page = read(
-      'lib/features/orders/presentation/pages/failed_orders_page.dart',
+      'lib/app/modules/manager_orders/views/failed_orders_page.dart',
     );
     final String hybrid = read(
-      'lib/features/orders/data/repositories/hybrid_orders_repository.dart',
+      'lib/app/data/repositories/hybrid_orders_repository.dart',
     );
     expect(page, contains('_orderHistoryStream'));
     expect(page, contains('_friendlyHistoryError'));
@@ -66,7 +66,7 @@ void main() {
 
   test('accueil utilise les donnees operationnelles et capacites Supabase', () {
     final String repository = read(
-      'lib/features/dashboard/data/repositories/hybrid_dashboard_repository.dart',
+      'lib/app/data/repositories/hybrid_dashboard_repository.dart',
     );
     expect(repository, contains('fetchAllForStaff()'));
     expect(repository, contains('fetchAssignmentCandidates()'));
@@ -81,10 +81,10 @@ void main() {
 
   test('accueil retrouve un bloc bleu contraste sans perdre les actions', () {
     final String page = read(
-      'lib/features/dashboard/presentation/pages/dashboard_page.dart',
+      'lib/app/modules/home/views/dashboard_page.dart',
     );
     final String shell = read(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     );
     expect(page, contains('class _OverviewCard'));
     expect(page, contains('LinearGradient'));
@@ -106,7 +106,7 @@ void main() {
 
   test('menu file Agent donne aux ListTile un vrai Material', () {
     final String page = read(
-      'lib/features/orders/presentation/pages/agent_orders_page.dart',
+      'lib/app/modules/agent_orders/views/agent_orders_page.dart',
     );
     final int menu = page.indexOf('Future<void> _openQueueModeMenu()');
     final int next = page.indexOf('String _queueHeading', menu);
@@ -118,7 +118,7 @@ void main() {
 
   test('erreurs preuve ne retombent plus silencieusement sur le message generique', () {
     final String viewModel = read(
-      'lib/features/orders/presentation/view_models/agent_orders_view_model.dart',
+      'lib/app/modules/agent_orders/controllers/agent_orders_view_model.dart',
     );
     expect(viewModel, contains('error is StorageException'));
     expect(viewModel, contains('error is PostgrestException'));

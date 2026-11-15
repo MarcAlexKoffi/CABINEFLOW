@@ -9,8 +9,7 @@ void main() {
     'le repertoire Agent recupere uniquement un avatar signe via Supabase',
     () {
       final String repository = _read(
-        'lib/features/agents/data/repositories/'
-        'supabase_agent_personal_profile_repository.dart',
+        'lib/app/data/repositories/supabase_agent_personal_profile_repository.dart',
       );
 
       expect(repository, contains('fetchDirectoryAvatarUrl('));
@@ -24,10 +23,10 @@ void main() {
     'la liste Admin Agents affiche la photo Supabase avec repli initials',
     () {
       final String page = _read(
-        'lib/features/agents/presentation/pages/agent_management_page.dart',
+        'lib/app/modules/agent_ops/views/agent_management_page.dart',
       );
       final String avatar = _read(
-        'lib/features/agents/presentation/widgets/agent_directory_avatar.dart',
+        'lib/app/modules/agent_ops/widgets/agent_directory_avatar.dart',
       );
 
       expect(page, contains('AgentDirectoryAvatar('));
@@ -41,7 +40,7 @@ void main() {
 
   test('la fiche Agent reutilise le meme avatar sans dupliquer la logique', () {
     final String page = _read(
-      'lib/features/agents/presentation/pages/agent_detail_page.dart',
+      'lib/app/modules/agent_ops/views/agent_detail_page.dart',
     );
 
     expect(page, contains('AgentDirectoryAvatar('));

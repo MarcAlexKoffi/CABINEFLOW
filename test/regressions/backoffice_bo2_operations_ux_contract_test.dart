@@ -6,7 +6,7 @@ void main() {
   group('BO-2 - UX operationnelle du back-office', () {
     test('le shell expose un centre de notifications actionnables', () {
       final String shell = File(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       ).readAsStringSync();
 
       expect(shell, contains('Notifications opérationnelles'));
@@ -21,10 +21,10 @@ void main() {
 
     test('les tableaux BO-2 gardent statut et action visibles sans scroll horizontal', () {
       final List<String> paths = <String>[
-        'lib/backoffice/presentation/pages/operations/backoffice_orders_page.dart',
-        'lib/backoffice/presentation/pages/operations/backoffice_payments_page.dart',
-        'lib/backoffice/presentation/pages/operations/backoffice_assignments_page.dart',
-        'lib/backoffice/presentation/pages/operations/backoffice_failed_orders_page.dart',
+        'lib/app/modules/backoffice/views/operations/backoffice_orders_page.dart',
+        'lib/app/modules/backoffice/views/operations/backoffice_payments_page.dart',
+        'lib/app/modules/backoffice/views/operations/backoffice_assignments_page.dart',
+        'lib/app/modules/backoffice/views/operations/backoffice_failed_orders_page.dart',
       ];
 
       for (final String path in paths) {
@@ -41,7 +41,7 @@ void main() {
 
     test('un paiement a verifier devient prioritaire et visible sans defilement', () {
       final String source = File(
-        'lib/backoffice/presentation/pages/operations/backoffice_payments_page.dart',
+        'lib/app/modules/backoffice/views/operations/backoffice_payments_page.dart',
       ).readAsStringSync();
 
       expect(source, contains("? 'À vérifier'"));
@@ -53,7 +53,7 @@ void main() {
 
     test('les mini statistiques BO-2 utilisent le format compact', () {
       final String widgets = File(
-        'lib/backoffice/presentation/widgets/backoffice_order_widgets.dart',
+        'lib/app/modules/backoffice/widgets/backoffice_order_widgets.dart',
       ).readAsStringSync();
 
       expect(widgets, contains('class BackofficeMetricCard'));
@@ -69,7 +69,7 @@ void main() {
       ];
       for (final String file in pages) {
         final String source = File(
-          'lib/backoffice/presentation/pages/operations/$file',
+          'lib/app/modules/backoffice/views/operations/$file',
         ).readAsStringSync();
         expect(source, contains('constraints.maxWidth >= 920'), reason: file);
         expect(source, contains('final double gap = 10'), reason: file);

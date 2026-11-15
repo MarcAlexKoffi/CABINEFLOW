@@ -6,7 +6,7 @@ void main() {
   group('Web Client V2 - Historique Suivi Recuperation', () {
     test('historique reprend les quatre etats de la maquette', () {
       final String history = File(
-        'lib/features/customer_order/presentation/pages/customer_order_history_page.dart',
+        'lib/app/modules/customer/views/customer_order_history_page.dart',
       ).readAsStringSync();
 
       expect(history, contains("'Historique'"));
@@ -19,7 +19,7 @@ void main() {
 
     test('suivi utilise les vrais jalons de la commande', () {
       final String tracking = File(
-        'lib/features/customer_order/presentation/pages/customer_confirmation_page.dart',
+        'lib/app/modules/customer/views/customer_confirmation_page.dart',
       ).readAsStringSync();
 
       expect(tracking, contains("'Suivi de commande'"));
@@ -33,10 +33,10 @@ void main() {
 
     test('recuperation publique repose sur reference et code', () {
       final String recovery = File(
-        'lib/features/customer_order/presentation/pages/customer_order_recovery_page.dart',
+        'lib/app/modules/customer/views/customer_order_recovery_page.dart',
       ).readAsStringSync();
       final String viewModel = File(
-        'lib/features/customer_order/presentation/view_models/customer_order_view_model.dart',
+        'lib/app/modules/customer/controllers/customer_order_view_model.dart',
       ).readAsStringSync();
 
       expect(recovery, contains("'Référence de commande'"));
@@ -49,13 +49,13 @@ void main() {
 
     test('recuperation V2 est canonique Supabase sans nouvelles rules Firestore', () {
       final String repository = File(
-        'lib/features/customer_order/data/repositories/firestore_customer_order_repository.dart',
+        'lib/app/data/repositories/firestore_customer_order_repository.dart',
       ).readAsStringSync();
       final String recoveryRepository = File(
-        'lib/features/customer_order/data/repositories/supabase_customer_order_recovery_repository.dart',
+        'lib/app/data/repositories/supabase_customer_order_recovery_repository.dart',
       ).readAsStringSync();
       final String statusRepository = File(
-        'lib/features/customer_order/data/repositories/supabase_customer_order_status_repository.dart',
+        'lib/app/data/repositories/supabase_customer_order_status_repository.dart',
       ).readAsStringSync();
       final String migration = File(
         'supabase/migrations/20260922003000_wc2_customer_recovery_supabase.sql',
@@ -96,10 +96,10 @@ void main() {
 
     test('historique client est canonique Supabase avec fallback Firestore', () {
       final String historyRepository = File(
-        'lib/features/customer_order/data/repositories/supabase_customer_order_history_repository.dart',
+        'lib/app/data/repositories/supabase_customer_order_history_repository.dart',
       ).readAsStringSync();
       final String orderRepository = File(
-        'lib/features/customer_order/data/repositories/firestore_customer_order_repository.dart',
+        'lib/app/data/repositories/firestore_customer_order_repository.dart',
       ).readAsStringSync();
       final String migration = File(
         'supabase/migrations/20260927104201_wc2_customer_history_and_recovery_access_tracking.sql',
@@ -143,10 +143,10 @@ void main() {
 
     test('le parcours direct reste explicitement protege', () {
       final String flow = File(
-        'lib/features/customer_order/presentation/pages/customer_order_flow_page.dart',
+        'lib/app/modules/customer/views/customer_order_flow_page.dart',
       ).readAsStringSync();
       final String catalog = File(
-        'lib/features/customer_order/presentation/pages/customer_catalog_page.dart',
+        'lib/app/modules/customer/views/customer_catalog_page.dart',
       ).readAsStringSync();
 
       expect(flow, contains('CustomerService.unitTransfer'));

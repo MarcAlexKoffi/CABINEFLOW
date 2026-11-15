@@ -6,7 +6,7 @@ void main() {
   group('WC9.1 - compile Partner + scope Manager Agents', () {
     test('PartnerShell conserve les imports Flutter necessaires', () {
       final String source = File(
-        'lib/features/partners/presentation/pages/partner_shell_page.dart',
+        'lib/app/modules/partners/views/partner_shell_page.dart',
       ).readAsStringSync();
 
       expect(source, contains("package:flutter/foundation.dart"));
@@ -20,7 +20,7 @@ void main() {
       'enrichissement Firestore Manager reste limite aux Agents Supabase visibles',
       () {
         final String source = File(
-          'lib/features/agents/data/repositories/firestore_agent_repository.dart',
+          'lib/app/data/repositories/firestore_agent_repository.dart',
         ).readAsStringSync();
 
         expect(source, contains('operationsByAgent.containsKey(doc.id)'));

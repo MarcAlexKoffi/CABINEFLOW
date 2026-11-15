@@ -49,10 +49,10 @@ void main() {
 
   test('Phase 4 couvre FCM background, cold start et rotation du token', () {
     final String messaging = source(
-      'lib/core/notifications/firebase_messaging_bootstrap.dart',
+      'lib/app/services/notifications/firebase_messaging_bootstrap.dart',
     );
     final String registry = source(
-      'lib/core/notifications/izytel_notification_device_registry.dart',
+      'lib/app/services/notifications/izytel_notification_device_registry.dart',
     );
 
     expect(messaging, contains('@pragma(\'vm:entry-point\')'));
@@ -65,10 +65,10 @@ void main() {
 
   test('Phase 4 conserve la session Firebase au redemarrage', () {
     final String splash = source(
-      'lib/features/splash/presentation/pages/splash_page.dart',
+      'lib/app/modules/splash/views/splash_page.dart',
     );
     final String auth = source(
-      'lib/features/auth/data/repositories/firebase_auth_repository.dart',
+      'lib/app/data/repositories/firebase_auth_repository.dart',
     );
 
     expect(splash, contains('refreshCurrentAccess()'));

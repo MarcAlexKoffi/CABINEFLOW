@@ -7,13 +7,13 @@ void main() {
     'D preserve le hotfix profil B2 et l accès commissions depuis Accueil',
     () {
       final String profile = File(
-        'lib/features/agents/presentation/pages/agent_personal_profile_page.dart',
+        'lib/app/modules/profile/views/agent_personal_profile_page.dart',
       ).readAsStringSync();
       final String home = File(
-        'lib/features/agents/presentation/pages/agent_home_page.dart',
+        'lib/app/modules/agent_ops/views/agent_home_page.dart',
       ).readAsStringSync();
       final String shell = File(
-        'lib/features/navigation/presentation/pages/main_shell_page.dart',
+        'lib/app/modules/home/views/main_shell_page.dart',
       ).readAsStringSync();
 
       expect(profile, contains('_hydrateFromSignedInUser();'));
@@ -31,7 +31,7 @@ void main() {
 
   test('D preserve la résilience Activité V2', () {
     final String source = File(
-      'lib/features/agents/presentation/pages/agent_activity_v2_dashboard_page.dart',
+      'lib/app/modules/agent_ops/views/agent_activity_v2_dashboard_page.dart',
     ).readAsStringSync();
 
     expect(source, contains('hasUnavailableSources'));
@@ -43,27 +43,43 @@ void main() {
   });
 
   test('D conserve l encapsulation du moteur métier critique', () {
-    final Directory presentation = Directory(
-      'lib/features/commissions/presentation',
-    );
-    final Directory domain = Directory('lib/features/commissions/domain');
-    final String uiAndDomain = <Directory>[presentation, domain]
-        .expand((Directory directory) => directory.listSync(recursive: true))
-        .whereType<File>()
-        .where((File file) => file.path.endsWith('.dart'))
-        .map((File file) => file.readAsStringSync())
-        .join('\n');
+    final Directory presentation = Directory('lib/app/modules/commissions');
+    final String uiAndDomain =
+        <Directory>[
+              presentation,
+              Directory('lib/app/domain/entities/commissions'),
+              Directory('lib/app/domain/policies/commissions'),
+            ]
+            .expand(
+              (Directory directory) => directory.listSync(recursive: true),
+            )
+            .whereType<File>()
+            .where((File file) => file.path.endsWith('.dart'))
+            .map((File file) => file.readAsStringSync())
+            .join('\n');
+    final String contracts =
+        <String>[
+              'agent_commission_summary_repository.dart',
+              'commission_repository.dart',
+              'commission_v2_repository.dart',
+            ]
+            .map(
+              (String name) =>
+                  File('lib/app/domain/repositories/$name').readAsStringSync(),
+            )
+            .join('\n');
 
     // Les pages et le domaine ne doivent jamais écrire directement dans
     // Firestore : les écritures restent encapsulées dans le repository.
-    expect(uiAndDomain, isNot(contains('runTransaction')));
-    expect(uiAndDomain, isNot(contains('WriteBatch')));
-    expect(uiAndDomain, isNot(contains('.set(')));
-    expect(uiAndDomain, isNot(contains('.update(')));
-    expect(uiAndDomain, isNot(contains('.delete(')));
+    final String protectedSources = '$uiAndDomain\n$contracts';
+    expect(protectedSources, isNot(contains('runTransaction')));
+    expect(protectedSources, isNot(contains('WriteBatch')));
+    expect(protectedSources, isNot(contains('.set(')));
+    expect(protectedSources, isNot(contains('.update(')));
+    expect(protectedSources, isNot(contains('.delete(')));
 
     final String repository = File(
-      'lib/features/commissions/data/repositories/firestore_commission_repository.dart',
+      'lib/app/data/repositories/firestore_commission_repository.dart',
     ).readAsStringSync();
 
     // Le paiement réel d'une commission est volontairement transactionnel.

@@ -10,10 +10,10 @@ void main() {
   group('Web client - responsive, startup et Realtime', () {
     test('le signal catalogue est partage et accepte plusieurs ecoutes', () {
       final String customer = _read(
-        'lib/features/customer_order/data/repositories/supabase_customer_offer_repository.dart',
+        'lib/app/data/repositories/supabase_customer_offer_repository.dart',
       );
       final String staff = _read(
-        'lib/features/orders/data/repositories/supabase_offer_catalog_repository.dart',
+        'lib/app/data/repositories/supabase_offer_catalog_repository.dart',
       );
 
       for (final String source in <String>[customer, staff]) {
@@ -28,9 +28,9 @@ void main() {
     });
 
     test('le bootstrap Web ne serialise plus les latences inutiles', () {
-      final String customerMain = _read('lib/main_customer_web.dart');
-      final String backofficeMain = _read('lib/main_backoffice_web.dart');
-      final String supabase = _read('lib/core/supabase/supabase_bootstrap.dart');
+      final String customerMain = _read('lib/main_customer.dart');
+      final String backofficeMain = _read('lib/main_backoffice.dart');
+      final String supabase = _read('lib/app/data/sources/supabase_bootstrap.dart');
 
       expect(customerMain, isNot(contains('await auth.authStateChanges().first')));
       expect(backofficeMain, contains('final Future<void> restoredSession'));
@@ -43,19 +43,19 @@ void main() {
 
     test('le Web desktop n utilise plus la navigation mobile en bas', () {
       final String catalog = _read(
-        'lib/features/customer_order/presentation/pages/customer_catalog_page.dart',
+        'lib/app/modules/customer/views/customer_catalog_page.dart',
       );
       final String history = _read(
-        'lib/features/customer_order/presentation/pages/customer_order_history_page.dart',
+        'lib/app/modules/customer/views/customer_order_history_page.dart',
       );
       final String help = _read(
-        'lib/features/support/presentation/pages/customer_help_page.dart',
+        'lib/app/modules/support/views/customer_help_page.dart',
       );
       final String home = _read(
-        'lib/features/customer_order/presentation/pages/customer_home_page.dart',
+        'lib/app/modules/customer/views/customer_home_page.dart',
       );
       final String buttons = _read(
-        'lib/shared/widgets/design_system/izy_tel_buttons.dart',
+        'lib/app/shared/widgets/design_system/izy_tel_buttons.dart',
       );
 
       expect(catalog, contains('bottomNavigationBar: desktopHeader'));

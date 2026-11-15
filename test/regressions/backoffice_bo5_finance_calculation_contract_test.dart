@@ -1,4 +1,4 @@
-import 'package:cabine_flow/backoffice/domain/models/backoffice_finance_snapshot.dart';
+import 'package:cabine_flow/app/domain/entities/backoffice/backoffice_finance_snapshot.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Map<String, dynamic> _json({

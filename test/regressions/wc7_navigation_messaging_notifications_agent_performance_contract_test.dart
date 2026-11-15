@@ -6,10 +6,10 @@ void main() {
   group('WC7 - navigation, notifications messagerie et performance Agent', () {
     test('messagerie: Retour Android suit une vraie pile Flutter', () {
       final String flow = File(
-        'lib/features/customer_order/presentation/pages/customer_order_flow_page.dart',
+        'lib/app/modules/customer/views/customer_order_flow_page.dart',
       ).readAsStringSync();
       final String messaging = File(
-        'lib/features/messaging/presentation/pages/customer_messaging_page.dart',
+        'lib/app/modules/messaging/views/customer_messaging_page.dart',
       ).readAsStringSync();
 
       expect(flow, contains('_pushMessagingRoute'));
@@ -26,13 +26,13 @@ void main() {
         'supabase/migrations/20260927182335_wc7_customer_manager_messaging_notifications.sql',
       ).readAsStringSync();
       final String payload = File(
-        'lib/core/notifications/izytel_notification_payload.dart',
+        'lib/app/domain/entities/notifications/izytel_notification_payload.dart',
       ).readAsStringSync();
       final String shell = File(
-        'lib/features/navigation/presentation/pages/main_shell_page.dart',
+        'lib/app/modules/home/views/main_shell_page.dart',
       ).readAsStringSync();
       final String staffMessaging = File(
-        'lib/features/messaging/presentation/pages/staff_customer_messaging_page.dart',
+        'lib/app/modules/messaging/views/staff_customer_messaging_page.dart',
       ).readAsStringSync();
 
       expect(migration, contains('trg_wc7_customer_message_notification'));
@@ -50,7 +50,7 @@ void main() {
 
     test('client Web: reponse Manager remonte aussi en notification in-app', () {
       final String flow = File(
-        'lib/features/customer_order/presentation/pages/customer_order_flow_page.dart',
+        'lib/app/modules/customer/views/customer_order_flow_page.dart',
       ).readAsStringSync();
 
       expect(flow, contains('_startCustomerMessagingAlerts'));
@@ -60,13 +60,13 @@ void main() {
 
     test('Agent: Realtime remplace le polling 3 s et les switches sont optimistes', () {
       final String repository = File(
-        'lib/features/agents/data/repositories/supabase_agent_operations_repository.dart',
+        'lib/app/data/repositories/supabase_agent_operations_repository.dart',
       ).readAsStringSync();
       final String realtimeMigration = File(
         'supabase/migrations/20260927182349_wc7_agent_operations_realtime.sql',
       ).readAsStringSync();
       final String activity = File(
-        'lib/features/agents/presentation/view_models/agent_activity_view_model.dart',
+        'lib/app/modules/agent_ops/controllers/agent_activity_view_model.dart',
       ).readAsStringSync();
 
       expect(repository, contains('.stream(primaryKey:'));
@@ -82,7 +82,7 @@ void main() {
 
     test('profil Agent: les medias ne gardent plus tout l ecran en chargement', () {
       final String profile = File(
-        'lib/features/agents/presentation/pages/agent_personal_profile_page.dart',
+        'lib/app/modules/profile/views/agent_personal_profile_page.dart',
       ).readAsStringSync();
 
       expect(profile, contains('_loadMediaInBackground'));

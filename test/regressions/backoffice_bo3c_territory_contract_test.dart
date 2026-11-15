@@ -6,7 +6,7 @@ void main() {
   group('BO-3C - Managers et organisation territoriale', () {
     test('la sidebar expose Managers dans la section Équipe', () {
       final String shell = File(
-        'lib/backoffice/presentation/pages/backoffice_shell_page.dart',
+        'lib/app/modules/backoffice/views/backoffice_shell_page.dart',
       ).readAsStringSync();
       expect(shell, contains('BackofficeDestination.managers'));
       expect(shell, contains("return 'Comptes Managers';"));
@@ -19,7 +19,7 @@ void main() {
 
     test('le module Managers relie zones, Agents et profil opérationnel', () {
       final String managers = File(
-        'lib/backoffice/presentation/pages/team/backoffice_managers_page.dart',
+        'lib/app/modules/backoffice/views/team/backoffice_managers_page.dart',
       ).readAsStringSync();
       expect(managers, contains('fetchManagers()'));
       expect(managers, contains('fetchZones()'));
@@ -37,13 +37,13 @@ void main() {
       'les zones sont canoniques dans Supabase et conservent le backfill Firestore ponctuel',
       () {
         final String repository = File(
-          'lib/backoffice/data/repositories/supabase_territory_repository.dart',
+          'lib/app/data/repositories/supabase_territory_repository.dart',
         ).readAsStringSync();
         final String legacy = File(
-          'lib/core/migrations/legacy_territory_backfill_service.dart',
+          'lib/app/services/migrations/legacy_territory_backfill_service.dart',
         ).readAsStringSync();
         final String agentRepository = File(
-          'lib/features/agents/data/repositories/firestore_agent_repository.dart',
+          'lib/app/data/repositories/firestore_agent_repository.dart',
         ).readAsStringSync();
         expect(repository, contains("zonesTable = 'territory_zones'"));
         expect(repository, contains('izytel_wc5_create_territory_zone'));
@@ -66,10 +66,10 @@ void main() {
       () {
         final String zones =
             File(
-              'lib/backoffice/presentation/pages/team/backoffice_zones_page.dart',
+              'lib/app/modules/backoffice/views/team/backoffice_zones_page.dart',
             ).readAsStringSync() +
             File(
-              'lib/backoffice/presentation/widgets/backoffice_territory_map.dart',
+              'lib/app/modules/backoffice/widgets/backoffice_territory_map.dart',
             ).readAsStringSync();
         final String pubspec = File('pubspec.yaml').readAsStringSync();
         expect(zones, contains('FlutterMap('));
@@ -155,7 +155,7 @@ void main() {
       'le backfill territorial se déclenche après restauration ou connexion Admin',
       () {
         final String app = File(
-          'lib/backoffice/backoffice_app.dart',
+          'lib/app/backoffice_app.dart',
         ).readAsStringSync();
         expect(
           RegExp(

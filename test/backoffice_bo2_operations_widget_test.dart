@@ -1,12 +1,12 @@
-import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_assignments_page.dart';
-import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_failed_orders_page.dart';
-import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_orders_page.dart';
-import 'package:cabine_flow/backoffice/presentation/pages/operations/backoffice_payments_page.dart';
-import 'package:cabine_flow/backoffice/presentation/theme/backoffice_theme.dart';
-import 'package:cabine_flow/features/agents/data/repositories/fake_agent_repository.dart';
-import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
-import 'package:cabine_flow/features/orders/data/repositories/fake_orders_repository.dart';
-import 'package:cabine_flow/features/refunds/data/repositories/fake_refund_repository.dart';
+import 'package:cabine_flow/app/modules/backoffice/views/operations/backoffice_assignments_page.dart';
+import 'package:cabine_flow/app/modules/backoffice/views/operations/backoffice_failed_orders_page.dart';
+import 'package:cabine_flow/app/modules/backoffice/views/operations/backoffice_orders_page.dart';
+import 'package:cabine_flow/app/modules/backoffice/views/operations/backoffice_payments_page.dart';
+import 'package:cabine_flow/app/theme/backoffice_theme.dart';
+import 'package:cabine_flow/app/data/repositories/fake_agent_repository.dart';
+import 'package:cabine_flow/app/domain/entities/auth/app_user.dart';
+import 'package:cabine_flow/app/data/repositories/fake_orders_repository.dart';
+import 'package:cabine_flow/app/data/repositories/fake_refund_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

@@ -7,10 +7,10 @@ void main() {
 
   test('la session mobile reste ouverte jusqu a une deconnexion explicite', () {
     final String splash = source(
-      'lib/features/splash/presentation/pages/splash_page.dart',
+      'lib/app/modules/splash/views/splash_page.dart',
     );
     final String auth = source(
-      'lib/features/auth/data/repositories/firebase_auth_repository.dart',
+      'lib/app/data/repositories/firebase_auth_repository.dart',
     );
 
     expect(splash, contains('refreshCurrentAccess()'));
@@ -21,7 +21,7 @@ void main() {
 
   test('le formulaire expose Android Autofill et demande la sauvegarde', () {
     final String login = source(
-      'lib/features/auth/presentation/pages/login_page.dart',
+      'lib/app/modules/auth/views/login_page.dart',
     );
 
     expect(login, contains('AutofillGroup('));
@@ -36,7 +36,7 @@ void main() {
 
   test('le feedback reutilise une OverlayEntry au lieu de la remplacer', () {
     final String feedback = source(
-      'lib/shared/widgets/izytel/izytel_feedback.dart',
+      'lib/app/shared/widgets/izytel/izytel_feedback.dart',
     );
 
     expect(feedback, contains('ValueNotifier<_IzyTelFeedbackPayload?>'));
@@ -46,7 +46,7 @@ void main() {
 
   test('la validation paiement attend la fermeture complete du bottom sheet', () {
     final String payments = source(
-      'lib/features/payments/presentation/pages/payments_page.dart',
+      'lib/app/modules/payments/views/payments_page.dart',
     );
 
     expect(payments, contains('class _PaymentConfirmationSheet'));
@@ -56,7 +56,7 @@ void main() {
 
   test('le double retour est reinitialise apres tout changement d onglet', () {
     final String shell = source(
-      'lib/features/navigation/presentation/pages/main_shell_page.dart',
+      'lib/app/modules/home/views/main_shell_page.dart',
     );
 
     expect(shell, contains('_lastBackPressAt = null;'));
@@ -66,10 +66,10 @@ void main() {
 
   test('activite Agent conserve les dernieres donnees pendant une coupure', () {
     final String repository = source(
-      'lib/features/agents/data/repositories/firestore_agent_activity_v2_repository.dart',
+      'lib/app/data/repositories/firestore_agent_activity_v2_repository.dart',
     );
     final String page = source(
-      'lib/features/agents/presentation/pages/agent_activity_v2_dashboard_page.dart',
+      'lib/app/modules/agent_ops/views/agent_activity_v2_dashboard_page.dart',
     );
 
     expect(repository, contains('Conserve le dernier snapshot connu'));

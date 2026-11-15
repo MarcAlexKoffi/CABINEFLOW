@@ -7,7 +7,7 @@ void main() {
 
   test('Repository couvre preview historique clôture validation ajustement paiement', () {
     final String repository = source(
-      'lib/features/team/data/repositories/supabase_team_supervision_repository.dart',
+      'lib/app/data/repositories/supabase_team_supervision_repository.dart',
     );
 
     expect(repository, contains("'izytel_manager_compensation_preview'"));
@@ -24,7 +24,7 @@ void main() {
 
   test('Fiche Manager réserve les actions comptables à Admin', () {
     final String page = source(
-      'lib/features/team/presentation/pages/team_member_detail_page.dart',
+      'lib/app/modules/team/views/team_member_detail_page.dart',
     );
 
     expect(page, contains('widget.viewer.role == UserRole.administrator'));
@@ -38,7 +38,7 @@ void main() {
 
   test('Historique Manager expose acquis payé dû et statuts mensuels', () {
     final String widget = source(
-      'lib/features/team/presentation/widgets/manager_compensation_history_card.dart',
+      'lib/app/modules/team/widgets/manager_compensation_history_card.dart',
     );
 
     expect(widget, contains('Historique de rémunération'));
@@ -52,7 +52,7 @@ void main() {
 
   test('Manager voit son historique en lecture seule depuis performance zone', () {
     final String page = source(
-      'lib/features/team/presentation/pages/team_performance_page.dart',
+      'lib/app/modules/team/views/team_performance_page.dart',
     );
 
     expect(page, contains('_managerCompensationHistoryFuture'));

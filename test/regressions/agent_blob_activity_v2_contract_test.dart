@@ -7,11 +7,10 @@ String _read(String path) => File(path).readAsStringSync();
 void main() {
   test('Phase Supabase 1 stocke avatar et pièce hors Firestore', () {
     final String mediaRepository = _read(
-      'lib/features/agents/data/repositories/'
-      'supabase_agent_personal_profile_repository.dart',
+      'lib/app/data/repositories/supabase_agent_personal_profile_repository.dart',
     );
     final String profilePage = _read(
-      'lib/features/agents/presentation/pages/agent_personal_profile_page.dart',
+      'lib/app/modules/profile/views/agent_personal_profile_page.dart',
     );
 
     expect(mediaRepository, contains("bucketName = 'agent-personal'"));
@@ -27,8 +26,7 @@ void main() {
 
   test('les medias prives sont bornes par le repository Supabase', () {
     final String repository = _read(
-      'lib/features/agents/data/repositories/'
-      'supabase_agent_personal_profile_repository.dart',
+      'lib/app/data/repositories/supabase_agent_personal_profile_repository.dart',
     );
 
     expect(repository, contains("bucketName = 'agent-personal'"));
@@ -40,8 +38,7 @@ void main() {
 
   test('C agrège uniquement les données métier existantes', () {
     final String activityRepository = _read(
-      'lib/features/agents/data/repositories/'
-      'firestore_agent_activity_v2_repository.dart',
+      'lib/app/data/repositories/firestore_agent_activity_v2_repository.dart',
     );
 
     for (final String collection in <String>[
@@ -79,15 +76,13 @@ void main() {
 
   test('C reste strictement en lecture seule et conserve completed legacy', () {
     final String activityRepository = _read(
-      'lib/features/agents/data/repositories/'
-      'firestore_agent_activity_v2_repository.dart',
+      'lib/app/data/repositories/firestore_agent_activity_v2_repository.dart',
     );
     final String activityModels = _read(
-      'lib/features/agents/domain/models/agent_activity_v2_models.dart',
+      'lib/app/domain/entities/agents/agent_activity_v2_models.dart',
     );
     final String dashboard = _read(
-      'lib/features/agents/presentation/pages/'
-      'agent_activity_v2_dashboard_page.dart',
+      'lib/app/modules/agent_ops/views/agent_activity_v2_dashboard_page.dart',
     );
 
     expect(activityRepository, isNot(contains('WriteBatch')));
@@ -105,8 +100,7 @@ void main() {
 
   test('Admin accède à l’identité Blob et à l’activité Agent', () {
     final String adminPage = _read(
-      'lib/features/agents/presentation/pages/'
-      'admin_agent_profile_activity_page.dart',
+      'lib/app/modules/agent_ops/views/admin_agent_profile_activity_page.dart',
     );
 
     expect(adminPage, contains('AgentPersonalMediaKind.avatar'));
