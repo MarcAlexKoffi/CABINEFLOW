@@ -201,6 +201,35 @@ void main() {
   );
 
   testWidgets(
+    'pasted syntax with invisible edge padding previews and saves canonically',
+    (tester) async {
+      final repo = UssdTestRepository();
+      await mount(tester, repo, UserRole.administrator);
+      await tester.tap(find.text('Créer une règle'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Template USSD'),
+        '\u200b*412*2*numéro_du_destinataire#\u00a0\r\n',
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is SelectableText &&
+              widget.data == '*412*2*{{msisdn_local}}#',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('*412*2*0101010101#'), findsOneWidget);
+      expect(find.text('Syntaxe USSD invalide ou trop longue.'), findsNothing);
+      await tester.tap(find.text('Enregistrer en brouillon'));
+      await tester.pumpAndSettle();
+      expect(repo.saved?['ussd_template'], '*412*2*{{msisdn_local}}#');
+      expect(repo.statusChanges, 0);
+    },
+  );
+
+  testWidgets(
     'variable chips insert at the cursor and replace only the selection',
     (tester) async {
       await mount(tester, UssdTestRepository(), UserRole.administrator);

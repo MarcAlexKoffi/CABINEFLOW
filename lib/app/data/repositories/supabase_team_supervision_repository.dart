@@ -1,11 +1,34 @@
 import 'package:cabine_flow/app/domain/entities/team/team_supervision_models.dart';
+import 'package:cabine_flow/app/data/sources/supabase_realtime_refetch.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseTeamSupervisionRepository {
   SupabaseTeamSupervisionRepository({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+    : _client = client ?? Supabase.instance.client;
 
   final SupabaseClient _client;
+
+  Stream<TeamMemberDetail> watchMemberDetail({
+    required String actorType,
+    required String actorId,
+  }) => SupabaseRealtimeRefetch.watch<TeamMemberDetail>(
+    client: _client,
+    fetch: () => fetchMemberDetail(actorType: actorType, actorId: actorId),
+    label: 'Team.member-detail',
+    independentPolling: true,
+    fallbackInterval: const Duration(seconds: 20),
+    signals: const <SupabaseRealtimeSignal>[
+      SupabaseRealtimeSignal(
+        table: 'staff_profiles',
+        primaryKey: ['firebase_uid'],
+      ),
+      SupabaseRealtimeSignal(
+        table: 'phase5_agent_capacities',
+        primaryKey: ['agent_id'],
+      ),
+      SupabaseRealtimeSignal(table: 'finance_change_feed', primaryKey: ['id']),
+    ],
+  );
 
   Future<TeamScopeSnapshot> fetchScope() async {
     final Object? raw = await _client.rpc('izytel_team_scope_snapshot');
@@ -33,18 +56,30 @@ class SupabaseTeamSupervisionRepository {
     if (normalizedType == 'manager') {
       final List<Map<String, dynamic>> managerFinance =
           await Future.wait<Map<String, dynamic>>(
-        <Future<Map<String, dynamic>>>[
-          fetchManagerCompensationPreview(managerId: actorId),
-          fetchManagerCompensationHistory(managerId: actorId),
-        ],
-      );
+            <Future<Map<String, dynamic>>>[
+              _fetchManagerCompensationForDetail(actorId),
+              fetchManagerCompensationHistory(managerId: actorId),
+            ],
+          );
       finance['compensationPreview'] = managerFinance[0];
       finance['compensationHistory'] = managerFinance[1];
     } else if (normalizedType == 'agent' || normalizedType == 'cabiniste') {
-      finance['activityHistory'] = await fetchMemberActivityHistory(
-        actorType: normalizedType,
-        actorId: actorId,
-      );
+      try {
+        finance['activityHistory'] = await fetchMemberActivityHistory(
+          actorType: normalizedType,
+          actorId: actorId,
+        );
+      } on PostgrestException catch (error) {
+        if (error.code != 'P0001' ||
+            error.message != 'ECONOMIC_PLAN_NOT_FOUND') {
+          rethrow;
+        }
+        // Compatibility with older servers: an optional financial calculation
+        // must not hide the canonical personal profile or recorded balances.
+        finance['activityHistory'] = <String, dynamic>{
+          'status': 'not_configured',
+        };
+      }
     }
     payload['finance'] = finance;
     return TeamMemberDetail.fromMap(payload);
@@ -64,6 +99,22 @@ class SupabaseTeamSupervisionRepository {
       },
     );
     return _rpcMap(raw);
+  }
+
+  Future<Map<String, dynamic>> _fetchManagerCompensationForDetail(
+    String managerId,
+  ) async {
+    try {
+      return await fetchManagerCompensationPreview(managerId: managerId);
+    } on PostgrestException catch (error) {
+      if (error.code != 'P0001' ||
+          error.message != 'MANAGER_COMPENSATION_PLAN_NOT_FOUND') {
+        rethrow;
+      }
+      // Missing configuration must not hide the profile or existing history.
+      // No plan, financial projection or entitlement is created by this read.
+      return <String, dynamic>{'status': 'not_configured'};
+    }
   }
 
   Future<Map<String, dynamic>> fetchManagerCompensationPreview({
@@ -86,10 +137,7 @@ class SupabaseTeamSupervisionRepository {
   }) async {
     final Object? raw = await _client.rpc(
       'izytel_manager_compensation_history',
-      params: <String, dynamic>{
-        'p_manager_id': managerId,
-        'p_limit': limit,
-      },
+      params: <String, dynamic>{'p_manager_id': managerId, 'p_limit': limit},
     );
     return _rpcMap(raw);
   }
@@ -192,7 +240,6 @@ class SupabaseTeamSupervisionRepository {
       },
     );
   }
-
 
   String? _nullable(String? value) {
     final String normalized = value?.trim() ?? '';

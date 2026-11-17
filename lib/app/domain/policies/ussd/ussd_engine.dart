@@ -63,6 +63,9 @@ class UssdEngine {
     'secret_code',
   };
   static final _variable = RegExp(r'\{\{([^{}]+)\}\}');
+  static final _templatePadding = RegExp(
+    r'^[\s\u0085\u200B\u2060\uFEFF]+|[\s\u0085\u200B\u2060\uFEFF]+$',
+  );
   static final _code = RegExp(r'^(?:\*{1,2}|#)[0-9]+(?:\*[0-9]+)*#$');
   static const _aliases = {
     'numero_du_destinataire': 'msisdn_local',
@@ -102,6 +105,9 @@ class UssdEngine {
     // Validation reports oversized input; normalization must stay bounded even
     // before the editor has validated a pasted value.
     if (template.length > 512) return template;
+    // Clipboard padding is not part of the operator syntax. Preserve every
+    // internal character: malformed codes/placeholders must still be rejected.
+    template = template.replaceAll(_templatePadding, '');
     String? canonical(String raw) {
       final token = _fold(raw);
       return variables.contains(token) ? token : _aliases[token];

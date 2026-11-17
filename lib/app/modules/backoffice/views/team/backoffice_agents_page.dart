@@ -393,7 +393,10 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
     final TextEditingController dailyController = TextEditingController(text: '${profile.dailyTransactionLimit}');
     final TextEditingController maxController = TextEditingController(text: '${profile.maxTransactionsPerDay}');
     bool isActive = agent.isActive;
-    final Set<String> selectedZones = profile.zoneIds.toSet();
+    final List<AgentZone> activeZones = zones.where((zone) => zone.isActive).toList(growable: false);
+    final Set<String> activeZoneIds = activeZones.map((zone) => zone.id).toSet();
+    final Set<String> selectedZones = profile.zoneIds.where(activeZoneIds.contains).toSet();
+    final bool hasUnavailableZones = profile.zoneIds.any((id) => !activeZoneIds.contains(id));
     final Set<AgentNetwork> selectedNetworks = profile.authorizedNetworks.toSet();
     bool saving = false;
     StaffProfileVerificationStatus reviewStatus =
@@ -402,11 +405,14 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
     final TextEditingController reviewNote = TextEditingController(
       text: personalProfile?.verificationNote ?? '',
     );
+    ModalRoute<void>? manageRoute;
 
     await showDialog<void>(
       context: context,
       barrierDismissible: !saving,
-      builder: (BuildContext dialogContext) => StatefulBuilder(
+      builder: (BuildContext dialogContext) {
+        manageRoute = ModalRoute.of<void>(dialogContext);
+        return StatefulBuilder(
         builder: (BuildContext context, StateSetter setDialogState) {
           int amount(TextEditingController controller) => int.tryParse(controller.text.trim()) ?? 0;
           return AlertDialog(
@@ -473,14 +479,18 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
                   const SizedBox(height: 14),
                   Text('ZONES', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: BackofficePalette.faint, fontWeight: FontWeight.w800, letterSpacing: .6)),
                   const SizedBox(height: 6),
-                  Wrap(spacing: 8, runSpacing: 8, children: zones.map((AgentZone zone) => FilterChip(label: Text(zone.displayLabel), selected: selectedZones.contains(zone.id), onSelected: (bool selected) => setDialogState(() {
+                  if (hasUnavailableZones) const Padding(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: Text('Certaines anciennes zones ne sont plus disponibles. Vérifiez les zones actives ci-dessous avant d’enregistrer.', style: TextStyle(color: BackofficePalette.warning)),
+                  ),
+                  Wrap(spacing: 8, runSpacing: 8, children: activeZones.map((AgentZone zone) => FilterChip(label: Text(zone.displayLabel), selected: selectedZones.contains(zone.id), onSelected: (bool selected) => setDialogState(() {
                       if (selected) {
                         selectedZones.add(zone.id);
                       } else {
                         selectedZones.remove(zone.id);
                       }
                     }))).toList()),
-                  if (zones.isEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Aucune zone disponible.', style: Theme.of(context).textTheme.bodySmall)),
+                  if (activeZones.isEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Aucune zone active disponible.', style: Theme.of(context).textTheme.bodySmall)),
                 ]),
               ),
             ),
@@ -506,6 +516,10 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
               TextButton(onPressed: saving ? null : () => Navigator.pop(dialogContext), child: const Text('Annuler')),
               FilledButton(
                 onPressed: saving ? null : () async {
+                  if (selectedZones.isEmpty) {
+                    IzyTelFeedback.error(dialogContext, 'Sélectionnez au moins une zone active pour cet Agent.');
+                    return;
+                  }
                   setDialogState(() => saving = true);
                   try {
                     await widget.repository.saveAgentAdmin(
@@ -553,8 +567,11 @@ class _BackofficeAgentsPageState extends State<BackofficeAgentsPage> {
             ],
           );
         },
-      ),
+        );
+      },
     );
+    // showDialog resolves at pop; fields remain mounted during the exit animation.
+    await manageRoute?.completed;
 
     nameController.dispose();
     phoneController.dispose();

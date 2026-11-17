@@ -1,4 +1,6 @@
 import 'package:cabine_flow/app/theme/izytel_colors.dart';
+import 'package:cabine_flow/app/core/resilience/backend_failure_policy.dart';
+import 'package:cabine_flow/app/core/resilience/backend_read_stream.dart';
 import 'package:cabine_flow/app/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/app/core/utils/currency_formatter.dart';
 import 'package:cabine_flow/app/domain/entities/agents/agent_models.dart';
@@ -33,7 +35,8 @@ class SupplierFinancePage extends StatefulWidget {
 
 class _SupplierFinancePageState extends State<SupplierFinancePage> {
   bool _busy = false;
-  late final Stream<List<FinanceSupplier>> _suppliersStream;
+  late Stream<List<FinanceSupplier>> _suppliersStream;
+  List<FinanceSupplier> _lastSuppliers = const [];
   late final Stream<List<SupplierAccount>> _supplierAccountsStream;
 
   @override
@@ -47,6 +50,34 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
       widget.user.permissions.canManageFinanceSettings || widget.user.isManager;
 
   bool get _canPaySuppliers => widget.user.permissions.canManageFinanceSettings;
+
+  Widget _supplierReadStatus(Object? error, Widget child) {
+    if (error == null) return child;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Text(
+                BackendReadStream.readErrorMessage(
+                  error,
+                  fallback: 'Impossible de charger les fournisseurs.',
+                ),
+              ),
+              TextButton(
+                onPressed: () => setState(() {
+                  _suppliersStream = widget.repository.watchSuppliers();
+                }),
+                child: const Text('Réessayer'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(child: child),
+      ],
+    );
+  }
 
   Future<void> _addSupplier() async {
     final TextEditingController name = TextEditingController();
@@ -317,17 +348,28 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
     final int p = int.tryParse(principal.text.trim()) ?? 0;
     final int b = int.tryParse(bonus.text.trim()) ?? 0;
     final draft = SupplierRechargeDraft(
-      supplierId: supplier.id, supplierName: supplier.name,
-      agentId: agent.userId, agentName: agent.name, network: network,
-      principalAmount: p, bonusAmount: b, amountOwed: p, note: note.text,
+      supplierId: supplier.id,
+      supplierName: supplier.name,
+      agentId: agent.userId,
+      agentName: agent.name,
+      network: network,
+      principalAmount: p,
+      bonusAmount: b,
+      amountOwed: p,
+      note: note.text,
     );
     await _run(
-      () => runFinancialIntent(context, () => widget.repository.recordSupplierRecharge(
-        draft: draft,
-        staffId: widget.user.id,
-        staffName: widget.user.name,
-      ), canRetry: widget.repository is SupabaseFinanceOperationsRepository ||
-          widget.repository is ManagerReadOnlyFinanceOperationsRepository),
+      () => runFinancialIntent(
+        context,
+        () => widget.repository.recordSupplierRecharge(
+          draft: draft,
+          staffId: widget.user.id,
+          staffName: widget.user.name,
+        ),
+        canRetry:
+            widget.repository is SupabaseFinanceOperationsRepository ||
+            widget.repository is ManagerReadOnlyFinanceOperationsRepository,
+      ),
     );
   }
 
@@ -426,10 +468,15 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
   }
 
   Future<void> _editSupplier(FinanceSupplier supplier) async {
-    final TextEditingController name = TextEditingController(text: supplier.name);
-    final TextEditingController phone =
-        TextEditingController(text: supplier.phoneNumber);
-    final TextEditingController note = TextEditingController(text: supplier.note ?? '');
+    final TextEditingController name = TextEditingController(
+      text: supplier.name,
+    );
+    final TextEditingController phone = TextEditingController(
+      text: supplier.phoneNumber,
+    );
+    final TextEditingController note = TextEditingController(
+      text: supplier.note ?? '',
+    );
     final bool? submit = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) => AlertDialog(
@@ -452,7 +499,9 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
               TextField(
                 controller: note,
                 maxLines: 2,
-                decoration: const InputDecoration(labelText: 'Note (facultatif)'),
+                decoration: const InputDecoration(
+                  labelText: 'Note (facultatif)',
+                ),
               ),
             ],
           ),
@@ -584,6 +633,12 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
               BuildContext context,
               AsyncSnapshot<List<FinanceSupplier>> supplierSnapshot,
             ) {
+              if (supplierSnapshot.hasData) {
+                _lastSuppliers = supplierSnapshot.data!;
+              } else if (supplierSnapshot.hasError &&
+                  !BackendFailurePolicy.canRetryRead(supplierSnapshot.error!)) {
+                _lastSuppliers = const [];
+              }
               return StreamBuilder<List<SupplierAccount>>(
                 stream: _supplierAccountsStream,
                 builder:
@@ -597,7 +652,7 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                         return const Center(child: CircularProgressIndicator());
                       }
                       final List<FinanceSupplier> suppliers =
-                          supplierSnapshot.data ?? const <FinanceSupplier>[];
+                          supplierSnapshot.data ?? _lastSuppliers;
                       final Map<String, SupplierAccount> accounts =
                           <String, SupplierAccount>{
                             for (final SupplierAccount item
@@ -606,6 +661,12 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                               item.supplierId: item,
                           };
                       if (suppliers.isEmpty) {
+                        if (supplierSnapshot.hasError) {
+                          return _supplierReadStatus(
+                            supplierSnapshot.error,
+                            const SizedBox.expand(),
+                          );
+                        }
                         return FinanceEmptyState(
                           icon: Symbols.inventory_2_rounded,
                           title: 'Aucun fournisseur',
@@ -614,202 +675,249 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                               : 'Aucun fournisseur n’est encore disponible dans le registre Supabase.',
                         );
                       }
-                      return ListView.separated(
-                        padding: const EdgeInsets.all(20),
-                        itemCount: suppliers.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 10),
-                        itemBuilder: (BuildContext context, int index) {
-                          final FinanceSupplier supplier = suppliers[index];
-                          final SupplierAccount? account =
-                              accounts[supplier.id];
-                          return Container(
-                            padding: const EdgeInsets.all(15),
-                            decoration: BoxDecoration(
-                              color: IzyTelColors.surface,
-                              borderRadius: BorderRadius.circular(
-                                IzyTelRadii.card,
+                      return _supplierReadStatus(
+                        supplierSnapshot.error,
+                        ListView.separated(
+                          padding: const EdgeInsets.all(20),
+                          itemCount: suppliers.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (BuildContext context, int index) {
+                            final FinanceSupplier supplier = suppliers[index];
+                            final SupplierAccount? account =
+                                accounts[supplier.id];
+                            return Container(
+                              padding: const EdgeInsets.all(15),
+                              decoration: BoxDecoration(
+                                color: IzyTelColors.surface,
+                                borderRadius: BorderRadius.circular(
+                                  IzyTelRadii.card,
+                                ),
+                                border: Border.all(color: IzyTelColors.outline),
                               ),
-                              border: Border.all(color: IzyTelColors.outline),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      width: 40,
-                                      height: 40,
-                                      alignment: Alignment.center,
-                                      decoration: BoxDecoration(
-                                        color: IzyTelColors.primarySoft,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: const Icon(
-                                        Symbols.inventory_2_rounded,
-                                        color: IzyTelColors.primary,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            supplier.name,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                              color: IzyTelColors.textPrimary,
-                                            ),
-                                          ),
-                                          Text(
-                                            supplier.phoneNumber.isEmpty
-                                                ? 'Téléphone non renseigné'
-                                                : supplier.phoneNumber,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: IzyTelColors.textSecondary,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    if (_canManageSuppliers)
-                                      PopupMenuButton<String>(
-                                        enabled: !_busy,
-                                        onSelected: (String action) =>
-                                            _handleSupplierMenu(supplier, action),
-                                        itemBuilder: (_) => <PopupMenuEntry<String>>[
-                                          const PopupMenuItem<String>(
-                                            value: 'edit',
-                                            child: ListTile(
-                                              dense: true,
-                                              contentPadding: EdgeInsets.zero,
-                                              leading: Icon(Symbols.edit_rounded),
-                                              title: Text('Modifier'),
-                                            ),
-                                          ),
-                                          PopupMenuItem<String>(
-                                            value: 'toggle',
-                                            child: ListTile(
-                                              dense: true,
-                                              contentPadding: EdgeInsets.zero,
-                                              leading: Icon(
-                                                supplier.isActive
-                                                    ? Symbols.pause_circle_rounded
-                                                    : Symbols.play_circle_rounded,
-                                              ),
-                                              title: Text(
-                                                supplier.isActive
-                                                    ? 'Désactiver'
-                                                    : 'Réactiver',
-                                              ),
-                                            ),
-                                          ),
-                                          const PopupMenuDivider(),
-                                          const PopupMenuItem<String>(
-                                            value: 'delete',
-                                            child: ListTile(
-                                              dense: true,
-                                              contentPadding: EdgeInsets.zero,
-                                              leading: Icon(
-                                                Symbols.delete_rounded,
-                                                color: IzyTelColors.error,
-                                              ),
-                                              title: Text(
-                                                'Supprimer',
-                                                style: TextStyle(color: IzyTelColors.error),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      )
-                                    else
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
                                       Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
+                                        width: 40,
+                                        height: 40,
+                                        alignment: Alignment.center,
                                         decoration: BoxDecoration(
                                           color: IzyTelColors.primarySoft,
-                                          borderRadius: BorderRadius.circular(99),
-                                        ),
-                                        child: const Text(
-                                          'Lecture seule',
-                                          style: TextStyle(
-                                            color: IzyTelColors.primary,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w700,
+                                          borderRadius: BorderRadius.circular(
+                                            12,
                                           ),
                                         ),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _Metric(
-                                        label: 'Stock reçu',
-                                        value: formatCfa(
-                                          account?.totalRecharged ?? 0,
+                                        child: const Icon(
+                                          Symbols.inventory_2_rounded,
+                                          color: IzyTelColors.primary,
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: _Metric(
-                                        label: 'Remboursé',
-                                        value: formatCfa(
-                                          account?.totalPaid ?? 0,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: _Metric(
-                                        label: 'Reste dû',
-                                        value: formatCfa(account?.balance ?? 0),
-                                        warning: (account?.balance ?? 0) > 0,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                if (_canManageSuppliers) ...<Widget>[
-                                  Row(
-                                    children: <Widget>[
+                                      const SizedBox(width: 10),
                                       Expanded(
-                                        child: OutlinedButton.icon(
-                                          onPressed: !_busy && supplier.isActive
-                                              ? () => _recharge(supplier)
-                                              : null,
-                                          icon: const Icon(
-                                            Symbols.add_card_rounded,
-                                          ),
-                                          label: const Text('Recharger un Agent'),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              supplier.name,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                color: IzyTelColors.textPrimary,
+                                              ),
+                                            ),
+                                            Text(
+                                              supplier.phoneNumber.isEmpty
+                                                  ? 'Téléphone non renseigné'
+                                                  : supplier.phoneNumber,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color:
+                                                    IzyTelColors.textSecondary,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      if (_canPaySuppliers) ...<Widget>[
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: FilledButton.icon(
-                                            onPressed:
-                                                !_busy &&
-                                                    (account?.balance ?? 0) > 0
-                                                ? () => _pay(supplier, account)
-                                                : null,
-                                            icon: const Icon(
-                                              Symbols.payments_rounded,
+                                      if (_canManageSuppliers)
+                                        PopupMenuButton<String>(
+                                          enabled: !_busy,
+                                          onSelected: (String action) =>
+                                              _handleSupplierMenu(
+                                                supplier,
+                                                action,
+                                              ),
+                                          itemBuilder: (_) => <PopupMenuEntry<String>>[
+                                            const PopupMenuItem<String>(
+                                              value: 'edit',
+                                              child: ListTile(
+                                                dense: true,
+                                                contentPadding: EdgeInsets.zero,
+                                                leading: Icon(
+                                                  Symbols.edit_rounded,
+                                                ),
+                                                title: Text('Modifier'),
+                                              ),
                                             ),
-                                            label: const Text('Régler'),
+                                            PopupMenuItem<String>(
+                                              value: 'toggle',
+                                              child: ListTile(
+                                                dense: true,
+                                                contentPadding: EdgeInsets.zero,
+                                                leading: Icon(
+                                                  supplier.isActive
+                                                      ? Symbols
+                                                            .pause_circle_rounded
+                                                      : Symbols
+                                                            .play_circle_rounded,
+                                                ),
+                                                title: Text(
+                                                  supplier.isActive
+                                                      ? 'Désactiver'
+                                                      : 'Réactiver',
+                                                ),
+                                              ),
+                                            ),
+                                            const PopupMenuDivider(),
+                                            const PopupMenuItem<String>(
+                                              value: 'delete',
+                                              child: ListTile(
+                                                dense: true,
+                                                contentPadding: EdgeInsets.zero,
+                                                leading: Icon(
+                                                  Symbols.delete_rounded,
+                                                  color: IzyTelColors.error,
+                                                ),
+                                                title: Text(
+                                                  'Supprimer',
+                                                  style: TextStyle(
+                                                    color: IzyTelColors.error,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        )
+                                      else
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: IzyTelColors.primarySoft,
+                                            borderRadius: BorderRadius.circular(
+                                              99,
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            'Lecture seule',
+                                            style: TextStyle(
+                                              color: IzyTelColors.primary,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w700,
+                                            ),
                                           ),
                                         ),
-                                      ],
                                     ],
                                   ),
-                                  if (widget.user.isManager) ...<Widget>[
-                                    const SizedBox(height: 8),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _Metric(
+                                          label: 'Stock reçu',
+                                          value: formatCfa(
+                                            account?.totalRecharged ?? 0,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: _Metric(
+                                          label: 'Remboursé',
+                                          value: formatCfa(
+                                            account?.totalPaid ?? 0,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: _Metric(
+                                          label: 'Reste dû',
+                                          value: formatCfa(
+                                            account?.balance ?? 0,
+                                          ),
+                                          warning: (account?.balance ?? 0) > 0,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  if (_canManageSuppliers) ...<Widget>[
+                                    Row(
+                                      children: <Widget>[
+                                        Expanded(
+                                          child: OutlinedButton.icon(
+                                            onPressed:
+                                                !_busy && supplier.isActive
+                                                ? () => _recharge(supplier)
+                                                : null,
+                                            icon: const Icon(
+                                              Symbols.add_card_rounded,
+                                            ),
+                                            label: const Text(
+                                              'Recharger un Agent',
+                                            ),
+                                          ),
+                                        ),
+                                        if (_canPaySuppliers) ...<Widget>[
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: FilledButton.icon(
+                                              onPressed:
+                                                  !_busy &&
+                                                      (account?.balance ?? 0) >
+                                                          0
+                                                  ? () =>
+                                                        _pay(supplier, account)
+                                                  : null,
+                                              icon: const Icon(
+                                                Symbols.payments_rounded,
+                                              ),
+                                              label: const Text('Régler'),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                    if (widget.user.isManager) ...<Widget>[
+                                      const SizedBox(height: 8),
+                                      Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 9,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: IzyTelColors.surfaceMuted,
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          'Tu peux gérer ce fournisseur et recharger uniquement les Agents de tes zones. Le règlement financier du fournisseur reste réservé à l’Administrateur.',
+                                          style: TextStyle(
+                                            color: IzyTelColors.textSecondary,
+                                            fontSize: 11,
+                                            height: 1.35,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ] else
                                     Container(
                                       width: double.infinity,
                                       padding: const EdgeInsets.symmetric(
@@ -821,7 +929,7 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                                         borderRadius: BorderRadius.circular(10),
                                       ),
                                       child: const Text(
-                                        'Tu peux gérer ce fournisseur et recharger uniquement les Agents de tes zones. Le règlement financier du fournisseur reste réservé à l’Administrateur.',
+                                        'Ce compte peut consulter les mouvements, mais ne peut pas gérer les fournisseurs.',
                                         style: TextStyle(
                                           color: IzyTelColors.textSecondary,
                                           fontSize: 11,
@@ -829,44 +937,23 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                                         ),
                                       ),
                                     ),
-                                  ],
-                                ]
-                                else
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 9,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: IzyTelColors.surfaceMuted,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: const Text(
-                                      'Ce compte peut consulter les mouvements, mais ne peut pas gérer les fournisseurs.',
-                                      style: TextStyle(
-                                        color: IzyTelColors.textSecondary,
-                                        fontSize: 11,
-                                        height: 1.35,
+                                  const SizedBox(height: 4),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton.icon(
+                                      onPressed: () => _openHistory(supplier),
+                                      icon: const Icon(
+                                        Symbols.history_rounded,
+                                        size: 18,
                                       ),
+                                      label: const Text('Historique'),
                                     ),
                                   ),
-                                const SizedBox(height: 4),
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton.icon(
-                                    onPressed: () => _openHistory(supplier),
-                                    icon: const Icon(
-                                      Symbols.history_rounded,
-                                      size: 18,
-                                    ),
-                                    label: const Text('Historique'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+                                ],
+                              ),
+                            );
+                          },
+                        ),
                       );
                     },
               );

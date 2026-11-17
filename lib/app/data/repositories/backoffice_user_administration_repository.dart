@@ -57,6 +57,8 @@ class UserAdminException implements Exception {
       'La suppression est bloquée : les références historiques ne sont pas entièrement vérifiées. Utilisez la désactivation.',
     'ZONE_OCCUPIED' =>
       'Une zone sélectionnée est déjà attribuée à un autre Manager.',
+    'INVALID_ZONE' =>
+      'Une zone sélectionnée n’est plus disponible. Fermez la fiche, actualisez la liste et sélectionnez une zone active.',
     'ACCOUNT_CONFLICT' => 'Un compte métier existe déjà pour cet utilisateur.',
     'ADMIN_OPERATION_PENDING' =>
       'Une opération administrative est en attente de vérification. Contactez le support.',

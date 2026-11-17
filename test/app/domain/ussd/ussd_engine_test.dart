@@ -94,6 +94,12 @@ void main() {
         );
       } else {
         expect(generate(), v['expected']);
+        if (v['canonical'] != null) {
+          expect(
+            UssdEngine.normalizeTemplate(v['template'] as String),
+            v['canonical'],
+          );
+        }
       }
     });
   }

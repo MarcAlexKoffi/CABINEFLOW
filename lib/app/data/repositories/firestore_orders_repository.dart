@@ -216,73 +216,75 @@ class FirestoreOrdersRepository
         _autoAssignmentQueueCollection.doc(orderId);
     final OrderEventType eventType = OrderEventType.paymentConfirmed;
 
-    final QueueOrder confirmedOrder = await _firestore
-        .runTransaction<QueueOrder>((Transaction transaction) async {
-          final DocumentSnapshot<Map<String, dynamic>> snapshot =
-              await transaction.get(orderRef);
-          final Map<String, dynamic>? data = snapshot.data();
+    final QueueOrder
+    confirmedOrder = await _firestore.runTransaction<QueueOrder>((
+      Transaction transaction,
+    ) async {
+      final DocumentSnapshot<Map<String, dynamic>> snapshot = await transaction
+          .get(orderRef);
+      final Map<String, dynamic>? data = snapshot.data();
 
-          if (!snapshot.exists || data == null) {
-            throw StateError('La commande est introuvable.');
-          }
+      if (!snapshot.exists || data == null) {
+        throw StateError('La commande est introuvable.');
+      }
 
-          final QueueOrder order = FirestoreOrderMapper.fromMap(
-            id: snapshot.id,
-            data: data,
-          );
-          final bool canConfirm =
-              order.status == QueueOrderStatus.awaitingPayment ||
-              order.status == QueueOrderStatus.paymentToVerify ||
-              order.hasPaymentToReviewAfterExpiration;
+      final QueueOrder order = FirestoreOrderMapper.fromMap(
+        id: snapshot.id,
+        data: data,
+      );
+      final bool canConfirm =
+          order.status == QueueOrderStatus.awaitingPayment ||
+          order.status == QueueOrderStatus.paymentToVerify ||
+          order.hasPaymentToReviewAfterExpiration;
 
-          if (!canConfirm ||
-              order.paymentStatus == OrderPaymentStatus.confirmed) {
-            throw StateError(
-              'Cette commande n’est plus en attente de paiement.',
-            );
-          }
+      if (!canConfirm || order.paymentStatus == OrderPaymentStatus.confirmed) {
+        throw StateError('Cette commande n’est plus en attente de paiement.');
+      }
 
-          transaction.update(orderRef, <String, dynamic>{
-            'status': QueueOrderStatus.paidReady.name,
-            'paymentStatus': OrderPaymentStatus.confirmed.name,
-            'paidAt': Timestamp.fromDate(paidAt.toUtc()),
-            'paymentConfirmedAt': FieldValue.serverTimestamp(),
-            'paymentReference': finalReference,
-            'updatedAt': FieldValue.serverTimestamp(),
-            ..._auditLinkData(eventRef: eventRef, type: eventType),
-          });
-          transaction.set(
-            eventRef,
-            _eventDocumentData(
-              orderId: order.id,
-              orderReference: order.reference,
-              type: eventType,
-              actor: actor,
-              metadata: <String, dynamic>{'paymentReference': finalReference},
-            ),
-          );
-          transaction.set(
-            queueRef,
-            _automaticQueueDocumentData(
-              order: order,
-              createdAt: paidAt,
-              lastRefusedAgentId: order.lastAssignmentRefusedAgentId,
-              refusedAgentIds: order.autoAssignmentRefusedAgentIds,
-            ),
-          );
+      transaction.update(orderRef, <String, dynamic>{
+        'status': QueueOrderStatus.paidReady.name,
+        'paymentStatus': OrderPaymentStatus.confirmed.name,
+        'paidAt': Timestamp.fromDate(paidAt.toUtc()),
+        'paymentConfirmedAt': FieldValue.serverTimestamp(),
+        'paymentReference': finalReference,
+        'updatedAt': FieldValue.serverTimestamp(),
+        ..._auditLinkData(eventRef: eventRef, type: eventType),
+      });
+      transaction.set(
+        eventRef,
+        _eventDocumentData(
+          orderId: order.id,
+          orderReference: order.reference,
+          type: eventType,
+          actor: actor,
+          metadata: <String, dynamic>{'paymentReference': finalReference},
+        ),
+      );
+      // The hybrid engine publishes the committed payment to Supabase.
+      // Its transaction must not depend on access to the retired native queue.
+      if (_enableNativeAutoAssignment) {
+        transaction.set(
+          queueRef,
+          _automaticQueueDocumentData(
+            order: order,
+            createdAt: paidAt,
+            lastRefusedAgentId: order.lastAssignmentRefusedAgentId,
+            refusedAgentIds: order.autoAssignmentRefusedAgentIds,
+          ),
+        );
+      }
 
-          return order.copyWith(
-            status: QueueOrderStatus.paidReady,
-            paymentStatus: OrderPaymentStatus.confirmed,
-            paidAt: paidAt,
-            paymentConfirmedAt: paidAt,
-            paymentReference: finalReference,
-          );
-        });
+      return order.copyWith(
+        status: QueueOrderStatus.paidReady,
+        paymentStatus: OrderPaymentStatus.confirmed,
+        paidAt: paidAt,
+        paymentConfirmedAt: paidAt,
+        paymentReference: finalReference,
+      );
+    });
 
-    // En mode hybride Phase 4, Firestore conserve la commande et la file
-    // technique, mais Supabase devient la source de vérité de la négociation
-    // d'affectation. On évite donc l'affectation native Firestore ici.
+    // En mode hybride Phase 4, Firestore conserve la commande et son audit.
+    // Supabase porte la file et la négociation d'affectation.
     if (!_enableNativeAutoAssignment) {
       return confirmedOrder;
     }
@@ -900,7 +902,9 @@ class FirestoreOrdersRepository
   }
 
   @override
-  Future<List<QueueOrder>> fetchAssignedOrders({required String agentId}) async {
+  Future<List<QueueOrder>> fetchAssignedOrders({
+    required String agentId,
+  }) async {
     final String cleanedAgentId = agentId.trim();
     if (cleanedAgentId.isEmpty) return const <QueueOrder>[];
 
@@ -1466,7 +1470,9 @@ class FirestoreOrdersRepository
         throw StateError('L’affectation active est introuvable.');
       }
       if (_requireFirestoreProof &&
-          (proofSnapshot == null || !proofSnapshot.exists || proofData == null)) {
+          (proofSnapshot == null ||
+              !proofSnapshot.exists ||
+              proofData == null)) {
         throw StateError('Ajoute une preuve avant de valider la réussite.');
       }
       if (!profileSnapshot.exists || profileData == null) {
@@ -2664,10 +2670,7 @@ class FirestoreOrdersRepository
         agentId: cleanedAgentId,
       );
       if (claimed) {
-        return acceptAgentAssignment(
-          orderId: orderId,
-          agentId: cleanedAgentId,
-        );
+        return acceptAgentAssignment(orderId: orderId, agentId: cleanedAgentId);
       }
 
       // Une course peut avoir cree le miroir entre la lecture de la file et le
@@ -3115,7 +3118,12 @@ class FirestoreOrdersRepository
     if (!snapshot.exists ||
         data == null ||
         data['isActive'] != true ||
-        !<String>{'operator', 'supervisor', 'admin'}.contains(role)) {
+        !<String>{
+          'operator',
+          'manager',
+          'supervisor',
+          'admin',
+        }.contains(role)) {
       throw StateError(
         'Le profil connecté ne peut pas effectuer cette action.',
       );
@@ -3138,7 +3146,10 @@ class FirestoreOrdersRepository
       throw StateError('Le profil opérationnel de cet agent est introuvable.');
     }
     return <MobileNetwork, int>{
-      MobileNetwork.orange: _agentCapacityForNetwork(data, MobileNetwork.orange),
+      MobileNetwork.orange: _agentCapacityForNetwork(
+        data,
+        MobileNetwork.orange,
+      ),
       MobileNetwork.mtn: _agentCapacityForNetwork(data, MobileNetwork.mtn),
       MobileNetwork.moov: _agentCapacityForNetwork(data, MobileNetwork.moov),
     };

@@ -51,6 +51,9 @@ try {
     const actual=(await db.query("select p.proname,p.proacl::text as acl from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'izytel_ussd_%' order by p.proname")).rows;
     assert.deepEqual(actual.filter(r=>names.has(r.proname)),existingGrants);
   });
+  const clipboardMigration=migrations.find(n=>n.endsWith('_ussd_template_clipboard_padding.sql'));
+  assert.ok(clipboardMigration,'clipboard normalization migration exists');
+  await db.exec(await readFile(resolve(root,'supabase/migrations',clipboardMigration),'utf8'));
   await test('operator seed is draft-only, canonical and idempotent without overwriting edits',async()=>{
     const before=(await db.query('select to_jsonb(r) as row from public.ussd_execution_rules r order by id')).rows;
     assert.equal(before.length,12);assert.ok(before.every(r=>r.row.status==='draft'));

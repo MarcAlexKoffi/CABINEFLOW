@@ -15,6 +15,7 @@ class SupabaseSupplierRegistryRepository {
         client: _client,
         fetch: fetchSuppliers,
         label: 'SupabaseSuppliers.watch',
+        independentPolling: true,
         signals: const <SupabaseRealtimeSignal>[
           SupabaseRealtimeSignal(
             table: 'finance_change_feed',

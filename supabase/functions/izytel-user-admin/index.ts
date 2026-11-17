@@ -14,6 +14,8 @@ Deno.serve(async (request: Request) => {
     'http://127.0.0.1:8080',
     'https://cabineflow-4bca7.web.app',
     'https://cabineflow-4bca7.firebaseapp.com',
+    'https://izytel-backoffice-4bca7.web.app',
+    'https://izytel-backoffice-4bca7.firebaseapp.com',
   ];
   const headers: Record<string,string> = {'Content-Type':'application/json','Vary':'Origin'};
   if (origin && !origins.includes(origin)) return new Response(JSON.stringify({ok:false,error:'ORIGIN_DENIED'}),{status:403,headers});

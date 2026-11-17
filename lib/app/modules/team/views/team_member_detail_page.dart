@@ -34,7 +34,7 @@ class TeamMemberDetailPage extends StatefulWidget {
 
 class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
   late final SupabaseTeamSupervisionRepository _repository;
-  late Future<({TeamMemberDetail detail, TeamScopeSnapshot scope})> _future;
+  late Stream<({TeamMemberDetail detail, TeamScopeSnapshot scope})> _stream;
   bool _savingZones = false;
   bool _savingCapacity = false;
   bool _financeBusy = false;
@@ -44,30 +44,22 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
   void initState() {
     super.initState();
     _repository = widget.repository ?? SupabaseTeamSupervisionRepository();
-    _future = _load();
+    _stream = _watch();
   }
 
-  Future<({TeamMemberDetail detail, TeamScopeSnapshot scope})> _load() async {
-    final List<Object> values = await Future.wait<Object>(<Future<Object>>[
-      _repository.fetchMemberDetail(
-        actorType: widget.actorType,
-        actorId: widget.actorId,
-      ),
-      _repository.fetchScope(),
-    ]);
-    return (
-      detail: values[0] as TeamMemberDetail,
-      scope: values[1] as TeamScopeSnapshot,
-    );
+  Stream<({TeamMemberDetail detail, TeamScopeSnapshot scope})> _watch() {
+    return _repository
+        .watchMemberDetail(actorType: widget.actorType, actorId: widget.actorId)
+        .asyncMap(
+          (detail) async =>
+              (detail: detail, scope: await _repository.fetchScope()),
+        );
   }
 
   Future<void> _reload() async {
-    final Future<({TeamMemberDetail detail, TeamScopeSnapshot scope})> next =
-        _load();
     setState(() {
-      _future = next;
+      _stream = _watch();
     });
-    await next;
   }
 
   Future<void> _editCabinisteZones(
@@ -102,8 +94,8 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
                   Text(
                     'Zones du Cabiniste',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   const Text(
@@ -117,22 +109,24 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: scope.zones.map((TeamScopeZone zone) {
-                        final bool active = selected.contains(zone.id);
-                        return FilterChip(
-                          label: Text(zone.label),
-                          selected: active,
-                          onSelected: (bool value) {
-                            setSheetState(() {
-                              if (value) {
-                                selected.add(zone.id);
-                              } else {
-                                selected.remove(zone.id);
-                              }
-                            });
-                          },
-                        );
-                      }).toList(growable: false),
+                      children: scope.zones
+                          .map((TeamScopeZone zone) {
+                            final bool active = selected.contains(zone.id);
+                            return FilterChip(
+                              label: Text(zone.label),
+                              selected: active,
+                              onSelected: (bool value) {
+                                setSheetState(() {
+                                  if (value) {
+                                    selected.add(zone.id);
+                                  } else {
+                                    selected.remove(zone.id);
+                                  }
+                                });
+                              },
+                            );
+                          })
+                          .toList(growable: false),
                     ),
                   const SizedBox(height: 18),
                   SizedBox(
@@ -172,8 +166,9 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
   Future<void> _chooseAndCloseManagerPeriod(TeamMemberDetail detail) async {
     if (!_isAdmin || _financeBusy || detail.actorType != 'manager') return;
 
-    final Map<String, dynamic> preview =
-        teamMap(detail.finance['compensationPreview']);
+    final Map<String, dynamic> preview = teamMap(
+      detail.finance['compensationPreview'],
+    );
     final Map<String, dynamic> plan = teamMap(preview['plan']);
     if (teamString(plan['status']) != 'active') {
       IzyTelFeedback.show(
@@ -184,18 +179,22 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
       return;
     }
 
-    final Map<String, dynamic> history =
-        teamMap(detail.finance['compensationHistory']);
+    final Map<String, dynamic> history = teamMap(
+      detail.finance['compensationHistory'],
+    );
     final Set<String> existingKeys = _mapList(history['periods'])
         .map((Map<String, dynamic> row) => teamString(row['periodKey']))
         .where((String value) => value.isNotEmpty)
         .toSet();
     final DateTime now = DateTime.now();
-    final List<DateTime> candidates = List<DateTime>.generate(
-      12,
-      (int index) => DateTime(now.year, now.month - index - 1, 1),
-      growable: false,
-    ).where((DateTime month) => !existingKeys.contains(_monthKey(month))).toList();
+    final List<DateTime> candidates =
+        List<DateTime>.generate(
+              12,
+              (int index) => DateTime(now.year, now.month - index - 1, 1),
+              growable: false,
+            )
+            .where((DateTime month) => !existingKeys.contains(_monthKey(month)))
+            .toList();
 
     if (candidates.isEmpty) {
       IzyTelFeedback.show(
@@ -218,9 +217,9 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
             children: <Widget>[
               Text(
                 'Clôturer une période Manager',
-                style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                style: Theme.of(
+                  sheetContext,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 6),
               const Text(
@@ -352,9 +351,7 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
             TextField(
               controller: reasonController,
               maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Motif obligatoire',
-              ),
+              decoration: const InputDecoration(labelText: 'Motif obligatoire'),
             ),
           ],
         ),
@@ -370,10 +367,9 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
               );
               final String reason = reasonController.text.trim();
               if (amount == null || amount == 0 || reason.length < 3) return;
-              Navigator.of(dialogContext).pop(<String, dynamic>{
-                'amount': amount,
-                'reason': reason,
-              });
+              Navigator.of(
+                dialogContext,
+              ).pop(<String, dynamic>{'amount': amount, 'reason': reason});
             },
             child: const Text('Enregistrer'),
           ),
@@ -420,10 +416,12 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
     final int due = teamInt(period['balanceDue']);
     if (periodId.isEmpty || due <= 0) return;
 
-    final TextEditingController amountController =
-        TextEditingController(text: '$due');
-    final TextEditingController channelController =
-        TextEditingController(text: 'wave');
+    final TextEditingController amountController = TextEditingController(
+      text: '$due',
+    );
+    final TextEditingController channelController = TextEditingController(
+      text: 'wave',
+    );
     final TextEditingController referenceController = TextEditingController();
     final TextEditingController noteController = TextEditingController();
 
@@ -460,7 +458,9 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
               TextField(
                 controller: noteController,
                 maxLines: 2,
-                decoration: const InputDecoration(labelText: 'Note (optionnel)'),
+                decoration: const InputDecoration(
+                  labelText: 'Note (optionnel)',
+                ),
               ),
             ],
           ),
@@ -547,19 +547,18 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
     String selectedNetwork = networks.first.toLowerCase();
 
     int currentCapacity(String network) => switch (network.toLowerCase()) {
-          'orange' => teamInt(operations['orange_capacity']),
-          'mtn' => teamInt(operations['mtn_capacity']),
-          'moov' => teamInt(operations['moov_capacity']),
-          _ => 0,
-        };
+      'orange' => teamInt(operations['orange_capacity']),
+      'mtn' => teamInt(operations['mtn_capacity']),
+      'moov' => teamInt(operations['moov_capacity']),
+      _ => 0,
+    };
 
     final TextEditingController amountController = TextEditingController(
       text: '${currentCapacity(selectedNetwork)}',
     );
     final TextEditingController reasonController = TextEditingController();
 
-    final Map<String, dynamic>? result =
-        await showDialog<Map<String, dynamic>>(
+    final Map<String, dynamic>? result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (BuildContext dialogContext) {
         return StatefulBuilder(
@@ -696,41 +695,52 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
         surfaceTintColor: Colors.transparent,
         title: Text(_pageTitle(widget.actorType)),
       ),
-      body: FutureBuilder<({TeamMemberDetail detail, TeamScopeSnapshot scope})>(
-        future: _future,
-        builder: (
-          BuildContext context,
-          AsyncSnapshot<({TeamMemberDetail detail, TeamScopeSnapshot scope})>
+      body: StreamBuilder<({TeamMemberDetail detail, TeamScopeSnapshot scope})>(
+        stream: _stream,
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<
+                ({TeamMemberDetail detail, TeamScopeSnapshot scope})
+              >
               snapshot,
-        ) {
-          if (!snapshot.hasData &&
-              snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData) {
-            return _LoadError(error: snapshot.error, onRetry: _reload);
-          }
-          final TeamMemberDetail detail = snapshot.data!.detail;
-          final TeamScopeSnapshot scope = snapshot.data!.scope;
-          return IzyTelRefreshIndicator(
-            onRefresh: _reload,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 30),
-              children: <Widget>[
-                _compactHeader(detail, scope),
-                const SizedBox(height: 12),
-                _tabSelector(),
-                const SizedBox(height: IzyTelSpacing.lg),
-                switch (_selectedTab) {
-                  _MemberDetailTab.overview => _overview(detail),
-                  _MemberDetailTab.profile => _profile(detail, scope),
-                  _MemberDetailTab.history => _history(detail),
-                },
-              ],
-            ),
-          );
-        },
+            ) {
+              if (!snapshot.hasData &&
+                  snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (!snapshot.hasData) {
+                return _LoadError(error: snapshot.error, onRetry: _reload);
+              }
+              final TeamMemberDetail detail = snapshot.data!.detail;
+              final TeamScopeSnapshot scope = snapshot.data!.scope;
+              return IzyTelRefreshIndicator(
+                onRefresh: _reload,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 30),
+                  children: <Widget>[
+                    _compactHeader(detail, scope),
+                    if (teamMap(detail.finance['activityHistory'])['status'] ==
+                        'not_configured')
+                      const Padding(
+                        padding: EdgeInsets.only(top: 12),
+                        child: Text(
+                          'Historique financier indisponible : plan économique non configuré.',
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    _tabSelector(),
+                    const SizedBox(height: IzyTelSpacing.lg),
+                    switch (_selectedTab) {
+                      _MemberDetailTab.overview => _overview(detail),
+                      _MemberDetailTab.profile => _profile(detail, scope),
+                      _MemberDetailTab.history => _history(detail),
+                    },
+                  ],
+                ),
+              );
+            },
       ),
     );
   }
@@ -762,9 +772,9 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
                   displayName.isEmpty ? 'Compte IzyTel' : displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -807,98 +817,98 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
   }
 
   Widget _tabSelector() {
-    const List<({
-      _MemberDetailTab tab,
-      String label,
-      IconData icon,
-    })> items = <({
-      _MemberDetailTab tab,
-      String label,
-      IconData icon,
-    })>[
-      (
-        tab: _MemberDetailTab.overview,
-        label: 'Aperçu',
-        icon: Symbols.monitoring_rounded,
-      ),
-      (
-        tab: _MemberDetailTab.profile,
-        label: 'Profil',
-        icon: Symbols.person_rounded,
-      ),
-      (
-        tab: _MemberDetailTab.history,
-        label: 'Historique',
-        icon: Symbols.history_rounded,
-      ),
-    ];
+    const List<({_MemberDetailTab tab, String label, IconData icon})> items =
+        <({_MemberDetailTab tab, String label, IconData icon})>[
+          (
+            tab: _MemberDetailTab.overview,
+            label: 'Aperçu',
+            icon: Symbols.monitoring_rounded,
+          ),
+          (
+            tab: _MemberDetailTab.profile,
+            label: 'Profil',
+            icon: Symbols.person_rounded,
+          ),
+          (
+            tab: _MemberDetailTab.history,
+            label: 'Historique',
+            icon: Symbols.history_rounded,
+          ),
+        ];
 
     return IzyTelSurface(
       padding: const EdgeInsets.all(4),
       child: Row(
-        children: items.map((item) {
-          final bool selected = _selectedTab == item.tab;
-          return Expanded(
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () => setState(() => _selectedTab = item.tab),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
-                decoration: BoxDecoration(
-                  color: selected
-                      ? IzyTelColors.primarySoft
-                      : Colors.transparent,
+        children: items
+            .map((item) {
+              final bool selected = _selectedTab == item.tab;
+              return Expanded(
+                child: InkWell(
                   borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    Icon(
-                      item.icon,
-                      size: 18,
-                      color: selected
-                          ? IzyTelColors.primary
-                          : IzyTelColors.textMuted,
+                  onTap: () => setState(() => _selectedTab = item.tab),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 6,
                     ),
-                    const SizedBox(width: 5),
-                    Flexible(
-                      child: Text(
-                        item.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? IzyTelColors.primarySoft
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        Icon(
+                          item.icon,
+                          size: 18,
                           color: selected
                               ? IzyTelColors.primary
-                              : IzyTelColors.textSecondary,
-                          fontWeight:
-                              selected ? FontWeight.w800 : FontWeight.w600,
-                          fontSize: 12,
+                              : IzyTelColors.textMuted,
                         ),
-                      ),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            item.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: selected
+                                  ? IzyTelColors.primary
+                                  : IzyTelColors.textSecondary,
+                              fontWeight: selected
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          );
-        }).toList(growable: false),
+              );
+            })
+            .toList(growable: false),
       ),
     );
   }
 
   Widget _overview(TeamMemberDetail detail) => switch (detail.actorType) {
-        'agent' => _agentOverview(detail),
-        'cabiniste' => _cabinisteOverview(detail),
-        'manager' => _managerOverview(detail),
-        _ => const SizedBox.shrink(),
-      };
+    'agent' => _agentOverview(detail),
+    'cabiniste' => _cabinisteOverview(detail),
+    'manager' => _managerOverview(detail),
+    _ => const SizedBox.shrink(),
+  };
 
   Widget _agentOverview(TeamMemberDetail detail) {
     final Map<String, dynamic> finance = detail.finance;
     final Map<String, dynamic> account = teamMap(finance['commissionAccount']);
-    final Map<String, dynamic> activityHistory =
-        teamMap(finance['activityHistory']);
+    final Map<String, dynamic> activityHistory = teamMap(
+      finance['activityHistory'],
+    );
     final Map<String, dynamic> month = teamMap(activityHistory['currentMonth']);
     final int earned = teamInt(account['earned_total']);
     final int paid = teamInt(account['paid_total']);
@@ -946,7 +956,8 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
 
   Widget _agentCapacityCard(TeamMemberDetail detail) {
     final Map<String, dynamic> op = detail.operations;
-    final bool canAdjust = widget.viewer.permissions.canManageAgents &&
+    final bool canAdjust =
+        widget.viewer.permissions.canManageAgents &&
         detail.actorType == 'agent';
     return _section(
       title: 'Capacités',
@@ -976,15 +987,19 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
 
   Widget _cabinisteOverview(TeamMemberDetail detail) {
     final Map<String, dynamic> finance = detail.finance;
-    final Map<String, dynamic> account = teamMap(finance['compensationAccount']);
-    final Map<String, dynamic> activityHistory =
-        teamMap(finance['activityHistory']);
+    final Map<String, dynamic> account = teamMap(
+      finance['compensationAccount'],
+    );
+    final Map<String, dynamic> activityHistory = teamMap(
+      finance['activityHistory'],
+    );
     final Map<String, dynamic> month = teamMap(activityHistory['currentMonth']);
     final int earned = teamInt(account['earned_total']);
     final int paid = teamInt(account['paid_total']);
     final int due = (earned - paid).clamp(0, earned).toInt();
-    final Map<String, dynamic> capacities =
-        teamMap(detail.operations['capacities']);
+    final Map<String, dynamic> capacities = teamMap(
+      detail.operations['capacities'],
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1077,8 +1092,23 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
 
   Widget _managerOverview(TeamMemberDetail detail) {
     final Map<String, dynamic> finance = detail.finance;
-    final Map<String, dynamic> preview =
-        teamMap(finance['compensationPreview']);
+    final Map<String, dynamic> preview = teamMap(
+      finance['compensationPreview'],
+    );
+    if (preview['status'] == 'not_configured') {
+      return _section(
+        title: 'Rémunération Manager',
+        icon: Symbols.payments_rounded,
+        children: const <Widget>[
+          Text('Plan de rémunération non configuré'),
+          SizedBox(height: 8),
+          Text(
+            'Un plan de rémunération doit être configuré avant de calculer ou clôturer une période. Le profil du Manager et son historique restent consultables.',
+            style: TextStyle(color: IzyTelColors.textSecondary),
+          ),
+        ],
+      );
+    }
     final Map<String, dynamic> plan = teamMap(preview['plan']);
     final Map<String, dynamic> activity = teamMap(preview['activity']);
     final Map<String, dynamic> thresholds = teamMap(preview['thresholds']);
@@ -1088,16 +1118,16 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
     final bool eligible = eligibility.isEmpty
         ? thresholds['allMet'] == true
         : eligibility['eligible'] == true;
-    final int theoreticalTotal = projection.containsKey('theoreticalTotalAmount')
+    final int theoreticalTotal =
+        projection.containsKey('theoreticalTotalAmount')
         ? teamInt(projection['theoreticalTotalAmount'])
         : teamInt(projection['projectedTotalAmount']);
     final int eligibleTotal = projection.containsKey('eligibleTotalAmount')
         ? teamInt(projection['eligibleTotalAmount'])
         : (eligible ? theoreticalTotal : 0);
-    final double grossProgress =
-        (teamInt(thresholds['grossProgressBps']) / 100)
-            .clamp(0, 100)
-            .toDouble();
+    final double grossProgress = (teamInt(thresholds['grossProgressBps']) / 100)
+        .clamp(0, 100)
+        .toDouble();
     final double dailyProgress =
         (teamInt(thresholds['dailyOrderProgressBps']) / 100)
             .clamp(0, 100)
@@ -1161,8 +1191,9 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
             const SizedBox(height: 12),
             _progressLine(
               label: 'Activité',
-              current:
-                  teamDouble(activity['averageDailyOrders']).toStringAsFixed(2),
+              current: teamDouble(
+                activity['averageDailyOrders'],
+              ).toStringAsFixed(2),
               target:
                   '${teamInt(plan['activationDailyOrderThreshold'])} commandes/jour',
               progressPercent: dailyProgress,
@@ -1173,10 +1204,7 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
                 'Rémunération théorique',
                 formatCfa(theoreticalTotal),
               ),
-              _MetricData(
-                'Rémunération éligible',
-                formatCfa(eligibleTotal),
-              ),
+              _MetricData('Rémunération éligible', formatCfa(eligibleTotal)),
             ]),
             const SizedBox(height: 12),
             Container(
@@ -1299,9 +1327,7 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
           children: <Widget>[
             _line(
               'Statut',
-              _verificationLabel(
-                teamString(profile['verification_status']),
-              ),
+              _verificationLabel(teamString(profile['verification_status'])),
             ),
             _line(
               'Type de pièce',
@@ -1327,9 +1353,7 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
               ? 'Zones supervisées'
               : 'Zones assignées',
           icon: Symbols.location_on_rounded,
-          children: <Widget>[
-            _zoneContent(detail, scope),
-          ],
+          children: <Widget>[_zoneContent(detail, scope)],
         ),
         const SizedBox(height: 10),
         _collapsibleSection(
@@ -1355,7 +1379,8 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
 
   Widget _zoneContent(TeamMemberDetail detail, TeamScopeSnapshot scope) {
     final List<String> labels = _zoneLabels(detail, scope);
-    final bool canEdit = widget.viewer.permissions.canManageAgents &&
+    final bool canEdit =
+        widget.viewer.permissions.canManageAgents &&
         detail.actorType == 'cabiniste';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1395,7 +1420,10 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
       final Map<String, dynamic> op = detail.operations;
       return <Widget>[
         _line('Code Agent', teamString(op['agent_code'])),
-        _line('Disponibilité', _availabilityLabel(teamString(op['availability']))),
+        _line(
+          'Disponibilité',
+          _availabilityLabel(teamString(op['availability'])),
+        ),
         _line(
           'Réseaux autorisés',
           teamStrings(op['authorized_networks']).join(' · ').toUpperCase(),
@@ -1415,12 +1443,16 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
       ];
     }
     if (detail.actorType == 'cabiniste') {
-      final Map<String, dynamic> account =
-          teamMap(detail.operations['account']);
+      final Map<String, dynamic> account = teamMap(
+        detail.operations['account'],
+      );
       return <Widget>[
         _line('Code Cabiniste', teamString(account['partner_code'])),
         _line('Statut', teamString(account['status'])),
-        _line('Disponibilité', _availabilityLabel(teamString(account['availability']))),
+        _line(
+          'Disponibilité',
+          _availabilityLabel(teamString(account['availability'])),
+        ),
         _line(
           'Réseaux autorisés',
           teamStrings(account['authorized_networks']).join(' · ').toUpperCase(),
@@ -1431,8 +1463,9 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
         ),
       ];
     }
-    final Map<String, dynamic> manager =
-        teamMap(detail.operations['managerProfile']);
+    final Map<String, dynamic> manager = teamMap(
+      detail.operations['managerProfile'],
+    );
     return <Widget>[
       _line('Compte', manager['is_active'] == true ? 'Actif' : 'Suspendu'),
       _line(
@@ -1445,8 +1478,9 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
 
   Widget _history(TeamMemberDetail detail) {
     if (detail.actorType == 'manager') {
-      final Map<String, dynamic> history =
-          teamMap(detail.finance['compensationHistory']);
+      final Map<String, dynamic> history = teamMap(
+        detail.finance['compensationHistory'],
+      );
       return ManagerCompensationHistoryCard(
         history: history,
         adminMode: _isAdmin,
@@ -1459,14 +1493,18 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
       );
     }
 
-    final Map<String, dynamic> activityHistory =
-        teamMap(detail.finance['activityHistory']);
-    final List<Map<String, dynamic>> earnings =
-        _mapList(activityHistory['earnings']);
-    final List<Map<String, dynamic>> payouts =
-        _mapList(activityHistory['payouts']);
-    final List<Map<String, dynamic>> movements =
-        _mapList(activityHistory['movements']);
+    final Map<String, dynamic> activityHistory = teamMap(
+      detail.finance['activityHistory'],
+    );
+    final List<Map<String, dynamic>> earnings = _mapList(
+      activityHistory['earnings'],
+    );
+    final List<Map<String, dynamic>> payouts = _mapList(
+      activityHistory['payouts'],
+    );
+    final List<Map<String, dynamic>> movements = _mapList(
+      activityHistory['movements'],
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1580,10 +1618,7 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
             ),
           ),
           const SizedBox(width: 10),
-          Text(
-            trailing,
-            style: const TextStyle(fontWeight: FontWeight.w800),
-          ),
+          Text(trailing, style: const TextStyle(fontWeight: FontWeight.w800)),
         ],
       ),
     );
@@ -1600,10 +1635,7 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
         tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
         leading: Icon(icon, color: IzyTelColors.primary),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
         children: children,
       ),
     );
@@ -1613,39 +1645,41 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
     return Wrap(
       spacing: 10,
       runSpacing: 10,
-      children: metrics.map((_MetricData metric) {
-        return Container(
-          width: MediaQuery.sizeOf(context).width >= 700
-              ? 210
-              : (MediaQuery.sizeOf(context).width - 50) / 2,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: IzyTelColors.surfaceMuted,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                metric.label,
-                style: const TextStyle(
-                  color: IzyTelColors.textMuted,
-                  fontSize: 11,
-                ),
+      children: metrics
+          .map((_MetricData metric) {
+            return Container(
+              width: MediaQuery.sizeOf(context).width >= 700
+                  ? 210
+                  : (MediaQuery.sizeOf(context).width - 50) / 2,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: IzyTelColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(height: 4),
-              Text(
-                metric.value,
-                style: const TextStyle(
-                  color: IzyTelColors.textPrimary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    metric.label,
+                    style: const TextStyle(
+                      color: IzyTelColors.textMuted,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    metric.value,
+                    style: const TextStyle(
+                      color: IzyTelColors.textPrimary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        );
-      }).toList(growable: false),
+            );
+          })
+          .toList(growable: false),
     );
   }
 
@@ -1667,8 +1701,8 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
                 child: Text(
                   title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ],
@@ -1744,8 +1778,9 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
           : _availabilityLabel(availability);
     }
     if (detail.actorType == 'cabiniste') {
-      final Map<String, dynamic> account =
-          teamMap(detail.operations['account']);
+      final Map<String, dynamic> account = teamMap(
+        detail.operations['account'],
+      );
       final bool active = teamString(account['status']) == 'active';
       final String availability = teamString(account['availability']);
       return <String>[
@@ -1753,8 +1788,9 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
         if (availability.isNotEmpty) _availabilityLabel(availability),
       ].join(' · ');
     }
-    final Map<String, dynamic> manager =
-        teamMap(detail.operations['managerProfile']);
+    final Map<String, dynamic> manager = teamMap(
+      detail.operations['managerProfile'],
+    );
     return <String>[
       manager['is_active'] == true ? 'Actif' : 'Suspendu',
       manager['is_available'] == true ? 'Disponible' : 'Indisponible',
@@ -1771,20 +1807,20 @@ class _TeamMemberDetailPageState extends State<TeamMemberDetailPage> {
   }
 
   String _availabilityLabel(String raw) => switch (raw.toLowerCase()) {
-        'available' => 'Disponible',
-        'unavailable' => 'Indisponible',
-        'busy' => 'Occupé',
-        'offline' => 'Hors ligne',
-        '' => 'Non renseigné',
-        _ => raw,
-      };
+    'available' => 'Disponible',
+    'unavailable' => 'Indisponible',
+    'busy' => 'Occupé',
+    'offline' => 'Hors ligne',
+    '' => 'Non renseigné',
+    _ => raw,
+  };
 
   String _verificationLabel(String raw) => switch (raw) {
-        'verified' => 'Vérifié',
-        'pending_review' => 'À vérifier',
-        'needs_correction' => 'À corriger',
-        _ => 'Profil incomplet',
-      };
+    'verified' => 'Vérifié',
+    'pending_review' => 'À vérifier',
+    'needs_correction' => 'À corriger',
+    _ => 'Profil incomplet',
+  };
 
   String _date(Object? raw) {
     final DateTime? value = DateTime.tryParse(teamString(raw));
@@ -1851,7 +1887,10 @@ class _LoadError extends StatelessWidget {
             Text(
               error?.toString() ?? '',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: IzyTelColors.textMuted, fontSize: 11),
+              style: const TextStyle(
+                color: IzyTelColors.textMuted,
+                fontSize: 11,
+              ),
             ),
             const SizedBox(height: 12),
             FilledButton(onPressed: onRetry, child: const Text('Réessayer')),
@@ -1863,15 +1902,15 @@ class _LoadError extends StatelessWidget {
 }
 
 String _pageTitle(String actorType) => switch (actorType) {
-      'agent' => 'Détail Agent',
-      'cabiniste' => 'Détail Cabiniste',
-      'manager' => 'Détail Manager',
-      _ => 'Détail du compte',
-    };
+  'agent' => 'Détail Agent',
+  'cabiniste' => 'Détail Cabiniste',
+  'manager' => 'Détail Manager',
+  _ => 'Détail du compte',
+};
 
 String _roleLabel(String actorType) => switch (actorType) {
-      'agent' => 'Agent',
-      'cabiniste' => 'Cabiniste',
-      'manager' => 'Manager',
-      _ => actorType,
-    };
+  'agent' => 'Agent',
+  'cabiniste' => 'Cabiniste',
+  'manager' => 'Manager',
+  _ => actorType,
+};

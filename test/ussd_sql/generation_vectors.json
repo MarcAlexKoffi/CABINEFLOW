@@ -107,9 +107,10 @@
     "error": "invalid_template"
   },
   {
-    "name": "newline",
+    "name": "pasted static code with trailing newline",
     "template": "*999#\n",
-    "error": "invalid_template"
+    "canonical": "*999#",
+    "expected": "*999#"
   },
   {
     "name": "human beneficiary alias",
@@ -186,6 +187,47 @@
     "name": "substring is not an alias",
     "template": "*999*mon_numéro#",
     "error": "invalid_template"
+  },
+  {
+    "name": "pasted canonical template with trailing space",
+    "template": "*412*2*{{msisdn_local}}# ",
+    "beneficiary": "0101010101",
+    "canonical": "*412*2*{{msisdn_local}}#",
+    "expected": "*412*2*0101010101#"
+  },
+  {
+    "name": "pasted human alias with invisible edge padding",
+    "template": "\ufeff\u200b \t*412*2*numéro_du_destinataire#\u00a0\r\n\u2060",
+    "beneficiary": "0101010101",
+    "canonical": "*412*2*{{msisdn_local}}#",
+    "expected": "*412*2*0101010101#"
+  },
+  {
+    "name": "pasted Orange leading hash with line ending",
+    "template": "\n#154*1*{{msisdn_local}}#\r\n",
+    "beneficiary": "0707070707",
+    "canonical": "#154*1*{{msisdn_local}}#",
+    "expected": "#154*1*0707070707#"
+  },
+  {
+    "name": "internal whitespace is not silently removed",
+    "template": " *412* 2*{{msisdn_local}}# ",
+    "error": "invalid_template"
+  },
+  {
+    "name": "internal newline is not silently removed",
+    "template": "*412*\n2#",
+    "error": "invalid_template"
+  },
+  {
+    "name": "internal invisible character is not silently removed",
+    "template": "*41\u200b2*2#",
+    "error": "invalid_template"
+  },
+  {
+    "name": "edge cleanup does not allow unknown variables",
+    "template": "\u200b*999*{{foobar}}#\n",
+    "error": "unknown_variable"
   },
   {
     "name": "unclosed canonical variable",
