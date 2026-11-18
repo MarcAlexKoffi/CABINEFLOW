@@ -18,6 +18,7 @@ part 'package:cabine_flow/app/modules/ussd/widgets/ussd_deletion_dialogs.dart';
 
 const ussdNetworks = {'orange': 'Orange', 'mtn': 'MTN', 'moov': 'Moov Africa'};
 const ussdServices = {
+  'all': 'Tous les services (syntaxe commune)',
   'internetSubscription': 'Internet',
   'callBundle': 'Appels',
   'unitTransfer': 'Recharge / transfert d’unités',
@@ -25,6 +26,7 @@ const ussdServices = {
   'mixedBundle': 'Offres mixtes',
   'other': 'Autre',
 };
+const ussdOfferGroups = {'folie': 'Folie', 'cchic': 'C’Chic'};
 const ussdScopes = {
   'agent': 'Agent',
   'cabiniste': 'Cabiniste',
@@ -144,7 +146,7 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
       return 'Une validation humaine sur la SIM concernée est obligatoire.';
     }
     if (text.contains('unsupported_order_service')) {
-      return 'Ce service n’est pas encore proposé aux commandes. Conservez la règle en brouillon.';
+      return 'Ce service n’est pas encore proposé aux commandes. Choisissez un service disponible dans le catalogue.';
     }
     return 'Action indisponible. Vérifiez votre connexion et vos droits d’accès, puis réessayez.';
   }
@@ -278,7 +280,7 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
                           'V${r['version']} · ${ussdStatuses[r['status']] ?? r['status']} · ${r['ussd_template']}',
                         ),
                         subtitle: Text(
-                          '${r['updated_at']} · ${r['updated_by']}\nValidation SIM : ${r['validation_sim_type'] ?? 'non validée'} · ${r['validated_at'] ?? ''}',
+                          '${r['updated_at']} · ${r['updated_by']}\n${r['validation_method'] == 'creation' ? 'Validation à la création' : 'Validation SIM : ${r['validation_sim_type'] ?? 'non validée'}'} · ${r['validated_at'] ?? ''}',
                         ),
                       ),
                     )
@@ -426,6 +428,9 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
             (r) =>
                 (_network.isEmpty || r.network == _network) &&
                 (_service.isEmpty ||
+                    (r.purpose == 'order' &&
+                        r.service == 'all' &&
+                        _service != 'balance') ||
                     (r.purpose == 'balance' ? 'balance' : r.service) ==
                         _service) &&
                 (_family.isEmpty || r.familyId == _family) &&
@@ -461,7 +466,7 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
             const SizedBox(height: 8),
             Text(
               _admin
-                  ? 'Règles centralisées, validation humaine sur SIM et historique des versions.'
+                  ? 'Syntaxes centralisées, activation dès la création et historique des versions.'
                   : 'Consultation des règles utiles à votre territoire. Les modifications sont réservées à l’Administrateur.',
             ),
             const SizedBox(height: IzyTelSpacing.xl),
@@ -568,7 +573,7 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
                     Text('Aucune règle dans cette sélection.'),
                     SizedBox(height: 8),
                     Text(
-                      'Créez un brouillon ou ajustez vos filtres pour commencer.',
+                      'Créez une syntaxe ou ajustez vos filtres pour commencer.',
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -665,7 +670,9 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
                               overflow: TextOverflow.ellipsis,
                             ),
                             Text(
-                              'Famille : ${familyLabel(r.familyId)}',
+                              r.offerGroup == null
+                                  ? 'Famille : ${familyLabel(r.familyId)}'
+                                  : 'Reconnaissance automatique : ${ussdOfferGroups[r.offerGroup] ?? r.offerGroup}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.bodySmall,
@@ -913,7 +920,7 @@ class _FamilyEditor extends StatefulWidget {
 }
 
 class _FamilyEditorState extends State<_FamilyEditor> {
-  String _network = 'moov', _service = 'internetSubscription';
+  String _network = 'moov', _service = 'all';
   final _label = TextEditingController();
   @override
   void dispose() {
@@ -929,6 +936,9 @@ class _FamilyEditorState extends State<_FamilyEditor> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          const Text(
+            'Exemples : Folie, Maxit, C’Chic, Passe nuit. Choisissez Tous les services pour partager une syntaxe entre Appels et Internet, puis associez les offres concernées à cette famille.',
+          ),
           DropdownButtonFormField<String>(
             initialValue: _network,
             items: ussdNetworks.entries
@@ -1017,7 +1027,7 @@ class _BindingEditorState extends State<_BindingEditor> {
     final families = widget.families.where(
       (f) =>
           f['network'] == offer?['network'] &&
-          f['service'] == offer?['service'],
+          (f['service'] == 'all' || f['service'] == offer?['service']),
     );
     return AlertDialog(
       title: const Text('Associer une offre du catalogue'),
@@ -1030,7 +1040,7 @@ class _BindingEditorState extends State<_BindingEditor> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
-                  'Les associations utilisent les identifiants du catalogue. Désactivez les règles concernées avant toute modification. Le code et la quantité doivent être vérifiés avant réactivation.',
+                  'Associez les offres Appels et Internet à une même famille pour partager sa syntaxe. Pour modifier une association déjà utilisée, désactivez les règles concernées. Renseignez le code et la quantité si la syntaxe les utilise.',
                 ),
                 TextButton(
                   onPressed: _offer == null

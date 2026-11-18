@@ -214,7 +214,7 @@ class _BackofficeUsersPageState extends State<BackofficeUsersPage> {
 
   Future<void> _deleteUser(BackofficeUserAccount user) async {
     final confirmation = TextEditingController();
-    final confirmed = await showDialog<bool>(
+    final confirmationRoute = DialogRoute<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialog) => AlertDialog(
@@ -226,7 +226,7 @@ class _BackofficeUsersPageState extends State<BackofficeUsersPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'La suppression est bloquée tant que toutes les références historiques ne sont pas vérifiées. La désactivation conserve l’historique.',
+                  'Le compte de connexion et sa fiche utilisateur seront supprimés. Les commandes, mouvements financiers et historiques métier seront conservés. Terminez ou réaffectez d’abord les commandes en cours.',
                 ),
                 const SizedBox(height: 12),
                 SelectableText(
@@ -257,8 +257,23 @@ class _BackofficeUsersPageState extends State<BackofficeUsersPage> {
         ),
       ),
     );
+    final confirmed = await Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push(confirmationRoute);
+    // The closing animation still reads the field after Navigator.pop resolves.
+    await confirmationRoute.completed;
     confirmation.dispose();
-    if (confirmed == true) await _command('delete', user, confirmUid: user.id);
+    if (confirmed == true && mounted) {
+      final result = await _command('delete', user, confirmUid: user.id);
+      if (result != null && mounted) {
+        _reloadUsers();
+        IzyTelFeedback.success(
+          context,
+          'Compte supprimé. Les historiques métier sont conservés.',
+        );
+      }
+    }
   }
 
   void _showHistory(BackofficeUserAccount user) {

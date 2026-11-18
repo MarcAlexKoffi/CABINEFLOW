@@ -55,6 +55,14 @@ class UserAdminException implements Exception {
       'Un Administrateur ne modifie pas son propre accès depuis cette page.',
     'REFERENCES_NOT_VERIFIED' =>
       'La suppression est bloquée : les références historiques ne sont pas entièrement vérifiées. Utilisez la désactivation.',
+    'ACTIVE_ORDERS' =>
+      'Terminez ou réaffectez les commandes en cours de cet utilisateur avant de supprimer son compte.',
+    'DELETE_ZONE_ASSIGNED' =>
+      'Réaffectez les zones de ce Manager avant de supprimer son compte.',
+    'ACCOUNT_DELETED' =>
+      'Ce compte a été supprimé et ne peut plus être réactivé.',
+    'INVALID_CONFIRMATION' =>
+      'L’UID de confirmation doit correspondre exactement au compte à supprimer.',
     'ZONE_OCCUPIED' =>
       'Une zone sélectionnée est déjà attribuée à un autre Manager.',
     'INVALID_ZONE' =>

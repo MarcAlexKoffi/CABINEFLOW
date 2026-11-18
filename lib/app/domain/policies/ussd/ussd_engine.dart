@@ -230,6 +230,7 @@ class UssdRule {
     required this.priority,
     required this.status,
     this.familyId,
+    this.offerGroup,
     this.offerId,
     required this.effectiveFrom,
     this.effectiveUntil,
@@ -241,7 +242,7 @@ class UssdRule {
   });
   final String id, network, service, scope, template, status, note, updatedBy;
   final String purpose;
-  final String? familyId, offerId, validationSimType;
+  final String? familyId, offerId, validationSimType, offerGroup;
   final int version, priority;
   final DateTime effectiveFrom;
   final DateTime? effectiveUntil, updatedAt;
@@ -257,6 +258,7 @@ class UssdRule {
     priority: (row['priority'] as num).toInt(),
     status: row['status'] as String,
     familyId: row['family_id'] as String?,
+    offerGroup: row['offer_group'] as String?,
     offerId: row['offer_id'] as String?,
     effectiveFrom: DateTime.parse(row['effective_from'] as String),
     effectiveUntil: DateTime.tryParse(row['effective_until'] as String? ?? ''),
@@ -267,8 +269,10 @@ class UssdRule {
   );
 
   int get level => offerId != null
-      ? 3
+      ? 4
       : familyId != null
+      ? 3
+      : offerGroup != null
       ? 2
       : 1;
 
@@ -280,6 +284,7 @@ class UssdRule {
     required DateTime now,
     String? offerId,
     String? familyId,
+    String? offerGroup,
   }) {
     final matching =
         rules
@@ -287,14 +292,15 @@ class UssdRule {
               (r) =>
                   r.network == network &&
                   r.purpose == 'order' &&
-                  r.service == service &&
+                  (r.service == 'all' || r.service == service) &&
                   (r.scope == 'both' || r.scope == actor) &&
                   r.status == 'active' &&
                   !now.isBefore(r.effectiveFrom) &&
                   (r.effectiveUntil == null ||
                       now.isBefore(r.effectiveUntil!)) &&
                   (r.offerId == null || r.offerId == offerId) &&
-                  (r.familyId == null || r.familyId == familyId),
+                  (r.familyId == null || r.familyId == familyId) &&
+                  (r.offerGroup == null || r.offerGroup == offerGroup),
             )
             .toList()
           ..sort((a, b) {

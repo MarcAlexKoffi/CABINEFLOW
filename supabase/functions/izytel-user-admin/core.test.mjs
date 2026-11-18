@@ -7,6 +7,8 @@ function dependencies(failure) {
   const step = async name => {calls.push(name);if(name===failure) throw Error('simulated');};
   const d={authorize:()=>step('authorize'),newUid:()=> 'target',load:async()=>({email:'test@example.invalid'}),begin:async()=>{await step('begin');return {fresh:true,status:'pending',request_id:'operation'};},deny:()=>step('denySQL'),sync:(_id,active)=>step(active?'activateSQL':'prepareInactiveSQL'),createAuth:()=>step('createAuth'),disableAuth:()=>step('disableAuth'),revoke:()=>step('revoke'),writeProfile:()=>step('writeProfile'),updateAuth:()=>step('updateAuth'),activateAccess:()=>step('activateAccess'),denyProfile:()=>step('denyProfile'),finish:()=>step('finish'),fail:()=>step('fail'),reset:async()=>{await step('reset');return 'https://example.invalid/reset';},audit:async()=>[]};
   d.result=async()=> 'pending';
+  d.loadDeletion=async()=>({authMissing:false,profile:{role:'agent'}});
+  d.deleteAuth=()=>step('deleteAuth');d.deleteProfile=()=>step('deleteProfile');d.deleteAccess=()=>step('deleteAccess');
   return {d,calls};
 }
 for(const role of ['admin','manager','agent','cabiniste']) test(`create ${role} uses denial before provisioning`,async()=>{
@@ -20,9 +22,41 @@ test('invalid role and unknown fields rejected',()=>{
 test('non administrator does not open operation',async()=>{
   const {d,calls}=dependencies('authorize');await assert.rejects(execute(command(),'actor',d));assert.deepEqual(calls,['authorize']);
 });
-test('self modification and deletion fail closed',async()=>{
+test('self modification and deletion require valid confirmation',async()=>{
   const {d}=dependencies();await assert.rejects(execute({...command(),action:'update',uid:'actor'},'actor',d),/SELF_ADMIN/);
-  await assert.rejects(execute({action:'delete',uid:'target',requestId:'delete-request-001'},'actor',d),/REFERENCES_NOT_VERIFIED/);
+  await assert.rejects(execute({action:'delete',uid:'target',requestId:'delete-request-001'},'actor',d),/INVALID_CONFIRMATION/);
+  await assert.rejects(execute({action:'delete',uid:'actor',confirmUid:'actor',requestId:'delete-request-001'},'actor',d),/SELF_ADMIN/);
+});
+const deletion=()=>({action:'delete',uid:'target',confirmUid:'target',requestId:'delete-request-001'});
+test('deletion revokes access before deleting only the login and registry profile',async()=>{
+  const {d,calls}=dependencies();const result=await execute(deletion(),'actor',d);
+  assert.equal(result.ok,true);
+  assert.deepEqual(calls,['authorize','begin','denySQL','disableAuth','revoke','denyProfile','deleteAuth','deleteProfile','deleteAccess','finish']);
+});
+test('deletion works for a missing Auth identity and does not require an email',async()=>{
+  const {d,calls}=dependencies();d.loadDeletion=async()=>({authMissing:true,profile:null});
+  assert.equal((await execute(deletion(),'actor',d)).ok,true);
+  assert.ok(!calls.includes('disableAuth'));assert.ok(!calls.includes('revoke'));assert.ok(calls.includes('deleteProfile'));
+});
+test('completed deletion can be replayed even after Auth and profile removal',async()=>{
+  const {d,calls}=dependencies();d.loadDeletion=async()=>({authMissing:true});
+  d.begin=async()=>({status:'completed',request_id:'operation'});
+  assert.equal((await execute(deletion(),'actor',d)).replayed,true);assert.deepEqual(calls,['authorize']);
+});
+test('a business precondition rejection deletes nothing',async()=>{
+  const {d,calls}=dependencies();d.begin=async()=>{throw Error('ACTIVE_ORDERS');};
+  await assert.rejects(execute(deletion(),'actor',d),/ACTIVE_ORDERS/);
+  assert.deepEqual(calls,['authorize']);
+});
+for(const failAt of ['disableAuth','revoke','denyProfile','deleteAuth','deleteProfile','deleteAccess']) test(`deletion failure at ${failAt} stays explicit without reactivation`,async()=>{
+  const {d,calls}=dependencies(failAt);const result=await execute(deletion(),'actor',d);
+  assert.equal(result.ok,false);assert.equal(result.requiresRepair,true);
+  assert.ok(!calls.includes('activateAccess'));assert.ok(calls.includes('fail'));
+});
+test('lost deletion completion response reconciles without recreating Auth',async()=>{
+  const {d,calls}=dependencies('finish');d.result=async()=> 'completed';
+  assert.equal((await execute(deletion(),'actor',d)).ok,true);
+  assert.equal(calls.filter(x=>x==='deleteAuth').length,1);assert.ok(!calls.includes('createAuth'));
 });
 for(const failAt of ['createAuth','writeProfile','updateAuth','activateSQL','activateAccess','finish']) test(`failure ${failAt} is explicit and denies all stores`,async()=>{
   const {d,calls}=dependencies(failAt);const result=await execute(command(),'actor',d);

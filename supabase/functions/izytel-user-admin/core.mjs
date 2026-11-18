@@ -23,6 +23,7 @@ export function validate(input) {
     if (['agent','cabiniste'].includes(input.role) && !input.authorizedNetworks.length) throw Error('NETWORK_REQUIRED');
   }
   if (input.reason !== undefined && (typeof input.reason !== 'string' || input.reason.length > 1200)) throw Error('INVALID_REASON');
+  if (input.action === 'delete' && input.confirmUid !== input.uid) throw Error('INVALID_CONFIRMATION');
   return {...input, name:input.name?.trim(), email:input.email?.trim().toLowerCase(), phoneNumber:input.phoneNumber?.trim() ?? ''};
 }
 
@@ -34,16 +35,15 @@ export async function execute(input, actor, d) {
     const snapshot=await d.load(command.uid);
     return {ok:true,account:{uid:command.uid,email:snapshot.email || '',name:snapshot.name || '',phoneNumber:snapshot.phoneNumber || '',authDisabled:snapshot.disabled,createdAt:snapshot.createdAt,lastSignInAt:snapshot.lastSignInAt}};
   }
-  if (command.action === 'delete') throw Error('REFERENCES_NOT_VERIFIED');
   if (command.uid === actor) throw Error('SELF_ADMIN_OPERATION_FORBIDDEN');
   const uid = command.uid || d.newUid();
-  const before = command.action === 'create' ? null : await d.load(uid);
-  if (before && (!before.email || typeof before.email !== 'string')) throw Error('EMAIL_REQUIRED');
+  const before = command.action === 'create' ? null : command.action === 'delete' ? await d.loadDeletion(uid) : await d.load(uid);
+  if (command.action !== 'delete' && before && (!before.email || typeof before.email !== 'string')) throw Error('EMAIL_REQUIRED');
   if (['create','update'].includes(command.action) && d.checkEmail) await d.checkEmail(command.email,uid);
   const operation = await d.begin(command, actor, uid, before);
   if (operation.status === 'completed') return {ok:true,uid,operationId:operation.request_id,replayed:true};
   if (!operation.fresh) throw Error('OPERATION_REQUIRES_REPAIR');
-  let ownsAuth = command.action !== 'create';
+  let ownsAuth = command.action !== 'create' && !before?.authMissing;
   let finishStarted=false;
   let resetLink;
   try {
@@ -55,6 +55,17 @@ export async function execute(input, actor, d) {
     }
     // SQL denial first; all elevated operations remain blocked until final activation.
     await d.deny(operation.request_id);
+    if (command.action === 'delete') {
+      if (ownsAuth) { await d.disableAuth(uid); await d.revoke(uid); }
+      await d.denyProfile(uid);
+      await d.deleteAuth(uid);
+      ownsAuth=false;
+      await d.deleteProfile(uid);
+      await d.deleteAccess(operation.request_id);
+      finishStarted=true;
+      await d.finish(operation.request_id);
+      return {ok:true,uid,operationId:operation.request_id};
+    }
     if (command.action === 'create') { await d.createAuth(uid, command); ownsAuth=true; }
     else { await d.disableAuth(uid); await d.revoke(uid); }
     await d.writeProfile(uid, command, before);

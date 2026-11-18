@@ -203,6 +203,7 @@ void main() {
   UssdRule rule(
     String id, {
     String? family,
+    String? group,
     String? offer,
     int priority = 0,
     String status = 'active',
@@ -221,6 +222,7 @@ void main() {
     priority: priority,
     status: status,
     familyId: family,
+    offerGroup: group,
     offerId: offer,
     effectiveFrom: from ?? DateTime.utc(2020),
     effectiveUntil: until,
@@ -245,6 +247,80 @@ void main() {
       'exact',
     );
   });
+  test(
+    'automatic group beats generic and respects explicit family and offer overrides',
+    () {
+      final automatic = rule('automatic', service: 'all', group: 'folie');
+      UssdRule? choose(List<UssdRule> rules, String? group) => UssdRule.select(
+        rules,
+        network: 'moov',
+        service: 'callBundle',
+        actor: 'agent',
+        now: now,
+        offerGroup: group,
+        offerId: 'offer',
+        familyId: 'family',
+      );
+      final generic = rule('generic', service: 'all', priority: 9999);
+      expect(choose([generic, automatic], 'folie')?.id, 'automatic');
+      expect(choose([generic, automatic], null)?.id, 'generic');
+      final manual = rule(
+        'manual',
+        family: 'family',
+        service: 'all',
+        priority: -9999,
+      );
+      expect(choose([generic, automatic, manual], 'folie')?.id, 'manual');
+      final exact = rule(
+        'exact',
+        offer: 'offer',
+        service: 'all',
+        priority: -10000,
+      );
+      expect(choose([automatic, manual, exact], 'folie')?.id, 'exact');
+      expect(
+        () => choose([
+          automatic,
+          rule('duplicate', service: 'all', group: 'folie'),
+        ], 'folie'),
+        throwsA(isA<UssdValidationException>()),
+      );
+    },
+  );
+  test(
+    'one commercial family matches calls and internet without catching other families',
+    () {
+      final shared = rule('folie', service: 'all', family: 'family');
+      for (final service in ['callBundle', 'internetSubscription']) {
+        expect(
+          UssdRule.select(
+            [shared],
+            network: 'moov',
+            service: service,
+            actor: 'agent',
+            now: now,
+            familyId: 'family',
+          )?.id,
+          'folie',
+        );
+        expect(
+          UssdRule.select(
+            [shared],
+            network: 'moov',
+            service: service,
+            actor: 'agent',
+            now: now,
+            familyId: 'other',
+          ),
+          isNull,
+        );
+      }
+      expect(
+        () => select([shared, rule('conflict', family: 'family')]),
+        throwsA(isA<UssdValidationException>()),
+      );
+    },
+  );
   test(
     'family beats generic',
     () => expect(

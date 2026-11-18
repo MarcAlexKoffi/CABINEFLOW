@@ -355,5 +355,19 @@ try {
     assert.equal((await prepare('order-agent',before,'secret-reinserted')).reason,'rule_changed');
   });
   await runDeletionCases({db,test,identity,rpc,denied,payload,current,create,activate,prepare});
+  const sharedMigration=migrations.find(n=>n.endsWith('_ussd_shared_families_and_direct_creation.sql'));
+  assert.ok(sharedMigration,'shared families and direct creation migration exists');
+  await identity('test-admin','postgres');
+  await db.exec(await readFile(resolve(root,'supabase/migrations',sharedMigration),'utf8'));
+  const {runSharedFamilyCases}=await import('./shared_family_cases.mjs');
+  await runSharedFamilyCases({db,test,identity,rpc,denied,payload,current,create});
+  await identity('test-admin','postgres');
+  // Production already has this catalogue column from the import migrations.
+  await db.exec('alter table public.catalog_offers add column family_code text');
+  const automaticMigration=migrations.find(n=>n.endsWith('_ussd_automatic_commercial_offer_groups.sql'));
+  assert.ok(automaticMigration,'automatic commercial group migration exists');
+  await db.exec(await readFile(resolve(root,'supabase/migrations',automaticMigration),'utf8'));
+  const {runAutomaticGroupCases}=await import('./automatic_group_cases.mjs');
+  await runAutomaticGroupCases({db,test,identity,rpc,denied,payload,current,create,prepare});
   console.log(`SQL SUMMARY: ${passed} passed, 0 failed; in-memory synthetic database only.`);
 } finally {await db.close();}

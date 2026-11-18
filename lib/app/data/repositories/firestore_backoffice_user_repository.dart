@@ -126,7 +126,10 @@ class FirestoreBackofficeUserRepository implements BackofficeUserRepository {
             .order('created_at')
             .listen(
               (List<Map<String, dynamic>> rows) {
-                partners = rows.map(_fromPartnerRow).toList(growable: false);
+                partners = rows
+                    .where((row) => row['account_deleted_at'] == null)
+                    .map(_fromPartnerRow)
+                    .toList(growable: false);
                 partnersReady = true;
                 emit();
               },

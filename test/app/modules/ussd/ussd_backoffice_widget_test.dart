@@ -171,34 +171,74 @@ void main() {
     });
   }
 
-  testWidgets(
-    'human aliases are saved canonically and the status remains a draft',
-    (tester) async {
-      final repo = UssdTestRepository();
-      await mount(tester, repo, UserRole.administrator);
-      await tester.tap(find.text('Créer une règle'));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Template USSD'),
-        '*410*numéro*montant*code_secret#',
-      );
-      await tester.pumpAndSettle();
-      expect(
-        find.text('*410*{{msisdn_local}}*{{amount}}*{{secret_code}}#'),
-        findsOneWidget,
-      );
-      expect(find.text('*410*0101010101*1000*0000#'), findsOneWidget);
-      await capture(tester, 'rule-desktop');
-      await tester.tap(find.text('Enregistrer en brouillon'));
-      await tester.pumpAndSettle();
-      expect(
-        repo.saved?['ussd_template'],
-        '*410*{{msisdn_local}}*{{amount}}*{{secret_code}}#',
-      );
-      expect(repo.saved?['purpose'], 'order');
-      expect(repo.statusChanges, 0);
-    },
-  );
+  testWidgets('human aliases are saved canonically through direct creation', (
+    tester,
+  ) async {
+    final repo = UssdTestRepository();
+    await mount(tester, repo, UserRole.administrator);
+    await tester.tap(find.text('Créer une règle'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Template USSD'),
+      '*410*numéro*montant*code_secret#',
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('*410*{{msisdn_local}}*{{amount}}*{{secret_code}}#'),
+      findsOneWidget,
+    );
+    expect(find.text('*410*0101010101*1000*0000#'), findsOneWidget);
+    await capture(tester, 'rule-desktop');
+    await tester.tap(find.text('Créer et activer'));
+    await tester.pumpAndSettle();
+    expect(
+      repo.saved?['ussd_template'],
+      '*410*{{msisdn_local}}*{{amount}}*{{secret_code}}#',
+    );
+    expect(repo.saved?['purpose'], 'order');
+    expect(repo.statusChanges, 0);
+  });
+
+  testWidgets('shared family exposes calls and internet in one rule editor', (
+    tester,
+  ) async {
+    final repo = _SharedFamilyRepository();
+    await mount(tester, repo, UserRole.administrator);
+    await tester.tap(find.text('Créer une règle'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(DropdownButtonFormField<String>, 'Service').last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tous les services (syntaxe commune)').last);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(DropdownButtonFormField<String>, 'Famille').last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Folie').last);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(DropdownButtonFormField<String>, 'Offre').last,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Folie Internet'), findsOneWidget);
+    expect(find.text('Folie Appels'), findsOneWidget);
+    expect(find.text('Internet normal'), findsNothing);
+    await tester.tap(find.text('Toutes / générique').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Template USSD'),
+      '*412*4*numéro#',
+    );
+    await tester.tap(find.text('Créer et activer'));
+    await tester.pumpAndSettle();
+    expect(repo.saved?['service'], 'all');
+    expect(repo.saved?['family_id'], 'folie');
+    expect(repo.saved?['offer_id'], isNull);
+    expect(repo.saved?['ussd_template'], '*412*4*{{msisdn_local}}#');
+    expect(repo.statusChanges, 0);
+  });
 
   testWidgets(
     'pasted syntax with invisible edge padding previews and saves canonically',
@@ -222,12 +262,102 @@ void main() {
       );
       expect(find.text('*412*2*0101010101#'), findsOneWidget);
       expect(find.text('Syntaxe USSD invalide ou trop longue.'), findsNothing);
-      await tester.tap(find.text('Enregistrer en brouillon'));
+      await tester.tap(find.text('Créer et activer'));
       await tester.pumpAndSettle();
       expect(repo.saved?['ussd_template'], '*412*2*{{msisdn_local}}#');
       expect(repo.statusChanges, 0);
     },
   );
+
+  testWidgets(
+    'automatic Folie targets all services without manual offer selectors',
+    (tester) async {
+      final repo = _AutomaticGroupRepository();
+      await mount(tester, repo, UserRole.administrator);
+      await tester.tap(find.text('Créer une règle'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(
+          DropdownButtonFormField<String>,
+          'Reconnaissance des offres',
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Toutes les offres Folie').last);
+      await tester.pumpAndSettle();
+      final modal = find.byType(BackofficeModalShell).last;
+      for (final label in ['Service', 'Famille', 'Offre']) {
+        expect(
+          find.descendant(
+            of: modal,
+            matching: find.widgetWithText(
+              DropdownButtonFormField<String>,
+              label,
+            ),
+          ),
+          findsNothing,
+        );
+      }
+      expect(find.textContaining('2 offre(s) reconnue(s)'), findsOneWidget);
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Template USSD'),
+        '*412*4*numéro#',
+      );
+      await tester.tap(find.text('Créer et activer'));
+      await tester.pumpAndSettle();
+      expect(repo.saved?['offer_group'], 'folie');
+      expect(repo.saved?['service'], 'all');
+      expect(repo.saved?['family_id'], isNull);
+      expect(repo.saved?['offer_id'], isNull);
+    },
+  );
+
+  testWidgets('MTN exposes automatic CChic and changing network clears Folie', (
+    tester,
+  ) async {
+    final repo = _AutomaticGroupRepository();
+    await mount(tester, repo, UserRole.administrator);
+    await tester.tap(find.text('Créer une règle'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(
+        DropdownButtonFormField<String>,
+        'Reconnaissance des offres',
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Toutes les offres Folie').last);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(DropdownButtonFormField<String>, 'Réseau').last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MTN').last);
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Folie : reconnaissance automatique'),
+      findsNothing,
+    );
+    await tester.tap(
+      find.widgetWithText(
+        DropdownButtonFormField<String>,
+        'Reconnaissance des offres',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Toutes les offres Folie'), findsNothing);
+    await tester.tap(find.text('Toutes les offres C’Chic').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Template USSD'),
+      '*133*6*8*numéro#',
+    );
+    await tester.tap(find.text('Créer et activer'));
+    await tester.pumpAndSettle();
+    expect(repo.saved?['network'], 'mtn');
+    expect(repo.saved?['offer_group'], 'cchic');
+    expect(repo.saved?['service'], 'all');
+  });
 
   testWidgets(
     'variable chips insert at the cursor and replace only the selection',
@@ -284,9 +414,9 @@ void main() {
       await tester.tap(find.text('Créer une règle'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      final save = find.text('Enregistrer en brouillon');
+      final save = find.text('Créer et activer');
       expect(tester.getRect(save).bottom, lessThan(size.height));
-      expect(find.text('Créer un brouillon').hitTestable(), findsOneWidget);
+      expect(find.text('Créer une syntaxe').hitTestable(), findsOneWidget);
       final note = find.widgetWithText(
         TextFormField,
         'Note interne (sans données personnelles)',
@@ -295,7 +425,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       expect(save.hitTestable(), findsOneWidget);
-      expect(find.text('Créer un brouillon').hitTestable(), findsOneWidget);
+      expect(find.text('Créer une syntaxe').hitTestable(), findsOneWidget);
       await capture(tester, 'rule-${size.width.toInt()}');
       final template = find.widgetWithText(TextFormField, 'Template USSD');
       await tester.ensureVisible(template);
@@ -472,7 +602,7 @@ void main() {
   });
 
   testWidgets(
-    'balance draft preserves its purpose without inventing an order service',
+    'balance creation preserves its purpose without inventing an order service',
     (tester) async {
       final repo = UssdTestRepository();
       await mount(tester, repo, UserRole.administrator);
@@ -498,7 +628,7 @@ void main() {
         find.widgetWithText(TextFormField, 'Template USSD'),
         '*414*code_secret#',
       );
-      await tester.tap(find.text('Enregistrer en brouillon'));
+      await tester.tap(find.text('Créer et activer'));
       await tester.pumpAndSettle();
       expect(repo.saved?['purpose'], 'balance');
       expect(repo.saved?['service'], isNull);
@@ -712,7 +842,7 @@ void main() {
     expect(repo.changedStatus, 'disabled');
   });
   testWidgets(
-    'new rule stays a draft; preview static code needs no beneficiary',
+    'new rule uses direct creation; preview static code needs no beneficiary',
     (tester) async {
       final repo = UssdTestRepository();
       await mount(tester, repo, UserRole.administrator);
@@ -735,7 +865,7 @@ void main() {
       );
       await tester.tap(find.text('Fermer'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Enregistrer en brouillon'));
+      await tester.tap(find.text('Créer et activer'));
       await tester.pumpAndSettle();
       expect(repo.saved?['ussd_template'], '*999*2#');
       expect(repo.statusChanges, 0);
@@ -788,6 +918,59 @@ void main() {
       expect(repo.saved, isNotNull);
     },
   );
+}
+
+class _AutomaticGroupRepository extends UssdTestRepository {
+  @override
+  Future<Map<String, dynamic>> configuration() async => {
+    ...await super.configuration(),
+    'offers': [
+      for (final service in ['internetSubscription', 'callBundle'])
+        {
+          'id': service,
+          'network': 'moov',
+          'service': service,
+          'title': 'Folie $service',
+          'offer_group': 'folie',
+        },
+      {
+        'id': 'normal',
+        'network': 'moov',
+        'service': 'internetSubscription',
+        'title': 'Internet normal',
+        'offer_group': null,
+      },
+    ],
+  };
+}
+
+class _SharedFamilyRepository extends UssdTestRepository {
+  @override
+  Future<Map<String, dynamic>> configuration() async => {
+    ...await super.configuration(),
+    'families': [
+      {'id': 'folie', 'network': 'moov', 'service': 'all', 'label': 'Folie'},
+    ],
+    'offers': [
+      for (final entry in [
+        ('internetSubscription', 'Folie Internet'),
+        ('callBundle', 'Folie Appels'),
+      ])
+        {
+          'id': entry.$1,
+          'network': 'moov',
+          'service': entry.$1,
+          'title': entry.$2,
+          'binding': {'family_id': 'folie'},
+        },
+      {
+        'id': 'normal',
+        'network': 'moov',
+        'service': 'internetSubscription',
+        'title': 'Internet normal',
+      },
+    ],
+  };
 }
 
 class _DeletionRepository extends UssdTestRepository {

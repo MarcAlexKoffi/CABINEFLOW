@@ -82,6 +82,7 @@ class _RuleEditorState extends State<_RuleEditor> {
           : 'internetSubscription',
       _purpose = widget.rule?.purpose ?? 'order',
       _scope = widget.rule?.scope ?? 'both',
+      _offerGroup = widget.rule?.offerGroup ?? '',
       _family = widget.rule?.familyId ?? '',
       _offer = widget.rule?.offerId ?? '';
   late final _template = TextEditingController(
@@ -150,14 +151,16 @@ class _RuleEditorState extends State<_RuleEditor> {
                   (o) =>
                       o['id'] == _offer &&
                       o['network'] == _network &&
-                      o['service'] == _service,
+                      (_service == 'all' || o['service'] == _service),
                 )) ||
             (_family.isNotEmpty &&
                 !widget.families.any(
                   (f) =>
                       f['id'] == _family &&
                       f['network'] == _network &&
-                      f['service'] == _service,
+                      (_service == 'all' ||
+                          f['service'] == 'all' ||
+                          f['service'] == _service),
                 )))) {
       setState(
         () => _associationError =
@@ -171,6 +174,8 @@ class _RuleEditorState extends State<_RuleEditor> {
       'network': _network,
       'service': _purpose == 'balance' ? null : _service,
       'purpose': _purpose,
+      if (_purpose == 'order' && _offerGroup.isNotEmpty)
+        'offer_group': _offerGroup,
       'actor_scope': _scope,
       'family_id': _purpose == 'balance' || _family.isEmpty ? null : _family,
       'offer_id': _purpose == 'balance' || _offer.isEmpty ? null : _offer,
@@ -248,21 +253,29 @@ class _RuleEditorState extends State<_RuleEditor> {
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 640;
     final families = widget.families
-        .where((f) => f['network'] == _network && f['service'] == _service)
+        .where(
+          (f) =>
+              f['network'] == _network &&
+              (_service == 'all' ||
+                  f['service'] == 'all' ||
+                  f['service'] == _service),
+        )
         .toList();
     final offers = widget.offers
         .where(
           (o) =>
               o['network'] == _network &&
-              o['service'] == _service &&
+              (_service == 'all' || o['service'] == _service) &&
               (_family.isEmpty ||
                   (o['binding'] as Map?)?['family_id'] == _family),
         )
         .toList();
     return BackofficeModalShell(
-      title: widget.rule == null ? 'Créer un brouillon' : 'Modifier la règle',
+      title: widget.rule == null ? 'Créer une syntaxe' : 'Modifier la règle',
       subtitle: compact
-          ? 'Enregistrement en brouillon.'
+          ? (widget.rule == null
+                ? 'Activation dès la création.'
+                : 'Enregistrement en brouillon.')
           : 'Définissez le périmètre et la syntaxe, puis vérifiez un exemple avant enregistrement.',
       icon: Icons.dialpad_rounded,
       maxWidth: 900,
@@ -271,9 +284,11 @@ class _RuleEditorState extends State<_RuleEditor> {
       ),
       chips: [
         if (!compact)
-          const BackofficeStatusBadge(
-            label: 'Brouillon',
-            color: BackofficePalette.warning,
+          BackofficeStatusBadge(
+            label: widget.rule == null ? 'Activation immédiate' : 'Brouillon',
+            color: widget.rule == null
+                ? BackofficePalette.success
+                : BackofficePalette.warning,
           ),
       ],
       body: Form(
@@ -304,6 +319,7 @@ class _RuleEditorState extends State<_RuleEditor> {
                 children: [
                   _select('Réseau', _network, ussdNetworks, (v) {
                     _network = v;
+                    _offerGroup = '';
                     _family = '';
                     _offer = '';
                   }),
@@ -316,40 +332,65 @@ class _RuleEditorState extends State<_RuleEditor> {
                     },
                     (v) {
                       _purpose = v;
+                      _offerGroup = '';
                       _family = '';
                       _offer = '';
                     },
                   ),
                   if (_purpose == 'order') ...[
-                    _select('Service', _service, ussdServices, (v) {
-                      _service = v;
-                      _family = '';
-                      _offer = '';
-                    }),
-                    _select(
-                      'Famille',
-                      _family,
-                      {
-                        '': 'Aucune / générique',
-                        if (_family.isNotEmpty &&
-                            !families.any((f) => f['id'] == _family))
-                          _family: 'Famille indisponible (à remplacer)',
-                        for (final f in families)
-                          f['id'] as String: f['label'] as String,
-                      },
-                      (v) {
-                        _family = v;
+                    if (_network == 'moov' || _network == 'mtn')
+                      _select(
+                        'Reconnaissance des offres',
+                        _offerGroup,
+                        {
+                          '': 'Association manuelle / générique',
+                          if (_network == 'moov')
+                            'folie': 'Toutes les offres Folie',
+                          if (_network == 'mtn')
+                            'cchic': 'Toutes les offres C’Chic',
+                        },
+                        (v) {
+                          _offerGroup = v;
+                          _family = '';
+                          _offer = '';
+                          if (v.isNotEmpty) _service = 'all';
+                        },
+                      ),
+                    if (_offerGroup.isNotEmpty)
+                      Text(
+                        '${ussdOfferGroups[_offerGroup]} : reconnaissance automatique par famille ou nom du catalogue, pour les offres actuelles et futures, tous services confondus. Aucun rattachement offre par offre n’est nécessaire. ${widget.offers.where((o) => o['network'] == _network && o['offer_group'] == _offerGroup).length} offre(s) reconnue(s) actuellement.',
+                      ),
+                    if (_offerGroup.isEmpty) ...[
+                      _select('Service', _service, ussdServices, (v) {
+                        _service = v;
+                        _family = '';
                         _offer = '';
-                      },
-                    ),
-                    _select('Offre', _offer, {
-                      '': 'Toutes / générique',
-                      if (_offer.isNotEmpty &&
-                          !offers.any((o) => o['id'] == _offer))
-                        _offer: 'Offre indisponible (à remplacer)',
-                      for (final o in offers)
-                        o['id'] as String: o['title'] as String,
-                    }, (v) => _offer = v),
+                      }),
+                      _select(
+                        'Famille',
+                        _family,
+                        {
+                          '': 'Aucune / générique',
+                          if (_family.isNotEmpty &&
+                              !families.any((f) => f['id'] == _family))
+                            _family: 'Famille indisponible (à remplacer)',
+                          for (final f in families)
+                            f['id'] as String: f['label'] as String,
+                        },
+                        (v) {
+                          _family = v;
+                          _offer = '';
+                        },
+                      ),
+                      _select('Offre', _offer, {
+                        '': 'Toutes / générique',
+                        if (_offer.isNotEmpty &&
+                            !offers.any((o) => o['id'] == _offer))
+                          _offer: 'Offre indisponible (à remplacer)',
+                        for (final o in offers)
+                          o['id'] as String: o['title'] as String,
+                      }, (v) => _offer = v),
+                    ],
                   ],
                   _select('Cible', _scope, ussdScopes, (v) => _scope = v),
                 ],
@@ -419,8 +460,9 @@ class _RuleEditorState extends State<_RuleEditor> {
             const SizedBox(height: IzyTelSpacing.xl),
             BackofficeModalSection(
               title: '3. Publication',
-              subtitle:
-                  'L’enregistrement reste un brouillon. L’activation nécessite une validation SIM séparée.',
+              subtitle: widget.rule == null
+                  ? 'La syntaxe sera active dès sa création, après contrôle de sa validité et des conflits.'
+                  : 'La modification crée un brouillon. L’activation nécessite une validation SIM séparée.',
               icon: Icons.schedule_rounded,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -498,7 +540,11 @@ class _RuleEditorState extends State<_RuleEditor> {
         FilledButton.icon(
           onPressed: _save,
           icon: const Icon(Icons.save_outlined),
-          label: const Text('Enregistrer en brouillon'),
+          label: Text(
+            widget.rule == null
+                ? 'Créer et activer'
+                : 'Enregistrer en brouillon',
+          ),
         ),
       ],
     );

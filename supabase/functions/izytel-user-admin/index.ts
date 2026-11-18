@@ -63,6 +63,19 @@ Deno.serve(async (request: Request) => {
         return {email:user.email,name:profile?.name || user.displayName,phoneNumber:profile?.phoneNumber || user.phoneNumber,
           profile:profile || null,disabled:user.disabled,createdAt:user.metadata.creationTime,lastSignInAt:user.metadata.lastSignInTime};
       },
+      loadDeletion:async (uid:string) => {
+        let user;
+        try { user=await auth.getUser(uid); }
+        catch (error:any) { if(error.code!=='auth/user-not-found') throw error; }
+        const profile=(await db.doc(`users/${uid}`).get()).data();
+        return {authMissing:!user,email:user?.email,profile:profile || null,disabled:user?.disabled};
+      },
+      deleteAuth:async (uid:string) => {
+        try { await auth.deleteUser(uid); }
+        catch (error:any) { if(error.code!=='auth/user-not-found') throw error; }
+      },
+      deleteProfile:async (uid:string) => {await db.doc(`users/${uid}`).delete();},
+      deleteAccess:async (id:string) => {await rpc('izytel_user_admin_delete_access',{p_request_id:id});},
       audit:async (uid:string) => await rpc('izytel_user_admin_history',{p_actor:verified.uid,p_uid:uid}),
       begin:async (command:Record<string,unknown>,actor:string,uid:string,before:unknown) => await rpc('izytel_user_admin_begin',{p_actor:actor,p_uid:uid,p_request_id:command.requestId,p_command:command,p_before:before}),
       deny:async (id:string) => {await rpc('izytel_user_admin_deny',{p_request_id:id});},
@@ -106,7 +119,7 @@ Deno.serve(async (request: Request) => {
       return reply({ok:false,error:'AUTH_REQUIRED'},401);
     }
     const message = error instanceof Error ? error.message : '';
-    const known = /^(INVALID_[A-Z_]+|UNKNOWN_FIELD|DUPLICATE_VALUE|ZONE_REQUIRED|NETWORK_REQUIRED|ADMIN_REQUIRED|AUTH_REQUIRED|EMAIL_REQUIRED|EMAIL_ALREADY_EXISTS|SELF_ADMIN_OPERATION_FORBIDDEN|REFERENCES_NOT_VERIFIED|OPERATION_REQUIRES_REPAIR|ADMIN_OPERATION_PENDING|LAST_ADMIN|IDEMPOTENCY_CONFLICT|ZONE_OCCUPIED|ACCOUNT_CONFLICT)$/;
+    const known = /^(INVALID_[A-Z_]+|UNKNOWN_FIELD|DUPLICATE_VALUE|ZONE_REQUIRED|NETWORK_REQUIRED|ADMIN_REQUIRED|AUTH_REQUIRED|EMAIL_REQUIRED|EMAIL_ALREADY_EXISTS|SELF_ADMIN_OPERATION_FORBIDDEN|REFERENCES_NOT_VERIFIED|ACTIVE_ORDERS|DELETE_ZONE_ASSIGNED|ACCOUNT_DELETED|OPERATION_REQUIRES_REPAIR|ADMIN_OPERATION_PENDING|LAST_ADMIN|IDEMPOTENCY_CONFLICT|ZONE_OCCUPIED|ACCOUNT_CONFLICT)$/;
     return reply({ok:false,error:known.test(message) ? message : 'ADMIN_OPERATION_FAILED'},403);
   }
 });
