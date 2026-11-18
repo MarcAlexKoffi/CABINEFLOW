@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:cabine_flow/features/customer_order/data/repositories/supabase_customer_offer_repository.dart';
-import 'package:cabine_flow/features/customer_order/domain/models/customer_service.dart';
-import 'package:cabine_flow/features/messaging/data/repositories/supabase_customer_messaging_repository.dart';
-import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
-import 'package:cabine_flow/features/support/data/repositories/supabase_support_request_repository.dart';
+import 'package:cabine_flow/app/data/repositories/supabase_customer_offer_repository.dart';
+import 'package:cabine_flow/app/domain/entities/customer/customer_service.dart';
+import 'package:cabine_flow/app/data/repositories/supabase_customer_messaging_repository.dart';
+import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
+import 'package:cabine_flow/app/data/repositories/supabase_support_request_repository.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;

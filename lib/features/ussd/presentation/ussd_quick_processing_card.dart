@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:math';
-import 'package:cabine_flow/core/theme/izytel_colors.dart';
+import 'package:cabine_flow/app/theme/izytel_colors.dart';
 import 'package:cabine_flow/features/ussd/data/supabase_ussd_repository.dart';
 import 'package:cabine_flow/features/ussd/domain/ussd_engine.dart';
 import 'package:cabine_flow/features/ussd/domain/ussd_repository.dart';

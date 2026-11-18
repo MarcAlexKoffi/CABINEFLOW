@@ -88,7 +88,6 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _submitForm() async {
-    FocusManager.instance.primaryFocus?.unfocus();
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     final AuthLoginResult? result = await _viewModel.login(
@@ -98,13 +97,16 @@ class _LoginPageState extends State<LoginPage> {
 
     if (!mounted || result == null) return;
 
-    if (result.isAuthenticated && result.user != null) {
-      await _persistRememberedPreference();
-      // Ferme explicitement le contexte Autofill Android afin que Samsung Pass
-      // (ou le gestionnaire de mots de passe choisi) puisse proposer
-      // d'enregistrer les identifiants après une connexion réussie.
+    if (result.isAuthenticated || result.requiresAccessScreen) {
+      // Commit before unfocusing or awaiting preferences so Android still has
+      // both inputs, including valid new accounts awaiting activation.
       TextInput.finishAutofillContext(shouldSave: true);
+      FocusManager.instance.primaryFocus?.unfocus();
+      await _persistRememberedPreference();
       if (!mounted) return;
+    }
+
+    if (result.isAuthenticated && result.user != null) {
       Navigator.of(
         context,
       ).pushReplacementNamed(AppRoutes.dashboard, arguments: result.user);
@@ -112,8 +114,6 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     if (result.requiresAccessScreen) {
-      await _persistRememberedPreference();
-      if (!mounted) return;
       Navigator.of(
         context,
       ).pushReplacementNamed(AppRoutes.pendingAccount, arguments: result);
@@ -250,6 +250,8 @@ class _LoginPageState extends State<LoginPage> {
                                       const SizedBox(height: 8),
                                     ],
                                     AutofillGroup(
+                                      key: const ValueKey('login-autofill'),
+                                      onDisposeAction: AutofillContextAction.cancel,
                                       child: Form(
                                         key: _formKey,
                                       autovalidateMode:

@@ -46,7 +46,7 @@ void main() {
     expect(page, isNot(contains('FirestoreRefundRepository()')));
   });
 
-  test('écrans Fournisseurs et Commissions neutralisent les écritures Manager', () {
+  test('Manager peut régler ses fournisseurs mais pas verser les commissions', () {
     final String suppliers = compact(
       read('lib/app/modules/finance/views/supplier_finance_page.dart'),
     );
@@ -58,7 +58,7 @@ void main() {
     expect(suppliers, contains('widget.user.permissions.canManageFinanceSettings || widget.user.isManager'));
     expect(suppliers, contains('bool get _canPaySuppliers'));
     expect(suppliers, contains('if (_canPaySuppliers)'));
-    expect(suppliers, contains('Le règlement financier du fournisseur reste réservé'));
+    expect(suppliers, contains('Tu peux gérer et régler tes fournisseurs'));
     expect(performance, contains('widget.user.permissions.canManageFinanceSettings'));
   });
 

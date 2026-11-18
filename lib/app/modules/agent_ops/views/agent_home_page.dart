@@ -6,13 +6,13 @@ import 'package:cabine_flow/app/domain/entities/agents/agent_models.dart';
 import 'package:cabine_flow/app/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/app/modules/agent_issues/views/agent_issues_page.dart';
 import 'package:cabine_flow/app/domain/entities/auth/app_user.dart';
-import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
 import 'package:cabine_flow/app/domain/repositories/orders_repository.dart';
 import 'package:cabine_flow/app/shared/widgets/izytel/izytel_ui.dart';
+import 'package:cabine_flow/app/modules/agent_ops/controllers/agent_home_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-class AgentHomePage extends StatelessWidget {
+class AgentHomePage extends StatefulWidget {
   const AgentHomePage({
     super.key,
     required this.user,
@@ -24,217 +24,215 @@ class AgentHomePage extends StatelessWidget {
     required this.onOpenActivity,
     required this.onOpenCommissions,
   });
-
   final AppUser user;
   final OrdersRepository ordersRepository;
   final AgentRepository agentRepository;
-  final VoidCallback onOpenOrders;
-  final VoidCallback onOpenHistory;
-  final VoidCallback onOpenProfile;
-  final VoidCallback onOpenActivity;
-  final VoidCallback onOpenCommissions;
+  final VoidCallback onOpenOrders,
+      onOpenHistory,
+      onOpenProfile,
+      onOpenActivity,
+      onOpenCommissions;
+  @override
+  State<AgentHomePage> createState() => _AgentHomePageState();
+}
 
+class _AgentHomePageState extends State<AgentHomePage>
+    with WidgetsBindingObserver {
+  late AgentHomeViewModel _home;
+  late Stream<AgentProfile?> _profile;
+  late Stream<List<AgentIssue>> _issues;
   String get _firstName {
-    final String name = user.name.trim();
-    if (name.isEmpty) return 'Agent';
-    return name.split(RegExp(r'\s+')).first;
+    final name = widget.user.name.trim();
+    return name.isEmpty ? 'Agent' : name.split(RegExp(r'\s+')).first;
   }
 
-  void _openIssues(BuildContext context) {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _bind();
+  }
+
+  void _bind() {
+    _profile = widget.agentRepository.watchAgentProfile(widget.user.id);
+    _issues = widget.agentRepository.watchAgentIssues(widget.user.id);
+    _home = AgentHomeViewModel(
+      agentId: widget.user.id,
+      repository: widget.ordersRepository,
+    )..start();
+  }
+
+  @override
+  void didUpdateWidget(covariant AgentHomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.user.id != widget.user.id ||
+        oldWidget.ordersRepository != widget.ordersRepository ||
+        oldWidget.agentRepository != widget.agentRepository) {
+      _home.dispose();
+      _bind();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_home.refresh());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _home.dispose();
+    super.dispose();
+  }
+
+  void _openIssues() {
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            AgentIssuesPage(agentId: user.id, repository: agentRepository),
+        builder: (_) => AgentIssuesPage(
+          agentId: widget.user.id,
+          repository: widget.agentRepository,
+        ),
       ),
     );
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: IzyTelColors.background,
-      body: SafeArea(
-        bottom: false,
-        child: StreamBuilder<AgentProfile?>(
-          stream: agentRepository.watchAgentProfile(user.id),
-          builder: (BuildContext context, AsyncSnapshot<AgentProfile?> profileSnapshot) {
-            final AgentProfile? profile = profileSnapshot.data;
-            return StreamBuilder<List<QueueOrder>>(
-              stream: ordersRepository.watchAssignedOrders(agentId: user.id),
-              builder:
-                  (
-                    BuildContext context,
-                    AsyncSnapshot<List<QueueOrder>> orderSnapshot,
-                  ) {
-                    final List<QueueOrder> orders =
-                        orderSnapshot.data ?? const <QueueOrder>[];
-                    return StreamBuilder<List<AgentIssue>>(
-                      stream: agentRepository.watchAgentIssues(user.id),
-                      builder:
-                          (
-                            BuildContext context,
-                            AsyncSnapshot<List<AgentIssue>> issueSnapshot,
-                          ) {
-                            final List<AgentIssue> issues =
-                                issueSnapshot.data ?? const <AgentIssue>[];
-                            final int toAccept = orders.where((
-                              QueueOrder order,
-                            ) {
-                              return order.status ==
-                                      QueueOrderStatus.paidReady &&
-                                  order.assignmentStatus ==
-                                      OrderAssignmentStatus.assigned;
-                            }).length;
-                            final int inProgress = orders.where((
-                              QueueOrder order,
-                            ) {
-                              return order.status ==
-                                      QueueOrderStatus.inProgress ||
-                                  order.status == QueueOrderStatus.onHold ||
-                                  (order.status == QueueOrderStatus.paidReady &&
-                                      order.assignmentStatus ==
-                                          OrderAssignmentStatus.accepted);
-                            }).length;
-                            final int completed = orders.where((
-                              QueueOrder order,
-                            ) {
-                              return order.status ==
-                                      QueueOrderStatus.completed ||
-                                  order.status ==
-                                      QueueOrderStatus
-                                          .awaitingCustomerConfirmation;
-                            }).length;
-                            final int openIssues = issues.where((
-                              AgentIssue issue,
-                            ) {
-                              return issue.status == 'open' ||
-                                  issue.status == 'in_progress' ||
-                                  issue.status == 'acknowledged';
-                            }).length;
-
-                            return IzyTelRefreshIndicator(
-                              onRefresh: () async {
-                                await Future<void>.delayed(
-                                  const Duration(milliseconds: 220),
-                                );
-                              },
-                              child: ListView(
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                padding: const EdgeInsets.fromLTRB(
-                                  IzyTelSpacing.lg,
-                                  IzyTelSpacing.md,
-                                  IzyTelSpacing.lg,
-                                  IzyTelSpacing.xxl,
-                                ),
-                                children: <Widget>[
-                                  _HomeHeader(
-                                    agentId: user.id,
-                                    firstName: _firstName,
-                                    userName: user.name,
-                                    availability: profile?.availability,
-                                    repository: agentRepository,
-                                    onOpenProfile: onOpenProfile,
-                                  ),
-                                  const SizedBox(height: IzyTelSpacing.xl),
-                                  _PriorityActionCard(
-                                    toAccept: toAccept,
-                                    inProgress: inProgress,
-                                    onOpenOrders: onOpenOrders,
-                                  ),
-                                  const SizedBox(height: IzyTelSpacing.lg),
-                                  _OperationalSummary(
-                                    toAccept: toAccept,
-                                    inProgress: inProgress,
-                                    completed: completed,
-                                  ),
-                                  const SizedBox(height: IzyTelSpacing.xl),
-                                  const IzyTelSectionHeader(title: 'Mon suivi'),
-                                  const SizedBox(height: IzyTelSpacing.sm),
-                                  IzyTelSurface(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                    ),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: <Widget>[
-                                        IzyTelMenuRow(
-                                          icon: Symbols.insights_rounded,
-                                          title: 'Mon activité détaillée',
-                                          subtitle:
-                                              'Performances, commandes, capacités et mouvements.',
-                                          iconColor: IzyTelColors.primary,
-                                          onTap: onOpenActivity,
-                                        ),
-                                        const Divider(height: 1),
-                                        IzyTelMenuRow(
-                                          icon: Symbols
-                                              .account_balance_wallet_rounded,
-                                          title: 'Mes commissions',
-                                          subtitle:
-                                              'Consulter mon solde, mes gains et mes versements.',
-                                          iconColor: IzyTelColors.success,
-                                          onTap: onOpenCommissions,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  if (openIssues > 0) ...<Widget>[
-                                    const SizedBox(height: IzyTelSpacing.xl),
-                                    const IzyTelSectionHeader(
-                                      title: 'À surveiller',
-                                    ),
-                                    const SizedBox(height: IzyTelSpacing.sm),
-                                    IzyTelSurface(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 14,
-                                      ),
-                                      child: IzyTelMenuRow(
-                                        icon: Symbols.support_agent_rounded,
-                                        title: 'Mes signalements',
-                                        subtitle:
-                                            'Suivre les incidents actuellement en cours de traitement.',
-                                        badge: '$openIssues',
-                                        iconColor: IzyTelColors.warning,
-                                        onTap: () => _openIssues(context),
-                                      ),
-                                    ),
-                                  ],
-                                  const SizedBox(height: IzyTelSpacing.xl),
-                                  Row(
-                                    children: <Widget>[
-                                      Expanded(
-                                        child: OutlinedButton.icon(
-                                          onPressed: onOpenHistory,
-                                          icon: const Icon(
-                                            Symbols.history_rounded,
-                                          ),
-                                          label: const Text('Historique'),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: OutlinedButton.icon(
-                                          onPressed: onOpenProfile,
-                                          icon: const Icon(
-                                            Symbols.person_rounded,
-                                          ),
-                                          label: const Text('Profil'),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                    );
-                  },
-            );
-          },
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: IzyTelColors.background,
+    body: SafeArea(
+      bottom: false,
+      child: ListenableBuilder(
+        listenable: _home,
+        builder: (context, _) => StreamBuilder<AgentProfile?>(
+          stream: _profile,
+          builder: (context, profileSnapshot) => StreamBuilder<List<AgentIssue>>(
+            stream: _issues,
+            builder: (context, issueSnapshot) {
+              final openIssues = (issueSnapshot.data ?? const <AgentIssue>[])
+                  .where(
+                    (i) => const {
+                      'open',
+                      'in_progress',
+                      'acknowledged',
+                    }.contains(i.status),
+                  )
+                  .length;
+              return IzyTelRefreshIndicator(
+                onRefresh: _home.refresh,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(
+                    IzyTelSpacing.lg,
+                    IzyTelSpacing.md,
+                    IzyTelSpacing.lg,
+                    IzyTelSpacing.xxl,
+                  ),
+                  children: [
+                    _HomeHeader(
+                      agentId: widget.user.id,
+                      firstName: _firstName,
+                      userName: widget.user.name,
+                      availability: profileSnapshot.data?.availability,
+                      repository: widget.agentRepository,
+                      onOpenProfile: widget.onOpenProfile,
+                    ),
+                    const SizedBox(height: IzyTelSpacing.xl),
+                    _PriorityActionCard(
+                      toAccept: _home.toAccept,
+                      inProgress: _home.inProgress,
+                      available: _home.availableCount,
+                      assigned: _home.assignedToAccept,
+                      sharedEnabled: _home.sharedEnabled,
+                      loading: _home.loading,
+                      hasData: _home.hasData,
+                      error: _home.error,
+                      onOpenOrders: widget.onOpenOrders,
+                      onRetry: () => unawaited(_home.refresh()),
+                    ),
+                    const SizedBox(height: IzyTelSpacing.lg),
+                    _OperationalSummary(
+                      toAccept: _home.toAccept,
+                      inProgress: _home.inProgress,
+                      completed: _home.completed,
+                      hasData: _home.hasData,
+                      acceptLabel: _home.sharedEnabled
+                          ? 'À prendre'
+                          : 'À accepter',
+                    ),
+                    const SizedBox(height: IzyTelSpacing.xl),
+                    const IzyTelSectionHeader(title: 'Mon suivi'),
+                    const SizedBox(height: IzyTelSpacing.sm),
+                    IzyTelSurface(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IzyTelMenuRow(
+                            icon: Symbols.insights_rounded,
+                            title: 'Mon activité détaillée',
+                            subtitle:
+                                'Performances, commandes, capacités et mouvements.',
+                            iconColor: IzyTelColors.primary,
+                            onTap: widget.onOpenActivity,
+                          ),
+                          const Divider(height: 1),
+                          IzyTelMenuRow(
+                            icon: Symbols.account_balance_wallet_rounded,
+                            title: 'Mes commissions',
+                            subtitle:
+                                'Consulter mon solde, mes gains et mes versements.',
+                            iconColor: IzyTelColors.success,
+                            onTap: widget.onOpenCommissions,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (openIssues > 0) ...[
+                      const SizedBox(height: IzyTelSpacing.xl),
+                      const IzyTelSectionHeader(title: 'À surveiller'),
+                      const SizedBox(height: IzyTelSpacing.sm),
+                      IzyTelSurface(
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        child: IzyTelMenuRow(
+                          icon: Symbols.support_agent_rounded,
+                          title: 'Mes signalements',
+                          subtitle:
+                              'Suivre les incidents actuellement en cours de traitement.',
+                          badge: '$openIssues',
+                          iconColor: IzyTelColors.warning,
+                          onTap: _openIssues,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: IzyTelSpacing.xl),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: widget.onOpenHistory,
+                            icon: const Icon(Symbols.history_rounded),
+                            label: const Text('Historique'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: widget.onOpenProfile,
+                            icon: const Icon(Symbols.person_rounded),
+                            label: const Text('Profil'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
 class _HomeHeader extends StatelessWidget {
@@ -284,15 +282,17 @@ class _HomeHeader extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 7),
-                  Flexible(child: Text(
-                    availability?.label ?? 'Statut en cours de chargement',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: IzyTelColors.textSecondary,
-                      fontWeight: FontWeight.w600,
+                  Flexible(
+                    child: Text(
+                      availability?.label ?? 'Statut en cours de chargement',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: IzyTelColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  )),
+                  ),
                 ],
               ),
             ],
@@ -401,107 +401,221 @@ class _PriorityActionCard extends StatelessWidget {
   const _PriorityActionCard({
     required this.toAccept,
     required this.inProgress,
+    required this.available,
+    required this.assigned,
+    required this.sharedEnabled,
+    required this.loading,
+    required this.hasData,
+    required this.error,
     required this.onOpenOrders,
+    required this.onRetry,
   });
-
-  final int toAccept;
-  final int inProgress;
-  final VoidCallback onOpenOrders;
-
+  final int toAccept, inProgress, available, assigned;
+  final bool sharedEnabled, loading, hasData;
+  final String? error;
+  final VoidCallback onOpenOrders, onRetry;
   @override
   Widget build(BuildContext context) {
-    final bool hasPending = toAccept > 0;
+    final pending = toAccept > 0;
+    final title = !hasData
+        ? (loading ? 'Synchronisation de ta file' : 'Commandes indisponibles')
+        : pending
+        ? '$toAccept commande${toAccept > 1 ? 's' : ''} ${sharedEnabled ? 'à prendre' : 'à accepter'}'
+        : inProgress > 0
+        ? '$inProgress commande${inProgress > 1 ? 's' : ''} en cours'
+        : 'Aucune commande urgente';
+    final subtitle = !hasData
+        ? (loading
+              ? 'Tes commandes réelles sont en cours de chargement.'
+              : 'Actualise pour retrouver ta file de commandes.')
+        : pending
+        ? (available > 0
+              ? '$available dans la file partagée${assigned > 0 ? ' · $assigned affectée${assigned > 1 ? 's' : ''} à toi' : ''}.'
+              : 'De nouvelles affectations attendent ta réponse.')
+        : inProgress > 0
+        ? 'Poursuis le traitement de tes commandes acceptées.'
+        : 'Ta file est à jour. Tu peux consulter le détail de tes commandes.';
     return Container(
-      padding: const EdgeInsets.all(IzyTelSpacing.lg),
+      key: const ValueKey('agent-priority-card'),
       decoration: BoxDecoration(
-        color: hasPending ? IzyTelColors.primary : IzyTelColors.surface,
-        borderRadius: BorderRadius.circular(IzyTelRadii.largeCard),
-        border: hasPending ? null : Border.all(color: IzyTelColors.outline),
-        boxShadow: const <BoxShadow>[
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
           BoxShadow(
-            color: IzyTelColors.shadow,
-            blurRadius: 18,
-            offset: Offset(0, 8),
+            color: IzyTelColors.primary.withAlpha(40),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Container(
-                width: 42,
-                height: 42,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: hasPending
-                      ? Colors.white.withAlpha(32)
-                      : IzyTelColors.warningSoft,
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Icon(
-                  hasPending
-                      ? Symbols.notifications_active_rounded
-                      : Symbols.check_circle_rounded,
-                  color: hasPending ? Colors.white : IzyTelColors.success,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF132E68), Color(0xFF1D4ED8), Color(0xFF2E63EB)],
+            ),
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                top: -65,
+                right: -45,
+                child: IgnorePointer(
+                  child: Container(
+                    width: 210,
+                    height: 210,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withAlpha(7),
+                      border: Border.all(color: Colors.white.withAlpha(15)),
+                    ),
+                  ),
                 ),
               ),
-              const Spacer(),
-              if (hasPending)
-                Text(
-                  '$toAccept en attente',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: Colors.white.withAlpha(225),
-                    fontWeight: FontWeight.w700,
-                  ),
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 10,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(25),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: Colors.white.withAlpha(30),
+                            ),
+                          ),
+                          child: Icon(
+                            pending
+                                ? Symbols.bolt_rounded
+                                : Symbols.task_alt_rounded,
+                            color: Colors.white,
+                            size: 23,
+                          ),
+                        ),
+                        const Text(
+                          'TA PRIORITÉ',
+                          style: TextStyle(
+                            color: Color(0xFFF0F5FF),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF132E68).withAlpha(70),
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: Text(
+                            loading && !hasData
+                                ? 'Chargement'
+                                : error != null
+                                ? 'À actualiser'
+                                : 'En direct',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
+                        fontSize: 23,
+                        fontWeight: FontWeight.w800,
+                        height: 1.18,
+                        letterSpacing: -.5,
+                      ),
+                    ),
+                    const SizedBox(height: 9),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: const Color(0xFFF0F5FF),
+                        height: 1.45,
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF173B88),
+                          minimumSize: const Size(0, 48),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        onPressed: !hasData && error != null
+                            ? onRetry
+                            : onOpenOrders,
+                        icon: Icon(
+                          !hasData && error != null
+                              ? Symbols.refresh_rounded
+                              : Symbols.receipt_long_rounded,
+                          size: 20,
+                        ),
+                        label: Text(
+                          !hasData && error != null
+                              ? 'Réessayer'
+                              : pending
+                              ? 'Voir les commandes'
+                              : 'Ouvrir mes commandes',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                    if (error != null && hasData) ...[
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Actualisation interrompue. Dernières données affichées.',
+                        style: TextStyle(
+                          color: Color(0xFFF0F5FF),
+                          fontSize: 12,
+                          height: 1.4,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: onRetry,
+                        icon: const Icon(Symbols.refresh_rounded, size: 18),
+                        label: const Text('Réessayer'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
+              ),
             ],
           ),
-          const SizedBox(height: 16),
-          Text(
-            hasPending
-                ? '$toAccept commande${toAccept > 1 ? 's' : ''} à accepter'
-                : inProgress > 0
-                ? '$inProgress commande${inProgress > 1 ? 's' : ''} en cours'
-                : 'Aucune commande urgente',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: hasPending ? Colors.white : IzyTelColors.textPrimary,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            hasPending
-                ? 'Les nouvelles affectations attendent ta réponse.'
-                : 'Tu es à jour. Consulte ta file pour voir le détail de tes commandes.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: hasPending
-                  ? Colors.white.withAlpha(220)
-                  : IzyTelColors.textSecondary,
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: hasPending
-                ? FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: IzyTelColors.primary,
-                    ),
-                    onPressed: onOpenOrders,
-                    icon: const Icon(Symbols.arrow_forward_rounded),
-                    label: const Text('Voir les commandes'),
-                  )
-                : OutlinedButton.icon(
-                    onPressed: onOpenOrders,
-                    icon: const Icon(Symbols.receipt_long_rounded),
-                    label: const Text('Ouvrir mes commandes'),
-                  ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -512,11 +626,15 @@ class _OperationalSummary extends StatelessWidget {
     required this.toAccept,
     required this.inProgress,
     required this.completed,
+    required this.hasData,
+    required this.acceptLabel,
   });
 
   final int toAccept;
   final int inProgress;
   final int completed;
+  final bool hasData;
+  final String acceptLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -526,15 +644,15 @@ class _OperationalSummary extends StatelessWidget {
         children: <Widget>[
           Expanded(
             child: _SummaryItem(
-              value: '$toAccept',
-              label: 'À accepter',
+              value: hasData ? '$toAccept' : '—',
+              label: acceptLabel,
               valueColor: IzyTelColors.warning,
             ),
           ),
           const SizedBox(height: 42, child: VerticalDivider(width: 1)),
           Expanded(
             child: _SummaryItem(
-              value: '$inProgress',
+              value: hasData ? '$inProgress' : '—',
               label: 'En cours',
               valueColor: IzyTelColors.primary,
             ),
@@ -542,7 +660,7 @@ class _OperationalSummary extends StatelessWidget {
           const SizedBox(height: 42, child: VerticalDivider(width: 1)),
           Expanded(
             child: _SummaryItem(
-              value: '$completed',
+              value: hasData ? '$completed' : '—',
               label: 'Terminées',
               valueColor: IzyTelColors.success,
             ),

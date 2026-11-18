@@ -10,7 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 ///
 /// Le Manager peut gérer ses propres comptes fournisseurs et recharger les
 /// Agents de ses zones via des RPC Supabase qui réappliquent le contrôle de
-/// périmètre côté serveur. Les règlements fournisseurs et les autres domaines
+/// périmètre côté serveur. Il peut régler ses fournisseurs ; les autres domaines
 /// financiers sensibles restent réservés à l’Administrateur.
 class ManagerReadOnlyFinanceOperationsRepository
     implements FinanceOperationsRepository {
@@ -18,14 +18,22 @@ class ManagerReadOnlyFinanceOperationsRepository
     SupabasePhase5FinanceRepository? phase5Repository,
     SupabaseSupplierRegistryRepository? supplierRepository,
     SupabaseClient? client,
-  }) : _phase5 = phase5Repository ?? SupabasePhase5FinanceRepository(),
-       _suppliers = supplierRepository ?? SupabaseSupplierRegistryRepository(),
+  }) : _phase5 =
+           phase5Repository ?? SupabasePhase5FinanceRepository(client: client),
+       _suppliers =
+           supplierRepository ??
+           SupabaseSupplierRegistryRepository(client: client),
        _client = client ?? Supabase.instance.client;
 
   final SupabasePhase5FinanceRepository _phase5;
   final SupabaseSupplierRegistryRepository _suppliers;
   final SupabaseClient _client;
-  final Expando<String> _rechargeKeys = Expando<String>('manager-recharge-intention');
+  final Expando<String> _rechargeKeys = Expando<String>(
+    'manager-recharge-intention',
+  );
+  final Expando<String> _paymentKeys = Expando<String>(
+    'manager-payment-intention',
+  );
 
   @override
   Stream<List<FinanceSupplier>> watchSuppliers() => _suppliers.watchSuppliers();
@@ -172,7 +180,22 @@ class ManagerReadOnlyFinanceOperationsRepository
     required SupplierPaymentDraft draft,
     required String staffId,
     required String staffName,
-  }) async => _adminOnly();
+  }) async {
+    final Object? result = await _client.rpc(
+      'phase5_record_supplier_payment',
+      params: <String, dynamic>{
+        'p_supplier_id': draft.supplierId,
+        'p_amount': draft.amount,
+        'p_channel': draft.channel.storageValue,
+        'p_reference': draft.reference.trim(),
+        'p_note': draft.note,
+        'p_staff_name': staffName.trim(),
+        'p_legacy_id': null,
+        'p_operation_key': _paymentKeys[draft] ??= createFinanceOperationKey(),
+      },
+    );
+    return '$result'.trim();
+  }
 
   @override
   Future<String> createCustomerCredit({

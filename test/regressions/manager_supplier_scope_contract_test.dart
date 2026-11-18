@@ -15,10 +15,11 @@ void main() {
     expect(repository, contains("'izytel_manager_delete_supplier'"));
     expect(repository, contains("'phase5_record_supplier_recharge'"));
     expect(repository, contains('recordSupplierPayment'));
+    expect(repository, contains("'phase5_record_supplier_payment'"));
     expect(repository, contains('=> _adminOnly()'));
   });
 
-  test('Interface fournisseur Manager autorise gestion zone mais pas règlement', () {
+  test('Interface fournisseur Manager autorise gestion et règlement de ses fournisseurs', () {
     final String page = source(
       'lib/app/modules/finance/views/supplier_finance_page.dart',
     );
@@ -27,7 +28,7 @@ void main() {
     expect(page, contains('widget.user.isManager'));
     expect(page, contains('_canPaySuppliers'));
     expect(page, contains("'Recharger un Agent'"));
-    expect(page, contains('Le règlement financier du fournisseur reste réservé'));
+    expect(page, contains('Tu peux gérer et régler tes fournisseurs'));
   });
 
   test('Plus Manager expose fournisseurs de zone', () {

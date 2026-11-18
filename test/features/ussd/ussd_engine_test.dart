@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:cabine_flow/features/ussd/domain/ussd_engine.dart';
-import 'package:cabine_flow/features/orders/data/mappers/firestore_order_mapper.dart';
+import 'package:cabine_flow/app/data/mappers/firestore_order_mapper.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -78,6 +78,7 @@ void main() {
           amount: v['amount'] as int?,
           offerCode: v['offer_code'] as String?,
           quantity: v['quantity'] as int?,
+          secretCode: v['secret_code'] as String?,
         ),
       );
       if (v['error'] != null) {

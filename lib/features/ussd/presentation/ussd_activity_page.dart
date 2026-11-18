@@ -1,8 +1,8 @@
-import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/app/domain/entities/auth/app_user.dart';
 import 'package:cabine_flow/features/ussd/data/supabase_ussd_repository.dart';
 import 'package:cabine_flow/features/ussd/domain/ussd_repository.dart';
 import 'package:flutter/material.dart';
-import 'package:cabine_flow/shared/widgets/izytel/izytel_feedback.dart';
+import 'package:cabine_flow/app/shared/widgets/izytel/izytel_feedback.dart';
 
 const _labels = {
   'incorrect_code': 'Code incorrect',

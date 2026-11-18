@@ -856,7 +856,7 @@ class MorePage extends StatelessWidget {
                         icon: Symbols.inventory_2_rounded,
                         title: 'Fournisseurs de ma zone',
                         subtitle:
-                            'Gérer tes fournisseurs et recharger les Agents de tes zones. Les règlements restent Admin.',
+                            'Gérer et régler tes fournisseurs, et recharger les Agents de tes zones.',
                         iconColor: IzyTelColors.primary,
                         onTap: openSuppliers,
                       ),

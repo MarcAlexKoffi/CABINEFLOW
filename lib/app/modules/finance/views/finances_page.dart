@@ -653,7 +653,7 @@ class _FinancesPageState extends State<FinancesPage> {
                               icon: Symbols.inventory_2_rounded,
                               title: 'Fournisseurs de ma zone',
                               subtitle:
-                                  'Créer et gérer tes fournisseurs puis recharger les Agents de tes zones.',
+                                  'Créer, gérer et régler tes fournisseurs puis recharger les Agents de tes zones.',
                               accent: IzyTelColors.orange,
                               badge: 'Gestion zone',
                               onTap: _openSuppliers,

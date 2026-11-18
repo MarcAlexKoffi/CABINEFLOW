@@ -1,4 +1,4 @@
-import 'package:cabine_flow/features/auth/domain/models/app_user.dart';
+import 'package:cabine_flow/app/domain/entities/auth/app_user.dart';
 import 'package:cabine_flow/features/ussd/presentation/backoffice_ussd_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

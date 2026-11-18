@@ -37,7 +37,9 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
   bool _busy = false;
   late Stream<List<FinanceSupplier>> _suppliersStream;
   List<FinanceSupplier> _lastSuppliers = const [];
-  late final Stream<List<SupplierAccount>> _supplierAccountsStream;
+  late Stream<List<SupplierAccount>> _supplierAccountsStream;
+  List<SupplierAccount> _lastSupplierAccounts = const [];
+  bool _hasSupplierAccounts = false;
 
   @override
   void initState() {
@@ -49,7 +51,8 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
   bool get _canManageSuppliers =>
       widget.user.permissions.canManageFinanceSettings || widget.user.isManager;
 
-  bool get _canPaySuppliers => widget.user.permissions.canManageFinanceSettings;
+  bool get _canPaySuppliers =>
+      widget.user.permissions.canManageFinanceSettings || widget.user.isManager;
 
   Widget _supplierReadStatus(Object? error, Widget child) {
     if (error == null) return child;
@@ -62,12 +65,15 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
               Text(
                 BackendReadStream.readErrorMessage(
                   error,
-                  fallback: 'Impossible de charger les fournisseurs.',
+                  fallback:
+                      'Impossible d’actualiser les fournisseurs ou leurs montants.',
                 ),
               ),
               TextButton(
                 onPressed: () => setState(() {
                   _suppliersStream = widget.repository.watchSuppliers();
+                  _supplierAccountsStream = widget.repository
+                      .watchSupplierAccounts();
                 }),
                 child: const Text('Réessayer'),
               ),
@@ -450,19 +456,26 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
         ),
       ),
     );
-    if (submit != true) return;
+    if (submit != true || !mounted) return;
+    final draft = SupplierPaymentDraft(
+      supplierId: supplier.id,
+      supplierName: supplier.name,
+      amount: int.tryParse(amount.text.trim()) ?? 0,
+      channel: channel,
+      reference: reference.text,
+      note: note.text,
+    );
     await _run(
-      () => widget.repository.recordSupplierPayment(
-        draft: SupplierPaymentDraft(
-          supplierId: supplier.id,
-          supplierName: supplier.name,
-          amount: int.tryParse(amount.text.trim()) ?? 0,
-          channel: channel,
-          reference: reference.text,
-          note: note.text,
+      () => runFinancialIntent(
+        context,
+        () => widget.repository.recordSupplierPayment(
+          draft: draft,
+          staffId: widget.user.id,
+          staffName: widget.user.name,
         ),
-        staffId: widget.user.id,
-        staffName: widget.user.name,
+        canRetry:
+            widget.repository is SupabaseFinanceOperationsRepository ||
+            widget.repository is ManagerReadOnlyFinanceOperationsRepository,
       ),
     );
   }
@@ -646,6 +659,16 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                       BuildContext context,
                       AsyncSnapshot<List<SupplierAccount>> accountSnapshot,
                     ) {
+                      if (accountSnapshot.hasData) {
+                        _lastSupplierAccounts = accountSnapshot.data!;
+                        _hasSupplierAccounts = true;
+                      } else if (accountSnapshot.hasError &&
+                          !BackendFailurePolicy.canRetryRead(
+                            accountSnapshot.error!,
+                          )) {
+                        _lastSupplierAccounts = const [];
+                        _hasSupplierAccounts = false;
+                      }
                       if (!supplierSnapshot.hasData &&
                           supplierSnapshot.connectionState ==
                               ConnectionState.waiting) {
@@ -656,8 +679,7 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                       final Map<String, SupplierAccount> accounts =
                           <String, SupplierAccount>{
                             for (final SupplierAccount item
-                                in accountSnapshot.data ??
-                                    const <SupplierAccount>[])
+                                in _lastSupplierAccounts)
                               item.supplierId: item,
                           };
                       if (suppliers.isEmpty) {
@@ -676,7 +698,7 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                         );
                       }
                       return _supplierReadStatus(
-                        supplierSnapshot.error,
+                        supplierSnapshot.error ?? accountSnapshot.error,
                         ListView.separated(
                           padding: const EdgeInsets.all(20),
                           itemCount: suppliers.length,
@@ -829,27 +851,33 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                                       Expanded(
                                         child: _Metric(
                                           label: 'Stock reçu',
-                                          value: formatCfa(
-                                            account?.totalRecharged ?? 0,
-                                          ),
+                                          value: !_hasSupplierAccounts
+                                              ? '—'
+                                              : formatCfa(
+                                                  account?.totalRecharged ?? 0,
+                                                ),
                                         ),
                                       ),
                                       const SizedBox(width: 6),
                                       Expanded(
                                         child: _Metric(
                                           label: 'Remboursé',
-                                          value: formatCfa(
-                                            account?.totalPaid ?? 0,
-                                          ),
+                                          value: !_hasSupplierAccounts
+                                              ? '—'
+                                              : formatCfa(
+                                                  account?.totalPaid ?? 0,
+                                                ),
                                         ),
                                       ),
                                       const SizedBox(width: 6),
                                       Expanded(
                                         child: _Metric(
                                           label: 'Reste dû',
-                                          value: formatCfa(
-                                            account?.balance ?? 0,
-                                          ),
+                                          value: !_hasSupplierAccounts
+                                              ? '—'
+                                              : formatCfa(
+                                                  account?.balance ?? 0,
+                                                ),
                                           warning: (account?.balance ?? 0) > 0,
                                         ),
                                       ),
@@ -879,6 +907,8 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                                             child: FilledButton.icon(
                                               onPressed:
                                                   !_busy &&
+                                                      !accountSnapshot
+                                                          .hasError &&
                                                       (account?.balance ?? 0) >
                                                           0
                                                   ? () =>
@@ -908,7 +938,7 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                                           ),
                                         ),
                                         child: const Text(
-                                          'Tu peux gérer ce fournisseur et recharger uniquement les Agents de tes zones. Le règlement financier du fournisseur reste réservé à l’Administrateur.',
+                                          'Tu peux gérer et régler tes fournisseurs, et recharger uniquement les Agents de tes zones.',
                                           style: TextStyle(
                                             color: IzyTelColors.textSecondary,
                                             fontSize: 11,

@@ -343,7 +343,7 @@ class SupabasePhase5FinanceRepository {
       );
 
   Stream<List<SupplierAccount>> watchSupplierAccounts() =>
-      _watchFinanceChanges(fetchSupplierAccounts, 'supplier-accounts');
+      _watchFinanceChanges(fetchSupplierAccounts, 'supplier-accounts', independentPolling: true);
 
   Stream<List<SupplierRecharge>> watchSupplierRecharges() =>
       _watchFinanceChanges(fetchSupplierRecharges, 'supplier-recharges');
@@ -353,12 +353,14 @@ class SupabasePhase5FinanceRepository {
 
   Stream<T> _watchFinanceChanges<T>(
     Future<T> Function() fetch,
-    String label,
-  ) {
+    String label, {
+    bool independentPolling = false,
+  }) {
     return SupabaseRealtimeRefetch.watch<T>(
       client: _client,
       fetch: fetch,
       label: 'Phase5.$label',
+      independentPolling: independentPolling,
       signals: const <SupabaseRealtimeSignal>[
         SupabaseRealtimeSignal(
           table: 'finance_change_feed',

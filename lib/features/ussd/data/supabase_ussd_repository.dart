@@ -1,4 +1,4 @@
-import 'package:cabine_flow/core/supabase/supabase_bootstrap.dart';
+import 'package:cabine_flow/app/data/sources/supabase_bootstrap.dart';
 import 'package:cabine_flow/features/ussd/domain/ussd_engine.dart';
 import 'package:cabine_flow/features/ussd/domain/ussd_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';

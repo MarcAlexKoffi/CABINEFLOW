@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:cabine_flow/core/resilience/backend_read_stream.dart';
+import 'package:cabine_flow/app/core/resilience/backend_read_stream.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

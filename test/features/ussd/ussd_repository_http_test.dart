@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:cabine_flow/features/ussd/data/supabase_ussd_repository.dart';
-import 'package:cabine_flow/features/orders/data/repositories/supabase_phase4_assignment_repository.dart';
-import 'package:cabine_flow/features/orders/domain/models/queue_order.dart';
+import 'package:cabine_flow/app/data/repositories/supabase_phase4_assignment_repository.dart';
+import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'ussd_test_doubles.dart';

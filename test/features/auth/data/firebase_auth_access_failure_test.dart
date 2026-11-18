@@ -1,5 +1,5 @@
-import 'package:cabine_flow/features/auth/data/repositories/firebase_auth_repository.dart';
-import 'package:cabine_flow/features/auth/domain/models/auth_login_result.dart';
+import 'package:cabine_flow/app/data/repositories/firebase_auth_repository.dart';
+import 'package:cabine_flow/app/domain/entities/auth/auth_login_result.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
