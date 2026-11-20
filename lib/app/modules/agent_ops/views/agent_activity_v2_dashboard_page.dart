@@ -2,6 +2,7 @@ import 'package:cabine_flow/app/data/repositories/firestore_agent_activity_v2_re
 import 'package:cabine_flow/app/domain/entities/agents/agent_activity_v2_models.dart';
 import 'package:cabine_flow/app/modules/commissions/views/commission_v2_dashboard_page.dart';
 import 'package:flutter/material.dart';
+import 'package:cabine_flow/app/shared/widgets/resilient_stream_builder.dart';
 
 class AgentActivityV2DashboardPage extends StatefulWidget {
   AgentActivityV2DashboardPage({
@@ -49,7 +50,7 @@ class _AgentActivityV2DashboardPageState
           widget.adminMode ? 'Activité de l’Agent' : 'Mon activité détaillée',
         ),
       ),
-      body: StreamBuilder<AgentActivityV2Snapshot>(
+      body: ResilientStreamBuilder<AgentActivityV2Snapshot>(
         stream: _activityStream,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -80,7 +81,8 @@ class _AgentActivityV2DashboardPageState
               if (data.isUnavailable(AgentActivityV2Sources.orders) ||
                   data.isUnavailable(AgentActivityV2Sources.assignments))
                 const _UnavailableCard(
-                  text: 'Les statistiques de performance sont temporairement indisponibles.',
+                  text:
+                      'Les statistiques de performance sont temporairement indisponibles.',
                 )
               else
                 _PerformanceGrid(data: data),
@@ -143,7 +145,8 @@ class _AgentActivityV2DashboardPageState
               const SizedBox(height: 6),
               if (data.isUnavailable(AgentActivityV2Sources.payouts))
                 const _UnavailableCard(
-                  text: 'Les versements de commissions sont temporairement indisponibles.',
+                  text:
+                      'Les versements de commissions sont temporairement indisponibles.',
                 )
               else if (data.payouts.isEmpty)
                 const _EmptyCard(text: 'Aucun versement enregistré.')
@@ -157,7 +160,8 @@ class _AgentActivityV2DashboardPageState
               const SizedBox(height: 6),
               if (data.isUnavailable(AgentActivityV2Sources.movements))
                 const _UnavailableCard(
-                  text: 'Mouvements non actualisés. Les dernières données connues restent affichées.',
+                  text:
+                      'Mouvements non actualisés. Les dernières données connues restent affichées.',
                 )
               else if (data.movements.isEmpty)
                 const _EmptyCard(text: 'Aucun mouvement réseau disponible.')
@@ -185,7 +189,8 @@ class _AgentActivityV2DashboardPageState
               const SizedBox(height: 6),
               if (data.isUnavailable(AgentActivityV2Sources.orders))
                 const _UnavailableCard(
-                  text: 'L’historique des commandes est temporairement indisponible.',
+                  text:
+                      'L’historique des commandes est temporairement indisponible.',
                 )
               else if (data.orders.isEmpty)
                 const _EmptyCard(text: 'Aucune commande affectée à cet Agent.')
@@ -234,7 +239,6 @@ class _AgentActivityV2DashboardPageState
   }
 }
 
-
 class _PartialDataWarning extends StatelessWidget {
   const _PartialDataWarning({required this.sources});
 
@@ -242,8 +246,8 @@ class _PartialDataWarning extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<String> labels = sources.map(_sourceLabel).toList(growable: false)
-      ..sort();
+    final List<String> labels =
+        sources.map(_sourceLabel).toList(growable: false)..sort();
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -333,9 +337,9 @@ class _Header extends StatelessWidget {
                 cleanName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
             if (cleanName.isNotEmpty) const SizedBox(height: 7),
             Wrap(
@@ -407,11 +411,8 @@ class _PerformanceGrid extends StatelessWidget {
     return _ResponsiveCards(
       children: items
           .map(
-            (item) => _MetricCard(
-              label: item.$1,
-              value: item.$2,
-              icon: item.$3,
-            ),
+            (item) =>
+                _MetricCard(label: item.$1, value: item.$2, icon: item.$3),
           )
           .toList(growable: false),
     );
@@ -461,7 +462,9 @@ class _CapacityCard extends StatelessWidget {
               spacing: 16,
               runSpacing: 8,
               children: <Widget>[
-                Text('Limite jour : ${_formatCfa(value.dailyTransactionLimit)}'),
+                Text(
+                  'Limite jour : ${_formatCfa(value.dailyTransactionLimit)}',
+                ),
                 Text('Max transactions/jour : ${value.maxTransactionsPerDay}'),
               ],
             ),
@@ -493,7 +496,9 @@ class _NetworkCapacity extends StatelessWidget {
           Row(
             children: <Widget>[
               Icon(
-                active ? Icons.check_circle_outline : Icons.pause_circle_outline,
+                active
+                    ? Icons.check_circle_outline
+                    : Icons.pause_circle_outline,
                 size: 18,
               ),
               const SizedBox(width: 6),
@@ -727,7 +732,9 @@ class _IssueCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        leading: Icon(issue.isOpen ? Icons.report_problem_outlined : Icons.task_alt),
+        leading: Icon(
+          issue.isOpen ? Icons.report_problem_outlined : Icons.task_alt,
+        ),
         title: Text(
           _issueTypeLabel(issue.type),
           style: const TextStyle(fontWeight: FontWeight.w700),
@@ -839,9 +846,9 @@ class _SectionTitle extends StatelessWidget {
       builder: (context, constraints) {
         final Text titleWidget = Text(
           title,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
         );
         final Text trailingWidget = Text(
           trailing,

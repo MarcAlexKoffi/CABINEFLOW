@@ -1,10 +1,84 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:cabine_flow/app/domain/policies/ussd/ussd_engine.dart';
+import 'package:cabine_flow/app/domain/repositories/ussd_repository.dart';
 import 'package:cabine_flow/app/data/mappers/firestore_order_mapper.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'available Max it responses require the same associated Orange rule',
+    () {
+      final rule = <String, dynamic>{
+        'id': 'maxit',
+        'version': 1,
+        'network': 'orange',
+        'service': 'callBundle',
+        'actor_scope': 'agent',
+        'ussd_template': UssdEngine.maxItCommand,
+        'offer_id': 'orange-offer',
+        'priority': 0,
+        'status': 'active',
+        'effective_from': '2020-01-01T00:00:00Z',
+      };
+      final row = <String, dynamic>{
+        'status': 'available',
+        'code': UssdEngine.maxItCommand,
+        'rule': rule,
+      };
+      expect(UssdResolution.fromJson(row).isMaxIt, isTrue);
+      for (final invalid in [
+        {...rule, 'offer_id': null},
+        {...rule, 'network': 'mtn'},
+        {...rule, 'ussd_template': '*123#'},
+        {...rule, 'purpose': 'balance'},
+      ]) {
+        expect(
+          () => UssdResolution.fromJson({...row, 'rule': invalid}),
+          throwsA(isA<FormatException>()),
+        );
+      }
+      expect(
+        () => UssdResolution.fromJson({...row, 'code': '*123#'}),
+        throwsA(isA<FormatException>()),
+      );
+    },
+  );
+  test('Max it uses one exact command and no USSD substitution', () {
+    for (final command in [
+      'MAXIT',
+      'APP:MAXIT',
+      ' app:maxit ',
+      '\u200Bmaxit\uFEFF',
+    ]) {
+      expect(UssdEngine.normalizeTemplate(command), UssdEngine.maxItCommand);
+      expect(UssdEngine.validateTemplate(command), isEmpty);
+      expect(
+        UssdEngine.generate(command, const UssdValues()),
+        UssdEngine.maxItCommand,
+      );
+    }
+    expect(
+      () => UssdEngine.validateCode(UssdEngine.maxItCommand),
+      throwsA(isA<UssdValidationException>()),
+    );
+    for (final command in [
+      'APP:OTHER',
+      'APP:MAXIT;*123#',
+      'APP:MAXIT/{{amount}}',
+      'MAX IT',
+    ]) {
+      expect(
+        () => UssdEngine.validateTemplate(command),
+        throwsA(isA<UssdValidationException>()),
+      );
+      expect(
+        () => UssdEngine.validateCommand(command),
+        throwsA(isA<UssdValidationException>()),
+      );
+    }
+  });
+
   for (final input in [
     '+225 07 07 07 07 07',
     '002250707070707',

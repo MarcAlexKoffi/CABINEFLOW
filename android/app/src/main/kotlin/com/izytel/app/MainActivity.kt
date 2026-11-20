@@ -9,6 +9,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    private val maxItPackage = "com.orange.myorange.oci"
     private val sessionChannel = "com.izytel/session_preferences"
     private val preferencesName = "izytel_session_preferences"
 
@@ -17,6 +18,52 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
             "com.izytel/ussd_dialer").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "canOpenMaxIt" -> {
+                    try {
+                        result.success(packageManager.getLaunchIntentForPackage(maxItPackage) != null)
+                    } catch (_: SecurityException) {
+                        result.error("maxit_unavailable", "Max it inaccessible.", null)
+                    }
+                    return@setMethodCallHandler
+                }
+                "openMaxIt" -> {
+                    try {
+                        val launchIntent = packageManager.getLaunchIntentForPackage(maxItPackage)
+                        if (launchIntent == null) {
+                            result.error("maxit_not_installed", "Orange Max it n’est pas installé.", null)
+                        } else {
+                            // Launch the installed front-door activity. No recharge,
+                            // beneficiary, amount or sensitive information is passed.
+                            startActivity(launchIntent)
+                            result.success(null)
+                        }
+                    } catch (_: ActivityNotFoundException) {
+                        result.error("maxit_not_installed", "Orange Max it n’est pas installé.", null)
+                    } catch (_: SecurityException) {
+                        result.error("maxit_unavailable", "Max it inaccessible.", null)
+                    }
+                    return@setMethodCallHandler
+                }
+                "openMaxItStore" -> {
+                    try {
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW,
+                                Uri.parse("market://details?id=$maxItPackage"))
+                                .setPackage("com.android.vending"))
+                        } catch (_: ActivityNotFoundException) {
+                            startActivity(Intent(Intent.ACTION_VIEW,
+                                Uri.parse("https://play.google.com/store/apps/details?id=$maxItPackage")))
+                        }
+                        result.success(null)
+                    } catch (_: ActivityNotFoundException) {
+                        result.error("store_unavailable", "Google Play indisponible.", null)
+                    } catch (_: SecurityException) {
+                        result.error("store_unavailable", "Google Play inaccessible.", null)
+                    }
+                    return@setMethodCallHandler
+                }
+            }
             if (call.method != "openDialer") {
                 result.notImplemented()
                 return@setMethodCallHandler

@@ -91,13 +91,6 @@ class DashboardHeader extends StatelessWidget {
           tooltip: 'Rechercher',
           onPressed: onSearchPressed,
         ),
-        const SizedBox(width: 8),
-        _HeaderButton(
-          icon: Icons.notifications_none_rounded,
-          tooltip: 'Notifications',
-          showIndicator: true,
-          onPressed: onNotificationsPressed,
-        ),
       ],
     );
   }
@@ -108,46 +101,19 @@ class _HeaderButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onPressed,
-    this.showIndicator = false,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback onPressed;
-  final bool showIndicator;
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        IconButton(
-          tooltip: tooltip,
-          onPressed: onPressed,
-          style: IconButton.styleFrom(foregroundColor: Colors.white),
-          icon: Icon(icon, size: 26),
-        ),
-        if (showIndicator)
-          Positioned(
-            top: 10,
-            right: 10,
-            child: Container(
-              padding: const EdgeInsets.all(2),
-              decoration: const BoxDecoration(
-                color: Color(0xFF1677FF),
-                shape: BoxShape.circle,
-              ),
-              child: const Text(
-                '1',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 9,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-      ],
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      style: IconButton.styleFrom(foregroundColor: Colors.white),
+      icon: Icon(icon, size: 26),
     );
   }
 }

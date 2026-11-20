@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 /// Journal de diagnostic Phase 3.
 ///
 /// Aucun contenu metier (token FCM, numero, reference de paiement, message
-/// client, etc.) ne doit etre passe ici. En release, ces traces sont coupees.
+/// client, etc.) ne doit etre passe ici. Les diagnostics release sont optionnels.
 ///
 /// Important : un journal de diagnostic ne doit jamais modifier le comportement
 /// metier. Les StackTrace ne sont donc pas rendues par debugPrintStack : ce
@@ -29,11 +29,11 @@ class IzyTelLog {
     Object error, {
     StackTrace? stackTrace,
   }) {
-    if (!kDebugMode) return;
+    if (!kDebugMode && !const bool.fromEnvironment('IZYTEL_DIAGNOSTICS')) {
+      return;
+    }
     try {
-      debugPrint(
-        '[IzyTel][$event] ${BackendFailurePolicy.safeCode(error)}',
-      );
+      debugPrint('[IzyTel][$event] ${BackendFailurePolicy.safeCode(error)}');
     } catch (_) {
       // Le diagnostic ne doit jamais interrompre un flux applicatif.
     }

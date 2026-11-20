@@ -19,7 +19,8 @@ const functionGrants = await json('integration_function_grants.json');
 const migration = await readFile(join(root, 'supabase/migrations/20261106004036_shared_agent_queue_and_sla.sql'), 'utf8');
 const notificationMigration = await readFile(join(root, 'supabase/migrations/20261101011937_notifications_territory_delivery_recovery.sql'), 'utf8');
 const checks = [];
-const fastProcessing = process.argv.includes('--fast-processing');
+const exclusiveExecution = process.argv.includes('--exclusive-execution');
+const fastProcessing = process.argv.includes('--fast-processing') || exclusiveExecution;
 const fastMigration = fastProcessing ? await readFile(join(root, 'supabase/migrations/20261106224728_fast_processing_without_proof.sql'), 'utf8') : null;
 const note = name => { checks.push(name); console.log('PASS ' + name); };
 const quote = identifier => '"' + identifier.replaceAll('"', '""') + '"';
@@ -84,11 +85,21 @@ await withPostgres(async ({admin, connect}) => {
   await seed('historical');
   const historical = (await q("select to_jsonb(o) r from phase4_assignment_orders o where order_id='historical'")).rows[0].r;
   await q(migration);
+  if (process.argv.includes('--pagination')) {
+    const {readdir} = await import('node:fs/promises');
+    const filename = (await readdir(join(root,'supabase/migrations'))).find(name=>name.endsWith('_shared_queue_total_and_pagination.sql'));
+    await q(await readFile(join(root,'supabase/migrations',filename),'utf8'));
+  }
   if (fastProcessing) {
     await q('create publication supabase_realtime');
     await q(fastMigration);
     assert.equal((await q("select count(*)::int n from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='izytel_order_delay_alerts'")).rows[0].n,1);
     await q(fastMigration);
+  }
+  if (exclusiveExecution) {
+    const {runExclusiveScenarios} = await import('./exclusive_execution_scenarios.mjs');
+    await runExclusiveScenarios({q, connect, seed, identity, a1, a2, a3, m1, m2, note});
+    return;
   }
   if (process.argv.includes('--publication-only')) {
     const recovery = await readFile(join(root, 'supabase/operations/shared_queue_publish_three_20261106.sql'), 'utf8');
@@ -310,6 +321,29 @@ await withPostgres(async ({admin, connect}) => {
     assert(page.orders.every(order => order.zone_id === 'z1' && !JSON.stringify(order).includes('0700000018')));
   }
   note('a 1,000-order territorial backlog returns a bounded, masked 100-order page');
+  if (process.argv.includes('--pagination')) {
+    const seen = new Set();
+    let cursor = null, total;
+    do {
+      const page = (await a1.query('select public.izytel_shared_available_page($1,$2,$3) r',[1000,cursor?.available_at??null,cursor?.order_id??null])).rows[0].r;
+      total ??= page.total_count;
+      assert.equal(page.total_count,total);
+      assert(page.orders.length<=100);
+      for(const order of page.orders) {
+        assert(!seen.has(order.order_id)); seen.add(order.order_id);
+        assert.equal(order.zone_id,'z1');
+        assert(!JSON.stringify(order).includes('0700000018'));
+      }
+      cursor = page.next_cursor;
+    } while(cursor);
+    assert(total>1000); assert.equal(seen.size,total);
+    const other = (await a3.query('select public.izytel_shared_available_page() r')).rows[0].r;
+    assert(other.orders.every(order=>order.zone_id==='z2'));
+    const noAuth = await identity('');
+    await assert.rejects(noAuth.query('select public.izytel_shared_available_page()'),error=>error.code==='42501');
+    await assert.rejects(a1.query('select public.izytel_shared_available_page(100,now(),null)'),error=>error.code==='22023');
+    note('exact scoped total, full keyset traversal, bounded pages and invalid/anonymous cursors checked');
+  }
   await writeFile(join(root, fastProcessing ? 'docs/shared_queue/FAST_PROCESSING_INTEGRATION_RESULTS.json' : 'docs/shared_queue/INTEGRATION_TEST_RESULTS.json'), JSON.stringify({executed_at: new Date().toISOString(), fast_processing: fastProcessing, supplemental_migration_sha256: fastMigration ? createHash('sha256').update(fastMigration).digest('hex') : null, migration_sha256: createHash('sha256').update(migration).digest('hex'), passed: checks.length, checks, performance: {synthetic_backlog: 1000, page_size: 100, read_durations_ms: readDurations, scope: 'local fixture only; not a production capacity guarantee'}, fixture: {tables: new Set(columns.map(column => column.table)).size, functions: functions.length, source: 'catalog-only snapshot; synthetic rows'}, limits: ['Foreign keys to unrelated account tables and account lifecycle audit hooks are outside this fixture.', 'External HTTP/FCM transport and customer-inbox storage are local sinks; no remote mutation or real FCM send.']}, null, 2));
 });
 if (!process.argv.includes('--publication-only')) console.log(`ALL ${checks.length} integration checks passed`);

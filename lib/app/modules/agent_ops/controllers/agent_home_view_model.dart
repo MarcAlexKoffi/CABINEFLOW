@@ -50,7 +50,10 @@ class AgentHomeViewModel extends ChangeNotifier {
         )
         .map((o) => o.id)
         .toSet();
-    return _shared!.orders.map((o) => o.id).toSet().difference(ownIds).length;
+    final duplicates = _shared!.orders
+        .where((o) => ownIds.contains(o.id))
+        .length;
+    return (_shared!.totalCount - duplicates).clamp(0, _shared!.totalCount);
   }
 
   int get toAccept => assignedToAccept + availableCount;

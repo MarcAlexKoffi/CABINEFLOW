@@ -8,6 +8,7 @@ import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
 import 'package:cabine_flow/app/domain/repositories/agent_assignment_history_repository.dart';
 import 'package:cabine_flow/app/domain/policies/orders/agent_order_priority_policy.dart';
 import 'package:cabine_flow/app/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/app/domain/repositories/order_requeue_repository.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -34,12 +35,18 @@ class AgentOrdersViewModel extends ChangeNotifier {
   String? _avatarUrl;
   List<QueueOrder> _orders = const <QueueOrder>[];
   List<QueueOrder> _refusedHistoryOrders = const <QueueOrder>[];
-  AgentOrdersTab _selectedTab = AgentOrdersTab.toAccept;
+  AgentOrdersTab _selectedTab = AgentOrdersTab.inProgress;
+  bool _filterChosenManually = false;
   String? _busyOrderId;
   String? _errorMessage;
   bool _errorIsQueueLoad = false;
   bool _isLoading = true;
   Future<void>? _refreshFuture;
+  final Set<String> _executionAuthorized = {};
+
+  bool canOpenProcessing(QueueOrder order) =>
+      order.assignedAgentId == agentId &&
+      _executionAuthorized.contains('${order.id}:${order.assignmentVersion}');
 
   AgentOrdersTab get selectedTab => _selectedTab;
   AgentProfile? get agentProfile => _agentProfile;
@@ -111,24 +118,13 @@ class AgentOrdersViewModel extends ChangeNotifier {
   int get failedCount => failedOrders.length;
   int get refusedHistoryCount => refusedHistoryOrders.length;
 
-  bool _hasOrdersForTab(AgentOrdersTab tab) {
-    return switch (tab) {
-      AgentOrdersTab.toAccept => toAcceptCount > 0,
-      AgentOrdersTab.inProgress => inProgressCount > 0,
-      AgentOrdersTab.completed => completedCount > 0,
-    };
-  }
-
-  AgentOrdersTab _resolveUsefulTab(AgentOrdersTab preferred) {
-    if (_hasOrdersForTab(preferred)) return preferred;
-    if (toAcceptCount > 0) return AgentOrdersTab.toAccept;
-    if (inProgressCount > 0) return AgentOrdersTab.inProgress;
-    if (completedCount > 0) return AgentOrdersTab.completed;
-    return AgentOrdersTab.toAccept;
-  }
-
-  void _syncSelectedTabToAvailableQueue() {
-    _selectedTab = _resolveUsefulTab(_selectedTab);
+  void _syncDefaultFilter() {
+    if (_filterChosenManually) return;
+    _selectedTab = inProgressCount > 0
+        ? AgentOrdersTab.inProgress
+        : toAcceptCount > 0
+        ? AgentOrdersTab.toAccept
+        : AgentOrdersTab.completed;
   }
 
   void includeClaimedOrder(QueueOrder order) {
@@ -140,6 +136,8 @@ class AgentOrdersViewModel extends ChangeNotifier {
       order,
       ..._orders.where((existing) => existing.id != order.id),
     ];
+    _filterChosenManually = false;
+    _syncDefaultFilter();
     notifyListeners();
   }
 
@@ -183,7 +181,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
             _orders = orders
                 .where((QueueOrder order) => order.assignedAgentId == agentId)
                 .toList(growable: false);
-            _syncSelectedTabToAvailableQueue();
+            _syncDefaultFilter();
             _isLoading = false;
             _errorMessage = null;
             _errorIsQueueLoad = false;
@@ -322,7 +320,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
       _orders = assigned!
           .where((QueueOrder order) => order.assignedAgentId == agentId)
           .toList(growable: false);
-      _syncSelectedTabToAvailableQueue();
+      _syncDefaultFilter();
       _isLoading = false;
       _errorMessage = null;
       _errorIsQueueLoad = false;
@@ -346,9 +344,9 @@ class AgentOrdersViewModel extends ChangeNotifier {
   }
 
   void selectTab(AgentOrdersTab tab) {
-    final AgentOrdersTab resolved = _resolveUsefulTab(tab);
-    if (_selectedTab == resolved) return;
-    _selectedTab = resolved;
+    _filterChosenManually = true;
+    if (_selectedTab == tab) return;
+    _selectedTab = tab;
     notifyListeners();
   }
 
@@ -370,6 +368,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
         agentId: agentId,
       );
       _replaceOrder(updated);
+      _filterChosenManually = false;
       _selectedTab = AgentOrdersTab.inProgress;
       return true;
     } catch (error, stackTrace) {
@@ -417,7 +416,8 @@ class AgentOrdersViewModel extends ChangeNotifier {
           (QueueOrder item) => item.id != refused.id,
         ),
       ];
-      _syncSelectedTabToAvailableQueue();
+      _filterChosenManually = false;
+      _syncDefaultFilter();
       return true;
     } catch (error, stackTrace) {
       _logActionError('refuse', error, stackTrace);
@@ -437,16 +437,36 @@ class AgentOrdersViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final QueueOrder updated = await ordersRepository.startAgentProcessing(
-        orderId: order.id,
-        agentId: agentId,
-      );
+      // The timer and the server acknowledgement are both required. A stream
+      // announcing inProgress must never unlock this device on its own.
+      final repository = ordersRepository;
+      final results = await Future.wait<Object?>([
+        (repository is OrderExecutionAuthorizationRepository
+                ? (repository as OrderExecutionAuthorizationRepository)
+                      .authorizeAgentExecution(order)
+                : repository.startAgentProcessing(
+                    orderId: order.id,
+                    agentId: agentId,
+                  ))
+            .timeout(const Duration(seconds: 15)),
+        Future<void>.delayed(const Duration(seconds: 5)),
+      ]);
+      QueueOrder updated = results.first as QueueOrder;
+      if (repository is OrderExecutionAuthorizationRepository) {
+        updated = await (repository as OrderExecutionAuthorizationRepository)
+            .authorizeAgentExecution(order)
+            .timeout(const Duration(seconds: 15));
+      }
+      _executionAuthorized.add('${updated.id}:${updated.assignmentVersion}');
       _replaceOrder(updated);
+      _filterChosenManually = false;
       _selectedTab = AgentOrdersTab.inProgress;
       return true;
     } catch (error, stackTrace) {
       _logActionError('start', error, stackTrace);
-      _errorMessage = _friendlyError(error);
+      _errorMessage = error is TimeoutException
+          ? 'Connexion interrompue. Votre commande reste réservée. Réessayez.'
+          : _friendlyError(error);
       return false;
     } finally {
       _busyOrderId = null;
@@ -591,6 +611,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
         reason: reason,
       );
       _replaceOrder(updated);
+      _filterChosenManually = false;
       _selectedTab = AgentOrdersTab.inProgress;
       return true;
     } catch (error, stackTrace) {
@@ -604,11 +625,8 @@ class AgentOrdersViewModel extends ChangeNotifier {
   }
 
   void _selectNextWorkTabAfterCompletion() {
-    if (inProgressOrders.isNotEmpty) {
-      _selectedTab = AgentOrdersTab.inProgress;
-      return;
-    }
-    _selectedTab = AgentOrdersTab.toAccept;
+    _filterChosenManually = false;
+    _syncDefaultFilter();
   }
 
   bool _canActOnAcceptedOrder(QueueOrder order) {
@@ -624,7 +642,7 @@ class AgentOrdersViewModel extends ChangeNotifier {
     _orders = _orders
         .map((QueueOrder order) => order.id == updated.id ? updated : order)
         .toList(growable: false);
-    _syncSelectedTabToAvailableQueue();
+    _syncDefaultFilter();
   }
 
   bool _isCompleted(QueueOrderStatus status) {
@@ -672,6 +690,19 @@ class AgentOrdersViewModel extends ChangeNotifier {
 
     if (error is PostgrestException) {
       final String raw = '${error.code ?? ''} ${error.message}'.toLowerCase();
+      if (raw.contains('agent_active_order_exists')) {
+        return 'Vous avez déjà une commande en cours. Veuillez la finaliser avant d’en accepter une nouvelle.';
+      }
+      if (raw.contains('execution_session_required')) {
+        return 'Cette commande est ouverte sur une autre session. Contactez votre Manager.';
+      }
+      if (raw.contains('execution_owner_required') ||
+          raw.contains('execution_version_expired')) {
+        return 'Cette commande a changé. Actualisez vos commandes avant de continuer.';
+      }
+      if (raw.contains('execution_requires_manager_verification')) {
+        return 'Le traitement doit être vérifié par votre Manager avant de continuer.';
+      }
       if (raw.contains('agent_not_eligible_current_state')) {
         final AgentProfile? profile = _agentProfile;
         final String? zoneId = order?.zoneId;

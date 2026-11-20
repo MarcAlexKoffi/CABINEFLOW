@@ -8,24 +8,57 @@ class SharedOrderQueueViewModel extends ChangeNotifier {
   final SharedOrderQueueRepository repository;
   StreamSubscription<SharedQueueSnapshot>? _subscription;
   final Map<String, int> _closedVersions = {};
+  final List<SharedQueueCursor?> _pages = [null];
+  int _generation = 0;
   SharedQueueSnapshot? snapshot;
   String? errorMessage, busyOrderId;
   bool loading = true, fresh = false, _disposed = false;
   List<AvailableSharedOrder> get orders => snapshot?.orders ?? const [];
+  int get totalCount => snapshot?.totalCount ?? 0;
+  int get pageNumber => _pages.length;
+  bool get hasPreviousPage => _pages.length > 1;
+  bool get hasNextPage => snapshot?.nextCursor != null;
   bool get canAct => fresh && !loading && busyOrderId == null;
 
   void start() {
-    _subscription = repository.watchAvailableOrders().listen(
-      _apply,
-      onError: (Object error) {
-        if (_disposed) return;
-        loading = false;
-        fresh = false;
-        errorMessage =
-            'La disponibilité doit être revérifiée. Vérifiez votre connexion puis réessayez.';
-        notifyListeners();
-      },
-    );
+    final generation = ++_generation;
+    unawaited(_subscription?.cancel());
+    _subscription = repository
+        .watchAvailableOrders(after: _pages.last)
+        .listen(
+          (value) {
+            if (generation == _generation) _apply(value);
+          },
+          onError: (Object error) {
+            if (_disposed || generation != _generation) return;
+            loading = false;
+            fresh = false;
+            errorMessage =
+                'La disponibilité doit être revérifiée. Vérifiez votre connexion puis réessayez.';
+            notifyListeners();
+          },
+        );
+  }
+
+  void nextPage() {
+    if (!canAct || !hasNextPage) return;
+    _pages.add(snapshot!.nextCursor);
+    _changePage();
+  }
+
+  void previousPage() {
+    if (!canAct || !hasPreviousPage) return;
+    _pages.removeLast();
+    _changePage();
+  }
+
+  void _changePage() {
+    snapshot = null;
+    loading = true;
+    fresh = false;
+    errorMessage = null;
+    start();
+    notifyListeners();
   }
 
   void _apply(SharedQueueSnapshot value) {
@@ -33,12 +66,21 @@ class SharedOrderQueueViewModel extends ChangeNotifier {
     if (snapshot != null && value.serverNow.isBefore(snapshot!.serverNow)) {
       return;
     }
+    final visible = value.orders
+        .where((order) => order.version > (_closedVersions[order.id] ?? -1))
+        .toList(growable: false);
+    if (visible.isEmpty && hasPreviousPage) {
+      _pages.removeRange(1, _pages.length);
+      _changePage();
+      return;
+    }
     snapshot = SharedQueueSnapshot(
-      orders: value.orders
-          .where((order) => order.version > (_closedVersions[order.id] ?? -1))
-          .toList(growable: false),
+      orders: visible,
       serverNow: value.serverNow,
       enabled: value.enabled,
+      totalCount: (value.totalCount - (value.orders.length - visible.length))
+          .clamp(0, value.totalCount),
+      nextCursor: value.nextCursor,
     );
     loading = false;
     fresh = true;
@@ -48,10 +90,12 @@ class SharedOrderQueueViewModel extends ChangeNotifier {
 
   Future<void> refresh() async {
     if (_disposed) return;
+    final generation = _generation;
     try {
-      _apply(await repository.fetchAvailableOrders());
+      final value = await repository.fetchAvailableOrders(after: _pages.last);
+      if (generation == _generation) _apply(value);
     } catch (_) {
-      if (_disposed) return;
+      if (_disposed || generation != _generation) return;
       loading = false;
       fresh = false;
       errorMessage =
@@ -75,6 +119,8 @@ class SharedOrderQueueViewModel extends ChangeNotifier {
             .toList(growable: false),
         serverNow: snapshot!.serverNow,
         enabled: snapshot!.enabled,
+        totalCount: (totalCount - 1).clamp(0, totalCount),
+        nextCursor: snapshot!.nextCursor,
       );
       return claimed;
     } catch (error) {
@@ -88,8 +134,13 @@ class SharedOrderQueueViewModel extends ChangeNotifier {
               .toList(growable: false),
           serverNow: snapshot!.serverNow,
           enabled: snapshot!.enabled,
+          totalCount: (totalCount - 1).clamp(0, totalCount),
+          nextCursor: snapshot!.nextCursor,
         );
         errorMessage = 'Cette commande a déjà été acceptée par un autre Agent.';
+      } else if (raw.contains('AGENT_ACTIVE_ORDER_EXISTS')) {
+        errorMessage =
+            'Vous avez déjà une commande en cours. Veuillez la finaliser avant d’en accepter une nouvelle.';
       } else if (raw.contains('AGENT_NOT_ELIGIBLE')) {
         errorMessage =
             'Votre disponibilité, votre réseau ou votre capacité ne permet plus cette prise en charge.';

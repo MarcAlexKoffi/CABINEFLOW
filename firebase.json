@@ -44,7 +44,7 @@
     },
     {
       "target": "backoffice",
-      "public": "build/catalog_import_backoffice",
+      "public": "build/maxit/backoffice",
       "ignore": [
         "firebase.json",
         "**/.*",

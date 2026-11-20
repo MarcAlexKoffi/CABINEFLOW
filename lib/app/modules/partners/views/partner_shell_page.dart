@@ -3443,33 +3443,6 @@ class _PartnerAgentStyleHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Stack(
-          clipBehavior: Clip.none,
-          children: <Widget>[
-            const SizedBox(
-              width: 34,
-              height: 34,
-              child: Icon(
-                Symbols.notifications_rounded,
-                size: IzyTelIconSize.action,
-                color: IzyTelColors.textPrimary,
-              ),
-            ),
-            Positioned(
-              right: 3,
-              top: 3,
-              child: Container(
-                width: 6,
-                height: 6,
-                decoration: const BoxDecoration(
-                  color: IzyTelColors.error,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(width: 11),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

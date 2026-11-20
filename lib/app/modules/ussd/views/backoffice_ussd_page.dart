@@ -171,7 +171,7 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
     if (rule.status != 'active') {
       sim = await showBackofficeModal<String>(
         context: context,
-        builder: (_) => const _ActivationDialog(),
+        builder: (_) => _ActivationDialog(isMaxIt: rule.isMaxIt),
       );
       if (sim == null || !mounted) return;
     } else {
@@ -791,6 +791,8 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
                                     child: Text(
                                       r.status == 'active'
                                           ? 'Désactiver'
+                                          : r.isMaxIt
+                                          ? 'Activer après validation d’ouverture'
                                           : 'Activer après validation SIM',
                                     ),
                                   ),
@@ -850,7 +852,8 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
 }
 
 class _ActivationDialog extends StatefulWidget {
-  const _ActivationDialog();
+  const _ActivationDialog({this.isMaxIt = false});
+  final bool isMaxIt;
   @override
   State<_ActivationDialog> createState() => _ActivationDialogState();
 }
@@ -866,7 +869,9 @@ class _ActivationDialogState extends State<_ActivationDialog> {
 
   @override
   Widget build(BuildContext context) => BackofficeModalShell(
-    title: 'Validation humaine sur SIM',
+    title: widget.isMaxIt
+        ? 'Validation de l’ouverture de Max it'
+        : 'Validation humaine sur SIM',
     icon: Icons.verified_user_outlined,
     maxWidth: 560,
     body: SizedBox(
@@ -874,15 +879,19 @@ class _ActivationDialogState extends State<_ActivationDialog> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            'Activez uniquement une syntaxe effectivement vérifiée sur le réseau et la SIM cabine concernés.',
+          Text(
+            widget.isMaxIt
+                ? 'Vérifiez uniquement que Max it s’ouvre sur l’appareil Android concerné. Aucune recharge ni opération financière n’est requise.'
+                : 'Activez uniquement une syntaxe effectivement vérifiée sur le réseau et la SIM cabine concernés.',
           ),
           TextField(
             controller: _sim,
             maxLength: 100,
             onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              labelText: 'Type de SIM testé (aucun numéro)',
+            decoration: InputDecoration(
+              labelText: widget.isMaxIt
+                  ? 'Appareil Android testé (aucun numéro)'
+                  : 'Type de SIM testé (aucun numéro)',
             ),
           ),
           Material(
@@ -890,8 +899,10 @@ class _ActivationDialogState extends State<_ActivationDialog> {
             child: CheckboxListTile(
               value: _checked,
               onChanged: (v) => setState(() => _checked = v!),
-              title: const Text(
-                'Je confirme avoir vérifié cette configuration sur une SIM appropriée.',
+              title: Text(
+                widget.isMaxIt
+                    ? 'Je confirme avoir vérifié l’ouverture de Max it sur cet appareil.'
+                    : 'Je confirme avoir vérifié cette configuration sur une SIM appropriée.',
               ),
             ),
           ),

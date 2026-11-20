@@ -5,6 +5,7 @@ import 'package:cabine_flow/app/domain/entities/auth/auth_login_result.dart';
 import 'package:cabine_flow/app/domain/repositories/auth_repository.dart';
 import 'package:cabine_flow/app/shared/widgets/izytel/izytel_brand.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 class BackofficeLoginPage extends StatefulWidget {
@@ -23,6 +24,9 @@ class BackofficeLoginPage extends StatefulWidget {
 
 class _BackofficeLoginPageState extends State<BackofficeLoginPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final GlobalKey _formCardKey = GlobalKey();
+  final FocusNode _emailFocus = FocusNode();
+  final FocusNode _passwordFocus = FocusNode();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
@@ -31,6 +35,8 @@ class _BackofficeLoginPageState extends State<BackofficeLoginPage> {
 
   @override
   void dispose() {
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -69,6 +75,7 @@ class _BackofficeLoginPageState extends State<BackofficeLoginPage> {
         return;
       }
       setState(() => _loading = false);
+      TextInput.finishAutofillContext(shouldSave: true);
       widget.onAuthenticated(user);
       return;
     }
@@ -125,6 +132,7 @@ class _BackofficeLoginPageState extends State<BackofficeLoginPage> {
 
   Widget _buildFormCard(BuildContext context) {
     return Container(
+      key: _formCardKey,
       width: double.infinity,
       padding: const EdgeInsets.all(30),
       decoration: BoxDecoration(
@@ -134,6 +142,7 @@ class _BackofficeLoginPageState extends State<BackofficeLoginPage> {
         boxShadow: BackofficeShadows.elevated,
       ),
       child: AutofillGroup(
+        onDisposeAction: AutofillContextAction.cancel,
         child: Form(
           key: _formKey,
           child: Column(
@@ -192,14 +201,19 @@ class _BackofficeLoginPageState extends State<BackofficeLoginPage> {
               ),
               const SizedBox(height: 26),
               TextFormField(
+                key: const ValueKey('backoffice-username'),
                 controller: _emailController,
-                enabled: !_loading,
+                focusNode: _emailFocus,
+                autofocus: true,
+                readOnly: _loading,
+                autocorrect: false,
                 autofillHints: const <String>[
                   AutofillHints.username,
                   AutofillHints.email,
                 ],
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,
+                onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
                 decoration: const InputDecoration(
                   labelText: 'Adresse e-mail',
                   hintText: 'nom@izytel.ci',
@@ -215,8 +229,12 @@ class _BackofficeLoginPageState extends State<BackofficeLoginPage> {
               ),
               const SizedBox(height: IzyTelSpacing.md),
               TextFormField(
+                key: const ValueKey('backoffice-current-password'),
                 controller: _passwordController,
-                enabled: !_loading,
+                focusNode: _passwordFocus,
+                readOnly: _loading,
+                autocorrect: false,
+                enableSuggestions: false,
                 obscureText: _obscurePassword,
                 autofillHints: const <String>[AutofillHints.password],
                 textInputAction: TextInputAction.done,

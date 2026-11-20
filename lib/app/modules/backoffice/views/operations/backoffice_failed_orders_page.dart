@@ -7,6 +7,8 @@ import 'package:cabine_flow/app/domain/entities/auth/app_user.dart';
 import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
 import 'package:cabine_flow/app/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/app/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/app/domain/repositories/order_requeue_repository.dart';
+import 'package:cabine_flow/app/modules/manager_orders/widgets/return_order_to_queue.dart';
 import 'package:cabine_flow/app/domain/entities/refunds/refund_case.dart';
 import 'package:cabine_flow/app/domain/repositories/refund_repository.dart';
 import 'package:cabine_flow/app/shared/widgets/izytel/izytel_feedback.dart';
@@ -203,39 +205,23 @@ class _BackofficeFailedOrdersPageState extends State<BackofficeFailedOrdersPage>
 
   Future<void> _prepareReassignment(QueueOrder order) async {
     if (_processing.contains(order.id)) return;
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Préparer la réaffectation ?'),
-          content: Text(
-            'La commande ${order.reference} sera remise dans la file payée et marquée pour une affectation manuelle. Son ancien échec restera traçable dans l’historique.',
-          ),
-          actions: <Widget>[
-            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Annuler')),
-            FilledButton.icon(
-              onPressed: () => Navigator.of(context).pop(true),
-              icon: const Icon(Symbols.restart_alt_rounded),
-              label: const Text('Préparer'),
-            ),
-          ],
-        );
-      },
-    );
-    if (confirmed != true || !mounted) return;
 
     final QueueOrder? fresh = await _freshOrderForTreatment(order);
     if (fresh == null || !mounted) return;
 
     setState(() => _processing.add(fresh.id));
     try {
-      final QueueOrder reopened = await widget.ordersRepository.prepareFailedOrderForReassignment(orderId: fresh.id);
+      final result = await returnOrderToSharedQueue(
+        context,
+        widget.ordersRepository as OrderRequeueRepository,
+        fresh,
+      );
+      if (result == null) return;
       if (!mounted) return;
       IzyTelFeedback.success(
         context,
-        '${fresh.reference} est prête pour une nouvelle affectation.',
+        '${fresh.reference} remise dans la file d’attente de sa zone.',
       );
-      widget.onOpenAssignments(reopened);
     } catch (error) {
       if (!mounted) return;
       final String raw = error.toString().replaceFirst('Bad state: ', '');

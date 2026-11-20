@@ -10,6 +10,7 @@ import 'package:cabine_flow/app/modules/manager_orders/views/order_supervision_p
 import 'package:cabine_flow/app/modules/agent_orders/controllers/shared_order_queue_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const agent = AppUser(
@@ -53,14 +54,18 @@ class QueueFake extends FakeOrdersRepository
   }
 
   @override
-  Future<SharedQueueSnapshot> fetchAvailableOrders() async {
+  Future<SharedQueueSnapshot> fetchAvailableOrders({
+    SharedQueueCursor? after,
+  }) async {
     if (readError != null) throw readError!;
     return snapshot;
   }
 
   @override
-  Stream<SharedQueueSnapshot> watchAvailableOrders() async* {
-    yield await fetchAvailableOrders();
+  Stream<SharedQueueSnapshot> watchAvailableOrders({
+    SharedQueueCursor? after,
+  }) async* {
+    yield await fetchAvailableOrders(after: after);
     yield* controller.stream;
   }
 
@@ -126,6 +131,50 @@ class UnavailableSupervisionFake extends SupervisionFake {
 }
 
 void main() {
+  testWidgets('total is independent of page size and the header has no bell', (
+    tester,
+  ) async {
+    final repo = QueueFake();
+    await repo.prepare();
+    repo.snapshot = SharedQueueSnapshot(
+      orders: [repo.available],
+      serverNow: repo.snapshot.serverNow,
+      enabled: true,
+      totalCount: 109,
+      nextCursor: SharedQueueCursor(
+        availableAt: repo.available.availableAt,
+        orderId: repo.available.id,
+      ),
+    );
+    tester.view.physicalSize = const Size(320, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(2)),
+          child: child!,
+        ),
+        home: SharedAgentOrdersPage(
+          user: agent,
+          ordersRepository: repo,
+          sharedRepository: repo,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('109 commandes à prendre'), findsOneWidget);
+    expect(find.text('Suivantes'), findsOneWidget);
+    expect(find.byIcon(Symbols.notifications_rounded), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await repo.controller.close();
+  });
+
   testWidgets(
     'both Agent tabs reuse one existing header and preserve personal controls',
     (tester) async {
@@ -151,7 +200,7 @@ void main() {
       await tester.tap(find.text('À prendre'));
       await tester.pumpAndSettle();
       expect(find.textContaining('Bonjour'), findsOneWidget);
-      expect(find.text('Accepter et traiter'), findsOneWidget);
+      expect(find.text('Accepter'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
       await repo.controller.close();
     },
@@ -180,7 +229,7 @@ void main() {
       repo.readError = null;
       await tester.tap(find.text('Réessayer'));
       await tester.pumpAndSettle();
-      expect(find.text('Accepter et traiter'), findsOneWidget);
+      expect(find.text('Accepter'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
       await repo.controller.close();
     },
@@ -331,13 +380,13 @@ void main() {
         expect(tester.takeException(), isNull);
         expect(find.text('À prendre'), findsOneWidget);
         expect(find.text('Mes commandes'), findsOneWidget);
-        await tester.ensureVisible(find.text('Accepter et traiter'));
+        await tester.ensureVisible(find.text('Accepter'));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Accepter et traiter'));
+        await tester.tap(find.text('Accepter'));
         await tester.pumpAndSettle();
         expect(repo.processingCalls, 0);
         expect(find.text('Détail commande'), findsOneWidget);
-        expect(find.text('Démarrer le traitement'), findsOneWidget);
+        expect(find.text('Démarrer la commande'), findsOneWidget);
         final claimed = (await repo.fetchAssignedOrders(
           agentId: agent.id,
         )).first;
@@ -373,14 +422,14 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Mes commandes'));
       await tester.pumpAndSettle();
-      expect(find.text('Accepter et traiter'), findsNothing);
+      expect(find.text('Accepter'), findsNothing);
       request.value = const IzyTelNotificationPayload(
         type: 'order_available',
         route: 'shared_queue',
         orderId: 'test-order',
       );
       await tester.pumpAndSettle();
-      expect(find.text('Accepter et traiter'), findsOneWidget);
+      expect(find.text('Accepter'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
       await repo.controller.close();
       request.dispose();

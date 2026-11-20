@@ -18,6 +18,7 @@ class UssdResolution {
   final bool mismatch;
   final int? validForMs;
   bool get available => status == 'available' && rule != null && code != null;
+  bool get isMaxIt => code == UssdEngine.maxItCommand;
   factory UssdResolution.fromJson(Map<String, dynamic> row) {
     final result = UssdResolution(
       status: row['status'] as String? ?? 'unavailable',
@@ -37,7 +38,17 @@ class UssdResolution {
           result.rule!.purpose != 'order') {
         throw const FormatException('invalid_ussd_resolution');
       }
-      UssdEngine.validateCode(result.code!);
+      UssdEngine.validateCommand(result.code!);
+      final maxItRule =
+          UssdEngine.normalizeTemplate(result.rule!.template) ==
+          UssdEngine.maxItCommand;
+      if (maxItRule != result.isMaxIt ||
+          (result.isMaxIt &&
+              (result.rule!.network != 'orange' ||
+                  ((result.rule!.offerId?.trim().isEmpty ?? true) &&
+                      (result.rule!.familyId?.trim().isEmpty ?? true))))) {
+        throw const FormatException('invalid_ussd_resolution');
+      }
       for (final key in ['network', 'service', 'offer_label', 'beneficiary']) {
         final value = result.context[key];
         if (value != null && value is! String) {
@@ -54,8 +65,9 @@ abstract class UssdRepository {
   Future<UssdResolution> prepare(
     String orderId,
     UssdResolution confirmed,
-    String requestId,
-  );
+    String requestId, {
+    bool confirmNotExecuted = false,
+  });
   Future<void> recordResult(String attemptId, String status, String? errorCode);
   Future<void> report(
     String orderId,

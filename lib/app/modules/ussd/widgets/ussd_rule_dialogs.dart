@@ -297,8 +297,10 @@ class _RuleEditorState extends State<_RuleEditor> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (widget.rule?.status == 'active') ...[
-              const Text(
-                'Enregistrer désactive la version active et crée un brouillon. Une nouvelle validation SIM sera requise.',
+              Text(
+                widget.rule!.isMaxIt
+                    ? 'Enregistrer désactive la version active et crée un brouillon. Une nouvelle validation d’ouverture sera requise.'
+                    : 'Enregistrer désactive la version active et crée un brouillon. Une nouvelle validation SIM sera requise.',
                 style: TextStyle(color: BackofficePalette.warning),
               ),
               const SizedBox(height: 16),
@@ -419,6 +421,9 @@ class _RuleEditorState extends State<_RuleEditor> {
                     ),
                     decoration: const InputDecoration(
                       labelText: 'Template USSD',
+                      helperText:
+                          'APP:MAXIT ouvre Orange Max it pour l’offre ou la famille Orange associée.',
+                      helperMaxLines: 3,
                       alignLabelWithHint: true,
                       hintText: '*412*2*{{msisdn_local}}#',
                       contentPadding: EdgeInsets.all(16),
@@ -426,6 +431,15 @@ class _RuleEditorState extends State<_RuleEditor> {
                     validator: (v) {
                       try {
                         UssdEngine.validateTemplate(v ?? '');
+                        if (UssdEngine.normalizeTemplate(v ?? '') ==
+                                UssdEngine.maxItCommand &&
+                            (_network != 'orange' ||
+                                _purpose != 'order' ||
+                                (_offer.isEmpty && _family.isEmpty))) {
+                          return UssdEngine.message(
+                            'invalid_maxit_association',
+                          );
+                        }
                         return null;
                       } on UssdValidationException catch (e) {
                         return UssdEngine.message(e.code);

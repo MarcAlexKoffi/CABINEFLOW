@@ -9,6 +9,8 @@ import 'package:cabine_flow/app/domain/entities/auth/app_user.dart';
 import 'package:cabine_flow/app/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
 import 'package:cabine_flow/app/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/app/domain/repositories/order_requeue_repository.dart';
+import 'package:cabine_flow/app/modules/manager_orders/widgets/return_order_to_queue.dart';
 import 'package:cabine_flow/app/modules/manager_orders/controllers/agent_assignment_view_model.dart';
 import 'package:cabine_flow/app/modules/staff_orders/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/app/shared/widgets/design_system/izy_tel_operator_brand.dart';
@@ -166,6 +168,30 @@ class _BackofficeAssignmentsPageState extends State<BackofficeAssignmentsPage> {
   int get _manualCount => _periodOrders.where((QueueOrder order) => order.manualAssignmentRequired).length;
 
   Future<void> _openAssignment(QueueOrder order) async {
+    if (widget.ordersRepository is OrderRequeueRepository) {
+      try {
+        final result = await returnOrderToSharedQueue(
+          context,
+          widget.ordersRepository as OrderRequeueRepository,
+          order,
+        );
+        if (result != null && mounted) {
+          IzyTelFeedback.success(
+            context,
+            '${order.reference} remise dans la file d’attente de sa zone.',
+          );
+          await _refresh();
+        }
+      } catch (_) {
+        if (mounted) {
+          IzyTelFeedback.error(
+            context,
+            'Remise en file refusée. Vérifiez vos droits et l’état de la commande.',
+          );
+        }
+      }
+      return;
+    }
     final bool? assigned = await showBackofficeModal<bool>(
       context: context,
       barrierDismissible: false,
@@ -406,8 +432,7 @@ class _AssignmentList extends StatelessWidget {
                         children: <Widget>[
                           OutlinedButton.icon(onPressed: () => onOpen(order), icon: const Icon(Symbols.visibility_rounded, size: 18), label: const Text('Détails')),
                           const SizedBox(width: 8),
-                          if (!order.isAssignedToAgent)
-                            FilledButton.icon(onPressed: () => onAssign(order), icon: const Icon(Symbols.assignment_ind_rounded, size: 18), label: const Text('Affecter')),
+                          FilledButton.icon(onPressed: () => onAssign(order), icon: const Icon(Symbols.playlist_add_rounded, size: 18), label: const Text('Remettre dans la file d’attente')),
                         ],
                       ),
                     ],
@@ -545,17 +570,11 @@ class _AssignmentList extends StatelessWidget {
                 BackofficeTableCellSpec(
                   flex: 2,
                   alignment: Alignment.centerRight,
-                  child: needsAssignment
-                      ? FilledButton.tonalIcon(
-                          onPressed: () => onAssign(order),
-                          icon: const Icon(Symbols.assignment_ind_rounded, size: 18),
-                          label: const Text('Affecter'),
-                        )
-                      : OutlinedButton.icon(
-                          onPressed: () => onOpen(order),
-                          icon: const Icon(Symbols.visibility_rounded, size: 18),
-                          label: const Text('Détails'),
-                        ),
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => onAssign(order),
+                    icon: const Icon(Symbols.playlist_add_rounded, size: 18),
+                    label: const Text('Remettre dans la file d’attente'),
+                  ),
                 ),
               ],
             );

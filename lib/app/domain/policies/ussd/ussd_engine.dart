@@ -54,6 +54,7 @@ class UssdValues {
 
 class UssdEngine {
   const UssdEngine._();
+  static const maxItCommand = 'APP:MAXIT';
   static const defaultSecretCode = '0000';
   static const variables = {
     'msisdn_local',
@@ -108,6 +109,9 @@ class UssdEngine {
     // Clipboard padding is not part of the operator syntax. Preserve every
     // internal character: malformed codes/placeholders must still be rejected.
     template = template.replaceAll(_templatePadding, '');
+    if (const {'MAXIT', maxItCommand}.contains(template.toUpperCase())) {
+      return maxItCommand;
+    }
     String? canonical(String raw) {
       final token = _fold(raw);
       return variables.contains(token) ? token : _aliases[token];
@@ -134,6 +138,7 @@ class UssdEngine {
 
   static Set<String> validateTemplate(String template) {
     template = normalizeTemplate(template);
+    if (template == maxItCommand) return const {};
     if (template.isEmpty || template.length > 512) {
       throw const UssdValidationException('invalid_template');
     }
@@ -156,9 +161,14 @@ class UssdEngine {
     }
   }
 
+  static void validateCommand(String command) {
+    if (command != maxItCommand) validateCode(command);
+  }
+
   static String generate(String template, UssdValues values) {
     template = normalizeTemplate(template);
     validateTemplate(template);
+    if (template == maxItCommand) return maxItCommand;
     final code = template.replaceAllMapped(_variable, (match) {
       return switch (match.group(1)!) {
         'msisdn_local' => UssdPhoneNumber.parse(values.beneficiary ?? '').local,
@@ -213,6 +223,14 @@ class UssdEngine {
       'Acceptez et démarrez le traitement de la commande avant de lancer le raccourci.',
     'dialer_unavailable' =>
       'Aucun composeur Android compatible n’est disponible.',
+    'maxit_not_installed' =>
+      'Orange Max it n’est pas installé ou est désactivé sur ce téléphone.',
+    'maxit_unavailable' =>
+      'Impossible d’ouvrir Orange Max it sur ce téléphone.',
+    'store_unavailable' =>
+      'Impossible d’ouvrir la fiche Google Play de Max it.',
+    'invalid_maxit_association' =>
+      'Associez APP:MAXIT à une offre ou une famille Orange pour le traitement des commandes.',
     _ => manualMessage,
   };
 }
@@ -242,6 +260,8 @@ class UssdRule {
   });
   final String id, network, service, scope, template, status, note, updatedBy;
   final String purpose;
+  bool get isMaxIt =>
+      UssdEngine.normalizeTemplate(template) == UssdEngine.maxItCommand;
   final String? familyId, offerId, validationSimType, offerGroup;
   final int version, priority;
   final DateTime effectiveFrom;

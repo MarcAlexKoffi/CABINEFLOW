@@ -1,3 +1,4 @@
+import 'package:cabine_flow/app/shared/widgets/resilient_stream_builder.dart';
 import 'package:cabine_flow/app/theme/izytel_colors.dart';
 import 'package:cabine_flow/app/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/app/core/utils/currency_formatter.dart';
@@ -72,21 +73,21 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
           ),
         ),
       ),
-      body: StreamBuilder<List<AgentDirectoryEntry>>(
+      body: ResilientStreamBuilder<List<AgentDirectoryEntry>>(
         stream: _agentsStream,
         builder:
             (
               BuildContext context,
               AsyncSnapshot<List<AgentDirectoryEntry>> agentSnapshot,
             ) {
-              return StreamBuilder<List<CommissionEntry>>(
+              return ResilientStreamBuilder<List<CommissionEntry>>(
                 stream: _commissionsStream,
                 builder:
                     (
                       BuildContext context,
                       AsyncSnapshot<List<CommissionEntry>> commissionSnapshot,
                     ) {
-                      return StreamBuilder<List<CommissionPayout>>(
+                      return ResilientStreamBuilder<List<CommissionPayout>>(
                         stream: _payoutsStream,
                         builder:
                             (
@@ -94,7 +95,9 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
                               AsyncSnapshot<List<CommissionPayout>>
                               payoutSnapshot,
                             ) {
-                              return StreamBuilder<List<CommissionAccount>>(
+                              return ResilientStreamBuilder<
+                                List<CommissionAccount>
+                              >(
                                 stream: _accountsStream,
                                 builder:
                                     (
@@ -102,7 +105,7 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
                                       AsyncSnapshot<List<CommissionAccount>>
                                       accountSnapshot,
                                     ) {
-                                      return StreamBuilder<
+                                      return ResilientStreamBuilder<
                                         List<AgentAssignmentMetric>
                                       >(
                                         stream: _assignmentMetricsStream,
@@ -114,10 +117,11 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
                                               >
                                               assignmentSnapshot,
                                             ) {
-                                              return StreamBuilder<
+                                              return ResilientStreamBuilder<
                                                 List<AgentProcessingMetric>
                                               >(
-                                                stream: _processingMetricsStream,
+                                                stream:
+                                                    _processingMetricsStream,
                                                 builder:
                                                     (
                                                       BuildContext context,
@@ -128,10 +132,11 @@ class _CommissionManagementPageState extends State<CommissionManagementPage> {
                                                       >
                                                       processingSnapshot,
                                                     ) {
-                                                      return StreamBuilder<
+                                                      return ResilientStreamBuilder<
                                                         List<AgentOrderMetric>
                                                       >(
-                                                        stream: _orderMetricsStream,
+                                                        stream:
+                                                            _orderMetricsStream,
                                                         builder:
                                                             (
                                                               BuildContext

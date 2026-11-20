@@ -9,13 +9,25 @@ import '../../../support/ussd_test_doubles.dart';
 
 class _ServerResolvedRepository extends UssdTestRepository {
   bool changedSecretRevision = false;
+  String? preparationFailure;
   @override
   Future<UssdResolution> prepare(
     String orderId,
     UssdResolution confirmed,
-    String requestId,
-  ) async {
+    String requestId, {
+    bool confirmNotExecuted = false,
+  }) async {
     preparations++;
+    lastConfirmedNotExecuted = confirmNotExecuted;
+    if (preparationFailure != null) {
+      return UssdResolution(status: 'unavailable', reason: preparationFailure!);
+    }
+    if (revokeOnPrepare) {
+      return const UssdResolution(
+        status: 'unavailable',
+        reason: 'rule_changed',
+      );
+    }
     return UssdResolution(
       status: response.status,
       reason: response.reason,
@@ -28,6 +40,20 @@ class _ServerResolvedRepository extends UssdTestRepository {
       attemptId: 'synthetic-attempt',
       validForMs: leaseMs,
     );
+  }
+}
+
+class _DelayedMaxItAuditRepository extends _ServerResolvedRepository {
+  final audit = Completer<void>();
+
+  @override
+  Future<void> recordResult(
+    String attemptId,
+    String status,
+    String? errorCode,
+  ) async {
+    await audit.future;
+    await super.recordResult(attemptId, status, errorCode);
   }
 }
 
@@ -84,11 +110,253 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> confirmAction(WidgetTester tester, String label) async {
+    final acknowledgment = find.byKey(
+      const ValueKey('ussd-not-executed-confirmation'),
+    );
+    if (acknowledgment.evaluate().isNotEmpty) {
+      await tester.ensureVisible(acknowledgment);
+      await tester.tap(acknowledgment);
+      await tester.pump();
+    }
+    await tester.ensureVisible(find.text(label));
+    await tester.tap(find.text(label));
+  }
+
   Future<void> launch(WidgetTester tester) async {
     await tester.ensureVisible(find.text('Lancer l’opération'));
     await tester.tap(find.text('Lancer l’opération'));
     await tester.pumpAndSettle();
   }
+
+  UssdResolution maxIt() => UssdResolution(
+    status: 'available',
+    reason: '',
+    code: UssdEngine.maxItCommand,
+    rule: UssdRule(
+      id: 'maxit-rule',
+      version: 1,
+      network: 'orange',
+      service: 'internetSubscription',
+      scope: 'agent',
+      template: UssdEngine.maxItCommand,
+      offerId: 'orange-offer',
+      priority: 0,
+      status: 'active',
+      effectiveFrom: DateTime.utc(2020),
+    ),
+    context: const {
+      'network': 'orange',
+      'service': 'internetSubscription',
+      'beneficiary': '0707070707',
+      'offer_label': 'Offre Orange associée',
+      'amount': 1000,
+    },
+  );
+
+  Future<void> confirmMaxIt(WidgetTester tester) async {
+    await tester.ensureVisible(find.text('Ouvrir Max it'));
+    await tester.tap(find.text('Ouvrir Max it'));
+    await tester.pumpAndSettle();
+    await confirmAction(tester, 'Confirmer et ouvrir');
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets(
+    'Max it requires confirmation and preparation, preserves order on return and does not complete it',
+    (tester) async {
+      final repo = _ServerResolvedRepository()..response = maxIt();
+      final dialer = _CapturingDialer();
+      await mount(tester, repo, dialer);
+      expect(find.text('Copier le code'), findsNothing);
+      expect(dialer.opens, 0);
+      await confirmMaxIt(tester);
+      expect(repo.preparations, 1);
+      expect(dialer.opens, 1);
+      expect(dialer.lastCode, UssdEngine.maxItCommand);
+      expect(repo.lastStatus, 'app_opened');
+      expect(repo.statusChanges, 0);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(dialer.opens, 1);
+      expect(repo.preparations, 1);
+      expect(repo.statusChanges, 0);
+      expect(find.text('Terminer avec preuve'), findsOneWidget);
+      expect(find.textContaining('Offre Orange associée'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'USSD reopening requires a fresh explicit no-execution confirmation on every tap',
+    (tester) async {
+      final repo = _ServerResolvedRepository();
+      final dialer = _CapturingDialer();
+      await mount(tester, repo, dialer);
+      for (var attempt = 1; attempt <= 2; attempt++) {
+        await launch(tester);
+        final confirmButton = find.widgetWithText(
+          FilledButton,
+          'Confirmer et ouvrir',
+        );
+        expect(tester.widget<FilledButton>(confirmButton).onPressed, isNull);
+        expect(repo.preparations, attempt - 1);
+        await confirmAction(tester, 'Confirmer et ouvrir');
+        await tester.pumpAndSettle();
+        expect(repo.lastConfirmedNotExecuted, isTrue);
+        expect(repo.preparations, attempt);
+        expect(dialer.opens, attempt);
+        expect(repo.statusChanges, 0);
+      }
+    },
+  );
+
+  testWidgets(
+    'USSD can reopen after Android resumes while the first audit is pending',
+    (tester) async {
+      final repo = _DelayedMaxItAuditRepository();
+      final dialer = _CapturingDialer();
+      await mount(tester, repo, dialer);
+      await launch(tester);
+      await confirmAction(tester, 'Confirmer et ouvrir');
+      await tester.pump();
+      expect(dialer.opens, 1);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      repo.audit.complete();
+      await tester.pumpAndSettle();
+      await launch(tester);
+      await confirmAction(tester, 'Confirmer et ouvrir');
+      await tester.pumpAndSettle();
+      expect(dialer.opens, 2);
+      expect(repo.statusChanges, 0);
+    },
+  );
+
+  testWidgets(
+    'same order can reopen Max it without lifecycle refresh, with fresh server checks each time',
+    (tester) async {
+      final repo = _ServerResolvedRepository()..response = maxIt();
+      final dialer = _CapturingDialer();
+      await mount(tester, repo, dialer);
+      await confirmMaxIt(tester);
+      final firstResolutions = repo.resolutions;
+      await confirmMaxIt(tester);
+      expect(repo.resolutions, greaterThan(firstResolutions));
+      expect(repo.preparations, 2);
+      expect(repo.recordings, 2);
+      expect(dialer.opens, 2);
+      expect(repo.statusChanges, 0);
+    },
+  );
+
+  testWidgets(
+    'Max it remains reopenable when Android resumes before the opening audit finishes',
+    (tester) async {
+      final repo = _DelayedMaxItAuditRepository()..response = maxIt();
+      final dialer = _CapturingDialer();
+      await mount(tester, repo, dialer);
+      await tester.ensureVisible(find.text('Ouvrir Max it'));
+      await tester.tap(find.text('Ouvrir Max it'));
+      await tester.pumpAndSettle();
+      await confirmAction(tester, 'Confirmer et ouvrir');
+      await tester.pump();
+      expect(dialer.opens, 1);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      repo.audit.complete();
+      await tester.pumpAndSettle();
+      await confirmMaxIt(tester);
+      expect(dialer.opens, 2);
+      expect(repo.preparations, 2);
+      expect(repo.statusChanges, 0);
+    },
+  );
+
+  testWidgets(
+    'reopening Max it still fails closed offline and displays an uncertain execution refusal',
+    (tester) async {
+      final repo = _ServerResolvedRepository()..response = maxIt();
+      final dialer = _CapturingDialer();
+      await mount(tester, repo, dialer);
+      await confirmMaxIt(tester);
+      repo.failRead = true;
+      await tester.ensureVisible(find.text('Ouvrir Max it'));
+      await tester.tap(find.text('Ouvrir Max it'));
+      await tester.pumpAndSettle();
+      expect(dialer.opens, 1);
+      expect(repo.preparations, 1);
+      repo.failRead = false;
+      repo.preparationFailure = 'execution_uncertain';
+      await tester.ensureVisible(find.text('Actualiser le raccourci'));
+      await tester.tap(find.text('Actualiser le raccourci'));
+      await tester.pumpAndSettle();
+      await confirmMaxIt(tester);
+      expect(dialer.opens, 1);
+      expect(
+        find.textContaining('Faites vérifier son résultat par votre Manager'),
+        findsOneWidget,
+      );
+      expect(repo.statusChanges, 0);
+    },
+  );
+
+  testWidgets(
+    'absent Max it offers Google Play without consuming preparation or opening a dialer',
+    (tester) async {
+      final repo = _ServerResolvedRepository()..response = maxIt();
+      final dialer = UssdTestDialer()..maxItInstalled = false;
+      await mount(tester, repo, dialer);
+      await confirmMaxIt(tester);
+      expect(dialer.opens, 0);
+      expect(repo.preparations, 0);
+      expect(repo.recordings, 0);
+      expect(find.textContaining('n’est pas installé'), findsOneWidget);
+      await tester.ensureVisible(find.text('Voir Max it sur Google Play'));
+      await tester.tap(find.text('Voir Max it sur Google Play'));
+      await tester.pumpAndSettle();
+      expect(dialer.storeOpens, 1);
+      expect(dialer.opens, 0);
+    },
+  );
+
+  testWidgets(
+    'revoked or expired Max it authorization never launches the application',
+    (tester) async {
+      final repo = _ServerResolvedRepository()
+        ..response = maxIt()
+        ..revokeOnPrepare = true;
+      final dialer = UssdTestDialer();
+      await mount(tester, repo, dialer);
+      await confirmMaxIt(tester);
+      expect(dialer.opens, 0);
+      repo.revokeOnPrepare = false;
+      repo.leaseMs = 0;
+      await tester.tap(find.text('Actualiser le raccourci'));
+      await tester.pumpAndSettle();
+      await confirmMaxIt(tester);
+      expect(dialer.opens, 0);
+      expect(repo.lastStatus, 'failed');
+      expect(repo.lastReason, 'interrupted');
+    },
+  );
+
+  testWidgets(
+    'non-processable and offline Max it orders cannot launch the app',
+    (tester) async {
+      final repo = _ServerResolvedRepository()..response = maxIt();
+      final dialer = UssdTestDialer();
+      await mount(tester, repo, dialer, processable: false);
+      expect(repo.resolutions, 0);
+      expect(repo.preparations, 0);
+      expect(dialer.opens, 0);
+      repo.failRead = true;
+      await mount(tester, repo, dialer);
+      expect(repo.preparations, 0);
+      expect(dialer.opens, 0);
+    },
+  );
 
   for (final phone in [
     '+225 01 02 03 04 05',
@@ -152,7 +420,7 @@ void main() {
         await mount(tester, repo, dialer);
         await launch(tester);
         expect(dialer.opens, 0);
-        await tester.tap(find.text('Confirmer et ouvrir'));
+        await confirmAction(tester, 'Confirmer et ouvrir');
         await tester.pumpAndSettle();
         expect(dialer.lastCode, code);
         expect(repo.statusChanges, 0);
@@ -177,7 +445,7 @@ void main() {
       await mount(tester, repo, dialer);
       await launch(tester);
       repo.changedSecretRevision = true;
-      await tester.tap(find.text('Confirmer et ouvrir'));
+      await confirmAction(tester, 'Confirmer et ouvrir');
       await tester.pumpAndSettle();
       expect(dialer.opens, 0);
       expect(repo.statusChanges, 0);
@@ -216,7 +484,7 @@ void main() {
       await launch(tester);
       expect(dialer.opens, 0);
       expect(repo.preparations, 0);
-      await tester.tap(find.text('Confirmer et ouvrir'));
+      await confirmAction(tester, 'Confirmer et ouvrir');
       await tester.pumpAndSettle();
       expect(repo.resolutions, 2);
       expect(repo.preparations, 1);
@@ -231,7 +499,7 @@ void main() {
         dialer = UssdTestDialer()..pending = Completer<void>();
     await mount(tester, repo, dialer);
     await launch(tester);
-    await tester.tap(find.text('Confirmer et ouvrir'));
+    await confirmAction(tester, 'Confirmer et ouvrir');
     await tester.pump();
     await tester.pump();
     expect(dialer.opens, 1);
@@ -254,7 +522,7 @@ void main() {
       final repo = UssdTestRepository()..leaseMs = 0, dialer = UssdTestDialer();
       await mount(tester, repo, dialer);
       await launch(tester);
-      await tester.tap(find.text('Confirmer et ouvrir'));
+      await confirmAction(tester, 'Confirmer et ouvrir');
       await tester.pumpAndSettle();
       expect(dialer.opens, 0);
       expect(repo.lastStatus, 'failed');
@@ -284,7 +552,7 @@ void main() {
           dialer = UssdTestDialer();
       await mount(tester, repo, dialer);
       await launch(tester);
-      await tester.tap(find.text('Confirmer et ouvrir'));
+      await confirmAction(tester, 'Confirmer et ouvrir');
       await tester.pumpAndSettle();
       expect(dialer.opens, 0);
       expect(find.textContaining('Le raccourci a changé'), findsOneWidget);
@@ -297,7 +565,7 @@ void main() {
     final repo = UssdTestRepository(), dialer = UssdTestDialer()..fail = true;
     await mount(tester, repo, dialer);
     await launch(tester);
-    await tester.tap(find.text('Confirmer et ouvrir'));
+    await confirmAction(tester, 'Confirmer et ouvrir');
     await tester.pumpAndSettle();
     expect(repo.lastStatus, 'failed');
     expect(repo.lastReason, 'dialer_unavailable');
@@ -347,11 +615,11 @@ void main() {
     await tester.tap(find.text('Copier le code'));
     await tester.pumpAndSettle();
     expect(copied, isNull);
-    await tester.tap(find.text('Confirmer et copier'));
+    await confirmAction(tester, 'Confirmer et copier');
     await tester.pumpAndSettle();
     expect(copied, '*999*0101010101#');
     expect(repo.resolutions, 3);
-    expect(repo.preparations, 0);
+    expect(repo.preparations, 1);
     expect(dialer.opens, 0);
   });
   testWidgets('copy cannot use a rule revoked while dialog is open', (
@@ -365,7 +633,7 @@ void main() {
       status: 'unavailable',
       reason: 'no_rule',
     );
-    await tester.tap(find.text('Confirmer et copier'));
+    await confirmAction(tester, 'Confirmer et copier');
     await tester.pumpAndSettle();
     expect(find.textContaining('Le raccourci a changé'), findsOneWidget);
     expect(dialer.opens, 0);
@@ -404,7 +672,7 @@ void main() {
     final repo = UssdTestRepository(), dialer = UssdTestDialer();
     await mount(tester, repo, dialer);
     await launch(tester);
-    await tester.tap(find.text('Confirmer et ouvrir'));
+    await confirmAction(tester, 'Confirmer et ouvrir');
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Signaler un problème'));
     await tester.tap(find.text('Signaler un problème'));

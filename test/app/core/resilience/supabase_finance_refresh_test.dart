@@ -25,7 +25,6 @@ void main() {
             fetch: () async => ++calls,
             label: 'finance.silent-signal',
             signals: const [],
-            independentPolling: true,
             refreshSignals: () => signals.stream,
             fallbackInterval: const Duration(milliseconds: 20),
           ).listen((value) {

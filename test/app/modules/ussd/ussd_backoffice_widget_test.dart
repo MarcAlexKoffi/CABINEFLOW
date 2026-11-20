@@ -171,6 +171,58 @@ void main() {
     });
   }
 
+  testWidgets(
+    'Max it is saved in the existing editor for an associated Orange offer',
+    (tester) async {
+      final repo = _MaxItRepository();
+      await mount(tester, repo, UserRole.administrator);
+      await tester.tap(find.text('Créer une règle'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(DropdownButtonFormField<String>, 'Réseau').last,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Orange').last);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(DropdownButtonFormField<String>, 'Offre').last,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Offre Orange Max it').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Template USSD'),
+        'MAXIT',
+      );
+      await tester.tap(find.text('Créer et activer'));
+      await tester.pumpAndSettle();
+      expect(repo.saved?['ussd_template'], UssdEngine.maxItCommand);
+      expect(repo.saved?['network'], 'orange');
+      expect(repo.saved?['offer_id'], 'orange-maxit-offer');
+      expect(repo.statusChanges, 0);
+    },
+  );
+
+  testWidgets('Max it without an Orange association cannot be saved', (
+    tester,
+  ) async {
+    final repo = _MaxItRepository();
+    await mount(tester, repo, UserRole.administrator);
+    await tester.tap(find.text('Créer une règle'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Template USSD'),
+      'APP:MAXIT',
+    );
+    await tester.tap(find.text('Créer et activer'));
+    await tester.pumpAndSettle();
+    expect(repo.saved, isNull);
+    expect(
+      find.text(UssdEngine.message('invalid_maxit_association')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('human aliases are saved canonically through direct creation', (
     tester,
   ) async {
@@ -871,6 +923,37 @@ void main() {
       expect(repo.statusChanges, 0);
     },
   );
+  testWidgets(
+    'Max it editing keeps its association and activation verifies app opening',
+    (tester) async {
+      final repo = _MaxItActivationRepository();
+      final configuration = await repo.configuration();
+      expect(
+        UssdRule.fromJson(
+          (configuration['rules'] as List).single as Map<String, dynamic>,
+        ).isMaxIt,
+        isTrue,
+      );
+      await mount(tester, repo, UserRole.administrator);
+      await action(tester, 'Modifier (remet en brouillon)');
+      await tester.tap(find.text('Enregistrer en brouillon'));
+      await tester.pumpAndSettle();
+      expect(repo.saved?['ussd_template'], UssdEngine.maxItCommand);
+      expect(repo.saved?['offer_id'], 'orange-maxit-offer');
+      await action(tester, 'Activer après validation d’ouverture');
+      expect(find.text('Validation de l’ouverture de Max it'), findsOneWidget);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Appareil Android testé (aucun numéro)'),
+        'Android de test, Max it vérifié',
+      );
+      await tester.tap(find.byType(CheckboxListTile));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Activer cette version'));
+      await tester.pumpAndSettle();
+      expect(repo.statusChanges, 1);
+    },
+  );
+
   testWidgets('activation requires explicit SIM confirmation', (tester) async {
     final repo = UssdTestRepository();
     await mount(tester, repo, UserRole.administrator);
@@ -1050,6 +1133,39 @@ class _DeferredRepository extends UssdTestRepository {
   @override
   Future<Map<String, dynamic>> configuration() =>
       failed ? super.configuration() : pending.future;
+}
+
+class _MaxItRepository extends UssdTestRepository {
+  @override
+  Future<Map<String, dynamic>> configuration() async => {
+    ...await super.configuration(),
+    'offers': [
+      {
+        'id': 'orange-maxit-offer',
+        'network': 'orange',
+        'service': 'internetSubscription',
+        'title': 'Offre Orange Max it',
+        'family_id': null,
+      },
+    ],
+  };
+}
+
+class _MaxItActivationRepository extends _MaxItRepository {
+  @override
+  Future<Map<String, dynamic>> configuration() async {
+    final data = await super.configuration();
+    final rule = Map<String, dynamic>.from(
+      (data['rules'] as List).first as Map,
+    );
+    rule.addAll({
+      'network': 'orange',
+      'ussd_template': UssdEngine.maxItCommand,
+      'offer_id': 'orange-maxit-offer',
+    });
+    data['rules'] = [rule];
+    return data;
+  }
 }
 
 class _ActiveRuleRepository extends UssdTestRepository {

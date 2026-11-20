@@ -6,6 +6,8 @@ import 'package:cabine_flow/app/domain/entities/auth/app_user.dart';
 import 'package:cabine_flow/app/domain/permissions/user_permissions.dart';
 import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
 import 'package:cabine_flow/app/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/app/domain/repositories/order_requeue_repository.dart';
+import 'package:cabine_flow/app/modules/manager_orders/widgets/return_order_to_queue.dart';
 import 'package:cabine_flow/app/modules/manager_orders/controllers/agent_assignment_view_model.dart';
 import 'package:cabine_flow/app/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cabine_flow/app/shared/widgets/izytel/izytel_ui.dart';
@@ -91,6 +93,29 @@ class _AgentAssignmentPageState extends State<AgentAssignmentPage> {
     Navigator.of(context).pop(_viewModel.order);
   }
 
+  bool _returning = false;
+  Future<void> _returnToQueue() async {
+    if (_returning) return;
+    setState(() => _returning = true);
+    try {
+      final result = await returnOrderToSharedQueue(
+        context,
+        widget.ordersRepository as OrderRequeueRepository,
+        _viewModel.order,
+      );
+      if (result != null && mounted) Navigator.pop(context, result);
+    } catch (error) {
+      if (mounted) {
+        IzyTelFeedback.error(
+          context,
+          'Remise en file impossible. ${error.toString().contains('42501') ? 'Vous n’avez pas les droits sur cette commande.' : 'Actualisez la commande puis réessayez.'}',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _returning = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -134,6 +159,14 @@ class _AgentAssignmentPageState extends State<AgentAssignmentPage> {
                     order: _viewModel.order,
                     zoneLabel: _viewModel.orderZoneLabel,
                   ),
+                  if (widget.ordersRepository is OrderRequeueRepository) ...[
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: _returning ? null : _returnToQueue,
+                      icon: const Icon(Icons.playlist_add),
+                      label: const Text('Remettre dans la file d’attente'),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   Row(
                     children: [

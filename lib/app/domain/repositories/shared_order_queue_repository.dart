@@ -49,15 +49,26 @@ class SharedQueueSnapshot {
     required this.orders,
     required this.serverNow,
     required this.enabled,
-  });
+    int? totalCount,
+    this.nextCursor,
+  }) : _totalCount = totalCount;
+  final int? _totalCount;
+  int get totalCount => _totalCount ?? orders.length;
+  final SharedQueueCursor? nextCursor;
   final List<AvailableSharedOrder> orders;
   final DateTime serverNow;
   final bool enabled;
 }
 
+class SharedQueueCursor {
+  const SharedQueueCursor({required this.availableAt, required this.orderId});
+  final DateTime availableAt;
+  final String orderId;
+}
+
 abstract interface class SharedOrderQueueRepository {
-  Future<SharedQueueSnapshot> fetchAvailableOrders();
-  Stream<SharedQueueSnapshot> watchAvailableOrders();
+  Future<SharedQueueSnapshot> fetchAvailableOrders({SharedQueueCursor? after});
+  Stream<SharedQueueSnapshot> watchAvailableOrders({SharedQueueCursor? after});
   Future<QueueOrder> claimAvailableOrder(AvailableSharedOrder order);
 }
 

@@ -4,7 +4,8 @@ import 'package:cabine_flow/app/domain/entities/auth/app_user.dart';
 import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
 import 'package:cabine_flow/app/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/app/domain/repositories/orders_repository.dart';
-import 'package:cabine_flow/app/modules/manager_orders/views/agent_assignment_page.dart';
+import 'package:cabine_flow/app/domain/repositories/order_requeue_repository.dart';
+import 'package:cabine_flow/app/modules/manager_orders/widgets/return_order_to_queue.dart';
 import 'package:cabine_flow/app/modules/manager_orders/views/order_detail_page.dart';
 import 'package:cabine_flow/app/modules/staff_orders/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/app/data/repositories/operational_refund_repository.dart';
@@ -74,30 +75,15 @@ class _FailedOrdersPageState extends State<FailedOrdersPage> {
     if (_busyOrderId != null) return;
     setState(() => _busyOrderId = order.id);
     try {
-      final QueueOrder reopened = await widget.ordersRepository
-          .prepareFailedOrderForReassignment(orderId: order.id);
-      if (!mounted) return;
-      final QueueOrder? assigned = await Navigator.of(context).push<QueueOrder>(
-        MaterialPageRoute<QueueOrder>(
-          builder: (BuildContext context) => AgentAssignmentPage(
-            user: widget.user,
-            order: reopened,
-            agentRepository: widget.agentRepository,
-            ordersRepository: widget.ordersRepository,
-          ),
-        ),
+      final result = await returnOrderToSharedQueue(
+        context,
+        widget.ordersRepository as OrderRequeueRepository,
+        order,
       );
-      if (!mounted) return;
-      if (assigned != null) {
+      if (result != null && mounted) {
         IzyTelFeedback.success(
           context,
-          'La commande ${order.reference} a été réaffectée.',
-        );
-      } else {
-        IzyTelFeedback.show(
-          context,
-          'La commande est prête pour une nouvelle affectation.',
-          tone: IzyTelFeedbackTone.warning,
+          'Commande remise dans la file d’attente de sa zone.',
         );
       }
     } catch (error) {
@@ -218,7 +204,8 @@ class _FailedOrdersPageState extends State<FailedOrdersPage> {
     if (raw.startsWith('Bad state: ')) return raw.substring(11);
     if (raw.startsWith('StateError: ')) return raw.substring(12);
     if (error is PostgrestException) {
-      final String normalized = '${error.code ?? ''} ${error.message}'.toLowerCase();
+      final String normalized = '${error.code ?? ''} ${error.message}'
+          .toLowerCase();
       if (normalized.contains('42501') || normalized.contains('permission')) {
         return 'Supabase refuse cette action pour l’état actuel de la commande.';
       }
@@ -372,10 +359,7 @@ class _FailedOrdersPageState extends State<FailedOrdersPage> {
 }
 
 class _FailedOrdersLoadError extends StatelessWidget {
-  const _FailedOrdersLoadError({
-    required this.message,
-    required this.onRetry,
-  });
+  const _FailedOrdersLoadError({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;

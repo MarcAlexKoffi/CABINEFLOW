@@ -176,16 +176,8 @@ class _AgentOrdersPageState extends State<AgentOrdersPage> {
     }
 
     final QueueOrder? acceptedOrder = _viewModel.orderById(order.id);
-    bool started = false;
-    if (acceptedOrder != null) {
-      started = await _viewModel.startProcessing(acceptedOrder);
-    }
-    if (!mounted) return;
-
     _showMessage(
-      started
-          ? 'Commande ${order.reference} acceptée. Traitement démarré.'
-          : 'Commande ${order.reference} acceptée. Ouvre le détail pour démarrer le traitement.',
+      'Commande ${order.reference} acceptée. Ouvre le détail pour démarrer la commande.',
     );
     unawaited(_openOrder(acceptedOrder ?? order));
   }
@@ -480,33 +472,6 @@ class _AgentHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            const SizedBox(
-              width: 34,
-              height: 34,
-              child: Icon(
-                Symbols.notifications_rounded,
-                size: IzyTelIconSize.action,
-                color: IzyTelColors.textPrimary,
-              ),
-            ),
-            Positioned(
-              right: 3,
-              top: 3,
-              child: Container(
-                width: 6,
-                height: 6,
-                decoration: const BoxDecoration(
-                  color: IzyTelColors.error,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(width: 11),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

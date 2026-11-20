@@ -80,43 +80,45 @@ class _DashboardPageState extends State<DashboardPage> {
     _viewModel.startRealtime();
 
     _supportRepository = createOperationalSupportRequestRepository();
-    _supportSubscription = _supportRepository.watchNewRequests().listen((
-      List<SupportRequest> requests,
-    ) {
-      if (!mounted) return;
-      setState(() => _customerRequestsCount = requests.length);
-    }, onError: (Object error, StackTrace stackTrace) {
-      IzyTelLog.backendError(
-        'Dashboard.support-watch',
-        error,
-        stackTrace: stackTrace,
-      );
-    });
+    _supportSubscription = _supportRepository.watchNewRequests().listen(
+      (List<SupportRequest> requests) {
+        if (!mounted) return;
+        setState(() => _customerRequestsCount = requests.length);
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        IzyTelLog.backendError(
+          'Dashboard.support-watch',
+          error,
+          stackTrace: stackTrace,
+        );
+      },
+    );
 
     _refundRepository = createOperationalRefundRepository();
     // Les remboursements operationnels vivent maintenant dans Supabase.
     // Seuls les profils autorises a les gerer ouvrent ce listener financier.
     if (widget.user.permissions.canManageRefunds) {
-      _refundSubscription = _refundRepository.watchAll().listen((
-        List<RefundCase> refunds,
-      ) {
-        if (!mounted) return;
-        _handledFailureOrderIds = refunds
-            .where(
-              (RefundCase refund) =>
-                  refund.status == RefundStatus.refunded ||
-                  refund.status == RefundStatus.reconciled,
-            )
-            .map((RefundCase refund) => refund.orderId)
-            .toSet();
-        _refreshVisibleFailedOrders(notifyNewFailures: false);
-      }, onError: (Object error, StackTrace stackTrace) {
-        IzyTelLog.backendError(
-          'Dashboard.refund-watch',
-          error,
-          stackTrace: stackTrace,
-        );
-      });
+      _refundSubscription = _refundRepository.watchAll().listen(
+        (List<RefundCase> refunds) {
+          if (!mounted) return;
+          _handledFailureOrderIds = refunds
+              .where(
+                (RefundCase refund) =>
+                    refund.status == RefundStatus.refunded ||
+                    refund.status == RefundStatus.reconciled,
+              )
+              .map((RefundCase refund) => refund.orderId)
+              .toSet();
+          _refreshVisibleFailedOrders(notifyNewFailures: false);
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          IzyTelLog.backendError(
+            'Dashboard.refund-watch',
+            error,
+            stackTrace: stackTrace,
+          );
+        },
+      );
     }
 
     final OrderHistoryRepository? history = widget.orderHistoryRepository;
@@ -124,30 +126,33 @@ class _DashboardPageState extends State<DashboardPage> {
     // doit pas voir tout l'historique des anciens échecs comme des tâches
     // actuelles à réaffecter.
     if (history != null && widget.user.permissions.canManageFailedOrders) {
-      _failedOrdersSubscription = history.watchOrderHistory().listen((
-        List<QueueOrder> orders,
-      ) {
-        if (!mounted) return;
-        _rawFailedOrders =
-            orders
-                .where(
-                  (QueueOrder order) => order.status == QueueOrderStatus.failed,
-                )
-                .toList(growable: false)
-              ..sort((QueueOrder first, QueueOrder second) {
-                final DateTime firstDate = first.completedAt ?? first.createdAt;
-                final DateTime secondDate =
-                    second.completedAt ?? second.createdAt;
-                return secondDate.compareTo(firstDate);
-              });
-        _refreshVisibleFailedOrders(notifyNewFailures: true);
-      }, onError: (Object error, StackTrace stackTrace) {
-        IzyTelLog.backendError(
-          'Dashboard.failed-orders-watch',
-          error,
-          stackTrace: stackTrace,
-        );
-      });
+      _failedOrdersSubscription = history.watchOrderHistory().listen(
+        (List<QueueOrder> orders) {
+          if (!mounted) return;
+          _rawFailedOrders =
+              orders
+                  .where(
+                    (QueueOrder order) =>
+                        order.status == QueueOrderStatus.failed,
+                  )
+                  .toList(growable: false)
+                ..sort((QueueOrder first, QueueOrder second) {
+                  final DateTime firstDate =
+                      first.completedAt ?? first.createdAt;
+                  final DateTime secondDate =
+                      second.completedAt ?? second.createdAt;
+                  return secondDate.compareTo(firstDate);
+                });
+          _refreshVisibleFailedOrders(notifyNewFailures: true);
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          IzyTelLog.backendError(
+            'Dashboard.failed-orders-watch',
+            error,
+            stackTrace: stackTrace,
+          );
+        },
+      );
     }
   }
 
@@ -293,7 +298,7 @@ class _DashboardPageState extends State<DashboardPage> {
       if (widget.onOpenMore != null &&
           widget.user.permissions.canProcessSupportRequests)
         IzyTelAccountAction(
-          icon: Symbols.notifications_rounded,
+          icon: Symbols.support_agent_rounded,
           label: 'Demandes & notifications',
           onTap: widget.onOpenMore!,
         ),
@@ -350,11 +355,15 @@ class _DashboardPageState extends State<DashboardPage> {
                       _PartialDataBanner(message: _viewModel.errorMessage!),
                       const SizedBox(height: 12),
                     ],
-                    _OverviewCard(data: data, managerMode: widget.user.isManager),
+                    _OverviewCard(
+                      data: data,
+                      managerMode: widget.user.isManager,
+                    ),
                     const SizedBox(height: 22),
                     const _SectionTitle(
                       title: 'Priorités',
-                      subtitle: 'Les actions qui demandent ton attention maintenant.',
+                      subtitle:
+                          'Les actions qui demandent ton attention maintenant.',
                     ),
                     const SizedBox(height: 10),
                     _QuickActionsGrid(
@@ -399,7 +408,8 @@ class _DashboardPageState extends State<DashboardPage> {
                     const SizedBox(height: 22),
                     const _SectionTitle(
                       title: 'Activité du jour',
-                      subtitle: 'Synchronisée avec les statuts opérationnels Supabase.',
+                      subtitle:
+                          'Synchronisée avec les statuts opérationnels Supabase.',
                     ),
                     const SizedBox(height: 10),
                     _DailyActivityCard(
@@ -413,7 +423,9 @@ class _DashboardPageState extends State<DashboardPage> {
                       title: 'Capacités disponibles',
                       subtitle:
                           'Solde réellement disponible chez les agents actifs, réservations déduites.',
-                      actionLabel: widget.onOpenNetwork == null ? null : 'Gérer',
+                      actionLabel: widget.onOpenNetwork == null
+                          ? null
+                          : 'Gérer',
                       onAction: widget.onOpenNetwork,
                     ),
                     const SizedBox(height: 10),
@@ -429,7 +441,9 @@ class _DashboardPageState extends State<DashboardPage> {
                       subtitle: data.priorityOrders.isEmpty
                           ? 'Aucune commande active prioritaire.'
                           : 'Les commandes les plus urgentes selon leur état actuel.',
-                      actionLabel: data.priorityOrders.isEmpty ? null : 'Toutes',
+                      actionLabel: data.priorityOrders.isEmpty
+                          ? null
+                          : 'Toutes',
                       onAction: data.priorityOrders.isEmpty
                           ? null
                           : widget.onOpenOrders,
@@ -439,7 +453,9 @@ class _DashboardPageState extends State<DashboardPage> {
                       const _EmptyRecentState()
                     else
                       _PriorityOrdersPanel(
-                        orders: data.priorityOrders.take(3).toList(growable: false),
+                        orders: data.priorityOrders
+                            .take(3)
+                            .toList(growable: false),
                         onOpen: widget.orderHistoryRepository == null
                             ? null
                             : _openRecentOrder,
@@ -533,17 +549,9 @@ class _Header extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         if (user.isManager)
-          ManagerProfileAvatar(
-            user: user,
-            size: 46,
-            onTap: onAvatarTap,
-          )
+          ManagerProfileAvatar(user: user, size: 46, onTap: onAvatarTap)
         else
-          IzyTelAvatar(
-            name: user.name,
-            size: 46,
-            onTap: onAvatarTap,
-          ),
+          IzyTelAvatar(name: user.name, size: 46, onTap: onAvatarTap),
       ],
     );
   }
@@ -585,7 +593,9 @@ class _OverviewCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      managerMode ? 'Supervision du jour' : 'Encaissements aujourd’hui',
+                      managerMode
+                          ? 'Supervision du jour'
+                          : 'Encaissements aujourd’hui',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: Colors.white.withAlpha(205),
                         fontWeight: FontWeight.w600,
@@ -593,20 +603,25 @@ class _OverviewCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      managerMode ? '${data.statistics.completed} commandes terminées' : formatCfaFull(data.todayRevenue),
+                      managerMode
+                          ? '${data.statistics.completed} commandes terminées'
+                          : formatCfaFull(data.todayRevenue),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        color: Colors.white,
-                        fontSize: 30,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -.6,
-                      ),
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(
+                            color: Colors.white,
+                            fontSize: 30,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -.6,
+                          ),
                     ),
                     const SizedBox(height: 10),
                     managerMode
                         ? _OperationalSummary(orders: data.ordersToProcess)
-                        : _RevenueTrend(percentage: data.revenueChangePercentage),
+                        : _RevenueTrend(
+                            percentage: data.revenueChangePercentage,
+                          ),
                   ],
                 ),
               ),
@@ -620,7 +635,9 @@ class _OverviewCard extends StatelessWidget {
                   border: Border.all(color: Colors.white.withAlpha(38)),
                 ),
                 child: Icon(
-                  managerMode ? Symbols.monitoring_rounded : Symbols.account_balance_wallet_rounded,
+                  managerMode
+                      ? Symbols.monitoring_rounded
+                      : Symbols.account_balance_wallet_rounded,
                   color: Colors.white,
                   size: 27,
                 ),
@@ -682,9 +699,9 @@ class _OperationalSummary extends StatelessWidget {
       child: Text(
         '$orders commandes suivies',
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ),
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -1041,9 +1058,9 @@ class _DailyMetric extends StatelessWidget {
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: IzyTelColors.textSecondary,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(color: IzyTelColors.textSecondary),
         ),
       ],
     );
@@ -1053,11 +1070,7 @@ class _DailyMetric extends StatelessWidget {
 class _VerticalDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 54,
-      color: IzyTelColors.outline,
-    );
+    return Container(width: 1, height: 54, color: IzyTelColors.outline);
   }
 }
 
@@ -1253,9 +1266,8 @@ class _PriorityOrderRow extends StatelessWidget {
                           order.phoneNumber,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: IzyTelColors.textSecondary,
-                          ),
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(color: IzyTelColors.textSecondary),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -1304,10 +1316,7 @@ class _PriorityOrderRow extends StatelessWidget {
           tone: IzyTelColors.moov,
         );
       case ServiceChannel.wave:
-        return (
-          asset: 'assets/images/wave_logo.png',
-          tone: IzyTelColors.wave,
-        );
+        return (asset: 'assets/images/wave_logo.png', tone: IzyTelColors.wave);
     }
   }
 
@@ -1431,9 +1440,9 @@ class _ErrorState extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: IzyTelColors.textSecondary,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: IzyTelColors.textSecondary),
           ),
           const SizedBox(height: 12),
           FilledButton.tonal(

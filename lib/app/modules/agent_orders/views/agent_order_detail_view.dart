@@ -30,6 +30,8 @@ class AgentOrderDetailView extends StatefulWidget {
 
 class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
   bool get _isBusy => widget.viewModel.busyOrderId == widget.order.id;
+  bool _preparing = false;
+  bool _startFailed = false;
 
   void _showMessage(String message) {
     IzyTelFeedback.show(context, message);
@@ -43,18 +45,8 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
       return;
     }
 
-    final QueueOrder? acceptedOrder = widget.viewModel.orderById(
-      widget.order.id,
-    );
-    bool started = false;
-    if (acceptedOrder != null) {
-      started = await widget.viewModel.startProcessing(acceptedOrder);
-    }
-    if (!mounted) return;
     _showMessage(
-      started
-          ? 'Commande acceptée. Le traitement a démarré.'
-          : 'Commande acceptée. Tu peux démarrer le traitement depuis ce détail.',
+      'Commande acceptée. Tu peux démarrer la commande depuis ce détail.',
     );
   }
 
@@ -82,8 +74,14 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
   }
 
   Future<void> _startProcessing() async {
+    if (_preparing || _isBusy) return;
+    setState(() => _preparing = true);
     final bool success = await widget.viewModel.startProcessing(widget.order);
     if (!mounted) return;
+    setState(() {
+      _preparing = false;
+      _startFailed = !success;
+    });
     _showMessage(
       success
           ? 'Traitement démarré.'
@@ -276,10 +274,15 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
     }
 
     if (order.assignmentStatus == OrderAssignmentStatus.accepted &&
-        order.status == QueueOrderStatus.paidReady) {
+        const [
+          QueueOrderStatus.paidReady,
+          QueueOrderStatus.inProgress,
+          QueueOrderStatus.onHold,
+        ].contains(order.status) &&
+        !widget.viewModel.canOpenProcessing(order)) {
       return _SingleBottomAction(
         isBusy: _isBusy,
-        label: 'Démarrer le traitement',
+        label: _startFailed ? 'Réessayer' : 'Démarrer la commande',
         icon: Symbols.play_arrow_rounded,
         onPressed: _startProcessing,
       );
@@ -338,23 +341,41 @@ class _AgentOrderDetailViewState extends State<AgentOrderDetailView> {
               SizedBox(height: 18 * referenceScale),
               _ReferenceProgress(order: order),
               SizedBox(height: 18 * referenceScale),
-              UssdQuickProcessingCard(
-                initiallyExpanded: false,
-                key: ValueKey('ussd-${order.id}'),
-                orderId: order.id,
-                network: order.network.name,
-                offerLabel: order.offerLabel,
-                beneficiary: order.beneficiaryPhone,
-                amount: order.amount,
-                canCopyNumber:
-                    order.assignedAgentId == widget.user.id &&
-                    order.assignmentStatus == OrderAssignmentStatus.accepted &&
-                    order.isFundedForProcessing,
-                processable:
-                    order.status == QueueOrderStatus.inProgress &&
-                    order.assignedAgentId == widget.user.id &&
-                    order.isFundedForProcessing,
-              ),
+              if (_preparing)
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text(
+                        'Préparation de votre espace de traitement…',
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              if (widget.viewModel.canOpenProcessing(order))
+                UssdQuickProcessingCard(
+                  initiallyExpanded: false,
+                  key: ValueKey('ussd-${order.id}'),
+                  orderId: order.id,
+                  network: order.network.name,
+                  offerLabel: order.offerLabel,
+                  beneficiary: order.beneficiaryPhone,
+                  amount: order.amount,
+                  canCopyNumber:
+                      widget.viewModel.canOpenProcessing(order) &&
+                      order.assignedAgentId == widget.user.id &&
+                      order.assignmentStatus ==
+                          OrderAssignmentStatus.accepted &&
+                      order.isFundedForProcessing,
+                  processable:
+                      widget.viewModel.canOpenProcessing(order) &&
+                      order.status == QueueOrderStatus.inProgress &&
+                      order.assignedAgentId == widget.user.id &&
+                      order.isFundedForProcessing,
+                ),
               SizedBox(height: 18 * referenceScale),
               _DetailMenuCard(
                 rows: [

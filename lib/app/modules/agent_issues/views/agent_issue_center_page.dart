@@ -1,3 +1,4 @@
+import 'package:cabine_flow/app/shared/widgets/resilient_stream_builder.dart';
 import 'package:cabine_flow/app/theme/izytel_colors.dart';
 import 'package:cabine_flow/app/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/app/domain/entities/agents/agent_models.dart';
@@ -29,7 +30,7 @@ class AgentIssueCenterPage extends StatefulWidget {
 class _AgentIssueCenterPageState extends State<AgentIssueCenterPage> {
   final TextEditingController _searchController = TextEditingController();
   late final Stream<List<AgentDirectoryEntry>> _agentsStream;
-  late final Stream<List<AgentIssue>> _issuesStream;
+  late Stream<List<AgentIssue>> _issuesStream;
   _AgentIssueTab _selectedTab = _AgentIssueTab.open;
   IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
   String _query = '';
@@ -58,14 +59,14 @@ class _AgentIssueCenterPageState extends State<AgentIssueCenterPage> {
       ),
       body: SafeArea(
         top: false,
-        child: StreamBuilder<List<AgentDirectoryEntry>>(
+        child: ResilientStreamBuilder<List<AgentDirectoryEntry>>(
           stream: _agentsStream,
           builder:
               (
                 BuildContext context,
                 AsyncSnapshot<List<AgentDirectoryEntry>> agentsSnapshot,
               ) {
-                return StreamBuilder<List<AgentIssue>>(
+                return ResilientStreamBuilder<List<AgentIssue>>(
                   stream: _issuesStream,
                   builder:
                       (
@@ -92,7 +93,10 @@ class _AgentIssueCenterPageState extends State<AgentIssueCenterPage> {
                             message: raw.contains('STAFF_REQUIRED')
                                 ? 'Ce compte Manager n’est pas encore activé dans Supabase. Enregistre son UID dans izytel_staff_access avec le rôle manager, puis reconnecte-toi.'
                                 : 'Impossible de charger les signalements agents.',
-                            onRetry: () => setState(() {}),
+                            onRetry: () => setState(() {
+                              _issuesStream = widget.repository
+                                  .watchAllAgentIssues();
+                            }),
                           );
                         }
 
@@ -149,11 +153,15 @@ class _AgentIssueCenterPageState extends State<AgentIssueCenterPage> {
                                     'Centralise les incidents remontés par les agents, puis prends une action de suivi.',
                               ),
                               const SizedBox(height: IzyTelSpacing.lg),
-                              if (widget.user.isManager && allIssues.isEmpty) ...<Widget>[
+                              if (widget.user.isManager &&
+                                  allIssues.isEmpty) ...<Widget>[
                                 IzyTelSurface(
-                                  padding: const EdgeInsets.all(IzyTelSpacing.md),
+                                  padding: const EdgeInsets.all(
+                                    IzyTelSpacing.md,
+                                  ),
                                   child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: <Widget>[
                                       const Icon(
                                         Symbols.admin_panel_settings_rounded,
@@ -168,7 +176,8 @@ class _AgentIssueCenterPageState extends State<AgentIssueCenterPage> {
                                               .textTheme
                                               .bodySmall
                                               ?.copyWith(
-                                                color: IzyTelColors.textSecondary,
+                                                color:
+                                                    IzyTelColors.textSecondary,
                                                 height: 1.4,
                                               ),
                                         ),

@@ -29,11 +29,9 @@ class SupabaseAgentIssueRepository {
       client: _client,
       fetch: () => _fetchIssues(agentId: agentId),
       label: 'SupabaseAgentIssues.watch',
+      independentPolling: true,
       signals: const <SupabaseRealtimeSignal>[
-        SupabaseRealtimeSignal(
-          table: tableName,
-          primaryKey: <String>['id'],
-        ),
+        SupabaseRealtimeSignal(table: tableName, primaryKey: <String>['id']),
       ],
     );
   }

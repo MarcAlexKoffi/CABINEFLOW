@@ -17,10 +17,20 @@ class SupabaseSharedOrderQueueRepository
   }
 
   @override
-  Future<SharedQueueSnapshot> fetchAvailableOrders() async {
+  Future<SharedQueueSnapshot> fetchAvailableOrders({
+    SharedQueueCursor? after,
+  }) async {
     final data = _object(
       await _client
-          .rpc('izytel_shared_available')
+          .rpc(
+            'izytel_shared_available_page',
+            params: {
+              'p_after_available_at': after?.availableAt
+                  .toUtc()
+                  .toIso8601String(),
+              'p_after_order_id': after?.orderId,
+            },
+          )
           .timeout(const Duration(seconds: 12)),
     );
     final orders = (data['orders'] as List)
@@ -30,6 +40,15 @@ class SupabaseSharedOrderQueueRepository
       orders: orders,
       serverNow: DateTime.parse(data['server_now'] as String),
       enabled: data['enabled'] == true,
+      totalCount: (data['total_count'] as num).toInt(),
+      nextCursor: data['next_cursor'] == null
+          ? null
+          : SharedQueueCursor(
+              availableAt: DateTime.parse(
+                _object(data['next_cursor'])['available_at'] as String,
+              ),
+              orderId: _object(data['next_cursor'])['order_id'] as String,
+            ),
     );
   }
 
@@ -113,8 +132,9 @@ class SupabaseSharedOrderQueueRepository
   }
 
   @override
-  Stream<SharedQueueSnapshot> watchAvailableOrders() =>
-      _watch(fetchAvailableOrders, 'SharedQueue.watch');
+  Stream<SharedQueueSnapshot> watchAvailableOrders({
+    SharedQueueCursor? after,
+  }) => _watch(() => fetchAvailableOrders(after: after), 'SharedQueue.watch');
 
   @override
   Future<OrderSupervisionSnapshot> fetchSupervision() async {

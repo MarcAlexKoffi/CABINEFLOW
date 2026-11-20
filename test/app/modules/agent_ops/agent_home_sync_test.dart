@@ -85,9 +85,13 @@ class _Orders extends FakeOrdersRepository
   }
 
   @override
-  Stream<SharedQueueSnapshot> watchAvailableOrders() => sharedEvents.stream;
+  Stream<SharedQueueSnapshot> watchAvailableOrders({
+    SharedQueueCursor? after,
+  }) => sharedEvents.stream;
   @override
-  Future<SharedQueueSnapshot> fetchAvailableOrders() async {
+  Future<SharedQueueSnapshot> fetchAvailableOrders({
+    SharedQueueCursor? after,
+  }) async {
     sharedReads++;
     return shared;
   }
@@ -192,6 +196,28 @@ void main() {
     model.dispose();
     await repo.close();
   });
+
+  test(
+    'Home uses the canonical total instead of the first page length',
+    () async {
+      final repo = _Orders();
+      final model = AgentHomeViewModel(agentId: agent.id, repository: repo)
+        ..start();
+      repo.assignedEvents.add([]);
+      final page = snapshot(['one']);
+      repo.sharedEvents.add(
+        SharedQueueSnapshot(
+          orders: page.orders,
+          serverNow: page.serverNow,
+          enabled: true,
+          totalCount: 109,
+        ),
+      );
+      expect(model.toAccept, 109);
+      model.dispose();
+      await repo.close();
+    },
+  );
   test(
     'refresh queries both real sources and a newer stream event wins',
     () async {

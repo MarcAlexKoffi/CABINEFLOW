@@ -1,4 +1,5 @@
 import 'package:cabine_flow/app/data/sources/supabase_realtime_refetch.dart';
+import 'package:cabine_flow/app/data/sources/order_execution_session.dart';
 import 'package:cabine_flow/app/core/logging/izytel_log.dart';
 import 'package:cabine_flow/app/domain/entities/orders/automatic_assignment.dart';
 import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
@@ -34,6 +35,7 @@ class Phase4AssignmentSnapshot {
     this.assignedByUid,
     this.assignmentMode,
     this.assignedAt,
+    this.assignmentVersion = 0,
     this.lastRefusalReason,
     this.lastRefusedAt,
     this.lastRefusedAgentId,
@@ -78,6 +80,7 @@ class Phase4AssignmentSnapshot {
   final String? assignedByUid;
   final OrderAssignmentMode? assignmentMode;
   final DateTime? assignedAt;
+  final int assignmentVersion;
   final String? lastRefusalReason;
   final DateTime? lastRefusedAt;
   final String? lastRefusedAgentId;
@@ -142,9 +145,8 @@ class Phase4AssignmentSnapshot {
       offerLabel: offerLabel,
       offerId: offerId ?? legacy?.offerId,
       amount: amount,
-      originalWhatsappMessage:
-          originalWhatsappMessage ?? legacy?.originalWhatsappMessage,
-      internalNotes: internalNotes ?? legacy?.internalNotes,
+      originalWhatsappMessage: originalWhatsappMessage,
+      internalNotes: internalNotes,
       createdAt: firebaseCreatedAt,
       paidAt: paidAt ?? legacy?.paidAt,
       paymentRequestSentAt: legacy?.paymentRequestSentAt,
@@ -170,6 +172,7 @@ class Phase4AssignmentSnapshot {
       assignedAgentName: hasAssignment ? assignedAgentName : null,
       assignedByUserId: hasAssignment ? assignedByUid : null,
       assignedAt: hasAssignment ? assignedAt : null,
+      assignmentVersion: assignmentVersion,
       assignmentMode: hasAssignment ? assignmentMode : null,
       assignmentStatus: assignmentStatus,
       lastAssignmentRefusalReason: lastRefusalReason,
@@ -290,8 +293,11 @@ class Phase4AgentAssignmentState {
 }
 
 class SupabasePhase4AssignmentRepository {
-  SupabasePhase4AssignmentRepository({SupabaseClient? client})
-    : _client = client ?? Supabase.instance.client;
+  SupabasePhase4AssignmentRepository({
+    SupabaseClient? client,
+    Future<String> Function()? executionKey,
+  }) : _client = client ?? Supabase.instance.client,
+       _executionKey = executionKey ?? OrderExecutionSession.key;
 
   static const String ordersTable = 'phase4_assignment_orders';
   static const String plansTable = 'phase4_assignment_plans';
@@ -299,6 +305,7 @@ class SupabasePhase4AssignmentRepository {
   static const Duration fallbackPollInterval = Duration(seconds: 30);
 
   final SupabaseClient _client;
+  final Future<String> Function() _executionKey;
 
   Future<Phase4AssignmentSnapshot> syncOrder(QueueOrder order) async {
     if (!order.isFundedForProcessing ||
@@ -531,8 +538,36 @@ class SupabasePhase4AssignmentRepository {
     );
   }
 
-  Future<Phase4AssignmentSnapshot> startProcessing(String orderId) {
-    return _processingAction(orderId: orderId, action: 'start');
+  Future<Phase4AssignmentSnapshot> startProcessing(
+    String orderId, {
+    required int expectedVersion,
+  }) async {
+    final key = await _executionKey();
+    for (int attempt = 0; attempt < 4; attempt++) {
+      final raw = await _client
+          .rpc(
+            'izytel_begin_order_execution',
+            params: {
+              'p_order_id': orderId.trim(),
+              'p_expected_version': expectedVersion,
+              'p_request_id': key,
+            },
+          )
+          .setHeader(OrderExecutionSession.header, key)
+          .timeout(const Duration(seconds: 15));
+      if (raw is! Map || raw['order'] is! Map || raw['ready'] is! bool) {
+        throw const FormatException(
+          'Autorisation de traitement non confirmée.',
+        );
+      }
+      if (raw['ready'] == true) return _requireSnapshot(raw['order']);
+      final delay = (raw['retry_after_ms'] as num?)?.toInt();
+      if (delay == null || delay < 0 || delay > 5000) {
+        throw const FormatException('Délai de préparation invalide.');
+      }
+      await Future<void>.delayed(Duration(milliseconds: delay.clamp(1, 5000)));
+    }
+    throw StateError('La préparation n’a pas pu être confirmée. Réessayez.');
   }
 
   Future<Phase4AssignmentSnapshot> holdProcessing({
@@ -569,26 +604,65 @@ class SupabasePhase4AssignmentRepository {
     String? reason,
     String? observation,
   }) async {
-    final Object? raw = await _client.rpc(
-      'phase3_agent_processing_action',
-      params: <String, dynamic>{
-        'p_order_id': orderId.trim(),
-        'p_action': action,
-        'p_reason': reason,
-        'p_observation': observation,
-      },
-    );
+    final key = await _executionKey();
+    final Object? raw = await _client
+        .rpc(
+          'phase3_agent_processing_action',
+          params: <String, dynamic>{
+            'p_order_id': orderId.trim(),
+            'p_action': action,
+            'p_reason': reason,
+            'p_observation': observation,
+          },
+        )
+        .setHeader(OrderExecutionSession.header, key);
     return _requireSnapshot(raw);
   }
 
   Future<Phase4AssignmentSnapshot> prepareFailedForReassignment(
     String orderId,
   ) async {
-    final Object? raw = await _client.rpc(
-      'phase3_prepare_failed_order_for_reassignment',
-      params: <String, dynamic>{'p_order_id': orderId.trim()},
+    return returnToQueue(orderId, 'Remise en file après vérification Manager');
+  }
+
+  Future<Phase4AssignmentSnapshot> returnToQueue(
+    String orderId,
+    String reason,
+  ) async {
+    final request = await OrderExecutionSession.operationKey(
+      'requeue.$orderId',
     );
-    return _requireSnapshot(raw);
+    final raw = await _client
+        .rpc(
+          'izytel_return_order_to_queue',
+          params: {
+            'p_order_id': orderId.trim(),
+            'p_reason': reason.trim(),
+            'p_request_id': request,
+          },
+        )
+        .timeout(const Duration(seconds: 15));
+    final result = _requireSnapshot(raw);
+    await OrderExecutionSession.finishOperation('requeue.$orderId');
+    if (result.assignmentState != 'waiting' || result.assignedAgentId != null) {
+      throw StateError('Cette commande a déjà évolué. Actualisez la file.');
+    }
+    return result;
+  }
+
+  Future<void> verifyNotExecuted(
+    String orderId,
+    String reason,
+    int assignmentVersion,
+  ) async {
+    await _client.rpc(
+      'izytel_verify_order_not_executed',
+      params: {
+        'p_order_id': orderId.trim(),
+        'p_reason': reason.trim(),
+        'p_expected_version': assignmentVersion,
+      },
+    );
   }
 
   Future<Phase4AssignmentSnapshot> importLegacyRefusals({
@@ -618,11 +692,12 @@ class SupabasePhase4AssignmentRepository {
   Future<Phase4AssignmentSnapshot?> fetchOrder(String orderId) async {
     final String id = orderId.trim();
     if (id.isEmpty) return null;
-    final List<Map<String, dynamic>> rows = await _client
-        .from(ordersTable)
-        .select()
-        .eq('order_id', id)
-        .limit(1);
+    final raw = await _client
+        .rpc('izytel_read_orders', params: {'p_order_id': id})
+        .setHeader(OrderExecutionSession.header, await _executionKey());
+    final rows = (raw as List)
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
     if (rows.isEmpty) return null;
     return _snapshotFromRow(rows.first);
   }
@@ -685,10 +760,12 @@ class SupabasePhase4AssignmentRepository {
   ) async {
     final String id = agentId.trim();
     if (id.isEmpty) return const <Phase4AssignmentSnapshot>[];
-    final List<Map<String, dynamic>> rows = await _client
-        .from(ordersTable)
-        .select()
-        .eq('assigned_agent_id', id);
+    final raw = await _client
+        .rpc('izytel_read_orders', params: {'p_agent_id': id})
+        .setHeader(OrderExecutionSession.header, await _executionKey());
+    final rows = (raw as List)
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
     final List<Phase4AssignmentSnapshot> snapshots = _snapshotsFromRows(rows)
         .where(
           (Phase4AssignmentSnapshot item) =>
@@ -955,6 +1032,7 @@ class SupabasePhase4AssignmentRepository {
       assignedByUid: _nullable(row['assigned_by_uid']),
       assignmentMode: _assignmentMode(row['assignment_mode']),
       assignedAt: _date(row['assigned_at']),
+      assignmentVersion: (row['assignment_version'] as num?)?.toInt() ?? 0,
       lastRefusalReason: _nullable(row['last_refusal_reason']),
       lastRefusedAt: _date(row['last_refused_at']),
       lastRefusedAgentId: _nullable(row['last_refused_agent_id']),

@@ -1,4 +1,5 @@
 import 'package:cabine_flow/app/data/sources/supabase_bootstrap.dart';
+import 'package:cabine_flow/app/data/sources/order_execution_session.dart';
 import 'package:cabine_flow/app/core/logging/izytel_log.dart';
 import 'package:cabine_flow/app/domain/policies/ussd/ussd_engine.dart';
 import 'package:cabine_flow/app/domain/repositories/ussd_repository.dart';
@@ -9,8 +10,13 @@ UssdRepository createUssdRepository() => SupabaseUssdRepository(
 );
 
 class SupabaseUssdRepository implements UssdRepository {
-  SupabaseUssdRepository({SupabaseClient? client}) : _client = client;
+  SupabaseUssdRepository({
+    SupabaseClient? client,
+    Future<String> Function()? executionKey,
+  }) : _client = client,
+       _executionKey = executionKey ?? OrderExecutionSession.key;
   final SupabaseClient? _client;
+  final Future<String> Function() _executionKey;
   static const timeout = Duration(seconds: 12);
 
   Future<dynamic> _rpc(
@@ -21,9 +27,23 @@ class SupabaseUssdRepository implements UssdRepository {
     if (client == null) throw const UssdValidationException('unavailable');
     // Do not retry writes: a timeout may follow a successful server commit.
     try {
-      return await client.rpc(name, params: params).timeout(timeout);
+      final request = client.rpc(name, params: params);
+      if (const [
+        'izytel_ussd_resolve',
+        'izytel_ussd_prepare',
+        'izytel_ussd_record_result',
+      ].contains(name)) {
+        return await request
+            .setHeader(OrderExecutionSession.header, await _executionKey())
+            .timeout(timeout);
+      }
+      return await request.timeout(timeout);
     } on PostgrestException catch (error) {
       IzyTelLog.backendError('USSD.Rpc', error);
+      if (error.message.contains('EXECUTION_SESSION_REQUIRED') ||
+          error.message.contains('EXECUTION_OWNER_REQUIRED')) {
+        throw const UssdValidationException('execution_session_required');
+      }
       if (error.code == '42501' && error.message == 'USSD_AUTH_REQUIRED') {
         throw const UssdValidationException('authentication_required');
       }
@@ -45,14 +65,18 @@ class SupabaseUssdRepository implements UssdRepository {
   Future<UssdResolution> prepare(
     String orderId,
     UssdResolution confirmed,
-    String requestId,
-  ) async => UssdResolution.fromJson(
+    String requestId, {
+    bool confirmNotExecuted = false,
+  }) async => UssdResolution.fromJson(
     _map(
       await _rpc('izytel_ussd_prepare', {
         'p_order_id': orderId,
         'p_rule_id': confirmed.rule!.id,
         'p_version': confirmed.rule!.version,
-        'p_context': confirmed.context,
+        'p_context': {
+          ...confirmed.context,
+          if (confirmNotExecuted) '_ussd_not_executed_confirmed': true,
+        },
         'p_request_id': requestId,
       }),
     ),

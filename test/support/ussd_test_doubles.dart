@@ -50,6 +50,7 @@ class UssdTestRepository implements UssdRepository {
   Map<String, dynamic>? saved;
   int statusChanges = 0;
   int leaseMs = 10000;
+  bool lastConfirmedNotExecuted = false;
   UssdRule? deletedRule;
   int ruleDeletions = 0;
   bool failDeletion = false;
@@ -65,9 +66,11 @@ class UssdTestRepository implements UssdRepository {
   Future<UssdResolution> prepare(
     String orderId,
     UssdResolution confirmed,
-    String requestId,
-  ) async {
+    String requestId, {
+    bool confirmNotExecuted = false,
+  }) async {
     preparations++;
+    lastConfirmedNotExecuted = confirmNotExecuted;
     return revokeOnPrepare
         ? const UssdResolution(status: 'unavailable', reason: 'rule_changed')
         : syntheticResolution(
@@ -156,6 +159,15 @@ class UssdTestRepository implements UssdRepository {
 }
 
 class UssdTestDialer implements UssdDialer {
+  bool maxItInstalled = true;
+  int storeOpens = 0;
+  @override
+  Future<bool> canOpenMaxIt() async => maxItInstalled;
+  @override
+  Future<void> openMaxItStore() async {
+    storeOpens++;
+  }
+
   int opens = 0;
   Completer<void>? pending;
   bool fail = false;

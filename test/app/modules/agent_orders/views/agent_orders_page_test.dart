@@ -44,6 +44,13 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> showAssignments(WidgetTester tester) async {
+    await tester.tap(find.byTooltip('Afficher une autre file'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('À accepter'));
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('affiche la file priorisée de la maquette et accepte', (
     WidgetTester tester,
   ) async {
@@ -53,6 +60,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Bonjour Koffi 👋'), findsOneWidget);
+    expect(find.text('Aucune commande en cours'), findsNothing);
     expect(find.text('1 commande à traiter'), findsOneWidget);
     expect(find.text('PRIORITÉ 1'), findsOneWidget);
     expect(find.text('Accepter'), findsOneWidget);
@@ -60,13 +68,18 @@ void main() {
 
     await tester.tap(find.text('Accepter'));
     await tester.pumpAndSettle();
+    expect(find.text('Démarrer la commande'), findsOneWidget);
+    await tester.tap(find.text('Démarrer la commande'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
 
     expect(find.text('Détail commande'), findsOneWidget);
     expect(find.text(order.reference), findsOneWidget);
     expect(find.text('Client'), findsOneWidget);
     expect(find.text('Paiement'), findsOneWidget);
     expect(find.text('Détails de l’offre'), findsOneWidget);
-    expect(find.text('Preuve'), findsOneWidget);
+    expect(find.text('Preuve'), findsNothing);
     expect(find.text('Marquer comme réussie'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 3));
@@ -78,6 +91,7 @@ void main() {
     final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
     final QueueOrder order = await prepareAssignedOrder(repository);
     await pumpAgentPage(tester, repository);
+    await showAssignments(tester);
 
     await tester.tap(find.text(order.offerLabel));
     await tester.pumpAndSettle();

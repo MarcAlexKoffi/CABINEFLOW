@@ -15,6 +15,7 @@ import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
 import 'package:cabine_flow/app/domain/repositories/agent_assignment_history_repository.dart';
 import 'package:cabine_flow/app/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/app/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/app/domain/repositories/order_requeue_repository.dart';
 import 'package:cabine_flow/app/domain/repositories/shared_order_queue_repository.dart';
 import 'package:cabine_flow/app/data/repositories/supabase_shared_order_queue_repository.dart';
 import 'package:cabine_flow/app/domain/policies/orders/automatic_assignment_selector.dart';
@@ -30,6 +31,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 class HybridOrdersRepository
     implements
         OrdersRepository,
+        OrderRequeueRepository,
+        OrderExecutionAuthorizationRepository,
         OrderHistoryRepository,
         AgentAssignmentHistoryRepository,
         SharedOrderQueueRepository,
@@ -57,11 +60,13 @@ class HybridOrdersRepository
   SupabaseSharedOrderQueueRepository get _sharedQueue =>
       SupabaseSharedOrderQueueRepository();
   @override
-  Future<SharedQueueSnapshot> fetchAvailableOrders() =>
-      _sharedQueue.fetchAvailableOrders();
+  Future<SharedQueueSnapshot> fetchAvailableOrders({
+    SharedQueueCursor? after,
+  }) => _sharedQueue.fetchAvailableOrders(after: after);
   @override
-  Stream<SharedQueueSnapshot> watchAvailableOrders() =>
-      _sharedQueue.watchAvailableOrders();
+  Stream<SharedQueueSnapshot> watchAvailableOrders({
+    SharedQueueCursor? after,
+  }) => _sharedQueue.watchAvailableOrders(after: after);
   @override
   Future<QueueOrder> claimAvailableOrder(AvailableSharedOrder order) =>
       _sharedQueue.claimAvailableOrder(order);
@@ -988,6 +993,8 @@ class HybridOrdersRepository
     _requireCurrentAgent(agentId);
     final Phase4AssignmentSnapshot updated = await _phase4.startProcessing(
       orderId,
+      expectedVersion:
+          (await _phase4.fetchOrder(orderId))?.assignmentVersion ?? -1,
     );
     return updated.toQueueOrder();
   }
@@ -1133,6 +1140,28 @@ class HybridOrdersRepository
     final Phase4AssignmentSnapshot reopened = await _phase4
         .prepareFailedForReassignment(orderId);
     return reopened.toQueueOrder();
+  }
+
+  @override
+  Future<QueueOrder> returnOrderToQueue({
+    required String orderId,
+    required String reason,
+  }) async => (await _phase4.returnToQueue(orderId, reason)).toQueueOrder();
+
+  @override
+  Future<void> verifyOrderNotExecuted({
+    required String orderId,
+    required String reason,
+    required int assignmentVersion,
+  }) => _phase4.verifyNotExecuted(orderId, reason, assignmentVersion);
+
+  @override
+  Future<QueueOrder> authorizeAgentExecution(QueueOrder order) async {
+    _requireCurrentAgent(order.assignedAgentId ?? '');
+    return (await _phase4.startProcessing(
+      order.id,
+      expectedVersion: order.assignmentVersion,
+    )).toQueueOrder();
   }
 
   @override

@@ -6,6 +6,7 @@ import 'package:cabine_flow/app/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cabine_flow/app/shared/widgets/izytel/izytel_ui.dart';
 import 'package:cabine_flow/app/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
+import 'package:cabine_flow/app/shared/widgets/resilient_stream_builder.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 enum _AgentIssueFilter { all, active, resolved, cancelled }
@@ -29,6 +30,22 @@ class _AgentIssuesPageState extends State<AgentIssuesPage> {
   _AgentIssueFilter _filter = _AgentIssueFilter.all;
   IzyTelPeriodFilterValue _period = const IzyTelPeriodFilterValue();
   String _query = '';
+  late Stream<List<AgentIssue>> _issuesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _issuesStream = widget.repository.watchAgentIssues(widget.agentId);
+  }
+
+  @override
+  void didUpdateWidget(covariant AgentIssuesPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.agentId != widget.agentId ||
+        oldWidget.repository != widget.repository) {
+      _issuesStream = widget.repository.watchAgentIssues(widget.agentId);
+    }
+  }
 
   @override
   void dispose() {
@@ -47,7 +64,10 @@ class _AgentIssuesPageState extends State<AgentIssuesPage> {
     if (draft == null || !mounted) return;
 
     try {
-      await widget.repository.createIssue(agentId: widget.agentId, issue: draft);
+      await widget.repository.createIssue(
+        agentId: widget.agentId,
+        issue: draft,
+      );
       if (!mounted) return;
       IzyTelFeedback.success(
         context,
@@ -73,17 +93,19 @@ class _AgentIssuesPageState extends State<AgentIssuesPage> {
     final String query = _query.trim().toLowerCase();
     if (query.isEmpty) return filtered.toList(growable: false);
 
-    return filtered.where((AgentIssue issue) {
-      final String searchable = <String>[
-        issue.id,
-        _issueTypeLabel(issue.type),
-        issue.network?.label ?? 'Tous réseaux',
-        _issueStatusLabel(issue.status),
-        issue.description,
-        issue.resolvedBy ?? '',
-      ].join(' ').toLowerCase();
-      return searchable.contains(query);
-    }).toList(growable: false);
+    return filtered
+        .where((AgentIssue issue) {
+          final String searchable = <String>[
+            issue.id,
+            _issueTypeLabel(issue.type),
+            issue.network?.label ?? 'Tous réseaux',
+            _issueStatusLabel(issue.status),
+            issue.description,
+            issue.resolvedBy ?? '',
+          ].join(' ').toLowerCase();
+          return searchable.contains(query);
+        })
+        .toList(growable: false);
   }
 
   Future<void> _openIssueDetail(AgentIssue issue) async {
@@ -113,8 +135,8 @@ class _AgentIssuesPageState extends State<AgentIssuesPage> {
           ),
         ),
       ),
-      body: StreamBuilder<List<AgentIssue>>(
-        stream: widget.repository.watchAgentIssues(widget.agentId),
+      body: ResilientStreamBuilder<List<AgentIssue>>(
+        stream: _issuesStream,
         builder: (BuildContext context, AsyncSnapshot<List<AgentIssue>> snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting &&
               !snapshot.hasData) {
@@ -184,22 +206,26 @@ class _AgentIssuesPageState extends State<AgentIssuesPage> {
                     _IssueFilterChip(
                       label: 'Tous',
                       selected: _filter == _AgentIssueFilter.all,
-                      onTap: () => setState(() => _filter = _AgentIssueFilter.all),
+                      onTap: () =>
+                          setState(() => _filter = _AgentIssueFilter.all),
                     ),
                     _IssueFilterChip(
                       label: 'En cours',
                       selected: _filter == _AgentIssueFilter.active,
-                      onTap: () => setState(() => _filter = _AgentIssueFilter.active),
+                      onTap: () =>
+                          setState(() => _filter = _AgentIssueFilter.active),
                     ),
                     _IssueFilterChip(
                       label: 'Résolus',
                       selected: _filter == _AgentIssueFilter.resolved,
-                      onTap: () => setState(() => _filter = _AgentIssueFilter.resolved),
+                      onTap: () =>
+                          setState(() => _filter = _AgentIssueFilter.resolved),
                     ),
                     _IssueFilterChip(
                       label: 'Classés',
                       selected: _filter == _AgentIssueFilter.cancelled,
-                      onTap: () => setState(() => _filter = _AgentIssueFilter.cancelled),
+                      onTap: () =>
+                          setState(() => _filter = _AgentIssueFilter.cancelled),
                     ),
                   ],
                 ),
@@ -423,10 +449,11 @@ class _IssueRow extends StatelessWidget {
                             _issueTypeLabel(issue.type),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: IzyTelColors.textPrimary,
-                              fontWeight: FontWeight.w800,
-                            ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: IzyTelColors.textPrimary,
+                                  fontWeight: FontWeight.w800,
+                                ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -454,10 +481,11 @@ class _IssueRow extends StatelessWidget {
                             '${issue.network?.label ?? 'Tous réseaux'} • ${_formatDate(issue.createdAt)}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: IzyTelColors.textMuted,
-                              fontWeight: FontWeight.w500,
-                            ),
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: IzyTelColors.textMuted,
+                                  fontWeight: FontWeight.w500,
+                                ),
                           ),
                         ),
                         const SizedBox(width: 6),

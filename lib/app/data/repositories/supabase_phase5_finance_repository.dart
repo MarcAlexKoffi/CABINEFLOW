@@ -1,4 +1,5 @@
 import 'package:cabine_flow/app/data/sources/supabase_realtime_refetch.dart';
+import 'package:cabine_flow/app/data/sources/order_execution_session.dart';
 import 'package:cabine_flow/app/domain/entities/agents/agent_models.dart';
 import 'package:cabine_flow/app/domain/entities/commissions/commission_models.dart';
 import 'package:cabine_flow/app/domain/entities/finance/finance_operations_models.dart';
@@ -15,7 +16,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// lorsque le domaine Commandes post-handoff sera migré.
 class SupabasePhase5FinanceRepository {
   SupabasePhase5FinanceRepository({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+    : _client = client ?? Supabase.instance.client;
 
   static const Duration fallbackPollInterval = Duration(seconds: 60);
   static const int agentHistoryLimit = 250;
@@ -30,13 +31,16 @@ class SupabasePhase5FinanceRepository {
     required int mtnCapacity,
     required int moovCapacity,
   }) async {
-    await _client.rpc('phase5_ensure_capacity_seed', params: <String, dynamic>{
-      'p_agent_id': agentId.trim(),
-      'p_agent_name': _safeName(agentName),
-      'p_orange': orangeCapacity,
-      'p_mtn': mtnCapacity,
-      'p_moov': moovCapacity,
-    });
+    await _client.rpc(
+      'phase5_ensure_capacity_seed',
+      params: <String, dynamic>{
+        'p_agent_id': agentId.trim(),
+        'p_agent_name': _safeName(agentName),
+        'p_orange': orangeCapacity,
+        'p_mtn': mtnCapacity,
+        'p_moov': moovCapacity,
+      },
+    );
   }
 
   Future<void> finalizeOrderSuccess({
@@ -47,11 +51,17 @@ class SupabasePhase5FinanceRepository {
     if (order.assignedAgentId != null && order.assignedAgentId != agentId) {
       throw StateError('Cette commande appartient à un autre agent.');
     }
-    await _client.rpc('phase5_finalize_order_success', params: <String, dynamic>{
-      'p_order_id': order.id,
-      'p_agent_name': _safeName(agentName),
-      'p_processing_started_at': order.takenAt?.toUtc().toIso8601String(),
-    });
+    final key = await OrderExecutionSession.key();
+    await _client
+        .rpc(
+          'phase5_finalize_order_success',
+          params: <String, dynamic>{
+            'p_order_id': order.id,
+            'p_agent_name': _safeName(agentName),
+            'p_processing_started_at': order.takenAt?.toUtc().toIso8601String(),
+          },
+        )
+        .setHeader(OrderExecutionSession.header, key);
   }
 
   Future<void> markFirestoreSuccessMirrored(String orderId) async {
@@ -69,7 +79,9 @@ class SupabasePhase5FinanceRepository {
       status: order.paymentStatus.name,
       paymentReference: order.paymentReference,
       payerName: order.paymentPayerName,
-      channel: order.paymentStatus == OrderPaymentStatus.credit ? 'credit' : 'wave',
+      channel: order.paymentStatus == OrderPaymentStatus.credit
+          ? 'credit'
+          : 'wave',
       paidAt: order.paidAt,
       confirmedAt: order.paymentConfirmedAt,
       source: order.source.name,
@@ -89,47 +101,62 @@ class SupabasePhase5FinanceRepository {
     String source = 'operatorApp',
   }) async {
     if (status != 'confirmed' && status != 'credit') return;
-    await _client.rpc('phase5_upsert_order_payment', params: <String, dynamic>{
-      'p_order_id': orderId.trim(),
-      'p_order_reference': orderReference.trim(),
-      'p_amount': amount,
-      'p_status': status,
-      'p_reference': paymentReference,
-      'p_payer_name': payerName,
-      'p_channel': channel ?? (status == 'credit' ? 'credit' : 'wave'),
-      'p_paid_at': paidAt?.toUtc().toIso8601String(),
-      'p_confirmed_at': confirmedAt?.toUtc().toIso8601String(),
-      'p_source': source,
-    });
+    await _client.rpc(
+      'phase5_upsert_order_payment',
+      params: <String, dynamic>{
+        'p_order_id': orderId.trim(),
+        'p_order_reference': orderReference.trim(),
+        'p_amount': amount,
+        'p_status': status,
+        'p_reference': paymentReference,
+        'p_payer_name': payerName,
+        'p_channel': channel ?? (status == 'credit' ? 'credit' : 'wave'),
+        'p_paid_at': paidAt?.toUtc().toIso8601String(),
+        'p_confirmed_at': confirmedAt?.toUtc().toIso8601String(),
+        'p_source': source,
+      },
+    );
   }
 
   Future<void> mirrorSupplierRecharge(SupplierRecharge recharge) async {
-    await _client.rpc('phase5_record_supplier_recharge', params: <String, dynamic>{
-      'p_supplier_id': recharge.supplierId,
-      'p_agent_id': recharge.agentId,
-      'p_agent_name': _safeName(recharge.agentName),
-      'p_network': recharge.network.firestoreValue,
-      'p_principal': recharge.principalAmount,
-      'p_bonus': recharge.bonusAmount,
-      'p_amount_owed': recharge.amountOwed,
-      'p_note': recharge.note,
-      'p_staff_name': _safeName(recharge.createdByName, fallback: 'Administration'),
-      'p_legacy_id': recharge.id,
-      'p_operation_key': 'legacy:${recharge.id}',
-    });
+    await _client.rpc(
+      'phase5_record_supplier_recharge',
+      params: <String, dynamic>{
+        'p_supplier_id': recharge.supplierId,
+        'p_agent_id': recharge.agentId,
+        'p_agent_name': _safeName(recharge.agentName),
+        'p_network': recharge.network.firestoreValue,
+        'p_principal': recharge.principalAmount,
+        'p_bonus': recharge.bonusAmount,
+        'p_amount_owed': recharge.amountOwed,
+        'p_note': recharge.note,
+        'p_staff_name': _safeName(
+          recharge.createdByName,
+          fallback: 'Administration',
+        ),
+        'p_legacy_id': recharge.id,
+        'p_operation_key': 'legacy:${recharge.id}',
+      },
+    );
   }
 
   Future<void> mirrorSupplierPayment(SupplierPayment payment) async {
-    await _client.rpc('phase5_record_supplier_payment', params: <String, dynamic>{
-      'p_supplier_id': payment.supplierId,
-      'p_amount': payment.amount,
-      'p_channel': payment.channel.storageValue,
-      'p_reference': payment.reference,
-      'p_note': payment.note,
-      'p_staff_name': _safeName(payment.createdByName, fallback: 'Administration'),
-      'p_legacy_id': payment.id,
-      'p_operation_key': 'legacy:${payment.id}',
-    });
+    await _client.rpc(
+      'phase5_record_supplier_payment',
+      params: <String, dynamic>{
+        'p_supplier_id': payment.supplierId,
+        'p_amount': payment.amount,
+        'p_channel': payment.channel.storageValue,
+        'p_reference': payment.reference,
+        'p_note': payment.note,
+        'p_staff_name': _safeName(
+          payment.createdByName,
+          fallback: 'Administration',
+        ),
+        'p_legacy_id': payment.id,
+        'p_operation_key': 'legacy:${payment.id}',
+      },
+    );
   }
 
   Future<void> reconcileCapacitySnapshot(Map<String, dynamic> row) async {
@@ -237,59 +264,84 @@ class SupabasePhase5FinanceRepository {
     final String? id = _nullable(agentId);
     final List<Map<String, dynamic>> rows = id == null
         ? await _client
-            .from('phase5_commissions')
-            .select()
-            .order('earned_at', ascending: false)
-            .limit(staffHistoryLimit)
+              .from('phase5_commissions')
+              .select()
+              .order('earned_at', ascending: false)
+              .limit(staffHistoryLimit)
         : await _client
-            .from('phase5_commissions')
-            .select()
-            .eq('agent_id', id)
-            .order('earned_at', ascending: false)
-            .limit(agentHistoryLimit);
-    return rows.map(_commission).whereType<CommissionEntry>().toList(growable: false);
+              .from('phase5_commissions')
+              .select()
+              .eq('agent_id', id)
+              .order('earned_at', ascending: false)
+              .limit(agentHistoryLimit);
+    return rows
+        .map(_commission)
+        .whereType<CommissionEntry>()
+        .toList(growable: false);
   }
 
-  Future<List<CommissionPayout>> fetchCommissionPayouts({String? agentId}) async {
+  Future<List<CommissionPayout>> fetchCommissionPayouts({
+    String? agentId,
+  }) async {
     final String? id = _nullable(agentId);
     final List<Map<String, dynamic>> rows = id == null
         ? await _client
-            .from('phase5_commission_payouts')
-            .select()
-            .order('paid_at', ascending: false)
-            .limit(staffHistoryLimit)
+              .from('phase5_commission_payouts')
+              .select()
+              .order('paid_at', ascending: false)
+              .limit(staffHistoryLimit)
         : await _client
-            .from('phase5_commission_payouts')
-            .select()
-            .eq('agent_id', id)
-            .order('paid_at', ascending: false)
-            .limit(agentHistoryLimit);
-    return rows.map(_commissionPayout).whereType<CommissionPayout>().toList(growable: false);
+              .from('phase5_commission_payouts')
+              .select()
+              .eq('agent_id', id)
+              .order('paid_at', ascending: false)
+              .limit(agentHistoryLimit);
+    return rows
+        .map(_commissionPayout)
+        .whereType<CommissionPayout>()
+        .toList(growable: false);
   }
 
-  Future<List<CommissionAccount>> fetchCommissionAccounts({String? agentId}) async {
-    final String? id = _nullable(agentId);
-    final List<Map<String, dynamic>> rows = id == null
-        ? await _client.from('phase5_commission_accounts').select().order('agent_name')
-        : await _client.from('phase5_commission_accounts').select().eq('agent_id', id).limit(1);
-    return rows.map(_commissionAccount).whereType<CommissionAccount>().toList(growable: false);
-  }
-
-  Future<List<NetworkTransaction>> fetchNetworkMovements({String? agentId}) async {
+  Future<List<CommissionAccount>> fetchCommissionAccounts({
+    String? agentId,
+  }) async {
     final String? id = _nullable(agentId);
     final List<Map<String, dynamic>> rows = id == null
         ? await _client
-            .from('phase5_network_movements')
-            .select()
-            .order('occurred_at', ascending: false)
-            .limit(staffHistoryLimit)
+              .from('phase5_commission_accounts')
+              .select()
+              .order('agent_name')
         : await _client
-            .from('phase5_network_movements')
-            .select()
-            .eq('agent_id', id)
-            .order('occurred_at', ascending: false)
-            .limit(agentHistoryLimit);
-    return rows.map(_networkMovement).whereType<NetworkTransaction>().toList(growable: false);
+              .from('phase5_commission_accounts')
+              .select()
+              .eq('agent_id', id)
+              .limit(1);
+    return rows
+        .map(_commissionAccount)
+        .whereType<CommissionAccount>()
+        .toList(growable: false);
+  }
+
+  Future<List<NetworkTransaction>> fetchNetworkMovements({
+    String? agentId,
+  }) async {
+    final String? id = _nullable(agentId);
+    final List<Map<String, dynamic>> rows = id == null
+        ? await _client
+              .from('phase5_network_movements')
+              .select()
+              .order('occurred_at', ascending: false)
+              .limit(staffHistoryLimit)
+        : await _client
+              .from('phase5_network_movements')
+              .select()
+              .eq('agent_id', id)
+              .order('occurred_at', ascending: false)
+              .limit(agentHistoryLimit);
+    return rows
+        .map(_networkMovement)
+        .whereType<NetworkTransaction>()
+        .toList(growable: false);
   }
 
   Future<List<SupplierAccount>> fetchSupplierAccounts() async {
@@ -297,25 +349,38 @@ class SupabasePhase5FinanceRepository {
         .from('phase5_supplier_accounts')
         .select()
         .order('supplier_name');
-    return rows.map(_supplierAccount).whereType<SupplierAccount>().toList(growable: false);
+    return rows
+        .map(_supplierAccount)
+        .whereType<SupplierAccount>()
+        .toList(growable: false);
   }
 
-  Future<List<SupplierRecharge>> fetchSupplierRecharges({int limit = staffHistoryLimit}) async {
+  Future<List<SupplierRecharge>> fetchSupplierRecharges({
+    int limit = staffHistoryLimit,
+  }) async {
     final List<Map<String, dynamic>> rows = await _client
         .from('phase5_agent_recharges')
         .select()
         .order('occurred_at', ascending: false)
         .limit(limit);
-    return rows.map(_supplierRecharge).whereType<SupplierRecharge>().toList(growable: false);
+    return rows
+        .map(_supplierRecharge)
+        .whereType<SupplierRecharge>()
+        .toList(growable: false);
   }
 
-  Future<List<SupplierPayment>> fetchSupplierPayments({int limit = staffHistoryLimit}) async {
+  Future<List<SupplierPayment>> fetchSupplierPayments({
+    int limit = staffHistoryLimit,
+  }) async {
     final List<Map<String, dynamic>> rows = await _client
         .from('phase5_supplier_payments')
         .select()
         .order('paid_at', ascending: false)
         .limit(limit);
-    return rows.map(_supplierPayment).whereType<SupplierPayment>().toList(growable: false);
+    return rows
+        .map(_supplierPayment)
+        .whereType<SupplierPayment>()
+        .toList(growable: false);
   }
 
   Stream<List<CommissionEntry>> watchCommissions({String? agentId}) =>
@@ -342,8 +407,11 @@ class SupabasePhase5FinanceRepository {
         'network-movements',
       );
 
-  Stream<List<SupplierAccount>> watchSupplierAccounts() =>
-      _watchFinanceChanges(fetchSupplierAccounts, 'supplier-accounts', independentPolling: true);
+  Stream<List<SupplierAccount>> watchSupplierAccounts() => _watchFinanceChanges(
+    fetchSupplierAccounts,
+    'supplier-accounts',
+    independentPolling: true,
+  );
 
   Stream<List<SupplierRecharge>> watchSupplierRecharges() =>
       _watchFinanceChanges(fetchSupplierRecharges, 'supplier-recharges');
@@ -354,7 +422,7 @@ class SupabasePhase5FinanceRepository {
   Stream<T> _watchFinanceChanges<T>(
     Future<T> Function() fetch,
     String label, {
-    bool independentPolling = false,
+    bool independentPolling = true,
   }) {
     return SupabaseRealtimeRefetch.watch<T>(
       client: _client,
@@ -384,7 +452,10 @@ class SupabasePhase5FinanceRepository {
       network: network,
       orderAmount: _int(row['order_amount']),
       commissionAmount: _int(row['commission_amount']),
-      policyId: _string(row['policy_id'], fallback: CommissionPolicy.current.id),
+      policyId: _string(
+        row['policy_id'],
+        fallback: CommissionPolicy.current.id,
+      ),
       policyType: CommissionPolicyType.fixedPerSuccessfulTransaction,
       rate: _int(row['rate']),
       earnedAt: earnedAt,
@@ -404,7 +475,10 @@ class SupabasePhase5FinanceRepository {
       paymentReference: _string(row['payment_reference']),
       paidAt: paidAt,
       createdBy: _string(row['created_by_uid']),
-      createdByName: _string(row['created_by_name'], fallback: 'Administration'),
+      createdByName: _string(
+        row['created_by_name'],
+        fallback: 'Administration',
+      ),
       note: _nullable(row['note']),
     );
   }
@@ -489,7 +563,10 @@ class SupabasePhase5FinanceRepository {
       note: _nullable(row['note']),
       createdAt: occurredAt,
       createdBy: _string(row['created_by_uid']),
-      createdByName: _string(row['created_by_name'], fallback: 'Administration'),
+      createdByName: _string(
+        row['created_by_name'],
+        fallback: 'Administration',
+      ),
     );
   }
 
@@ -501,11 +578,16 @@ class SupabasePhase5FinanceRepository {
       supplierId: _string(row['supplier_id']),
       supplierName: _string(row['supplier_name']),
       amount: _int(row['amount']),
-      channel: FinancePaymentChannelX.fromStorage(_string(row['payment_channel'])),
+      channel: FinancePaymentChannelX.fromStorage(
+        _string(row['payment_channel']),
+      ),
       reference: _string(row['payment_reference']),
       paidAt: paidAt,
       createdBy: _string(row['created_by_uid']),
-      createdByName: _string(row['created_by_name'], fallback: 'Administration'),
+      createdByName: _string(
+        row['created_by_name'],
+        fallback: 'Administration',
+      ),
       note: _nullable(row['note']),
     );
   }
@@ -541,7 +623,8 @@ class SupabasePhase5FinanceRepository {
     return text.isEmpty ? null : text;
   }
 
-  int _int(Object? value) => value is num ? value.toInt() : int.tryParse('$value') ?? 0;
+  int _int(Object? value) =>
+      value is num ? value.toInt() : int.tryParse('$value') ?? 0;
 
   DateTime? _date(Object? value) {
     if (value is DateTime) return value.toLocal();

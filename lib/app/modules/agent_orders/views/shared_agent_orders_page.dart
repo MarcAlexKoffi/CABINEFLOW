@@ -285,7 +285,7 @@ class _SharedAgentOrdersPageState extends State<SharedAgentOrdersPage>
     }
     return [
       Text(
-        '${queue.orders.length} commande${queue.orders.length > 1 ? 's' : ''} à prendre',
+        '${queue.totalCount} commande${queue.totalCount > 1 ? 's' : ''} à prendre',
         style: Theme.of(context).textTheme.titleLarge?.copyWith(
           fontSize: IzyTelTypeScale.title2,
           fontWeight: FontWeight.w800,
@@ -302,6 +302,41 @@ class _SharedAgentOrdersPageState extends State<SharedAgentOrdersPage>
         ),
       ),
       const SizedBox(height: 16),
+      if (queue.hasPreviousPage || queue.hasNextPage) ...[
+        Row(
+          children: [
+            Expanded(
+              child: TextButton(
+                onPressed: queue.canAct && queue.hasPreviousPage
+                    ? () {
+                        queue.previousPage();
+                        _scrollController.jumpTo(0);
+                      }
+                    : null,
+                child: const Text('Précédentes'),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                'Page ${queue.pageNumber}',
+                textAlign: TextAlign.center,
+              ),
+            ),
+            Expanded(
+              child: TextButton(
+                onPressed: queue.canAct && queue.hasNextPage
+                    ? () {
+                        queue.nextPage();
+                        _scrollController.jumpTo(0);
+                      }
+                    : null,
+                child: const Text('Suivantes'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+      ],
       if (queue.errorMessage != null) ...[
         _state(
           icon: Symbols.sync_problem_rounded,
@@ -489,7 +524,7 @@ class _SharedAgentOrdersPageState extends State<SharedAgentOrdersPage>
                         Flexible(child: Text('Acceptation en cours…')),
                       ],
                     )
-                  : const Text('Accepter et traiter'),
+                  : const Text('Accepter'),
             ),
             if (!item.canAccept)
               const Padding(

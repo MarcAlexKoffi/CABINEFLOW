@@ -44,6 +44,8 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
   String? _message;
   bool _loading = true, _busy = false;
   bool _confirming = false;
+  bool _maxItMissing = false;
+  bool get _isMaxIt => (_resolution ?? _lastResolution)?.isMaxIt ?? false;
   late bool _expanded;
   int _generation = 0;
 
@@ -102,6 +104,7 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
       _loading = true;
       _resolution = null;
       _message = null;
+      _maxItMissing = false;
     });
     if (!widget.processable) {
       setState(() {
@@ -130,59 +133,82 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
 
   Future<bool> _confirm(UssdResolution result, {required bool copy}) async {
     final contextData = result.context;
+    bool notExecuted = result.isMaxIt;
     setState(() => _confirming = true);
     try {
       return await showDialog<bool>(
             context: context,
-            builder: (context) => AlertDialog(
-              title: Text(copy ? 'Vérifier le code' : 'Vérifier l’opération'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Réseau / SIM requis : ${_network(contextData['network'] as String? ?? widget.network)}',
-                    ),
-                    Text(
-                      'Offre : ${contextData['offer_label'] ?? widget.offerLabel}',
-                    ),
-                    Text(
-                      'Bénéficiaire : ${contextData['beneficiary'] ?? widget.beneficiary}',
-                    ),
-                    Text(
-                      'Montant de commande : ${contextData['amount'] ?? widget.amount} FCFA',
-                    ),
-                    const SizedBox(height: 12),
-                    Text(result.code!),
-                    if (result.mismatch) ...[
-                      const SizedBox(height: 12),
-                      const Text(
-                        UssdEngine.mismatchMessage,
-                        style: TextStyle(color: IzyTelColors.warning),
+            builder: (context) => StatefulBuilder(
+              builder: (context, setDialogState) => AlertDialog(
+                title: Text(copy ? 'Vérifier le code' : 'Vérifier l’opération'),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Réseau / SIM requis : ${_network(contextData['network'] as String? ?? widget.network)}',
                       ),
+                      Text(
+                        'Offre : ${contextData['offer_label'] ?? widget.offerLabel}',
+                      ),
+                      Text(
+                        'Bénéficiaire : ${contextData['beneficiary'] ?? widget.beneficiary}',
+                      ),
+                      Text(
+                        'Montant de commande : ${contextData['amount'] ?? widget.amount} FCFA',
+                      ),
+                      const SizedBox(height: 12),
+                      Text(result.isMaxIt ? 'Orange Max it' : result.code!),
+                      if (result.mismatch) ...[
+                        const SizedBox(height: 12),
+                        const Text(
+                          UssdEngine.mismatchMessage,
+                          style: TextStyle(color: IzyTelColors.warning),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      Text(
+                        copy
+                            ? 'Le code copié ne confirme aucune opération télécom.'
+                            : result.isMaxIt
+                            ? 'Orange Max it va s’ouvrir. Réalisez vous-même l’opération puis revenez déclarer le résultat réel dans IzyTel. L’ouverture ne valide pas la commande.'
+                            : 'Choisissez la SIM appropriée et confirmez vous-même dans le composeur. Déclarez ensuite le résultat réel dans IzyTel.',
+                      ),
+                      if (!result.isMaxIt) ...[
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Si vous avez déjà envoyé le code et que le résultat est inconnu, faites vérifier la commande par votre Manager avant de réessayer.',
+                        ),
+                        CheckboxListTile(
+                          key: const ValueKey('ussd-not-executed-confirmation'),
+                          contentPadding: EdgeInsets.zero,
+                          value: notExecuted,
+                          onChanged: (value) =>
+                              setDialogState(() => notExecuted = value == true),
+                          title: const Text(
+                            'Je confirme qu’aucune opération n’a été exécutée pour cette commande.',
+                          ),
+                        ),
+                      ],
                     ],
-                    const SizedBox(height: 12),
-                    Text(
-                      copy
-                          ? 'Le code copié ne confirme aucune opération télécom.'
-                          : 'Choisissez la SIM appropriée et confirmez vous-même dans le composeur. Déclarez ensuite le résultat réel dans IzyTel.',
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Annuler'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: Text(
-                    copy ? 'Confirmer et copier' : 'Confirmer et ouvrir',
                   ),
                 ),
-              ],
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Annuler'),
+                  ),
+                  FilledButton(
+                    onPressed: notExecuted
+                        ? () => Navigator.pop(context, true)
+                        : null,
+                    child: Text(
+                      copy ? 'Confirmer et copier' : 'Confirmer et ouvrir',
+                    ),
+                  ),
+                ],
+              ),
             ),
           ) ??
           false;
@@ -208,33 +234,39 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
         if (fresh.available) _lastResolution = fresh;
       });
       if (!fresh.available) throw UssdValidationException(fresh.reason);
-      UssdEngine.validateCode(fresh.code!);
+      UssdEngine.validateCommand(fresh.code!);
+      if (copy && fresh.isMaxIt) {
+        throw const UssdValidationException('invalid_template');
+      }
       if (!await _confirm(fresh, copy: copy)) return;
       if (!mounted || generation != _generation || !widget.processable) return;
+      // Check installation without launching or consuming an execution attempt.
+      // The authoritative preparation still precedes every actual app launch.
+      if (fresh.isMaxIt && !await _dialer.canOpenMaxIt()) {
+        throw const UssdValidationException('maxit_not_installed');
+      }
+      if (!mounted || generation != _generation || !widget.processable) return;
       if (copy) {
-        // A rule may be revoked while the confirmation dialog is open.
         final checked = await _repository.resolve(orderId);
         if (!mounted || generation != _generation) return;
         if (!checked.available || !_same(checked, fresh)) {
           throw const UssdValidationException('rule_changed');
         }
-        await Clipboard.setData(ClipboardData(text: checked.code!));
-        if (mounted) {
-          setState(
-            () => _message =
-                'Code copié. Vérifiez le réseau/SIM avant utilisation.',
-          );
-        }
-        return;
       }
       final requestId =
           '${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(1 << 32)}';
       final preparationClock = Stopwatch()..start();
-      final prepared = await _repository.prepare(orderId, fresh, requestId);
+      final prepared = await _repository.prepare(
+        orderId,
+        fresh,
+        requestId,
+        confirmNotExecuted: !fresh.isMaxIt,
+      );
       if (!mounted || generation != _generation) return;
-      if (!prepared.available ||
-          !_same(prepared, fresh) ||
-          prepared.attemptId == null) {
+      if (!prepared.available) {
+        throw UssdValidationException(prepared.reason);
+      }
+      if (!_same(prepared, fresh) || prepared.attemptId == null) {
         throw const UssdValidationException('rule_changed');
       }
       // Consume a short server lease including request/response time. This is
@@ -250,14 +282,29 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
         } catch (_) {}
         throw const UssdValidationException('rule_changed');
       }
-      UssdEngine.validateCode(prepared.code!);
-      String status = 'dialer_opened';
+      UssdEngine.validateCommand(prepared.code!);
+      if (copy) {
+        await Clipboard.setData(ClipboardData(text: prepared.code!));
+        if (mounted) {
+          setState(
+            () => _message =
+                'Code copié. Déclarez le résultat réel avant toute nouvelle tentative.',
+          );
+        }
+        return;
+      }
+      String status = prepared.isMaxIt ? 'app_opened' : 'dialer_opened';
       String? errorCode;
       try {
         await _dialer.open(prepared.code!);
-      } catch (_) {
+      } catch (error) {
         status = 'failed';
-        errorCode = 'dialer_unavailable';
+        errorCode = prepared.isMaxIt
+            ? error is UssdValidationException &&
+                      error.code == 'maxit_not_installed'
+                  ? 'maxit_not_installed'
+                  : 'maxit_unavailable'
+            : 'dialer_unavailable';
       }
       // Audit failures cannot be reported as a successful telecom operation.
       bool auditSaved = true;
@@ -268,9 +315,14 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
       }
       if (!mounted || generation != _generation) return;
       setState(() {
-        _resolution = null;
+        // Keep the shortcut usable even if Android resumes IzyTel before
+        // this audit finishes. Every later tap still revalidates on the server.
+        _resolution = status == 'failed' ? null : prepared;
+        _maxItMissing = errorCode == 'maxit_not_installed';
         _message = status == 'failed'
-            ? '${UssdEngine.message(errorCode!)} ${UssdEngine.manualMessage}'
+            ? _unavailable(errorCode!)
+            : prepared.isMaxIt
+            ? 'Orange Max it ouvert. Revenez déclarer le résultat réel avec les actions habituelles.'
             : 'Composeur ouvert. Déclarez le résultat réel avec les actions habituelles.';
         if (!auditSaved) {
           _message =
@@ -281,6 +333,9 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
       if (!mounted || generation != _generation) return;
       setState(() {
         _resolution = null;
+        _maxItMissing =
+            error is UssdValidationException &&
+            error.code == 'maxit_not_installed';
         _message = error is UssdValidationException
             ? _unavailable(error.code)
             : UssdEngine.manualMessage;
@@ -297,10 +352,40 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
       mapEquals(a.context, b.context);
 
   String _unavailable(String reason) {
+    if (const {
+      'maxit_not_installed',
+      'maxit_unavailable',
+      'store_unavailable',
+    }.contains(reason)) {
+      return UssdEngine.message(reason);
+    }
+    if (reason == 'execution_session_required') {
+      return 'Démarrez la commande sur la session autorisée avant de continuer.';
+    }
+    if (reason == 'execution_uncertain') {
+      return 'Une opération a pu commencer. Faites vérifier son résultat par votre Manager avant de réessayer.';
+    }
+    if (reason == 'ussd_retry_confirmation_required') {
+      return 'Confirmez qu’aucune opération n’a été exécutée avant de rouvrir le composeur. Si le résultat est inconnu, contactez votre Manager.';
+    }
     final message = UssdEngine.message(reason);
     return message == UssdEngine.manualMessage
         ? message
         : '$message ${UssdEngine.manualMessage}';
+  }
+
+  Future<void> _openMaxItStore() async {
+    if (_busy || !_dialer.supported) return;
+    setState(() => _busy = true);
+    try {
+      await _dialer.openMaxItStore();
+    } catch (_) {
+      if (mounted) {
+        setState(() => _message = UssdEngine.message('store_unavailable'));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _report() async {
@@ -415,7 +500,7 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
                 ),
               if (_resolution?.available == true) ...[
                 const SizedBox(height: 10),
-                Text(_resolution!.code!),
+                Text(_isMaxIt ? 'Orange Max it' : _resolution!.code!),
                 Text('Version ${_resolution!.rule!.version}'),
                 if (_resolution!.mismatch)
                   const Text(
@@ -429,22 +514,33 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
                   child: Text(_message!, key: const ValueKey('ussd-message')),
                 ),
               if (!_dialer.supported)
-                const Text(
-                  'L’ouverture du composeur est disponible sur Android.',
+                Text(
+                  _isMaxIt
+                      ? 'L’ouverture de Max it est disponible sur Android.'
+                      : 'L’ouverture du composeur est disponible sur Android.',
                 ),
               const SizedBox(height: 10),
               FilledButton.icon(
                 onPressed: available && _dialer.supported
                     ? () => _execute(copy: false)
                     : null,
-                icon: const Icon(Icons.dialpad),
-                label: const Text('Lancer l’opération'),
+                icon: Icon(_isMaxIt ? Icons.open_in_new : Icons.dialpad),
+                label: Text(_isMaxIt ? 'Ouvrir Max it' : 'Lancer l’opération'),
               ),
-              OutlinedButton.icon(
-                onPressed: available ? () => _execute(copy: true) : null,
-                icon: const Icon(Icons.copy),
-                label: const Text('Copier le code'),
-              ),
+              if (!_isMaxIt)
+                OutlinedButton.icon(
+                  onPressed: available ? () => _execute(copy: true) : null,
+                  icon: const Icon(Icons.copy),
+                  label: const Text('Copier le code'),
+                ),
+              if (_maxItMissing)
+                OutlinedButton.icon(
+                  onPressed: _busy || !_dialer.supported
+                      ? null
+                      : _openMaxItStore,
+                  icon: const Icon(Icons.shop_outlined),
+                  label: const Text('Voir Max it sur Google Play'),
+                ),
               Wrap(
                 spacing: 8,
                 children: [
@@ -458,9 +554,7 @@ class _UssdQuickProcessingCardState extends State<UssdQuickProcessingCard>
                   ),
                 ],
               ),
-              const Text(
-                'Les actions de traitement restent disponibles.',
-              ),
+              const Text('Les actions de traitement restent disponibles.'),
             ],
           ),
         ],

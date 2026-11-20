@@ -16,6 +16,7 @@ void main() {
   dynamic response;
   bool missingUssd = false;
   String? authorization;
+  String? executionHeader;
   setUp(() async {
     calls.clear();
     responseStatus = 200;
@@ -30,6 +31,7 @@ void main() {
     );
     server.listen((request) async {
       authorization = request.headers.value(HttpHeaders.authorizationHeader);
+      executionHeader = request.headers.value('x-izytel-execution-key');
       final raw = await utf8.decoder.bind(request).join();
       calls.add((
         path: request.uri.path,
@@ -67,6 +69,20 @@ void main() {
           jsonEncode(
             missingUssd
                 ? {'code': 'PGRST202', 'message': 'synthetic RPC not installed'}
+                : request.uri.path.endsWith('izytel_begin_order_execution') &&
+                      response is Map
+                ? {
+                    ...response as Map,
+                    'ready':
+                        calls
+                            .where(
+                              (c) => c.path.endsWith(
+                                'izytel_begin_order_execution',
+                              ),
+                            )
+                            .length >
+                        1,
+                  }
                 : response,
           ),
         );
@@ -79,15 +95,88 @@ void main() {
     await server.close(force: true);
   });
   test(
+    'USSD no-execution confirmation is sent explicitly in the preparation RPC context',
+    () async {
+      final repository = SupabaseUssdRepository(
+        executionKey: () async => 'synthetic-device-execution-key',
+        client: client,
+      );
+      final resolution = syntheticResolution();
+      await repository.prepare('synthetic-order', resolution, 'first');
+      expect(
+        (calls.last.body['p_context'] as Map).containsKey(
+          '_ussd_not_executed_confirmed',
+        ),
+        isFalse,
+      );
+      await repository.prepare(
+        'synthetic-order',
+        resolution,
+        'retry',
+        confirmNotExecuted: true,
+      );
+      expect(calls.last.body['p_context'], {
+        ...resolution.context,
+        '_ussd_not_executed_confirmed': true,
+      });
+    },
+  );
+  test(
     'resolver calls only the authorized order RPC, no catalogue-wide client query',
     () async {
       final result = await SupabaseUssdRepository(
+        executionKey: () async => 'synthetic-device-execution-key',
         client: client,
       ).resolve('synthetic-order');
       expect(result.available, isFalse);
       expect(calls.single.path, '/rest/v1/rpc/izytel_ussd_resolve');
       expect(calls.single.body, {'p_order_id': 'synthetic-order'});
       expect(authorization, 'Bearer synthetic-firebase-token');
+      expect(executionHeader, 'synthetic-device-execution-key');
+    },
+  );
+  test(
+    'execution waits for server readiness and keeps the same request key and version',
+    () async {
+      final key = 'a' * 64;
+      response = {
+        'retry_after_ms': 1,
+        'order': {
+          'order_id': 'synthetic-order',
+          'order_reference': 'TEST-1',
+          'network': 'moov',
+          'amount': 1000,
+          'assignment_version': 7,
+          'assignment_state': 'accepted',
+          'assigned_agent_id': 'test-agent',
+          'order_status': 'inProgress',
+          'source': 'operatorApp',
+          'operation_type': 'internetSubscription',
+          'payment_status': 'confirmed',
+          'updated_at': '2026-11-19T00:00:00Z',
+          'firebase_created_at': '2026-11-19T00:00:00Z',
+        },
+      };
+      final repository = SupabasePhase4AssignmentRepository(
+        client: client,
+        executionKey: () async => key,
+      );
+      final started = await repository.startProcessing(
+        'synthetic-order',
+        expectedVersion: 7,
+      );
+      expect(started.assignmentVersion, 7);
+      expect(started.orderStatus, QueueOrderStatus.inProgress);
+      expect(calls.length, 2);
+      for (final call in calls) {
+        expect(call.path, '/rest/v1/rpc/izytel_begin_order_execution');
+        expect(call.body, {
+          'p_order_id': 'synthetic-order',
+          'p_expected_version': 7,
+          'p_request_id': key,
+        });
+      }
+      expect(executionHeader, key);
     },
   );
   test(
@@ -96,7 +185,10 @@ void main() {
       responseStatus = 401;
       response = {'code': '42501', 'message': 'USSD_AUTH_REQUIRED'};
       await expectLater(
-        SupabaseUssdRepository(client: client).configuration(),
+        SupabaseUssdRepository(
+          executionKey: () async => 'synthetic-device-execution-key',
+          client: client,
+        ).configuration(),
         throwsA(
           isA<UssdValidationException>().having(
             (e) => e.code,
@@ -113,7 +205,10 @@ void main() {
     () async {
       response = {'rules': [], 'families': 'invalid-shape', 'offers': []};
       await expectLater(
-        SupabaseUssdRepository(client: client).configuration(),
+        SupabaseUssdRepository(
+          executionKey: () async => 'synthetic-device-execution-key',
+          client: client,
+        ).configuration(),
         throwsA(isA<FormatException>()),
       );
     },
@@ -133,7 +228,10 @@ void main() {
         'context': {'network': 42},
       };
       await expectLater(
-        SupabaseUssdRepository(client: client).resolve('synthetic-order'),
+        SupabaseUssdRepository(
+          executionKey: () async => 'synthetic-device-execution-key',
+          client: client,
+        ).resolve('synthetic-order'),
         throwsA(isA<FormatException>()),
       );
     },
@@ -144,7 +242,10 @@ void main() {
       responseStatus = 403;
       response = {'message': 'synthetic denied', 'code': '42501'};
       await expectLater(
-        SupabaseUssdRepository(client: client).resolve('synthetic-order'),
+        SupabaseUssdRepository(
+          executionKey: () async => 'synthetic-device-execution-key',
+          client: client,
+        ).resolve('synthetic-order'),
         throwsA(isA<PostgrestException>()),
       );
       expect(calls.length, 1);
@@ -155,6 +256,7 @@ void main() {
     () async {
       response = 'synthetic-rule';
       await SupabaseUssdRepository(
+        executionKey: () async => 'synthetic-device-execution-key',
         client: client,
       ).saveRule({'ussd_template': '*999#'});
       expect(calls.single.path, '/rest/v1/rpc/izytel_ussd_save_rule');
@@ -168,7 +270,10 @@ void main() {
     'save normalizes human variables and omits legacy order purpose',
     () async {
       response = 'synthetic-rule';
-      await SupabaseUssdRepository(client: client).saveRule({
+      await SupabaseUssdRepository(
+        executionKey: () async => 'synthetic-device-execution-key',
+        client: client,
+      ).saveRule({
         'purpose': 'order',
         'ussd_template': '*410*numéro*montant*code_secret#',
       });
@@ -182,7 +287,10 @@ void main() {
   );
   test('balance saves retain their explicit purpose', () async {
     response = 'synthetic-rule';
-    await SupabaseUssdRepository(client: client).saveRule({
+    await SupabaseUssdRepository(
+      executionKey: () async => 'synthetic-device-execution-key',
+      client: client,
+    ).saveRule({
       'purpose': 'balance',
       'service': null,
       'ussd_template': '*414*code secret#',
@@ -197,7 +305,10 @@ void main() {
     () async {
       response = null;
       final rule = syntheticResolution().rule!;
-      await SupabaseUssdRepository(client: client).deleteRule(rule);
+      await SupabaseUssdRepository(
+        executionKey: () async => 'synthetic-device-execution-key',
+        client: client,
+      ).deleteRule(rule);
       expect(calls.single.path, '/rest/v1/rpc/izytel_ussd_delete_rule');
       expect(calls.single.body, {
         'p_rule_id': rule.id,
@@ -209,6 +320,7 @@ void main() {
   test('family deletion sends only its stable ID', () async {
     response = null;
     await SupabaseUssdRepository(
+      executionKey: () async => 'synthetic-device-execution-key',
       client: client,
     ).deleteFamily('synthetic-family');
     expect(calls.single.path, '/rest/v1/rpc/izytel_ussd_delete_family');
@@ -217,6 +329,7 @@ void main() {
   test('binding deletion preserves optimistic version checking', () async {
     response = null;
     await SupabaseUssdRepository(
+      executionKey: () async => 'synthetic-device-execution-key',
       client: client,
     ).deleteBinding('synthetic-offer', 7);
     expect(calls.single.path, '/rest/v1/rpc/izytel_ussd_delete_binding');
@@ -232,6 +345,7 @@ void main() {
       response = {'message': 'USSD_ADMIN_REQUIRED', 'code': '42501'};
       await expectLater(
         SupabaseUssdRepository(
+          executionKey: () async => 'synthetic-device-execution-key',
           client: client,
         ).deleteRule(syntheticResolution().rule!),
         throwsA(isA<PostgrestException>()),

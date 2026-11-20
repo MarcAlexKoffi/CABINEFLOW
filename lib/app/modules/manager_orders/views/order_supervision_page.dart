@@ -200,7 +200,7 @@ class _OrderSupervisionPageState extends State<OrderSupervisionPage>
             icon: Badge(
               isLabelVisible: active > 0,
               label: Text(active.toString()),
-              child: const Icon(Symbols.notifications_rounded),
+              child: const Icon(Symbols.warning_rounded),
             ),
           ),
           IconButton(

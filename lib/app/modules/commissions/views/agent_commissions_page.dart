@@ -1,3 +1,4 @@
+import 'package:cabine_flow/app/shared/widgets/resilient_stream_builder.dart';
 import 'package:cabine_flow/app/theme/izytel_colors.dart';
 import 'package:cabine_flow/app/theme/izytel_design_tokens.dart';
 import 'package:cabine_flow/app/core/utils/currency_formatter.dart';
@@ -42,7 +43,8 @@ class _AgentCommissionsPageState extends State<AgentCommissionsPage> {
       agentId: widget.user.id,
     );
     _payoutsStream = widget.repository.watchPayouts(agentId: widget.user.id);
-    _summaryStream = summaryRepository?.watchAgentCommissionSummary() ??
+    _summaryStream =
+        summaryRepository?.watchAgentCommissionSummary() ??
         Stream<AgentCommissionSummary?>.value(null);
   }
 
@@ -63,13 +65,13 @@ class _AgentCommissionsPageState extends State<AgentCommissionsPage> {
           ),
         ),
       ),
-      body: StreamBuilder<List<CommissionEntry>>(
+      body: ResilientStreamBuilder<List<CommissionEntry>>(
         stream: _commissionsStream,
         builder: (context, commissionSnapshot) {
-          return StreamBuilder<List<CommissionPayout>>(
+          return ResilientStreamBuilder<List<CommissionPayout>>(
             stream: _payoutsStream,
             builder: (context, payoutSnapshot) {
-              return StreamBuilder<AgentCommissionSummary?>(
+              return ResilientStreamBuilder<AgentCommissionSummary?>(
                 stream: _summaryStream,
                 builder: (context, summarySnapshot) {
                   if ((commissionSnapshot.connectionState ==
@@ -102,7 +104,8 @@ class _AgentCommissionsPageState extends State<AgentCommissionsPage> {
                       .toList(growable: false);
                   final List<CommissionPayout> periodPayouts = payouts
                       .where(
-                        (CommissionPayout value) => _period.contains(value.paidAt),
+                        (CommissionPayout value) =>
+                            _period.contains(value.paidAt),
                       )
                       .toList(growable: false);
                   final AgentCommissionSummary? summary = summarySnapshot.data;
@@ -125,7 +128,8 @@ class _AgentCommissionsPageState extends State<AgentCommissionsPage> {
                         0,
                         (total, value) => total + value.commissionAmount,
                       );
-                  final int earnedTotal = summary?.earnedTotal ?? fallbackEarned;
+                  final int earnedTotal =
+                      summary?.earnedTotal ?? fallbackEarned;
                   final int paidTotal = summary?.paidTotal ?? fallbackPaid;
                   final int balance =
                       summary?.balance ?? (earnedTotal - paidTotal);
@@ -225,9 +229,7 @@ class _AgentCommissionsPageState extends State<AgentCommissionsPage> {
                                   const SizedBox(height: 4),
                                   Text(
                                     'Une commission est acquise uniquement lorsqu’une commande est terminée avec succès.',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
+                                    style: Theme.of(context).textTheme.bodySmall
                                         ?.copyWith(
                                           color: IzyTelColors.textMuted,
                                           height: 1.35,
@@ -265,8 +267,11 @@ class _AgentCommissionsPageState extends State<AgentCommissionsPage> {
                                 index < periodCommissions.take(8).length;
                                 index++
                               ) ...<Widget>[
-                                _CommissionEntryRow(entry: periodCommissions[index]),
-                                if (index < periodCommissions.take(8).length - 1)
+                                _CommissionEntryRow(
+                                  entry: periodCommissions[index],
+                                ),
+                                if (index <
+                                    periodCommissions.take(8).length - 1)
                                   const Divider(height: 1),
                               ],
                             ],

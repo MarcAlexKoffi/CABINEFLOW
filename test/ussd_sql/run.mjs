@@ -369,5 +369,11 @@ try {
   await db.exec(await readFile(resolve(root,'supabase/migrations',automaticMigration),'utf8'));
   const {runAutomaticGroupCases}=await import('./automatic_group_cases.mjs');
   await runAutomaticGroupCases({db,test,identity,rpc,denied,payload,current,create,prepare});
+  const {runMaxItCases}=await import('./maxit_cases.mjs');
+  await runMaxItCases({db,test,identity,rpc,denied,current,create,prepare});
+  const {runMaxItReopenCases}=await import('./maxit_reopen_cases.mjs');
+  await runMaxItReopenCases({db,test,identity,rpc,denied,current,create,prepare});
+  const {runConfirmedDialerReopenCases}=await import('./confirmed_dialer_reopen_cases.mjs');
+  await runConfirmedDialerReopenCases({db,test,identity,rpc,denied,current,create,prepare});
   console.log(`SQL SUMMARY: ${passed} passed, 0 failed; in-memory synthetic database only.`);
 } finally {await db.close();}

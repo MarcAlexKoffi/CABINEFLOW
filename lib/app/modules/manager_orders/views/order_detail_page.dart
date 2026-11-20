@@ -13,6 +13,8 @@ import 'package:cabine_flow/app/domain/entities/orders/order_proof.dart';
 import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
 import 'package:cabine_flow/app/domain/repositories/order_history_repository.dart';
 import 'package:cabine_flow/app/domain/repositories/orders_repository.dart';
+import 'package:cabine_flow/app/domain/repositories/order_requeue_repository.dart';
+import 'package:cabine_flow/app/modules/manager_orders/widgets/return_order_to_queue.dart';
 import 'package:cabine_flow/app/modules/staff_orders/widgets/order_display_helpers.dart';
 import 'package:cabine_flow/app/data/repositories/operational_support_request_repository.dart';
 import 'package:cabine_flow/app/domain/entities/support/support_request.dart';
@@ -52,6 +54,21 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   late QueueOrder _order;
   OrderProof? _proof;
   bool _isRefreshing = false;
+  bool _returningToQueue = false;
+
+  Future<void> _returnToQueue() async {
+    if (_returningToQueue) return;
+    setState(() => _returningToQueue = true);
+    try {
+      final result = await returnOrderToSharedQueue(context, widget.ordersRepository as OrderRequeueRepository, _order);
+      if (result != null && mounted) {
+        setState(() => _order = result);
+        IzyTelFeedback.success(context, 'Commande remise dans la file d’attente de sa zone.');
+      }
+    } catch (_) {
+      if (mounted) IzyTelFeedback.error(context, 'Remise en file refusée. Vérifiez vos droits et l’état de la commande.');
+    } finally { if (mounted) setState(() => _returningToQueue = false); }
+  }
   bool _isProofLoading = false;
   String? _errorMessage;
   late final SupportRequestRepository _supportRequestRepository;
@@ -289,6 +306,13 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                   padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
                   children: [
                     _OrderSummaryCard(order: _order, onCopy: _copyValue),
+                    if (widget.ordersRepository is OrderRequeueRepository &&
+                        const [UserRole.administrator, UserRole.manager, UserRole.supervisor].contains(widget.user.role) &&
+                        const [QueueOrderStatus.paidReady, QueueOrderStatus.inProgress, QueueOrderStatus.onHold, QueueOrderStatus.failed].contains(_order.status)) ...[
+                      const SizedBox(height: 14),
+                      FilledButton.icon(onPressed: _returningToQueue ? null : _returnToQueue,
+                        icon: const Icon(Symbols.playlist_add_rounded), label: const Text('Remettre dans la file d’attente')),
+                    ],
                     const SizedBox(height: 18),
                     _OrderProgressTimeline(order: _order),
                     if (_errorMessage != null) ...[

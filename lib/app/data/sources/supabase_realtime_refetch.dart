@@ -13,9 +13,9 @@ class SupabaseRealtimeSignal {
   final List<String> primaryKey;
 }
 
-/// Reads once, then refetches only when one of the supplied Realtime signal
+/// Reads immediately, then refetches when one of the supplied Realtime signal
 /// tables changes. A slow polling loop is kept only as a safety net if the
-/// websocket cannot be maintained.
+/// websocket stays silent or cannot be maintained. Signals never carry payload errors.
 ///
 /// The signal tables are deliberately decoupled from the fetched payload. This
 /// lets domains such as Finance listen to the tiny `finance_change_feed` row
@@ -34,169 +34,34 @@ class SupabaseRealtimeRefetch {
     Duration fallbackInterval = fallbackPollInterval,
     bool independentPolling = false,
     Stream<Object?> Function()? refreshSignals,
-  }) async* {
-    if (independentPolling) {
-      // A connected but silent websocket must not prevent canonical reads.
-      // Signal errors concern the refresh channel, never the financial payload.
-      yield* BackendReadStream.watch<T>(
-        fetch: fetch,
-        label: label,
-        refreshInterval: fallbackInterval,
-        refreshSignals:
-            refreshSignals ??
-            (signals.isEmpty ? null : () => _watchSignals(client, signals)),
-      );
-      return;
-    }
+  }) {
     T? lastSuccessful;
     bool hasLastSuccessful = false;
-
-    try {
-      final T initial = await fetch();
-      lastSuccessful = initial;
-      hasLastSuccessful = true;
-      yield initial;
-    } catch (error, stackTrace) {
-      IzyTelLog.backendError('$label.initial', error, stackTrace: stackTrace);
-      if (!BackendFailurePolicy.canRetryRead(error)) {
-        Error.throwWithStackTrace(error, stackTrace);
-      }
-    }
-
-    if (signals.isNotEmpty) {
-      StreamController<void>? controller;
-      final List<StreamSubscription<List<Map<String, dynamic>>>> subscriptions =
-          <StreamSubscription<List<Map<String, dynamic>>>>[];
-      Timer? coalesceTimer;
-      int primedSignals = 0;
-      int completedSignals = 0;
-      final List<bool> primed = List<bool>.filled(signals.length, false);
-
-      void requestRefresh() {
-        coalesceTimer?.cancel();
-        coalesceTimer = Timer(signalCoalesceDelay, () {
-          final StreamController<void>? target = controller;
-          if (target != null && !target.isClosed) {
-            target.add(null);
+    return BackendReadStream.watch<T>(
+      label: label,
+      refreshInterval: fallbackInterval,
+      refreshSignals:
+          refreshSignals ??
+          (signals.isEmpty ? null : () => _watchSignals(client, signals)),
+      fetch: () async {
+        try {
+          final value = await fetch();
+          lastSuccessful = value;
+          hasLastSuccessful = true;
+          return value;
+        } catch (error, stackTrace) {
+          // Read-only legacy consumers retain their last successful value.
+          // Action-sensitive consumers receive every canonical read error.
+          if (!independentPolling &&
+              hasLastSuccessful &&
+              BackendFailurePolicy.canRetryRead(error)) {
+            IzyTelLog.backendError(label, error, stackTrace: stackTrace);
+            return lastSuccessful as T;
           }
-        });
-      }
-
-      try {
-        await _syncRealtimeAuth(client);
-        final StreamController<void> signalController =
-            StreamController<void>();
-        controller = signalController;
-
-        for (int index = 0; index < signals.length; index += 1) {
-          final SupabaseRealtimeSignal signal = signals[index];
-          final Stream<List<Map<String, dynamic>>> stream = client
-              .from(signal.table)
-              .stream(primaryKey: signal.primaryKey);
-          late final StreamSubscription<List<Map<String, dynamic>>>
-          subscription;
-          subscription = stream.listen(
-            (_) {
-              if (!primed[index]) {
-                primed[index] = true;
-                primedSignals += 1;
-                // Once every signal has produced its initial snapshot, refetch
-                // once to close the race between the REST read above and the
-                // Realtime subscriptions becoming active.
-                if (primedSignals == signals.length) {
-                  requestRefresh();
-                }
-                return;
-              }
-              requestRefresh();
-            },
-            onError: (Object error, StackTrace stackTrace) {
-              final StreamController<void>? target = controller;
-              if (target != null && !target.isClosed) {
-                target.addError(error, stackTrace);
-              }
-            },
-            onDone: () {
-              completedSignals += 1;
-              final StreamController<void>? target = controller;
-              if (completedSignals == signals.length &&
-                  target != null &&
-                  !target.isClosed) {
-                unawaited(target.close());
-              }
-            },
-          );
-          subscriptions.add(subscription);
+          rethrow;
         }
-
-        await for (final _ in signalController.stream) {
-          try {
-            final T value = await fetch();
-            lastSuccessful = value;
-            hasLastSuccessful = true;
-            yield value;
-          } catch (error, stackTrace) {
-            IzyTelLog.backendError(
-              '$label.refetch',
-              error,
-              stackTrace: stackTrace,
-            );
-            if (!BackendFailurePolicy.canRetryRead(error)) {
-              Error.throwWithStackTrace(error, stackTrace);
-            }
-            if (hasLastSuccessful) {
-              yield lastSuccessful as T;
-            }
-          }
-        }
-      } catch (error, stackTrace) {
-        IzyTelLog.backendError(
-          '$label.realtime',
-          error,
-          stackTrace: stackTrace,
-        );
-      } finally {
-        coalesceTimer?.cancel();
-        for (final StreamSubscription<List<Map<String, dynamic>>> subscription
-            in subscriptions) {
-          await subscription.cancel();
-        }
-        final StreamController<void>? target = controller;
-        if (target != null && !target.isClosed) {
-          await target.close();
-        }
-      }
-    }
-
-    int consecutiveFailures = 0;
-    while (true) {
-      await Future<void>.delayed(
-        BackendFailurePolicy.retryDelay(
-          baseDelay: fallbackInterval,
-          consecutiveFailures: consecutiveFailures,
-        ),
-      );
-      try {
-        final T value = await fetch();
-        lastSuccessful = value;
-        hasLastSuccessful = true;
-        consecutiveFailures = 0;
-        yield value;
-      } catch (error, stackTrace) {
-        IzyTelLog.backendError(
-          '$label.fallback',
-          error,
-          stackTrace: stackTrace,
-        );
-        if (!BackendFailurePolicy.canRetryRead(error)) {
-          Error.throwWithStackTrace(error, stackTrace);
-        }
-        consecutiveFailures += 1;
-        if (hasLastSuccessful) {
-          yield lastSuccessful as T;
-        }
-      }
-    }
+      },
+    );
   }
 
   static Future<void> _syncRealtimeAuth(SupabaseClient client) async {

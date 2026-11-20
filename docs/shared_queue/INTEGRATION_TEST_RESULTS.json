@@ -1,7 +1,9 @@
 {
-  "executed_at": "2026-11-06T10:23:17.359Z",
+  "executed_at": "2026-11-20T00:24:57.009Z",
+  "fast_processing": false,
+  "supplemental_migration_sha256": null,
   "migration_sha256": "7347127e1fdea63db58c79ad77b4ccfc62fe988802fbd8e2be944d0975d96177",
-  "passed": 12,
+  "passed": 13,
   "checks": [
     "catalog grants and single territorial SELECT policy: direct cross-zone reads and writes cannot expose shared orders",
     "obsolete Firebase reconciliation, closure and refusal import cannot undo or remove a shared order",
@@ -14,15 +16,16 @@
     "existing failure review notification survives independently of the five-minute delay cycle",
     "Cabiniste stays on legacy routing; actual proof, finalization, capacity debit and settlement remain idempotent",
     "real outbox creates one dispatch ticket per event and claims both new event types without immediate replay",
-    "a 1,000-order territorial backlog returns a bounded, masked 100-order page"
+    "a 1,000-order territorial backlog returns a bounded, masked 100-order page",
+    "exact scoped total, full keyset traversal, bounded pages and invalid/anonymous cursors checked"
   ],
   "performance": {
     "synthetic_backlog": 1000,
     "page_size": 100,
     "read_durations_ms": [
-      56,
-      58,
-      53
+      47,
+      46,
+      46
     ],
     "scope": "local fixture only; not a production capacity guarantee"
   },

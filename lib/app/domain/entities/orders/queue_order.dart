@@ -93,6 +93,7 @@ class QueueOrder {
     this.assignedAgentName,
     this.assignedByUserId,
     this.assignedAt,
+    this.assignmentVersion = 0,
     this.assignmentMode,
     this.assignmentStatus = OrderAssignmentStatus.unassigned,
     this.lastAssignmentRefusalReason,
@@ -110,6 +111,7 @@ class QueueOrder {
 
   final OrderSource source;
   final String? customerAuthUid;
+
   /// Stable catalogue key. Never reconstructed from a commercial label.
   final String? offerId;
   final String? zoneId;
@@ -156,6 +158,7 @@ class QueueOrder {
   final String? assignedAgentName;
   final String? assignedByUserId;
   final DateTime? assignedAt;
+  final int assignmentVersion;
   final OrderAssignmentMode? assignmentMode;
   final OrderAssignmentStatus assignmentStatus;
   final String? lastAssignmentRefusalReason;
@@ -215,6 +218,7 @@ class QueueOrder {
     String? assignedAgentName,
     String? assignedByUserId,
     DateTime? assignedAt,
+    int? assignmentVersion,
     OrderAssignmentMode? assignmentMode,
     OrderAssignmentStatus? assignmentStatus,
     String? lastAssignmentRefusalReason,
@@ -290,6 +294,7 @@ class QueueOrder {
           ? null
           : assignedByUserId ?? this.assignedByUserId,
       assignedAt: clearAgentAssignment ? null : assignedAt ?? this.assignedAt,
+      assignmentVersion: assignmentVersion ?? this.assignmentVersion,
       assignmentMode: clearAgentAssignment
           ? null
           : assignmentMode ?? this.assignmentMode,

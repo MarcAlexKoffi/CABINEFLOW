@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cabine_flow/app/data/repositories/fake_orders_repository.dart';
 import 'package:cabine_flow/app/data/repositories/fake_agent_repository.dart';
 import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
@@ -23,7 +25,107 @@ class _IneligibleOrdersRepository extends FakeOrdersRepository {
   }
 }
 
+class _FilterOrdersRepository extends FakeOrdersRepository {
+  _FilterOrdersRepository(this.orders) : super(isTest: true);
+
+  List<QueueOrder> orders;
+  final changes = StreamController<List<QueueOrder>>.broadcast();
+
+  @override
+  Future<List<QueueOrder>> fetchAssignedOrders({
+    required String agentId,
+  }) async => orders;
+
+  @override
+  Stream<List<QueueOrder>> watchAssignedOrders({
+    required String agentId,
+  }) async* {
+    yield orders;
+    yield* changes.stream;
+  }
+
+  void emit(List<QueueOrder> value) {
+    orders = value;
+    changes.add(value);
+  }
+}
+
 void main() {
+  test(
+    'filtre automatique En cours puis À accepter puis Terminées et choix manuel conservé',
+    () async {
+      final templates = await FakeOrdersRepository(
+        isTest: true,
+      ).fetchPaidQueue();
+      final completed = templates.first.copyWith(
+        assignedAgentId: 'AGENT-001',
+        assignmentStatus: OrderAssignmentStatus.accepted,
+        status: QueueOrderStatus.completed,
+      );
+      final assigned = templates[1].copyWith(
+        assignedAgentId: 'AGENT-001',
+        assignmentStatus: OrderAssignmentStatus.assigned,
+      );
+      final active = assigned.copyWith(
+        assignmentStatus: OrderAssignmentStatus.accepted,
+        status: QueueOrderStatus.inProgress,
+      );
+      final repository = _FilterOrdersRepository([completed, active]);
+      final viewModel = AgentOrdersViewModel(
+        agentId: 'AGENT-001',
+        ordersRepository: repository,
+      );
+      addTearDown(() async {
+        viewModel.dispose();
+        await repository.changes.close();
+      });
+      await viewModel.start();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(viewModel.completedCount, 1);
+      expect(viewModel.selectedTab, AgentOrdersTab.inProgress);
+      expect(viewModel.visibleOrders.single.id, active.id);
+
+      repository.emit([completed, assigned]);
+      await Future<void>.delayed(Duration.zero);
+      expect(viewModel.selectedTab, AgentOrdersTab.toAccept);
+      expect(viewModel.visibleOrders.single.id, assigned.id);
+
+      repository.emit([completed]);
+      await Future<void>.delayed(Duration.zero);
+      expect(viewModel.selectedTab, AgentOrdersTab.completed);
+      expect(viewModel.visibleOrders.single.id, completed.id);
+
+      repository.emit([]);
+      await Future<void>.delayed(Duration.zero);
+      expect(viewModel.selectedTab, AgentOrdersTab.completed);
+      expect(viewModel.visibleOrders, isEmpty);
+
+      repository.emit([completed, assigned]);
+      await Future<void>.delayed(Duration.zero);
+
+      viewModel.selectTab(AgentOrdersTab.completed);
+      await viewModel.refresh();
+      expect(viewModel.selectedTab, AgentOrdersTab.completed);
+      expect(viewModel.visibleOrders.single.id, completed.id);
+
+      viewModel.selectTab(AgentOrdersTab.inProgress);
+      expect(viewModel.visibleOrders, isEmpty);
+      repository.emit([completed, active]);
+      await Future<void>.delayed(Duration.zero);
+      expect(viewModel.selectedTab, AgentOrdersTab.inProgress);
+      expect(viewModel.visibleOrders.single.id, active.id);
+
+      repository.emit([
+        completed,
+        active.copyWith(status: QueueOrderStatus.completed),
+      ]);
+      await Future<void>.delayed(Duration.zero);
+      expect(viewModel.selectedTab, AgentOrdersTab.inProgress);
+      expect(viewModel.visibleOrders, isEmpty);
+    },
+  );
+
   test(
     'a territorial server refusal explains the zone without retrying or hiding the order',
     () async {
@@ -160,7 +262,7 @@ void main() {
     viewModel.dispose();
   });
 
-  test('réussite revient vers le prochain travail à traiter', () async {
+  test('réussite affiche Terminées après la dernière commande', () async {
     final FakeOrdersRepository repository = FakeOrdersRepository(isTest: true);
     final QueueOrder order = (await repository.fetchPaidQueue()).first;
     await repository.assignToAgent(
@@ -190,7 +292,8 @@ void main() {
     expect(proof, isNotNull);
     expect(await viewModel.markSuccessful(started), isTrue);
     expect(viewModel.completedCount, 1);
-    expect(viewModel.selectedTab, AgentOrdersTab.toAccept);
+    expect(viewModel.selectedTab, AgentOrdersTab.completed);
+    expect(viewModel.visibleOrders.single.id, started.id);
     viewModel.dispose();
   });
 

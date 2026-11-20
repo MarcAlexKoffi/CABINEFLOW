@@ -299,7 +299,9 @@ class _OrdersPageState extends State<OrdersPage> {
 
     IzyTelFeedback.success(
       context,
-      'Commande ${updatedOrder.reference} affectée à ${updatedOrder.assignedAgentName ?? 'l’agent'}.',
+      updatedOrder.assignedAgentId == null
+          ? 'Commande ${updatedOrder.reference} remise dans la file d’attente de sa zone.'
+          : 'Commande ${updatedOrder.reference} affectée à ${updatedOrder.assignedAgentName ?? 'l’agent'}.',
     );
   }
 
