@@ -12,6 +12,18 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class _FinanceReads implements BackofficeFinanceRepository {
   final streams = <StreamController<BackofficeFinanceSnapshot>>[];
+  final periods = <Completer<Map<String, dynamic>>>[];
+
+  @override
+  Future<Map<String, dynamic>> fetchPeriodHistory({
+    required String module,
+    required DateTime start,
+    required DateTime end,
+  }) {
+    final request = Completer<Map<String, dynamic>>();
+    periods.add(request);
+    return request.future;
+  }
 
   @override
   Stream<BackofficeFinanceSnapshot> watchSnapshot() {
@@ -36,7 +48,10 @@ BackofficeFinanceSnapshot _snapshot() => BackofficeFinanceSnapshot.fromJson({
   ],
 });
 
-Future<_FinanceReads> _open(WidgetTester tester) async {
+Future<_FinanceReads> _open(
+  WidgetTester tester, {
+  BackofficeFinanceModule module = BackofficeFinanceModule.waveCash,
+}) async {
   tester.view.physicalSize = const Size(1600, 1400);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
@@ -56,7 +71,7 @@ Future<_FinanceReads> _open(WidgetTester tester) async {
             ),
             repository: repository,
             ordersRepository: FakeOrdersRepository(isTest: true),
-            module: BackofficeFinanceModule.waveCash,
+            module: module,
           ),
         ),
       ),
@@ -66,6 +81,49 @@ Future<_FinanceReads> _open(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'a finance update refreshes the selected period without replacing data by zeros',
+    (tester) async {
+      final repository = await _open(
+        tester,
+        module: BackofficeFinanceModule.expenses,
+      );
+      repository.streams.single.add(_snapshot());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Aujourd’hui'));
+      await tester.pump();
+      expect(repository.periods, hasLength(1));
+      repository.periods[0].complete({
+        'expenses': [],
+        'totals': {
+          'expenses': 14707,
+          'expenses_count': 2101,
+          'expenses_wave': 300,
+        },
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('14 707 F'), findsOneWidget);
+      expect(find.text('2101 dépense(s)'), findsOneWidget);
+      repository.streams.single.add(_snapshot());
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(repository.periods, hasLength(2));
+      expect(find.text('14 707 F'), findsOneWidget);
+      repository.periods[1].complete({
+        'expenses': [],
+        'totals': {
+          'expenses': 15007,
+          'expenses_count': 2102,
+          'expenses_wave': 600,
+        },
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('15 007 F'), findsOneWidget);
+      expect(find.text('14 707 F'), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+      unawaited(repository.streams.single.close());
+      await tester.pump();
+    },
+  );
   testWidgets(
     'a temporary failure retains data and a successful read clears the warning',
     (tester) async {

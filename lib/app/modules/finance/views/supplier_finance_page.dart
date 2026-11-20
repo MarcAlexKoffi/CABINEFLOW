@@ -391,6 +391,8 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
     final TextEditingController reference = TextEditingController();
     final TextEditingController note = TextEditingController();
     FinancePaymentChannel channel = FinancePaymentChannel.wave;
+    String? amountError;
+    String? referenceError;
     final bool? submit = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) => StatefulBuilder(
@@ -408,7 +410,10 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                 TextField(
                   controller: amount,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Montant'),
+                  decoration: InputDecoration(
+                    labelText: 'Montant',
+                    errorText: amountError,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<FinancePaymentChannel>(
@@ -428,8 +433,11 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
                 const SizedBox(height: 10),
                 TextField(
                   controller: reference,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Référence du règlement',
+                    helperText:
+                        'Obligatoire : 3 à 120 caractères (transaction ou reçu).',
+                    errorText: referenceError,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -449,7 +457,21 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
               child: const Text('Annuler'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
+              onPressed: () {
+                final value = int.tryParse(amount.text.trim());
+                final length = reference.text.trim().runes.length;
+                setState(() {
+                  amountError = value == null || value <= 0 || value > balance
+                      ? 'Saisis un montant entre 1 et $balance F.'
+                      : null;
+                  referenceError = length < 3 || length > 120
+                      ? 'Saisis une référence de 3 à 120 caractères.'
+                      : null;
+                });
+                if (amountError == null && referenceError == null) {
+                  Navigator.pop(dialogContext, true);
+                }
+              },
               child: const Text('Régler'),
             ),
           ],
@@ -612,10 +634,27 @@ class _SupplierFinancePageState extends State<SupplierFinancePage> {
     }
   }
 
-  String _cleanError(Object error) => error
-      .toString()
-      .replaceFirst('Bad state: ', '')
-      .replaceFirst('Invalid argument(s): ', '');
+  String _cleanError(Object error) {
+    final raw = error.toString();
+    const messages = {
+      'INVALID_REFERENCE':
+          'La référence du règlement est obligatoire : saisis 3 à 120 caractères.',
+      'INVALID_AMOUNT': 'Le montant saisi est invalide.',
+      'PAYMENT_EXCEEDS_BALANCE':
+          'Le montant dépasse le reste dû. Actualise les soldes.',
+      'DUPLICATE_REFERENCE':
+          'Cette référence correspond déjà à un règlement. Vérifie son historique.',
+      'SUPPLIER_SCOPE_DENIED':
+          'Ce fournisseur ne dépend pas de ton compte Manager.',
+    };
+    for (final entry in messages.entries) {
+      if (raw.contains(entry.key)) return entry.value;
+    }
+    return raw
+        .replaceFirst('Bad state: ', '')
+        .replaceFirst('Invalid argument(s): ', '');
+  }
+
   void _message(String text) => IzyTelFeedback.show(context, text);
 
   @override

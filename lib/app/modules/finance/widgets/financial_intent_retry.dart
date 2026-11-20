@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cabine_flow/app/core/resilience/backend_failure_policy.dart';
 
 /// Reuses the caller's captured draft for every explicit retry.
 Future<T> runFinancialIntent<T>(
@@ -10,7 +11,12 @@ Future<T> runFinancialIntent<T>(
     try {
       return await action();
     } catch (error) {
-      if (!canRetry || !context.mounted) rethrow;
+      // Replaying a rejected reference or amount cannot correct its draft.
+      if (!canRetry ||
+          !context.mounted ||
+          !BackendFailurePolicy.canRetryRead(error)) {
+        rethrow;
+      }
       final retry = await showDialog<bool>(
         context: context,
         barrierDismissible: false,

@@ -4,6 +4,11 @@ import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
 abstract class BackofficeFinanceRepository {
   Stream<BackofficeFinanceSnapshot> watchSnapshot();
   Future<BackofficeFinanceSnapshot> fetchSnapshot();
+  Future<Map<String, dynamic>> fetchPeriodHistory({
+    required String module,
+    required DateTime start,
+    required DateTime end,
+  });
 
   Future<void> setWaveOpening({required int amount, String? note});
 
@@ -14,7 +19,10 @@ abstract class BackofficeFinanceRepository {
     String? note,
   });
 
-  Future<void> setSupplierActive({required String supplierId, required bool isActive});
+  Future<void> setSupplierActive({
+    required String supplierId,
+    required bool isActive,
+  });
   Future<void> deleteSupplier(String supplierId);
 
   Future<String> recordSupplierRecharge({

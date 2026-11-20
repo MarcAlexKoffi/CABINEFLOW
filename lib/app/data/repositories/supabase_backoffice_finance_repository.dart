@@ -3,8 +3,6 @@ import 'package:cabine_flow/app/domain/repositories/backoffice_finance_repositor
 import 'package:cabine_flow/app/data/sources/supabase_realtime_refetch.dart';
 import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
 import 'package:cabine_flow/app/domain/policies/finance/finance_operation_key.dart';
-import 'package:cabine_flow/app/core/logging/izytel_log.dart';
-import 'package:cabine_flow/app/core/resilience/backend_failure_policy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseBackofficeFinanceRepository
@@ -21,6 +19,7 @@ class SupabaseBackofficeFinanceRepository
         fetch: fetchSnapshot,
         label: 'SupabaseBackofficeFinanceRepository.snapshot',
         independentPolling: true,
+        fallbackInterval: const Duration(seconds: 15),
         signals: const <SupabaseRealtimeSignal>[
           SupabaseRealtimeSignal(
             table: 'finance_change_feed',
@@ -31,62 +30,40 @@ class SupabaseBackofficeFinanceRepository
 
   @override
   Future<BackofficeFinanceSnapshot> fetchSnapshot() async {
-    final List<_FinanceReadResult> responses =
-        await Future.wait<_FinanceReadResult>(<Future<_FinanceReadResult>>[
-          _capture(_client.rpc('izytel_finance_snapshot')),
-          _capture(
-            _client.rpc(
-              'izytel_admin_cabiniste_finance_snapshot',
-              params: const <String, dynamic>{'p_partner_id': null},
-            ),
-          ),
-        ]);
-    final _FinanceReadResult core = responses[0];
-    final _FinanceReadResult cabiniste = responses[1];
-    if (core.error case final Object error) {
-      IzyTelLog.backendError(
-        'SupabaseBackofficeFinanceRepository.core',
-        error,
-        stackTrace: core.stackTrace,
-      );
-      Error.throwWithStackTrace(error, core.stackTrace ?? StackTrace.current);
-    }
-    final dynamic response = core.value;
+    // Core balances and Cabiniste liabilities share one database snapshot.
+    // A failed read cannot silently turn a missing liability into zero.
+    final dynamic response = await _client.rpc('izytel_finance_snapshot');
     final Map<String, dynamic>? map = financeMap(response);
     if (map == null) {
       throw StateError('Le snapshot financier Supabase est invalide.');
     }
-    final Map<String, dynamic> merged = Map<String, dynamic>.from(map);
-    if (cabiniste.error case final Object error) {
-      IzyTelLog.backendError(
-        'SupabaseBackofficeFinanceRepository.cabiniste',
-        error,
-        stackTrace: cabiniste.stackTrace,
-      );
-      merged
-        ..['cabiniste_finance'] = const <String, dynamic>{}
-        ..['_partial_issue_code'] = BackendFailurePolicy.safeCode(error)
-        ..['_partial_issue_kind'] = BackendFailurePolicy.classify(error).name;
-    } else {
-      final Map<String, dynamic>? cabinisteMap = financeMap(cabiniste.value);
-      if (cabinisteMap == null) {
-        merged
-          ..['cabiniste_finance'] = const <String, dynamic>{}
-          ..['_partial_issue_code'] = 'contract:cabiniste-snapshot'
-          ..['_partial_issue_kind'] = BackendFailureKind.contract.name;
-      } else {
-        merged['cabiniste_finance'] = cabinisteMap;
-      }
+    if (financeMap(map['cabiniste_finance']) == null ||
+        financeMap(map['global_totals']) == null ||
+        financeMap(map['day_totals']) == null) {
+      throw StateError('Le snapshot financier consolidé est incomplet.');
     }
-    return BackofficeFinanceSnapshot.fromJson(merged);
+    return BackofficeFinanceSnapshot.fromJson(map);
   }
 
-  Future<_FinanceReadResult> _capture(Future<dynamic> operation) async {
-    try {
-      return _FinanceReadResult(value: await operation);
-    } catch (error, stackTrace) {
-      return _FinanceReadResult(error: error, stackTrace: stackTrace);
+  @override
+  Future<Map<String, dynamic>> fetchPeriodHistory({
+    required String module,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final response = await _client.rpc(
+      'izytel_bo75_finance_period_history',
+      params: {
+        'p_module': module,
+        'p_start': start.toUtc().toIso8601String(),
+        'p_end': end.toUtc().toIso8601String(),
+      },
+    );
+    final map = financeMap(response);
+    if (map == null || financeMap(map['totals']) == null) {
+      throw StateError('Historique financier incomplet.');
     }
+    return map;
   }
 
   @override
@@ -403,12 +380,4 @@ class SupabaseBackofficeFinanceRepository
     final String cleaned = value?.trim() ?? '';
     return cleaned.isEmpty ? null : cleaned;
   }
-}
-
-class _FinanceReadResult {
-  const _FinanceReadResult({this.value, this.error, this.stackTrace});
-
-  final dynamic value;
-  final Object? error;
-  final StackTrace? stackTrace;
 }

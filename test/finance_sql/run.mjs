@@ -95,5 +95,105 @@ await test('unauthorized staff cannot read totals or record expense',async()=>{
   await assert.rejects(()=>db.query("select public.izytel_bo75_finance_period_history('wave','2026-11-01','2026-11-02')"),/ADMIN_REQUIRED/);
   await assert.rejects(()=>record('intent-denied'),/ADMIN_REQUIRED/);
 });
+await db.exec("set test.admin='true'");
+// Expand the minimal fixture only for the new consolidated snapshot contract.
+await db.exec(`
+alter table finance_customer_credits add id text,add order_id text,add order_reference text,add amount bigint default 0,add paid_amount bigint default 0,add status text default 'open',add created_at timestamptz;
+alter table phase5_supplier_accounts add supplier_id text,add total_owed bigint default 0,add total_paid bigint default 0;
+alter table phase5_commission_accounts add earned_total bigint default 0,add paid_total bigint default 0;
+alter table phase5_commissions add commission_amount bigint default 0;
+alter table phase5_agent_recharges add network text,add principal_amount bigint default 0,add bonus_amount bigint default 0,add received_amount bigint default 0;
+alter table phase5_network_movements add order_id text,add direction text,add movement_type text,add network text,add amount bigint default 0;
+alter table phase5_agent_capacities add agent_id text unique,add orange_capacity bigint default 0,add mtn_capacity bigint default 0,add moov_capacity bigint default 0,add initialized_from text,add legacy_seeded_at timestamptz,add created_at timestamptz,add updated_at timestamptz;
+alter table phase5_order_payments add order_id text,add created_at timestamptz;
+alter table refunds add order_id text,add status text,add legacy_firestore_id text;
+create table partner_accounts(id uuid);
+create table finance_change_feed(id int primary key,revision bigint);
+insert into finance_change_feed values(1,1);
+create function private.izytel_finance_phase5_touch() returns trigger language plpgsql as $$ begin update finance_change_feed set revision=revision+1; return null; end $$;
+create function private.izytel_admin_cabiniste_finance_snapshot(uuid) returns jsonb language sql stable as $$ select '{"summary":{"balanceDue":75},"partners":[]}'::jsonb $$;
+`);
+const { readdir } = await import('node:fs/promises');
+const syncName = (await readdir(resolve(root,'supabase/migrations'))).find(n=>n.endsWith('_finance_live_consistent_totals.sql'));
+const syncMigration = await readFile(resolve(root,'supabase/migrations',syncName),'utf8');
+// Closing body is exercised below with the real table fields used in production.
+const numericClosingFields = 'client_receipts successful_orders_count successful_orders_amount supplier_recharge_principal supplier_recharge_bonus supplier_recharge_received supplier_payments credits_created credit_settlements customer_receivables expenses refunds commissions_earned commissions_paid orange_available orange_committed mtn_available mtn_committed moov_available moov_committed supplier_debt commission_debt wave_theoretical_balance wave_actual_balance wave_difference estimated_profit'.split(' ');
+await db.exec(`alter table finance_daily_closings add date_key text unique,add wave_difference_note text,add closed_by_uid text,add closed_by_name text,${numericClosingFields.map(k=>`add ${k} bigint`).join(',')}`);
+await db.exec(syncMigration);
+const closingName=(await readdir(resolve(root,'supabase/migrations'))).find(n=>n.endsWith('_finance_closing_consistent_snapshot.sql'));
+await db.exec(await readFile(resolve(root,'supabase/migrations',closingName),'utf8'));
+await test('one snapshot includes exact credit balances beyond 500 dossiers and Cabiniste liability',async()=>{
+  await db.exec(`insert into finance_customer_credits(id,amount,paid_amount,created_at,updated_at) select i::text,2,1,'2026-11-01',now() from generate_series(1,601) i`);
+  const s=await snapshot();
+  assert.equal(s.credits.length,500);
+  assert.equal(s.global_totals.customer_receivables,601);
+  assert.equal(s.global_totals.credits_granted,1202);
+  assert.equal(s.global_totals.credits_paid,601);
+  assert.equal(s.global_totals.credits_count,601);
+  assert.equal(s.cabiniste_finance.summary.balanceDue,75);
+});
+await test('daily totals use all sources and honor channels and exact day boundaries',async()=>{
+  const t=(await db.query("select private.izytel_finance_period_totals('2026-11-01','2026-11-02') as t")).rows[0].t;
+  assert.equal(t.client_receipts,130100); // Includes the receipt before the Wave opening.
+  assert.equal(t.credit_settlements,580);
+  assert.deepEqual(t.credit_settlements_by_channel,{wave:80,cash:500});
+  assert.equal(t.expenses,26010);
+  assert.equal(t.expenses_wave,16010);
+  assert.equal(t.refunds,100); // Pending refund has no execution date.
+});
+await test('period totals exceed 2000 detail rows without becoming truncated',async()=>{
+  await db.exec(`insert into finance_expenses(id,amount,payment_channel,spent_at) select gen_random_uuid(),7,'cash','2026-11-02T12:00Z' from generate_series(1,2101)`);
+  const p=(await db.query("select izytel_bo75_finance_period_history('expenses','2026-11-02','2026-11-02T23:59:59.999999Z') as p")).rows[0].p;
+  assert.equal(p.expenses.length,2000);
+  assert.equal(p.totals.expenses,14707);
+  assert.equal(p.totals.expenses_count,2101);
+});
+await test('reconciliation compares full canonical tables instead of unequal history windows',async()=>{
+  await db.exec(`insert into phase5_order_payments(order_id,created_at) select i::text,'2026-11-01' from generate_series(1,1201) i`);
+  const s=await snapshot();
+  assert.equal(s.orders.length,1000);
+  assert.equal(s.order_payments.length,700);
+  assert.equal(s.reconciliation_totals.orphan_payments,0);
+  // The extra confirmed receipt deliberately has no ID/ledger in this fixture.
+  assert.equal(s.reconciliation_totals.confirmed_without_ledger,1);
+});
+await test('legacy replay cannot overwrite a canonical Agent capacity',async()=>{
+  await db.exec(`insert into phase5_agent_capacities(agent_id,orange_capacity,initialized_from) values('canonical-agent',4900,'supabase')`);
+  await db.query(`select private.phase5_reconcile_capacity_snapshot($1::jsonb)`,[JSON.stringify({agent_id:'canonical-agent',orange_capacity:10000})]);
+  const row=(await db.query("select orange_capacity,initialized_from from phase5_agent_capacities where agent_id='canonical-agent'")).rows[0];
+  assert.deepEqual(row,{orange_capacity:4900,initialized_from:'supabase'});
+  await db.query(`select private.phase5_reconcile_capacity_snapshot($1::jsonb)`,[JSON.stringify({agent_id:'new-legacy-agent',orange_capacity:300})]);
+  assert.equal((await db.query("select orange_capacity from phase5_agent_capacities where agent_id='new-legacy-agent'")).rows[0].orange_capacity,300);
+});
+await test('partner changes invalidate finance and a rolled-back transaction leaves no signal',async()=>{
+  const revision=async()=>(await db.query('select revision from finance_change_feed')).rows[0].revision;
+  const before=await revision();
+  await db.exec('begin; insert into partner_accounts values(gen_random_uuid()); rollback');
+  assert.equal(await revision(),before);
+  await db.exec('insert into partner_accounts values(gen_random_uuid())');
+  assert.equal(await revision(),before+1);
+});
+await test('Wave closing deducts Cabiniste Wave payouts once and matches the live balance',async()=>{
+  await db.exec(`update finance_wave_settings set opening_balance=10000,effective_at=date_trunc('day',now())-interval '1 hour';
+    insert into compensation_payouts values('cabiniste',250,'XOF','wave',now()-interval '1 minute');`);
+  const s=await snapshot();
+  const wave=10000+s.wave_totals.client_payments+s.wave_totals.credit_settlements-s.wave_totals.supplier_payments-s.wave_totals.expenses-s.wave_totals.refunds-s.wave_totals.commission_payouts-s.wave_totals.cabiniste_payouts;
+  const today=(await db.query("select to_char(now() at time zone 'Africa/Abidjan','YYYY-MM-DD') as d")).rows[0].d;
+  await db.query('select izytel_finance_create_closing($1::jsonb)',[JSON.stringify({date_key:today,wave_actual_balance:wave})]);
+  const c=(await db.query('select * from finance_daily_closings')).rows[0];
+  assert.equal(c.wave_theoretical_balance,wave);
+  assert.equal(c.wave_difference,0);
+  for(const field of ['client_receipts','successful_orders_count','successful_orders_amount','supplier_payments','credit_settlements','expenses','refunds','commissions_earned','commissions_paid']) {
+    assert.equal(c[field],s.day_totals[field]);
+  }
+  assert.equal(c.estimated_profit,s.day_totals.estimated_profit);
+});
+await test('private totals remain inaccessible to client roles',async()=>{
+  for (const role of ['anon','authenticated']) {
+    await db.exec(`set role ${role}`);
+    await assert.rejects(()=>db.query("select private.izytel_finance_period_totals('2026-11-01','2026-11-02')"),/permission denied/);
+    await db.exec('reset role');
+  }
+});
 console.log(`${passed} finance PostgreSQL cases passed`);
 await db.close();

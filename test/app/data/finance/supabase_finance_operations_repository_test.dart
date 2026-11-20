@@ -267,7 +267,7 @@ void main() {
   test(
     'Wave refuses a server without exact aggregates instead of summing a truncated history',
     () async {
-      // fetchSnapshot requests both snapshot and partner snapshot.
+      // The consolidated RPC must include its exact aggregates.
       result = <String, dynamic>{};
       await expectLater(repository.fetchWaveSnapshot(), throwsStateError);
     },
@@ -288,6 +288,9 @@ void main() {
           'refunds': 3000,
           'commission_payouts': 4000,
         },
+        'global_totals': <String, dynamic>{},
+        'day_totals': <String, dynamic>{},
+        'cabiniste_finance': <String, dynamic>{},
       };
       final wave = await repository.fetchWaveSnapshot();
       expect(wave.theoreticalBalance, 1005000);

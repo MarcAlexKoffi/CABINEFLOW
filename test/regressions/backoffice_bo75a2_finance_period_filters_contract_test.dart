@@ -21,9 +21,11 @@ void main() {
       final String page = _read(
         'lib/app/modules/backoffice/views/finances/backoffice_finance_page.dart',
       );
-      expect(page, contains("'izytel_bo75_finance_period_history'"));
-      expect(page, contains("'p_start'"));
-      expect(page, contains("'p_end'"));
+      final repository = _read('lib/app/data/repositories/supabase_backoffice_finance_repository.dart');
+      expect(page, contains('widget.repository.fetchPeriodHistory('));
+      expect(repository, contains("'izytel_bo75_finance_period_history'"));
+      expect(repository, contains("'p_start'"));
+      expect(repository, contains("'p_end'"));
       expect(page, contains('_periodRows('));
       expect(page, contains("'network_movements'"));
       expect(page, contains("'commission_payouts'"));

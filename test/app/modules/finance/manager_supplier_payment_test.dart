@@ -6,6 +6,7 @@ import 'package:cabine_flow/app/data/repositories/manager_read_only_finance_oper
 import 'package:cabine_flow/app/domain/entities/auth/app_user.dart';
 import 'package:cabine_flow/app/domain/entities/finance/finance_operations_models.dart';
 import 'package:cabine_flow/app/modules/finance/views/supplier_finance_page.dart';
+import 'package:cabine_flow/app/modules/finance/widgets/financial_intent_retry.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -87,6 +88,83 @@ Future<void> _close(WidgetTester tester, _Finance finance) async {
 }
 
 void main() {
+  testWidgets(
+    'missing or short reference and overpayment stay in the form without a financial write',
+    (tester) async {
+      final finance = _Finance();
+      await _show(tester, finance);
+      finance.accounts.add([account()]);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Régler'));
+      await tester.pumpAndSettle();
+      final submit = find.widgetWithText(FilledButton, 'Régler').last;
+      await tester.tap(submit);
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Saisis une référence de 3 à 120 caractères.'),
+        findsOneWidget,
+      );
+      expect(finance.payment, isNull);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Référence du règlement'),
+        '12',
+      );
+      await tester.tap(submit);
+      await tester.pumpAndSettle();
+      expect(finance.payment, isNull);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Référence du règlement'),
+        'WAVE-VALID',
+      );
+      await tester.enterText(find.widgetWithText(TextField, 'Montant'), '9000');
+      await tester.tap(submit);
+      await tester.pumpAndSettle();
+      expect(find.text('Saisis un montant entre 1 et 8000 F.'), findsOneWidget);
+      expect(finance.payment, isNull);
+      await tester.enterText(find.widgetWithText(TextField, 'Montant'), '3000');
+      await tester.tap(submit);
+      await tester.pumpAndSettle();
+      expect(finance.payment?.amount, 3000);
+      expect(finance.payment?.reference, 'WAVE-VALID');
+      await _close(tester, finance);
+    },
+  );
+
+  testWidgets(
+    'a definitive server rejection never proposes replaying the rejected draft',
+    (tester) async {
+      Object? caught;
+      int calls = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async {
+                try {
+                  await runFinancialIntent<void>(context, () async {
+                    calls++;
+                    throw const PostgrestException(
+                      message: 'INVALID_REFERENCE',
+                      code: 'P0001',
+                    );
+                  }, canRetry: true);
+                } catch (error) {
+                  caught = error;
+                }
+              },
+              child: const Text('Pay'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Pay'));
+      await tester.pumpAndSettle();
+      expect(caught, isA<PostgrestException>());
+      expect(calls, 1);
+      expect(find.text('Réessayer'), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
   testWidgets(
     'supplier amounts remain visible after timeout and recover without logout',
     (tester) async {

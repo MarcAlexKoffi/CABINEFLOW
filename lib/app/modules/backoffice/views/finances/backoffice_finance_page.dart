@@ -16,7 +16,6 @@ import 'package:cabine_flow/app/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:cabine_flow/app/shared/widgets/izytel_period_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Les dix sous-modules officiels du bloc BO-5.
 enum BackofficeFinanceModule {
@@ -143,6 +142,13 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
   bool _periodBusy = false;
   String? _periodError;
   int _periodRequestSerial = 0;
+  Timer? _periodRefresh;
+
+  @override
+  void dispose() {
+    _periodRefresh?.cancel();
+    super.dispose();
+  }
 
   bool get _canManage => widget.user.permissions.canManageFinanceSettings;
 
@@ -160,6 +166,12 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
   Stream<BackofficeFinanceSnapshot> _watchSnapshot() {
     return widget.repository.watchSnapshot().map((snapshot) {
       _lastSnapshot = snapshot;
+      if (_periodFilter.isActive) {
+        _periodRefresh?.cancel();
+        _periodRefresh = Timer(const Duration(milliseconds: 150), () {
+          if (mounted) unawaited(_loadPeriodHistory());
+        });
+      }
       return snapshot;
     });
   }
@@ -172,7 +184,10 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       _lastSnapshot = null;
       _stream = _watchSnapshot();
     }
-    if (oldWidget.module != widget.module) {
+    if (oldWidget.module != widget.module ||
+        oldWidget.repository != widget.repository ||
+        oldWidget.user.id != widget.user.id) {
+      _periodRefresh?.cancel();
       _periodRequestSerial += 1;
       _periodFilter = const IzyTelPeriodFilterValue();
       _periodHistory = null;
@@ -189,6 +204,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
   }
 
   Future<void> _onPeriodChanged(IzyTelPeriodFilterValue value) async {
+    _periodRefresh?.cancel();
     final int request = ++_periodRequestSerial;
     setState(() {
       _periodFilter = value;
@@ -206,7 +222,30 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
     if (!_supportsPeriodFilter || !_periodFilter.isActive) {
       return;
     }
-    final DateTimeRange? range = _periodFilter.resolvedRange();
+    // The finance day is Africa/Abidjan (UTC), including on browsers abroad.
+    final day = _lastSnapshot?.businessDay ?? DateTime.now().toUtc();
+    final selected = _periodFilter.resolvedRange(
+      now: DateTime(day.year, day.month, day.day),
+    );
+    final DateTimeRange? range = selected == null
+        ? null
+        : DateTimeRange(
+            start: DateTime.utc(
+              selected.start.year,
+              selected.start.month,
+              selected.start.day,
+            ),
+            end: DateTime.utc(
+              selected.end.year,
+              selected.end.month,
+              selected.end.day,
+              23,
+              59,
+              59,
+              999,
+              999,
+            ),
+          );
     if (range == null) {
       return;
     }
@@ -218,21 +257,16 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       });
     }
     try {
-      final dynamic response = await Supabase.instance.client.rpc(
-        'izytel_bo75_finance_period_history',
-        params: <String, dynamic>{
-          'p_module': _periodModuleKey(widget.module),
-          'p_start': range.start.toUtc().toIso8601String(),
-          'p_end': range.end.toUtc().toIso8601String(),
-        },
+      final response = await widget.repository.fetchPeriodHistory(
+        module: _periodModuleKey(widget.module),
+        start: range.start,
+        end: range.end,
       );
       if (!mounted || request != _periodRequestSerial) {
         return;
       }
       setState(() {
-        _periodHistory = response is Map
-            ? Map<String, dynamic>.from(response)
-            : <String, dynamic>{};
+        _periodHistory = response;
         _periodBusy = false;
         _periodError = null;
       });
@@ -262,6 +296,13 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
         .whereType<Map>()
         .map((Map row) => Map<String, dynamic>.from(row))
         .toList(growable: false);
+  }
+
+  int _periodTotal(String key, int fallback) {
+    final totals = financeMap(_periodHistory?['totals']);
+    return !_periodFilter.isActive || totals == null
+        ? fallback
+        : financeInt(totals[key]);
   }
 
   String _periodModuleKey(BackofficeFinanceModule module) {
@@ -401,6 +442,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<BackofficeFinanceSnapshot>(
+      key: ObjectKey(_stream),
       stream: _stream,
       builder: (BuildContext context, AsyncSnapshot<BackofficeFinanceSnapshot> async) {
         if (async.hasData) _lastSnapshot = async.data;
@@ -409,11 +451,17 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
             : null;
         final bool accessDenied =
             failureKind == BackendFailureKind.unauthorized ||
-            failureKind == BackendFailureKind.forbidden;
+            failureKind == BackendFailureKind.forbidden ||
+            failureKind == BackendFailureKind.contract;
         final BackofficeFinanceSnapshot? available = accessDenied
             ? null
             : (async.data ?? _lastSnapshot);
-        if (accessDenied) _lastSnapshot = null;
+        if (accessDenied) {
+          _lastSnapshot = null;
+          _periodHistory = null;
+          _periodRefresh?.cancel();
+          _periodRequestSerial++;
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
@@ -482,7 +530,17 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
                 ),
                 const SizedBox(height: 16),
               ],
-              _moduleBody(snapshot),
+              if (_periodFilter.isActive && _periodHistory == null)
+                if (_periodError == null)
+                  const _FinanceLoading()
+                else
+                  _FinanceErrorState(
+                    message: _periodError!,
+                    code: 'finance-period',
+                    onRetry: _loadPeriodHistory,
+                  )
+              else
+                _moduleBody(snapshot),
             ] else
               _FinanceErrorState(
                 message: 'Aucun snapshot financier valide n’a été reçu.',
@@ -541,7 +599,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
   }
 
   Widget _overview(BackofficeFinanceSnapshot s) {
-    final DateTime today = DateTime.now();
+    final DateTime today = s.businessDay;
     final int receipts =
         s.confirmedReceiptsOn(today) + s.creditSettlementsOn(today);
     final int theoreticalWave = s.waveTheoreticalBalanceOn(today);
@@ -561,7 +619,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
           BackofficeMetricCard(
             label: 'Wave théorique',
             value: formatCfa(theoreticalWave),
-            caption: 'solde après flux Wave du jour',
+            caption: 'solde depuis le dernier point de départ',
             icon: Symbols.account_balance_rounded,
             emphasis: BackofficePalette.primary,
           ),
@@ -602,7 +660,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
                 : BackofficePalette.success,
           ),
           BackofficeMetricCard(
-            label: 'Capacité disponible',
+            label: 'Stock réseau total',
             value: formatCfa(s.totalAvailableCapacity),
             caption: 'Orange + MTN + Moov',
             icon: Symbols.toll_rounded,
@@ -943,7 +1001,8 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
           ),
           BackofficeMetricCard(
             label: 'Approvisionnements',
-            value: '${recharges.length}',
+            value:
+                '${_periodFilter.isActive ? _periodTotal('supplier_recharges_count', recharges.length) : s.globalTotal('supplier_recharges_count', recharges.length)}',
             caption: _periodFilter.isActive
                 ? 'dans la période'
                 : 'recharges enregistrées',
@@ -1079,19 +1138,28 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       'credits',
       s.credits,
     );
-    final int openCount = s.credits
-        .where(
-          (Map<String, dynamic> row) =>
-              financeString(row['status']) != 'settled',
-        )
-        .length;
-    final int paid = s.credits.fold<int>(
-      0,
-      (int t, Map<String, dynamic> r) => t + financeInt(r['paid_amount']),
+    final int openCount = s.globalTotal(
+      'credits_open_count',
+      s.credits
+          .where(
+            (Map<String, dynamic> row) =>
+                financeString(row['status']) != 'settled',
+          )
+          .length,
     );
-    final int granted = s.credits.fold<int>(
-      0,
-      (int t, Map<String, dynamic> r) => t + financeInt(r['amount']),
+    final int paid = s.globalTotal(
+      'credits_paid',
+      s.credits.fold<int>(
+        0,
+        (int t, Map<String, dynamic> r) => t + financeInt(r['paid_amount']),
+      ),
+    );
+    final int granted = s.globalTotal(
+      'credits_granted',
+      s.credits.fold<int>(
+        0,
+        (int t, Map<String, dynamic> r) => t + financeInt(r['amount']),
+      ),
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1100,7 +1168,8 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
           BackofficeMetricCard(
             label: 'Crédits accordés',
             value: formatCfa(granted),
-            caption: '${s.credits.length} dossier(s)',
+            caption:
+                '${s.globalTotal('credits_count', s.credits.length)} dossier(s)',
             icon: Symbols.request_quote_rounded,
           ),
           BackofficeMetricCard(
@@ -1170,27 +1239,33 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
   }
 
   Widget _expenses(BackofficeFinanceSnapshot s) {
-    final DateTime today = DateTime.now();
+    final DateTime today = s.businessDay;
     final List<Map<String, dynamic>> expenses = _periodRows(
       'expenses',
       s.expenses,
     );
     final int todayTotal = s.expensesOn(today);
-    final int periodTotal = expenses.fold<int>(
-      0,
-      (int total, Map<String, dynamic> row) =>
-          total + financeInt(row['amount']),
+    final int periodTotal = _periodTotal(
+      'expenses',
+      expenses.fold<int>(
+        0,
+        (int total, Map<String, dynamic> row) =>
+            total + financeInt(row['amount']),
+      ),
     );
-    final int periodWave = expenses
-        .where(
-          (Map<String, dynamic> row) =>
-              financeString(row['payment_channel']) == 'wave',
-        )
-        .fold<int>(
-          0,
-          (int total, Map<String, dynamic> row) =>
-              total + financeInt(row['amount']),
-        );
+    final int periodWave = _periodTotal(
+      'expenses_wave',
+      expenses
+          .where(
+            (Map<String, dynamic> row) =>
+                financeString(row['payment_channel']) == 'wave',
+          )
+          .fold<int>(
+            0,
+            (int total, Map<String, dynamic> row) =>
+                total + financeInt(row['amount']),
+          ),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -1207,7 +1282,8 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
                 ? 'Dépenses période'
                 : 'Historique chargé',
             value: formatCfa(periodTotal),
-            caption: '${expenses.length} dépense(s)',
+            caption:
+                '${_periodTotal('expenses_count', expenses.length)} dépense(s)',
             icon: Symbols.history_rounded,
           ),
           BackofficeMetricCard(
@@ -1406,14 +1482,15 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
           ),
           BackofficeMetricCard(
             label: 'Paiements Phase 5',
-            value: '${s.orderPayments.length}',
+            value:
+                '${s.globalTotal('order_payments_count', s.orderPayments.length)}',
             caption: 'lignes rapprochées',
             icon: Symbols.payments_rounded,
             emphasis: BackofficePalette.cyan,
           ),
           BackofficeMetricCard(
             label: 'Remboursements',
-            value: '${s.refunds.length}',
+            value: '${s.globalTotal('refunds_count', s.refunds.length)}',
             caption: 'dossiers financiers',
             icon: Symbols.currency_exchange_rounded,
           ),
@@ -1472,21 +1549,24 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       children: <Widget>[
         _metricGrid(<Widget>[
           BackofficeMetricCard(
-            label: 'Mouvements',
+            label: 'Mouvements chargés',
             value: '${movements.length}',
-            caption: 'snapshot consolidé',
+            caption: 'fenêtre du journal consolidé',
             icon: Symbols.swap_horiz_rounded,
           ),
           BackofficeMetricCard(
             label: 'Capacité réseau',
-            value: '${networkMovements.length}',
+            value:
+                '${_periodFilter.isActive ? _periodTotal('network_movements_count', networkMovements.length) : s.globalTotal('network_movements_count', networkMovements.length)}',
             caption: 'entrées / sorties télécom',
             icon: Symbols.toll_rounded,
             emphasis: BackofficePalette.cyan,
           ),
           BackofficeMetricCard(
             label: 'Événements ledger',
-            value: _periodFilter.isActive ? '—' : '${s.ledgerEvents.length}',
+            value: _periodFilter.isActive
+                ? '—'
+                : '${s.globalTotal('ledger_events_count', s.ledgerEvents.length)}',
             caption: _periodFilter.isActive
                 ? 'hors filtre périodique pour cette étape'
                 : 'journal Phase 5',
@@ -1533,7 +1613,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       'closings',
       s.closings,
     );
-    final DateTime today = DateTime.now();
+    final DateTime today = s.businessDay;
     final String key = _dateKey(today);
     final bool alreadyClosed = s.closings.any(
       (Map<String, dynamic> row) => financeString(row['date_key']) == key,
@@ -1543,7 +1623,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       children: <Widget>[
         _metricGrid(<Widget>[
           BackofficeMetricCard(
-            label: 'Clôtures',
+            label: 'Clôtures chargées',
             value: '${closings.length}',
             caption: _periodFilter.isActive
                 ? 'dans la période'
@@ -1622,7 +1702,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
         label: label,
         value: formatCfa(free),
         caption:
-            'libre · stock ${formatCfa(available)} · engagé ${formatCfa(committed)}',
+            'stock libre · total ${formatCfa(available)} · engagé ${formatCfa(committed)} · dont comptes suspendus ${formatCfa(s.inactiveCapacityFor(network))}',
         icon: Symbols.signal_cellular_alt_rounded,
         emphasis: color,
       );
@@ -1744,18 +1824,14 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
               !orderIds.contains(financeString(row['order_id'])),
         )
         .toList(growable: false);
-    final int legacyPayments = unmatchedPayments.where((
-      Map<String, dynamic> row,
-    ) {
+    int legacyPayments = unmatchedPayments.where((Map<String, dynamic> row) {
       final DateTime? createdAt = financeDate(row['created_at']);
       return canonicalOrderCutoff != null &&
           createdAt != null &&
           createdAt.isBefore(canonicalOrderCutoff);
     }).length;
-    final int orphanPayments = unmatchedPayments.length - legacyPayments;
-    final int confirmedWithoutLedger = s.orders.where((
-      Map<String, dynamic> row,
-    ) {
+    int orphanPayments = unmatchedPayments.length - legacyPayments;
+    int confirmedWithoutLedger = s.orders.where((Map<String, dynamic> row) {
       return financeString(row['payment_status']) == 'confirmed' &&
           !paymentIds.contains(financeString(row['order_id']));
     }).length;
@@ -1764,7 +1840,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
           for (final Map<String, dynamic> row in s.orders)
             financeString(row['order_id']): row,
         };
-    final int creditMismatch = s.credits.where((Map<String, dynamic> row) {
+    int creditMismatch = s.credits.where((Map<String, dynamic> row) {
       final Map<String, dynamic>? order =
           orderById[financeString(row['order_id'])];
       return order == null ||
@@ -1779,16 +1855,14 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
           return status == 'refunded' || status == 'reconciled';
         })
         .toList(growable: false);
-    final int legacyRefundsWithoutCanonicalOrder = completedRefunds.where((
+    int legacyRefundsWithoutCanonicalOrder = completedRefunds.where((
       Map<String, dynamic> row,
     ) {
       final String orderId = financeString(row['order_id']);
       return !orderById.containsKey(orderId) &&
           financeString(row['legacy_firestore_id']).isNotEmpty;
     }).length;
-    final int refundedMismatch = completedRefunds.where((
-      Map<String, dynamic> row,
-    ) {
+    int refundedMismatch = completedRefunds.where((Map<String, dynamic> row) {
       final String orderId = financeString(row['order_id']);
       final Map<String, dynamic>? order = orderById[orderId];
       if (order == null) {
@@ -1822,15 +1896,30 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
           financeInt(row['mtn_capacity']) < 0 ||
           financeInt(row['moov_capacity']) < 0;
     }).length;
-    final int closingDifferences = s.closings.where((Map<String, dynamic> row) {
+    int closingDifferences = s.closings.where((Map<String, dynamic> row) {
       return financeInt(row['wave_difference']) != 0;
     }).length;
-    final int unjustifiedClosingDifferences = s.closings.where((
+    int unjustifiedClosingDifferences = s.closings.where((
       Map<String, dynamic> row,
     ) {
       return financeInt(row['wave_difference']) != 0 &&
           financeString(row['wave_difference_note']).length < 3;
     }).length;
+
+    // Cross-table checks must compare complete datasets, never two unrelated
+    // history windows (which otherwise report false orphan/credit anomalies).
+    if (s.reconciliationTotals case final totals?) {
+      legacyPayments = financeInt(totals['legacy_payments']);
+      orphanPayments = financeInt(totals['orphan_payments']);
+      confirmedWithoutLedger = financeInt(totals['confirmed_without_ledger']);
+      creditMismatch = financeInt(totals['credit_mismatch']);
+      legacyRefundsWithoutCanonicalOrder = financeInt(totals['legacy_refunds']);
+      refundedMismatch = financeInt(totals['refund_mismatch']);
+      closingDifferences = financeInt(totals['closing_differences']);
+      unjustifiedClosingDifferences = financeInt(
+        totals['unjustified_closing_differences'],
+      );
+    }
 
     return <_FinanceCheck>[
       _FinanceCheck(
@@ -1845,8 +1934,8 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
         title: 'Paiements rattachés aux commandes',
         detail: orphanPayments == 0
             ? legacyPayments == 0
-                  ? '${s.orderPayments.length} paiement(s) rattaché(s)'
-                  : '${s.orderPayments.length - legacyPayments} paiement(s) courant(s) rattaché(s) · $legacyPayments historique(s) pré-Phase 4 conservé(s)'
+                  ? '${s.globalTotal('order_payments_count', s.orderPayments.length)} paiement(s) rattaché(s)'
+                  : '${s.globalTotal('order_payments_count', s.orderPayments.length) - legacyPayments} paiement(s) courant(s) rattaché(s) · $legacyPayments historique(s) pré-Phase 4 conservé(s)'
             : '$orphanPayments paiement(s) courant(s) sans commande canonique · $legacyPayments historique(s) pré-Phase 4 ignoré(s)',
       ),
       _FinanceCheck(
@@ -1860,7 +1949,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
         ok: creditMismatch == 0,
         title: 'Crédits reliés à la commande canonique',
         detail: creditMismatch == 0
-            ? '${s.credits.length} dossier(s) cohérent(s)'
+            ? '${s.globalTotal('credits_count', s.credits.length)} dossier(s) cohérent(s)'
             : '$creditMismatch crédit(s) avec commande, montant ou statut incohérent',
       ),
       _FinanceCheck(
@@ -2934,7 +3023,7 @@ class _BackofficeFinancePageState extends State<BackofficeFinancePage> {
       );
       return;
     }
-    final DateTime today = DateTime.now();
+    final DateTime today = s.businessDay;
     final int theoretical = s.waveTheoreticalBalanceOn(today);
     final TextEditingController actual = TextEditingController(
       text: theoretical.toString(),
@@ -3477,6 +3566,8 @@ String _financeError(Object error) {
     'ADMIN_REQUIRED':
         'Cette écriture financière est réservée à l’Administrateur.',
     'INVALID_AMOUNT': 'Le montant saisi est invalide.',
+    'INVALID_REFERENCE':
+        'La référence du règlement doit contenir 3 à 120 caractères.',
     'DUPLICATE_REFERENCE': 'Cette référence de paiement a déjà été utilisée.',
     'PAYMENT_EXCEEDS_BALANCE': 'Le montant dépasse le reste à payer.',
     'CREDIT_ALREADY_SETTLED': 'Ce crédit est déjà soldé.',

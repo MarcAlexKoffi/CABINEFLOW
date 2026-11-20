@@ -25,6 +25,10 @@ class BackofficeFinanceSnapshot {
     required this.auditEvents,
     this.waveTotals,
     this.committedCapacities,
+    this.globalTotals,
+    this.dayTotals,
+    this.reconciliationTotals,
+    this.revision,
     this.partialIssueCode,
     this.partialIssueKind,
   });
@@ -32,6 +36,10 @@ class BackofficeFinanceSnapshot {
   /// Exact server totals; the transaction arrays are bounded history windows.
   final Map<String, dynamic>? waveTotals;
   final Map<String, dynamic>? committedCapacities;
+  final Map<String, dynamic>? globalTotals;
+  final Map<String, dynamic>? dayTotals;
+  final Map<String, dynamic>? reconciliationTotals;
+  final int? revision;
   final String? partialIssueCode;
   final String? partialIssueKind;
   final DateTime? generatedAt;
@@ -63,6 +71,10 @@ class BackofficeFinanceSnapshot {
       generatedAt: financeDate(json['generated_at']),
       waveTotals: financeMap(json['wave_totals']),
       committedCapacities: financeMap(json['committed_capacities']),
+      globalTotals: financeMap(json['global_totals']),
+      dayTotals: financeMap(json['day_totals']),
+      reconciliationTotals: financeMap(json['reconciliation_totals']),
+      revision: json['revision'] == null ? null : financeInt(json['revision']),
       partialIssueCode: _nullableFinanceString(json['_partial_issue_code']),
       partialIssueKind: _nullableFinanceString(json['_partial_issue_kind']),
       waveOpening: financeMap(json['wave_opening']),
@@ -98,12 +110,16 @@ class BackofficeFinanceSnapshot {
   DateTime? get waveOpeningEffectiveAt =>
       financeDate(waveOpening?['effective_at']);
 
-  int get customerReceivables => credits.fold<int>(
-    0,
-    (int total, Map<String, dynamic> row) =>
-        total +
-        _positive(financeInt(row['amount']) - financeInt(row['paid_amount'])),
-  );
+  int get customerReceivables => globalTotals != null
+      ? financeInt(globalTotals!['customer_receivables'])
+      : credits.fold<int>(
+          0,
+          (int total, Map<String, dynamic> row) =>
+              total +
+              _positive(
+                financeInt(row['amount']) - financeInt(row['paid_amount']),
+              ),
+        );
 
   int get supplierDebt => supplierAccounts.fold<int>(
     0,
@@ -152,6 +168,37 @@ class BackofficeFinanceSnapshot {
       0,
       (int total, Map<String, dynamic> row) => total + financeInt(row[key]),
     );
+  }
+
+  /// Suspended accounts retain their book stock. It is shown separately so it
+  /// cannot be mistaken for stock an active Agent can currently deliver.
+  int inactiveCapacityFor(String network) => agentCapacities
+      .where((row) => row['is_active'] == false)
+      .fold<int>(
+        0,
+        (total, row) =>
+            total + financeInt(row['${network.toLowerCase()}_capacity']),
+      );
+
+  DateTime get businessDay => (generatedAt ?? DateTime.now()).toUtc();
+
+  int globalTotal(String key, int fallback) =>
+      globalTotals == null ? fallback : financeInt(globalTotals![key]);
+
+  int? _dayMetric(DateTime day, String key, {String? channel}) {
+    if (dayTotals == null) return null;
+    final String dateKey =
+        '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+    if (dayTotals!['date_key'] != dateKey) return null;
+    if (channel != null) {
+      if (key == 'expenses') {
+        return channel == 'wave'
+            ? financeInt(dayTotals!['expenses_wave'])
+            : null;
+      }
+      return financeInt(financeMap(dayTotals!['${key}_by_channel'])?[channel]);
+    }
+    return financeInt(dayTotals![key]);
   }
 
   /// Montant réservé par les commandes financées qui sont déjà affectées et
@@ -211,6 +258,8 @@ class BackofficeFinanceSnapshot {
       cabinisteDebt;
 
   int successfulOrdersAmountOn(DateTime day) {
+    final int? exact = _dayMetric(day, 'successful_orders_amount');
+    if (exact != null) return exact;
     return _successfulNetworkMovementsOn(day).fold<int>(
       0,
       (int total, Map<String, dynamic> row) =>
@@ -219,6 +268,7 @@ class BackofficeFinanceSnapshot {
   }
 
   int successfulOrdersCountOn(DateTime day) =>
+      _dayMetric(day, 'successful_orders_count') ??
       _successfulNetworkMovementsOn(day).length;
 
   List<Map<String, dynamic>> _successfulNetworkMovementsOn(DateTime day) {
@@ -235,6 +285,8 @@ class BackofficeFinanceSnapshot {
   /// pas chaque évènement du ledger paiement, afin de ne jamais compter deux
   /// fois une même commande lorsque l'historique contient plusieurs évènements.
   int confirmedReceiptsOn(DateTime day) {
+    final int? exact = _dayMetric(day, 'client_receipts');
+    if (exact != null) return exact;
     return orders
         .where((Map<String, dynamic> row) {
           if (financeString(row['payment_status']) != 'confirmed') {
@@ -253,6 +305,8 @@ class BackofficeFinanceSnapshot {
   }
 
   int creditSettlementsOn(DateTime day, {String? channel}) {
+    final int? exact = _dayMetric(day, 'credit_settlements', channel: channel);
+    if (exact != null) return exact;
     return creditSettlements
         .where((Map<String, dynamic> row) {
           if (!financeSameDay(financeDate(row['paid_at']), day)) {
@@ -269,6 +323,8 @@ class BackofficeFinanceSnapshot {
   }
 
   int supplierPaymentsOn(DateTime day, {String? channel}) {
+    final int? exact = _dayMetric(day, 'supplier_payments', channel: channel);
+    if (exact != null) return exact;
     return supplierPayments
         .where((Map<String, dynamic> row) {
           if (!financeSameDay(financeDate(row['paid_at']), day)) {
@@ -285,6 +341,8 @@ class BackofficeFinanceSnapshot {
   }
 
   int expensesOn(DateTime day, {String? channel}) {
+    final int? exact = _dayMetric(day, 'expenses', channel: channel);
+    if (exact != null) return exact;
     return expenses
         .where((Map<String, dynamic> row) {
           if (!financeSameDay(financeDate(row['spent_at']), day)) {
@@ -301,6 +359,8 @@ class BackofficeFinanceSnapshot {
   }
 
   int refundsOn(DateTime day) {
+    final int? exact = _dayMetric(day, 'refunds');
+    if (exact != null) return exact;
     return refunds
         .where((Map<String, dynamic> row) {
           return financeSameDay(financeDate(row['refunded_at']), day);
@@ -313,6 +373,8 @@ class BackofficeFinanceSnapshot {
   }
 
   int commissionEarnedOn(DateTime day) {
+    final int? exact = _dayMetric(day, 'commissions_earned');
+    if (exact != null) return exact;
     return commissions
         .where((Map<String, dynamic> row) {
           return financeSameDay(financeDate(row['earned_at']), day);
@@ -325,6 +387,8 @@ class BackofficeFinanceSnapshot {
   }
 
   int commissionPaidOn(DateTime day, {String? channel}) {
+    final int? exact = _dayMetric(day, 'commissions_paid', channel: channel);
+    if (exact != null) return exact;
     return commissionPayouts
         .where((Map<String, dynamic> row) {
           if (!financeSameDay(financeDate(row['paid_at']), day)) {
@@ -341,6 +405,13 @@ class BackofficeFinanceSnapshot {
   }
 
   int supplierRechargeOn(DateTime day, String field) {
+    final String? key = const <String, String>{
+      'principal_amount': 'supplier_recharge_principal',
+      'bonus_amount': 'supplier_recharge_bonus',
+      'received_amount': 'supplier_recharge_received',
+    }[field];
+    final int? exact = key == null ? null : _dayMetric(day, key);
+    if (exact != null) return exact;
     return supplierRecharges
         .where((Map<String, dynamic> row) {
           return financeSameDay(financeDate(row['occurred_at']), day);
@@ -353,6 +424,8 @@ class BackofficeFinanceSnapshot {
   }
 
   int creditsCreatedOn(DateTime day) {
+    final int? exact = _dayMetric(day, 'credits_created');
+    if (exact != null) return exact;
     return credits
         .where((Map<String, dynamic> row) {
           return financeSameDay(financeDate(row['created_at']), day);
@@ -449,6 +522,8 @@ class BackofficeFinanceSnapshot {
   int waveTheoreticalBalanceOn(DateTime day) => waveTheoreticalBalance;
 
   int estimatedOperationalResultOn(DateTime day) {
+    final int? exact = _dayMetric(day, 'estimated_profit');
+    if (exact != null) return exact;
     final List<Map<String, dynamic>> successes = _successfulNetworkMovementsOn(
       day,
     );
