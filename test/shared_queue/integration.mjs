@@ -87,8 +87,17 @@ await withPostgres(async ({admin, connect}) => {
   await q(migration);
   if (process.argv.includes('--pagination')) {
     const {readdir} = await import('node:fs/promises');
-    const filename = (await readdir(join(root,'supabase/migrations'))).find(name=>name.endsWith('_shared_queue_total_and_pagination.sql'));
-    await q(await readFile(join(root,'supabase/migrations',filename),'utf8'));
+    const migrations = await readdir(join(root,'supabase/migrations'));
+    const filename = migrations.find(name=>name.endsWith('_shared_queue_total_and_pagination.sql'));
+    const original = await readFile(join(root,'supabase/migrations',filename),'utf8');
+    // Reproduce the UTF-8/Windows-1252 corruption observed in production.
+    await q(original.replaceAll('\u2022','\u00e2\u20ac\u00a2'));
+    const broken = (await q("select pg_get_functiondef('private.izytel_shared_available_page(integer,timestamptz,text)'::regprocedure) definition")).rows[0].definition;
+    assert(broken.includes('\u00e2\u20ac\u00a2'));
+    const repair = migrations.find(name=>name.endsWith('_shared_queue_mask_unicode.sql'));
+    const repairSql = await readFile(join(root,'supabase/migrations',repair),'utf8');
+    assert(!/[^\x00-\x7f]/.test(repairSql),'The deployment SQL must remain ASCII');
+    await q(repairSql);
   }
   if (fastProcessing) {
     await q('create publication supabase_realtime');
@@ -141,6 +150,13 @@ await withPostgres(async ({admin, connect}) => {
   assert.deepEqual(preserved, historical);
   await q('update private.izytel_shared_queue_settings set enabled=true,activated_at=clock_timestamp()');
   await seed('shared'); await seed('other-zone', 'z2');
+  if (process.argv.includes('--pagination')) {
+    const available = (await a1.query('select public.izytel_shared_available_page() r')).rows[0].r.orders;
+    const mask = available.find(order=>order.order_id==='shared').beneficiary_masked;
+    assert.equal(mask,'\u2022\u2022 \u2022\u2022 \u2022\u2022 0018');
+    assert.equal(Buffer.from(mask,'utf8').toString('hex'),'e280a2e280a220e280a2e280a220e280a2e280a22030303138');
+    note('the production encoding corruption is repaired to the exact UTF-8 masked payload');
+  }
   assert.equal((await m2.query("select * from phase4_assignment_orders where order_id='shared'")).rowCount, 0);
   assert.equal((await m1.query("select * from phase4_assignment_orders where order_id='other-zone'")).rowCount, 0);
   assert.equal((await a3.query("select * from phase4_assignment_orders where order_id='shared'")).rowCount, 0);
@@ -333,6 +349,7 @@ await withPostgres(async ({admin, connect}) => {
         assert(!seen.has(order.order_id)); seen.add(order.order_id);
         assert.equal(order.zone_id,'z1');
         assert(!JSON.stringify(order).includes('0700000018'));
+        assert.match(order.beneficiary_masked,/^(?:\u2022{2} \u2022{2} \u2022{2} [0-9]{4}|\u2022{4})$/u);
       }
       cursor = page.next_cursor;
     } while(cursor);

@@ -1,10 +1,11 @@
 {
-  "executed_at": "2026-11-20T00:24:57.009Z",
+  "executed_at": "2026-11-20T01:21:40.050Z",
   "fast_processing": false,
   "supplemental_migration_sha256": null,
   "migration_sha256": "7347127e1fdea63db58c79ad77b4ccfc62fe988802fbd8e2be944d0975d96177",
-  "passed": 13,
+  "passed": 14,
   "checks": [
+    "the production encoding corruption is repaired to the exact UTF-8 masked payload",
     "catalog grants and single territorial SELECT policy: direct cross-zone reads and writes cannot expose shared orders",
     "obsolete Firebase reconciliation, closure and refusal import cannot undo or remove a shared order",
     "real payment synchronization publishes once and preserves canonical amount, beneficiary and acceptance on replay",
@@ -23,8 +24,8 @@
     "synthetic_backlog": 1000,
     "page_size": 100,
     "read_durations_ms": [
-      47,
       46,
+      47,
       46
     ],
     "scope": "local fixture only; not a production capacity guarantee"
