@@ -1,0 +1,100 @@
+{
+  "functions": [
+    {
+      "name": "izytel_sync_catalog_offer_category",
+      "definition": "CREATE OR REPLACE FUNCTION public.izytel_sync_catalog_offer_category()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare\r\n  v_slug text := lower(btrim(coalesce(new.category, '')));\r\n  v_category record;\r\nbegin\r\n  if v_slug = 'mixte' then\r\n    v_slug := 'mixed';\r\n  end if;\r\n\r\n  if new.category_id is not null and (tg_op = 'INSERT' or new.category_id is distinct from old.category_id or v_slug = '') then\r\n    select id, slug into v_category\r\n    from public.offer_categories\r\n    where id = new.category_id\r\n      and deleted_at is null;\r\n    if found then\r\n      new.category := v_category.slug;\r\n      return new;\r\n    end if;\r\n  end if;\r\n\r\n  if v_slug <> '' then\r\n    select id, slug into v_category\r\n    from public.offer_categories\r\n    where slug = v_slug\r\n      and deleted_at is null;\r\n    if found then\r\n      new.category_id := v_category.id;\r\n      new.category := v_category.slug;\r\n      return new;\r\n    end if;\r\n  end if;\r\n\r\n  new.category := coalesce(nullif(v_slug, ''), 'internet');\r\n  return new;\r\nend;\r\n$function$\n"
+    },
+    {
+      "name": "catalog_version_guard",
+      "definition": "CREATE OR REPLACE FUNCTION private.catalog_version_guard()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare errs jsonb; metadata public.catalog_offer_import_metadata;\nbegin\n  new.offer_code:=coalesce(nullif(btrim(new.offer_code),''),new.id);\n  if tg_op='UPDATE' then\n    new.catalog_version:=old.catalog_version+1;\n    if old.code_confirmed and new.offer_code<>old.offer_code then raise exception 'CATALOG_CODE_IMMUTABLE'; end if;\n    if not old.is_active and new.is_active and new.catalog_data is null and coalesce(current_setting('izytel.catalog_restore',true),'')<>'true' then raise exception 'CATALOG_VERIFICATION_REQUIRED'; end if;\n  elsif new.is_active and new.catalog_data is null and new.source_kind<>'legacy_firestore' then\n    raise exception 'CATALOG_VERIFICATION_REQUIRED';\n  end if;\n  if new.deleted_at is not null then new.is_active:=false; end if;\n  new.catalog_status:=case when new.is_active then 'ACTIF' when new.catalog_status='BROUILLON' then 'BROUILLON' else 'INACTIF' end;\n  if new.catalog_data is not null then\n    select * into metadata from public.catalog_offer_import_metadata where offer_id=new.id;\n    new.catalog_data:=coalesce(metadata.data,'{}')||new.catalog_data;\n    if new.delivery_proof='CONFIRMED' then new.delivery_proof:=metadata.delivery_proof; end if;\n    -- Keep single-offer legacy RPCs in sync with the canonical import fields.\n    new.catalog_data:=new.catalog_data||jsonb_build_object('nom_affiche',new.title,'prix_fcfa',new.selling_price::text,\n      'statut',new.catalog_status,'ordre_affichage',new.display_order::text,'code_offre',new.offer_code);\n    if new.is_active then\n      errs:=private.catalog_validate(new.catalog_data,new);\n      if jsonb_array_length(errs)>0 then raise exception 'CATALOG_PUBLICATION_BLOCKED: %',errs; end if;\n    end if;\n    insert into public.catalog_offer_import_metadata(offer_id,data,delivery_proof) values(new.id,new.catalog_data,new.delivery_proof)\n      on conflict(offer_id) do update set data=excluded.data,delivery_proof=excluded.delivery_proof;\n    new.catalog_data:=new.catalog_data-'commentaire'-'source_url'-'reference_operateur';\n    new.delivery_proof:=case when nullif(btrim(new.delivery_proof),'') is not null then 'CONFIRMED' end;\n  elsif tg_op='UPDATE' then\n    delete from public.catalog_offer_import_metadata where offer_id=new.id;\n  end if;\n  return new;\nend $function$\n"
+    },
+    {
+      "name": "catalog_validate",
+      "definition": "CREATE OR REPLACE FUNCTION private.catalog_validate(p_data jsonb, p_existing catalog_offers)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE\n SET search_path TO ''\nAS $function$\ndeclare errors jsonb:='[]'; k text; value text; verified date;\nbegin\n  if coalesce(p_data->>'code_offre','') !~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$' then errors:=errors||jsonb_build_array('code_offre obligatoire : lettres, chiffres, point, tiret, souligné ; 120 caractères maximum.'); end if;\n  if p_data->>'action' not in ('UPSERT','DESACTIVER') then errors:=errors||jsonb_build_array('Action attendue : UPSERT ou DESACTIVER.'); end if;\n  if p_existing.id is not null and p_data->>'operateur'<>'' and lower(p_data->>'operateur')<>p_existing.network then errors:=errors||jsonb_build_array('Collision de code entre opérateurs.'); end if;\n  if p_existing.deleted_at is not null then errors:=errors||jsonb_build_array('Offre archivée : restauration administrative nécessaire avant modification.'); end if;\n  if p_data->>'action'='DESACTIVER' then\n    if p_existing.id is null then errors:=errors||jsonb_build_array('Code inconnu : aucune offre à désactiver.'); end if;\n    return errors;\n  end if;\n  if not exists(select 1 from public.catalog_import_families where network=p_data->>'operateur' and code=p_data->>'famille' and enabled) then errors:=errors||jsonb_build_array('Famille ou opérateur non reconnu / incompatible.'); end if;\n  if p_data->>'type_forfait' not in ('INTERNET','MIXTE','APPELS','SOCIAL') then errors:=errors||jsonb_build_array('type_forfait invalide.'); end if;\n  if length(p_data->>'nom_affiche') not between 2 and 120 then errors:=errors||jsonb_build_array('nom_affiche : 2 à 120 caractères.'); end if;\n  if p_data->>'statut' not in ('BROUILLON','ACTIF','INACTIF') then errors:=errors||jsonb_build_array('statut invalide.'); end if;\n  if p_data->>'mis_en_avant' not in ('OUI','NON') or p_data->>'activable_pour_tiers' not in ('OUI','NON','A_VERIFIER') or p_data->>'canal_activation' not in ('MANUEL','USSD','API','APP_OPERATEUR','A_VERIFIER') then errors:=errors||jsonb_build_array('Valeur de vérification / activation non reconnue.'); end if;\n  foreach k in array array['prix_fcfa','volume_data','minutes_appels','nombre_sms','duree_valeur','ordre_affichage'] loop\n    value:=p_data->>k;\n    if value='' and k in ('volume_data','minutes_appels','nombre_sms') then continue; end if;\n    if value !~ '^[0-9]+(\\.[0-9]+)?$' or length(value)>20 then errors:=errors||jsonb_build_array(k||' : nombre invalide.');\n    elsif value::numeric>100000000 or (k in ('prix_fcfa','volume_data','duree_valeur') and value::numeric<=0) or (k<>'volume_data' and value::numeric<>trunc(value::numeric)) then errors:=errors||jsonb_build_array(k||' : quantité / précision invalide.'); end if;\n  end loop;\n  if p_data->>'duree_unite' not in ('JOUR','HEURE','MOIS') then errors:=errors||jsonb_build_array('duree_unite invalide.'); end if;\n  if p_data->>'unite_data' not in ('','MO','GO') or ((p_data->>'volume_data'='')<>(p_data->>'unite_data'='')) then errors:=errors||jsonb_build_array('Volume et unité MO/GO à renseigner ensemble.'); end if;\n  if p_data->>'verifie_le'<>'' then\n    begin\n      verified:=(p_data->>'verifie_le')::date;\n      if p_data->>'verifie_le' !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' or verified>current_date then raise exception 'invalid date'; end if;\n    exception when others then errors:=errors||jsonb_build_array('verifie_le : date AAAA-MM-JJ valide et non future attendue.'); verified:=null; end;\n  end if;\n  return errors;\nend $function$\n"
+    },
+    {
+      "name": "catalog_offer_presentation",
+      "definition": "CREATE OR REPLACE FUNCTION private.catalog_offer_presentation()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare display jsonb; reference text;\nbegin\n  if new.catalog_data is null or coalesce(current_setting('izytel.catalog_restore',true),'')='true' then return new; end if;\n  -- Runs after catalog_offer_import_version: private metadata is already saved,\n  -- while comments, source URLs and delivery evidence stay out of public data.\n  select data->>'reference_operateur' into reference from public.catalog_offer_import_metadata where offer_id=new.id;\n  display:=private.catalog_presentation(new.catalog_data||jsonb_build_object('reference_operateur',reference));\n  new.volume:=display->>'volume';\n  new.details:=array(select jsonb_array_elements_text(display->'details'));\n  new.badge_label:=display->>'badge_label';\n  return new;\nend $function$\n"
+    },
+    {
+      "name": "catalog_quantity_label",
+      "definition": "CREATE OR REPLACE FUNCTION private.catalog_quantity_label(p_value text)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE STRICT\n SET search_path TO ''\n SET extra_float_digits TO '1'\nAS $function$\n  select replace(trim_scale(((p_value::double precision)::text)::numeric)::text,'.',',')\n$function$\n"
+    },
+    {
+      "name": "catalog_presentation",
+      "definition": "CREATE OR REPLACE FUNCTION private.catalog_presentation(p_data jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n IMMUTABLE\n SET search_path TO ''\nAS $function$\ndeclare v_volume text; v_details text[]:='{}'; v_validity text; v_nature text; v_badge text;\nbegin\n  v_nature:=nullif(left(regexp_replace(btrim(coalesce(p_data->>'reference_operateur','')),'[[:space:]]+',' ','g'),80),'');\n  if p_data->>'mis_en_avant'='OUI' then\n    v_badge:=case when v_nature is not null and length(v_nature)<=20 then v_nature else 'Mis en avant' end;\n  end if;\n  if nullif(p_data->>'volume_data','') is not null then\n    v_volume:=private.catalog_quantity_label(p_data->>'volume_data')||' '||(p_data->>'unite_data');\n    v_details:=array_append(v_details,v_volume);\n  end if;\n  if nullif(p_data->>'minutes_appels','') is not null then v_details:=array_append(v_details,(p_data->>'minutes_appels')||' min'); end if;\n  if nullif(p_data->>'nombre_sms','') is not null then v_details:=array_append(v_details,(p_data->>'nombre_sms')||' SMS'); end if;\n  v_validity:=(p_data->>'duree_valeur')||' '||case p_data->>'duree_unite'\n    when 'JOUR' then case when (p_data->>'duree_valeur')::numeric>1 then 'jours' else 'jour' end\n    when 'HEURE' then case when (p_data->>'duree_valeur')::numeric>1 then 'heures' else 'heure' end else 'mois' end;\n  v_details:=array_append(v_details,'Validité '||v_validity);\n  -- Keep the badge's presence tied to mis_en_avant: the existing client uses\n  -- that presence to rank featured offers. Reuse the first detail otherwise,\n  -- without adding a fifth line that would hide validity on mixed offers.\n  if v_nature is not null and v_badge is distinct from v_nature then\n    v_details[1]:=v_nature||' · '||v_details[1];\n  end if;\n  return jsonb_build_object('volume',v_volume,'details',v_details,'badge_label',v_badge);\nend $function$\n"
+    }
+  ],
+  "families": [
+    {
+      "code": "INTERNET",
+      "enabled": true,
+      "network": "ORANGE",
+      "conditional": false
+    },
+    {
+      "code": "MAXIT",
+      "enabled": true,
+      "network": "ORANGE",
+      "conditional": true
+    }
+  ],
+  "metadata": [
+    {
+      "data": {
+        "action": "UPSERT",
+        "statut": "ACTIF",
+        "famille": "INTERNET",
+        "operateur": "ORANGE",
+        "prix_fcfa": "800",
+        "code_offre": "OR-DAT-20261118-003",
+        "nombre_sms": "",
+        "source_url": "https://www.orange.ci/fr/catalogue-offres-mobiles.html",
+        "unite_data": "MO",
+        "verifie_le": "",
+        "commentaire": "SELECTION IZYTEL 18-11-2026. Offre classique ou pass special conserve de la selection precedente; prix/validite a verifier avant commercialisation. Publication a verifier dans le back-office; ne pas forcer le statut ACTIF.",
+        "duree_unite": "JOUR",
+        "nom_affiche": "Pass semaine 750 Mo",
+        "volume_data": "750",
+        "duree_valeur": "7",
+        "mis_en_avant": "NON",
+        "type_forfait": "INTERNET",
+        "minutes_appels": "",
+        "ordre_affichage": "53",
+        "canal_activation": "A_VERIFIER",
+        "reference_operateur": "INTERNET",
+        "activable_pour_tiers": "A_VERIFIER"
+      },
+      "offer_id": "952c2ec4-08f9-4623-b1ab-207bf5cac335",
+      "delivery_proof": null
+    },
+    {
+      "data": {
+        "action": "UPSERT",
+        "statut": "ACTIF",
+        "famille": "INTERNET",
+        "operateur": "ORANGE",
+        "prix_fcfa": "2500",
+        "code_offre": "OR-DAT-20261118-004",
+        "nombre_sms": "",
+        "source_url": "https://www.orange.ci/fr/catalogue-offres-mobiles.html",
+        "unite_data": "GO",
+        "verifie_le": "",
+        "commentaire": "SELECTION IZYTEL 18-11-2026. Offre classique ou pass special conserve de la selection precedente; prix/validite a verifier avant commercialisation. Publication a verifier dans le back-office; ne pas forcer le statut ACTIF.",
+        "duree_unite": "JOUR",
+        "nom_affiche": "Pass 7 jours 10 Go",
+        "volume_data": "10",
+        "duree_valeur": "7",
+        "mis_en_avant": "NON",
+        "type_forfait": "INTERNET",
+        "minutes_appels": "",
+        "ordre_affichage": "78",
+        "canal_activation": "A_VERIFIER",
+        "reference_operateur": "INTERNET",
+        "activable_pour_tiers": "A_VERIFIER"
+      },
+      "offer_id": "4e4db7fb-5964-4877-a5e2-bf6f8468ea04",
+      "delivery_proof": null
+    }
+  ]
+}

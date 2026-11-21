@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cabine_flow/app/core/logging/izytel_log.dart';
+import 'package:cabine_flow/app/core/resilience/backend_failure_policy.dart';
 import 'package:cabine_flow/app/domain/entities/agents/agent_models.dart';
 import 'package:cabine_flow/app/domain/repositories/agent_repository.dart';
 import 'package:cabine_flow/app/domain/entities/orders/order_proof.dart';
@@ -43,10 +44,28 @@ class AgentOrdersViewModel extends ChangeNotifier {
   bool _isLoading = true;
   Future<void>? _refreshFuture;
   final Set<String> _executionAuthorized = {};
+  bool _disposed = false;
 
-  bool canOpenProcessing(QueueOrder order) =>
+  bool canOpenProcessing(QueueOrder order) {
+    final current = orderById(order.id);
+    return !_disposed &&
+        current != null &&
+        current.assignmentVersion == order.assignmentVersion &&
+        _isAcceptedForProcessing(current) &&
+        _isAcceptedForProcessing(order) &&
+        current.status != QueueOrderStatus.paidReady &&
+        _executionAuthorized.contains('${order.id}:${order.assignmentVersion}');
+  }
+
+  bool _isAcceptedForProcessing(QueueOrder order) =>
       order.assignedAgentId == agentId &&
-      _executionAuthorized.contains('${order.id}:${order.assignmentVersion}');
+      order.assignmentStatus == OrderAssignmentStatus.accepted &&
+      order.isFundedForProcessing &&
+      const [
+        QueueOrderStatus.paidReady,
+        QueueOrderStatus.inProgress,
+        QueueOrderStatus.onHold,
+      ].contains(order.status);
 
   AgentOrdersTab get selectedTab => _selectedTab;
   AgentProfile? get agentProfile => _agentProfile;
@@ -430,7 +449,11 @@ class AgentOrdersViewModel extends ChangeNotifier {
   }
 
   Future<bool> startProcessing(QueueOrder order) async {
-    if (!_canActOnAcceptedOrder(order)) return false;
+    if (_disposed ||
+        !_canActOnAcceptedOrder(order) ||
+        !_isAcceptedForProcessing(order)) {
+      return false;
+    }
     _busyOrderId = order.id;
     _errorMessage = null;
     _errorIsQueueLoad = false;
@@ -452,10 +475,24 @@ class AgentOrdersViewModel extends ChangeNotifier {
         Future<void>.delayed(const Duration(seconds: 5)),
       ]);
       QueueOrder updated = results.first as QueueOrder;
+      if (_disposed) return false;
       if (repository is OrderExecutionAuthorizationRepository) {
         updated = await (repository as OrderExecutionAuthorizationRepository)
             .authorizeAgentExecution(order)
             .timeout(const Duration(seconds: 15));
+      }
+      if (_disposed) return false;
+      final current = orderById(order.id);
+      if (updated.id != order.id ||
+          updated.assignmentVersion != order.assignmentVersion ||
+          !_isAcceptedForProcessing(updated) ||
+          updated.status == QueueOrderStatus.paidReady ||
+          current == null ||
+          current.assignmentVersion != order.assignmentVersion ||
+          !_isAcceptedForProcessing(current)) {
+        throw StateError(
+          'Cette commande a changé. Actualisez vos commandes avant de continuer.',
+        );
       }
       _executionAuthorized.add('${updated.id}:${updated.assignmentVersion}');
       _replaceOrder(updated);
@@ -463,14 +500,18 @@ class AgentOrdersViewModel extends ChangeNotifier {
       _selectedTab = AgentOrdersTab.inProgress;
       return true;
     } catch (error, stackTrace) {
+      if (_disposed) return false;
       _logActionError('start', error, stackTrace);
-      _errorMessage = error is TimeoutException
+      final kind = BackendFailurePolicy.classify(error);
+      _errorMessage =
+          kind == BackendFailureKind.network ||
+              kind == BackendFailureKind.timeout
           ? 'Connexion interrompue. Votre commande reste réservée. Réessayez.'
           : _friendlyError(error);
       return false;
     } finally {
       _busyOrderId = null;
-      notifyListeners();
+      if (!_disposed) notifyListeners();
     }
   }
 
@@ -650,6 +691,8 @@ class AgentOrdersViewModel extends ChangeNotifier {
         status == QueueOrderStatus.awaitingCustomerConfirmation ||
         status == QueueOrderStatus.failed ||
         status == QueueOrderStatus.cancelled ||
+        status == QueueOrderStatus.expired ||
+        status == QueueOrderStatus.refundPending ||
         status == QueueOrderStatus.refunded;
   }
 
@@ -789,6 +832,8 @@ class AgentOrdersViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
+    _executionAuthorized.clear();
     _subscription?.cancel();
     _refusedHistorySubscription?.cancel();
     _profileSubscription?.cancel();

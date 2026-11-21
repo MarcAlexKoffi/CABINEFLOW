@@ -56,10 +56,21 @@ class _BackofficeLoginPageState extends State<BackofficeLoginPage> {
       _errorMessage = null;
     });
 
-    final AuthLoginResult result = await widget.authRepository.login(
-      identifier: _emailController.text,
-      password: _passwordController.text,
-    );
+    final AuthLoginResult result;
+    try {
+      result = await widget.authRepository.login(
+        identifier: _emailController.text,
+        password: _passwordController.text,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _errorMessage =
+            'Connexion interrompue. Vérifiez votre connexion puis réessayez.';
+      });
+      return;
+    }
     if (!mounted) return;
 
     final AppUser? user = result.user;
@@ -235,6 +246,7 @@ class _BackofficeLoginPageState extends State<BackofficeLoginPage> {
                 readOnly: _loading,
                 autocorrect: false,
                 enableSuggestions: false,
+                keyboardType: TextInputType.visiblePassword,
                 obscureText: _obscurePassword,
                 autofillHints: const <String>[AutofillHints.password],
                 textInputAction: TextInputAction.done,
@@ -478,11 +490,13 @@ class _DesktopHero extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        'Admin mobile conservé · Back-office complémentaire',
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: Colors.white.withValues(alpha: .78),
-                          fontWeight: FontWeight.w700,
+                      Flexible(
+                        child: Text(
+                          'Admin mobile conservé · Back-office complémentaire',
+                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: Colors.white.withValues(alpha: .78),
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ],

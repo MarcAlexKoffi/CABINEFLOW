@@ -46,7 +46,15 @@ class UssdResolution {
           (result.isMaxIt &&
               (result.rule!.network != 'orange' ||
                   ((result.rule!.offerId?.trim().isEmpty ?? true) &&
-                      (result.rule!.familyId?.trim().isEmpty ?? true))))) {
+                      (result.rule!.familyId?.trim().isEmpty ?? true) &&
+                      !(const [
+                            'maxit',
+                            'calls',
+                          ].contains(result.rule!.commercialCategory) &&
+                          result.context['commercial_category'] ==
+                              result.rule!.commercialCategory &&
+                          (result.context['offer_id'] as String?)?.isNotEmpty ==
+                              true))))) {
         throw const FormatException('invalid_ussd_resolution');
       }
       for (final key in ['network', 'service', 'offer_label', 'beneficiary']) {

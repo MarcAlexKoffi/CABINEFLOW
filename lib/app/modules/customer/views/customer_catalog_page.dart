@@ -10,6 +10,7 @@ import 'package:cabine_flow/app/shared/widgets/design_system/izy_tel_operator_br
 import 'package:cabine_flow/app/shared/widgets/design_system/izy_tel_shell.dart';
 import 'package:cabine_flow/app/shared/widgets/design_system/izy_tel_states.dart';
 import 'package:flutter/material.dart';
+import 'package:cabine_flow/app/modules/customer/widgets/live_offer_bonus.dart';
 
 class CustomerCatalogPage extends StatefulWidget {
   const CustomerCatalogPage({
@@ -38,12 +39,14 @@ class CustomerCatalogPage extends StatefulWidget {
 }
 
 class _CustomerCatalogPageState extends State<CustomerCatalogPage> {
-  CustomerOfferType? _typeFilter;
+  String? _typeFilter;
   MobileNetwork? _networkFilter;
   late Stream<List<CustomerOffer>> _offersStream = _watchOffers();
 
   Stream<List<CustomerOffer>> _watchOffers() {
-    return widget.offerRepository.watchAllOffers().map((List<CustomerOffer> source) {
+    return widget.offerRepository.watchAllOffers().map((
+      List<CustomerOffer> source,
+    ) {
       final List<CustomerOffer> values = source.toList(growable: true);
       values.sort((CustomerOffer a, CustomerOffer b) {
         final int byNetwork = a.network.index.compareTo(b.network.index);
@@ -63,7 +66,10 @@ class _CustomerCatalogPageState extends State<CustomerCatalogPage> {
   List<CustomerOffer> _filtered(List<CustomerOffer> source) {
     return source
         .where((CustomerOffer offer) {
-          if (_typeFilter != null && offer.type != _typeFilter) {
+          final category =
+              offer.category ??
+              (offer.type == CustomerOfferType.internet ? 'internet' : 'calls');
+          if (_typeFilter != null && category != _typeFilter) {
             return false;
           }
           if (_networkFilter != null && offer.network != _networkFilter) {
@@ -146,85 +152,78 @@ class _CustomerCatalogPageState extends State<CustomerCatalogPage> {
             ),
       child: StreamBuilder<List<CustomerOffer>>(
         stream: _offersStream,
-        builder:
-            (
-              BuildContext context,
-              AsyncSnapshot<List<CustomerOffer>> snapshot,
-            ) {
-              return LayoutBuilder(
-                builder: (BuildContext context, BoxConstraints constraints) {
-                  final bool desktop = constraints.maxWidth >= 900;
-                  return RefreshIndicator(
-                    onRefresh: _refreshOffers,
-                    child: ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: EdgeInsets.fromLTRB(
-                      desktop ? 32 : 18,
-                      24,
-                      desktop ? 32 : 18,
-                      36,
-                    ),
-                    children: [
-                      Text(
-                        'Choisissez votre offre',
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 7),
-                      Text(
-                        'Choisissez un forfait du catalogue ou lancez un transfert direct sans sélectionner d’offre.',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 18),
-                      _DirectTransferBanner(
-                        onPressed: widget.onStartDirectTransfer,
-                        compact: !desktop,
-                      ),
-                      const SizedBox(height: 22),
-                      _Filters(
-                        type: _typeFilter,
-                        network: _networkFilter,
-                        onTypeChanged: (CustomerOfferType? value) =>
-                            setState(() => _typeFilter = value),
-                        onNetworkChanged: (MobileNetwork? value) =>
-                            setState(() => _networkFilter = value),
-                      ),
-                      const SizedBox(height: 24),
-                      if (snapshot.connectionState == ConnectionState.waiting &&
-                          !snapshot.hasData)
-                        const _CatalogLoading()
-                      else if (snapshot.hasError)
-                        IzyTelErrorState(
-                          message: BackendReadStream.readErrorMessage(
-                            snapshot.error!,
-                            fallback: 'Impossible de charger les offres pour le moment.',
-                          ),
-                          onRetry: _retry,
-                        )
-                      else
-                        _OffersGrid(
-                          offers: _filtered(
-                            snapshot.data ?? const <CustomerOffer>[],
-                          ),
-                          desktop: desktop,
-                          onChoose: widget.onChooseOffer,
-                        ),
-                    ],
+        builder: (BuildContext context, AsyncSnapshot<List<CustomerOffer>> snapshot) {
+          return LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final bool desktop = constraints.maxWidth >= 900;
+              return RefreshIndicator(
+                onRefresh: _refreshOffers,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(
+                    desktop ? 32 : 18,
+                    24,
+                    desktop ? 32 : 18,
+                    36,
                   ),
-                );
-                },
+                  children: [
+                    Text(
+                      'Choisissez votre offre',
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      'Choisissez un forfait du catalogue ou lancez un transfert direct sans sélectionner d’offre.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 18),
+                    _DirectTransferBanner(
+                      onPressed: widget.onStartDirectTransfer,
+                      compact: !desktop,
+                    ),
+                    const SizedBox(height: 22),
+                    _Filters(
+                      type: _typeFilter,
+                      network: _networkFilter,
+                      onTypeChanged: (String? value) =>
+                          setState(() => _typeFilter = value),
+                      onNetworkChanged: (MobileNetwork? value) =>
+                          setState(() => _networkFilter = value),
+                    ),
+                    const SizedBox(height: 24),
+                    if (snapshot.connectionState == ConnectionState.waiting &&
+                        !snapshot.hasData)
+                      const _CatalogLoading()
+                    else if (snapshot.hasError)
+                      IzyTelErrorState(
+                        message: BackendReadStream.readErrorMessage(
+                          snapshot.error!,
+                          fallback:
+                              'Impossible de charger les offres pour le moment.',
+                        ),
+                        onRetry: _retry,
+                      )
+                    else
+                      _OffersGrid(
+                        offers: _filtered(
+                          snapshot.data ?? const <CustomerOffer>[],
+                        ),
+                        desktop: desktop,
+                        onChoose: widget.onChooseOffer,
+                      ),
+                  ],
+                ),
               );
             },
+          );
+        },
       ),
     );
   }
 }
 
-
 class _DirectTransferBanner extends StatelessWidget {
-  const _DirectTransferBanner({
-    required this.onPressed,
-    required this.compact,
-  });
+  const _DirectTransferBanner({required this.onPressed, required this.compact});
 
   final VoidCallback onPressed;
   final bool compact;
@@ -312,9 +311,9 @@ class _Filters extends StatelessWidget {
     required this.onNetworkChanged,
   });
 
-  final CustomerOfferType? type;
+  final String? type;
   final MobileNetwork? network;
-  final ValueChanged<CustomerOfferType?> onTypeChanged;
+  final ValueChanged<String?> onTypeChanged;
   final ValueChanged<MobileNetwork?> onNetworkChanged;
 
   @override
@@ -323,7 +322,7 @@ class _Filters extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Type',
+          'Catégorie',
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
@@ -340,16 +339,19 @@ class _Filters extends StatelessWidget {
               selected: type == null,
               onTap: () => onTypeChanged(null),
             ),
-            _FilterChip(
-              label: 'Internet',
-              selected: type == CustomerOfferType.internet,
-              onTap: () => onTypeChanged(CustomerOfferType.internet),
-            ),
-            _FilterChip(
-              label: 'Appels',
-              selected: type == CustomerOfferType.calls,
-              onTap: () => onTypeChanged(CustomerOfferType.calls),
-            ),
+            for (final item in const {
+              'internet': 'Internet',
+              'calls': 'Appels',
+              'maxit': 'MAXIT',
+              'cchic': 'C’CHIC',
+              'folie': 'Folie',
+              'mixed': 'Mixte',
+            }.entries)
+              _FilterChip(
+                label: item.value,
+                selected: type == item.key,
+                onTap: () => onTypeChanged(item.key),
+              ),
           ],
         ),
         const SizedBox(height: 14),
@@ -476,7 +478,10 @@ class _CatalogOfferCard extends StatelessWidget {
   final VoidCallback onChoose;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      LiveOfferBonus(offer: offer, builder: _buildCard);
+
+  Widget _buildCard(BuildContext context) {
     return IzyTelCard(
       padding: const EdgeInsets.all(17),
       child: Column(
@@ -499,15 +504,13 @@ class _CatalogOfferCard extends StatelessWidget {
                       style: Theme.of(context).textTheme.labelLarge,
                     ),
                     Text(
-                      offer.type == CustomerOfferType.internet
-                          ? 'Internet'
-                          : 'Appels',
+                      offer.categoryLabel,
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
                 ),
               ),
-              if (offer.badgeLabel != null)
+              if (offer.displayBadge != null)
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
@@ -518,7 +521,7 @@ class _CatalogOfferCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    offer.badgeLabel!,
+                    offer.displayBadge!,
                     style: const TextStyle(
                       color: CustomerAppColors.primary,
                       fontSize: 9,
@@ -531,7 +534,7 @@ class _CatalogOfferCard extends StatelessWidget {
           const SizedBox(height: 14),
           Text(offer.title, style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 9),
-          ...offer.details
+          ...offer.displayDetails
               .take(4)
               .map(
                 (String detail) => Padding(

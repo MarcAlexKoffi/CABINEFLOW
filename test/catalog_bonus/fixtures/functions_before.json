@@ -1,0 +1,121 @@
+[
+  {
+    "acl": "{postgres=X/postgres}",
+    "name": "ussd_catalog_offer_group",
+    "schema": "private",
+    "identity": "private.ussd_catalog_offer_group(text,text,text)",
+    "definition": "CREATE OR REPLACE FUNCTION private.ussd_catalog_offer_group(p_network text, p_family_code text, p_title text)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE\n SET search_path TO ''\nAS $function$\r\n  select case\r\n    when p_network='moov' and (\r\n      regexp_replace(lower(coalesce(p_family_code,'')),'[^a-z0-9]','','g')='folie'\r\n      or regexp_replace(lower(coalesce(p_title,'')),'[^a-z0-9]+',' ','g') ~ '(^| )(moov *)?folie( |$)') then 'folie'\r\n    when p_network='mtn' and (\r\n      regexp_replace(lower(coalesce(p_family_code,'')),'[^a-z0-9]','','g')='cchic'\r\n      or regexp_replace(lower(coalesce(p_title,'')),'[^a-z0-9]+',' ','g') ~ '(^| )c *chic( |$)') then 'cchic'\r\n    else null end;\r\n$function$\n"
+  },
+  {
+    "acl": "{postgres=X/postgres}",
+    "name": "ussd_validate_rule",
+    "schema": "private",
+    "identity": "private.ussd_validate_rule(ussd_execution_rules)",
+    "definition": "CREATE OR REPLACE FUNCTION private.ussd_validate_rule(r ussd_execution_rules)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare vars text[];\r\nbegin\r\n  perform private.ussd_admin();\r\n    vars:=private.ussd_template(r.ussd_template);\r\n    if r.service='sms' and not exists(select 1 from public.catalog_offers c where c.operation_type='sms' and c.deleted_at is null) then raise exception 'unsupported_order_service'; end if;\r\n    if r.family_id is not null and not exists(select 1 from public.ussd_offer_families f\r\n      where f.id=r.family_id and f.network=r.network and (f.service='all' or r.service='all' or f.service=r.service)) then raise exception 'invalid_association'; end if;\r\n    if r.offer_id is not null and not exists(select 1 from public.catalog_offers c\r\n      left join public.ussd_offer_bindings b on b.offer_id=c.id where c.id=r.offer_id and c.deleted_at is null\r\n      and c.network=r.network and (r.service='all' or private.ussd_service(c.operation_type)=r.service) and (r.family_id is null or b.family_id=r.family_id)\r\n        and (r.offer_group is null or private.ussd_catalog_offer_group(c.network,c.family_code,c.title)=r.offer_group)) then raise exception 'invalid_association'; end if;\r\n\r\n    if r.effective_until is not null and r.effective_until<=clock_timestamp() then raise exception 'expired_rule'; end if;\r\n    if ('offer_code'=any(vars) or 'quantity'=any(vars)) then\r\n      if r.offer_id is null and r.family_id is null and r.offer_group is null then raise exception 'missing_offer_context'; end if;\r\n      if not exists(select 1 from public.catalog_offers c left join public.ussd_offer_bindings b on b.offer_id=c.id\r\n        where c.deleted_at is null and c.network=r.network and (r.service='all' or private.ussd_service(c.operation_type)=r.service)\r\n        and (r.offer_id is null or c.id=r.offer_id) and (r.family_id is null or b.family_id=r.family_id)\r\n        and (r.offer_group is null or private.ussd_catalog_offer_group(c.network,c.family_code,c.title)=r.offer_group)) then raise exception 'missing_offer_context'; end if;\r\n      if exists(select 1 from public.catalog_offers c left join public.ussd_offer_bindings b on b.offer_id=c.id\r\n        where c.deleted_at is null and c.network=r.network and (r.service='all' or private.ussd_service(c.operation_type)=r.service)\r\n        and (r.offer_id is null or c.id=r.offer_id) and (r.family_id is null or b.family_id=r.family_id)\r\n        and (r.offer_group is null or private.ussd_catalog_offer_group(c.network,c.family_code,c.title)=r.offer_group)\r\n        and (('offer_code'=any(vars) and b.offer_code is null) or ('quantity'=any(vars) and b.quantity is null))) then raise exception 'missing_offer_context'; end if;\r\n    end if;\r\n    if exists(select 1 from public.ussd_execution_rules x where x.id<>r.id and x.status='active'\r\n      and x.network=r.network and x.purpose=r.purpose and (x.service is not distinct from r.service or x.service='all' or r.service='all') and x.priority=r.priority\r\n      and (x.actor_scope=r.actor_scope or x.actor_scope='both' or r.actor_scope='both')\r\n      and ((r.offer_id is not null and x.offer_id=r.offer_id) or\r\n        (r.offer_id is null and x.offer_id is null and r.family_id is not distinct from x.family_id and r.offer_group is not distinct from x.offer_group))\r\n      and tstzrange(x.effective_from,x.effective_until,'[)') && tstzrange(r.effective_from,r.effective_until,'[)')) then raise exception 'ambiguous_rule'; end if;\r\nend $function$\n"
+  },
+  {
+    "acl": "{postgres=X/postgres}",
+    "name": "ussd_phone",
+    "schema": "private",
+    "identity": "private.ussd_phone(text)",
+    "definition": "CREATE OR REPLACE FUNCTION private.ussd_phone(p_input text)\n RETURNS text\n LANGUAGE plpgsql\n IMMUTABLE\n SET search_path TO ''\nAS $function$\r\ndeclare v text;\r\nbegin\r\n  if p_input is null or length(p_input)>80 or p_input !~ '^[+0-9 -]+$' then raise exception 'invalid_beneficiary'; end if;\r\n  v := regexp_replace(p_input,'[ -]','','g');\r\n  if v like '+225%' then v:=substr(v,5);\r\n  elsif v like '00225%' then v:=substr(v,6);\r\n  elsif v like '225%' then v:=substr(v,4); end if;\r\n  if v !~ '^(01|05|07)[0-9]{8}$' then raise exception 'invalid_beneficiary'; end if;\r\n  return v;\r\nend $function$\n"
+  },
+  {
+    "acl": "{postgres=X/postgres}",
+    "name": "ussd_uid",
+    "schema": "private",
+    "identity": "private.ussd_uid()",
+    "definition": "CREATE OR REPLACE FUNCTION private.ussd_uid()\n RETURNS text\n LANGUAGE plpgsql\n STABLE\n SET search_path TO ''\nAS $function$\r\ndeclare v text := nullif((select auth.jwt()->>'sub'),'');\r\nbegin\r\n  if v is null or not coalesce(public.is_izytel_firebase_jwt(),false) then\r\n    raise exception 'USSD_AUTH_REQUIRED' using errcode='42501';\r\n  end if;\r\n  return v;\r\nend $function$\n"
+  },
+  {
+    "acl": "{postgres=X/postgres}",
+    "name": "ussd_admin",
+    "schema": "private",
+    "identity": "private.ussd_admin()",
+    "definition": "CREATE OR REPLACE FUNCTION private.ussd_admin()\n RETURNS text\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare v text := private.ussd_uid();\r\nbegin\r\n  if not coalesce(private.is_izytel_finance_admin(),false) then\r\n    raise exception 'USSD_ADMIN_REQUIRED' using errcode='42501';\r\n  end if;\r\n  return v;\r\nend $function$\n"
+  },
+  {
+    "acl": "{postgres=X/postgres}",
+    "name": "ussd_staff",
+    "schema": "private",
+    "identity": "private.ussd_staff()",
+    "definition": "CREATE OR REPLACE FUNCTION private.ussd_staff()\n RETURNS text\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare v text := private.ussd_uid();\r\nbegin\r\n  if coalesce(private.izytel_current_staff_role(),'') not in ('admin','manager','supervisor') then\r\n    raise exception 'USSD_STAFF_REQUIRED' using errcode='42501';\r\n  end if;\r\n  return v;\r\nend $function$\n"
+  },
+  {
+    "acl": "{postgres=X/postgres}",
+    "name": "ussd_service",
+    "schema": "private",
+    "identity": "private.ussd_service(text)",
+    "definition": "CREATE OR REPLACE FUNCTION private.ussd_service(p_operation text)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE\n SET search_path TO ''\nAS $function$\r\n  select p_operation;\r\n$function$\n"
+  },
+  {
+    "acl": "{postgres=X/postgres}",
+    "name": "ussd_actor",
+    "schema": "private",
+    "identity": "private.ussd_actor(phase4_assignment_orders)",
+    "definition": "CREATE OR REPLACE FUNCTION private.ussd_actor(p_order phase4_assignment_orders)\n RETURNS text\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare v_uid text := private.ussd_uid();\r\nbegin\r\n  if coalesce(private.izytel_current_staff_role(),'') in ('admin','manager','supervisor','operator') then\r\n    raise exception 'USSD_ASSIGNED_ACTOR_REQUIRED' using errcode='42501';\r\n  end if;\r\n  if p_order.assigned_cabiniste_id is null and p_order.assigned_agent_id = v_uid and exists(select 1 from public.phase5_agent_capacities a\r\n    where a.agent_id=v_uid and a.is_active=true and p_order.network=any(a.authorized_networks)) then return 'agent'; end if;\r\n  if exists(select 1 from public.partner_accounts p where p.id=p_order.assigned_cabiniste_id\r\n    and p_order.assigned_agent_id is null and p.firebase_uid=v_uid and p.status='active'\r\n    and p_order.network=any(p.authorized_networks)) then return 'cabiniste'; end if;\r\n  raise exception 'USSD_ASSIGNED_ACTOR_REQUIRED' using errcode='42501';\r\nend $function$\n"
+  },
+  {
+    "acl": "{postgres=X/postgres}",
+    "name": "ussd_template",
+    "schema": "private",
+    "identity": "private.ussd_template(text)",
+    "definition": "CREATE OR REPLACE FUNCTION private.ussd_template(p_template text)\n RETURNS text[]\n LANGUAGE plpgsql\n IMMUTABLE\n SET search_path TO ''\nAS $function$\ndeclare v text; m text[]; names text[]:='{}'; t text:=private.ussd_normalize_template(p_template);\nbegin\n  if t is null or length(t) not between 1 and 512 then raise exception 'invalid_template'; end if;\n  if t='APP:MAXIT' then return names;end if;\n  for m in select regexp_matches(t,'\\{\\{([^{}]+)\\}\\}','g') loop\n    if m[1] not in ('msisdn_local','amount','offer_code','quantity','secret_code') then raise exception 'unknown_variable'; end if;\n    names:=array_append(names,m[1]);\n  end loop;\n  v:=regexp_replace(t,'\\{\\{([^{}]+)\\}\\}','1','g');\n  if length(v)>182 or v !~ '^(\\*{1,2}|#)[0-9]+(\\*[0-9]+)*#$' then raise exception 'invalid_template'; end if;\n  return names;\nend $function$\n"
+  },
+  {
+    "acl": "{postgres=X/postgres}",
+    "name": "ussd_generate",
+    "schema": "private",
+    "identity": "private.ussd_generate(text,text,bigint,text,integer)",
+    "definition": "CREATE OR REPLACE FUNCTION private.ussd_generate(p_template text, p_beneficiary text, p_amount bigint, p_offer_code text, p_quantity integer)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE\n SET search_path TO ''\nAS $function$\n  select private.ussd_generate(p_template,p_beneficiary,p_amount,p_offer_code,p_quantity,null);\n$function$\n"
+  },
+  {
+    "acl": "{postgres=X/postgres}",
+    "name": "ussd_resolve_before_execution",
+    "schema": "private",
+    "identity": "private.ussd_resolve_before_execution(text)",
+    "definition": "CREATE OR REPLACE FUNCTION private.ussd_resolve_before_execution(p_order_id text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare o public.phase4_assignment_orders; r public.ussd_execution_rules; r2 public.ussd_execution_rules;\r\n  b public.ussd_offer_bindings; v_actor text; v_offer text; v_service text; v_code text; v_phone text;\r\n  v_group text; v_network text; v_context jsonb; v_secret jsonb;\r\nbegin\r\n  perform private.ussd_uid();\r\n  select * into strict o from public.phase4_assignment_orders where order_id=p_order_id;\r\n  v_actor:=private.ussd_actor(o);\r\n  if o.order_status<>'inProgress' or o.assignment_state<>'accepted' or o.payment_status not in ('confirmed','credit') then\r\n    return jsonb_build_object('status','unavailable','reason','order_not_processable'); end if;\r\n  -- Only the staff-synchronized identity is trusted. A customer recovery record\r\n  -- is not a substitute for the canonical operational offer association.\r\n  select ctx.offer_id into v_offer from public.phase4_assignment_orders a\r\n    left join public.ussd_order_contexts ctx on ctx.order_id=a.order_id where a.order_id=o.order_id;\r\n  -- Stale or inconsistent offer metadata is never used for an exact/family rule.\r\n  if v_offer is not null and not exists(select 1 from public.catalog_offers c\r\n    where c.id=v_offer and c.network=o.network and c.operation_type=o.operation_type and c.deleted_at is null) then v_offer:=null; end if;\r\n  select * into b from public.ussd_offer_bindings where offer_id=v_offer;\r\n  select private.ussd_catalog_offer_group(c.network,c.family_code,c.title) into v_group from public.catalog_offers c where c.id=v_offer;\r\n  v_service:=private.ussd_service(o.operation_type);\r\n  select * into r from public.ussd_execution_rules x where x.purpose='order' and x.status='active' and x.network=o.network and (x.service='all' or x.service=v_service)\r\n    and x.actor_scope in (v_actor,'both') and x.effective_from<=clock_timestamp()\r\n    and (x.effective_until is null or x.effective_until>clock_timestamp())\r\n    and (x.offer_id is null or x.offer_id=v_offer) and (x.family_id is null or x.family_id=b.family_id) and (x.offer_group is null or x.offer_group=v_group)\r\n    order by case when x.offer_id is not null then 4 when x.family_id is not null then 3 when x.offer_group is not null then 2 else 1 end desc,x.priority desc limit 1;\r\n  if r.id is null then return jsonb_build_object('status','unavailable','reason','no_rule'); end if;\r\n  select * into r2 from public.ussd_execution_rules x where x.id<>r.id and x.purpose='order' and x.status='active' and x.network=r.network\r\n    and (x.service='all' or x.service=v_service) and x.actor_scope in (v_actor,'both') and x.priority=r.priority\r\n    and x.effective_from<=clock_timestamp() and (x.effective_until is null or x.effective_until>clock_timestamp())\r\n    and (x.offer_id is null or x.offer_id=v_offer) and (x.family_id is null or x.family_id=b.family_id) and (x.offer_group is null or x.offer_group=v_group)\r\n    and (case when x.offer_id is not null then 4 when x.family_id is not null then 3 when x.offer_group is not null then 2 else 1 end)=\r\n      (case when r.offer_id is not null then 4 when r.family_id is not null then 3 when r.offer_group is not null then 2 else 1 end) limit 1;\r\n  if r2.id is not null then return jsonb_build_object('status','unavailable','reason','ambiguous_rule'); end if;\r\n  if 'secret_code'=any(private.ussd_template(r.ussd_template)) then\r\n    v_secret:=private.ussd_secret_settings(o.network,v_actor);\r\n  end if;\r\n  begin v_code:=private.ussd_generate(r.ussd_template,o.beneficiary_phone,o.amount,b.offer_code,b.quantity,v_secret->>'value');\r\n  exception when raise_exception then return jsonb_build_object('status','unavailable','reason',sqlerrm); end;\r\n  begin v_phone:=private.ussd_phone(o.beneficiary_phone); exception when raise_exception then v_phone:=null; end;\r\n  v_network:=case left(v_phone,2) when '07' then 'orange' when '05' then 'mtn' when '01' then 'moov' end;\r\n  v_context:=jsonb_build_object('network',o.network,'service',v_service,'offer_id',v_offer,\r\n    'offer_label',o.offer_label,'beneficiary',o.beneficiary_phone,'amount',o.amount,\r\n    'offer_group',v_group,'binding_version',b.version,'quantity',b.quantity,'offer_code',b.offer_code,\r\n    'secret_revision',v_secret->'revision');\r\n  -- Internal notes and author identifiers do not leave the server for actors.\r\n  return jsonb_build_object('status','available','reason','', 'rule',to_jsonb(r)-'internal_note'-'created_by'-'updated_by',\r\n    'code',v_code,'context',v_context,'network_mismatch',coalesce(v_network<>o.network,false));\r\nend $function$\n"
+  },
+  {
+    "acl": "{postgres=X/postgres}",
+    "name": "ussd_default_secret",
+    "schema": "private",
+    "identity": "private.ussd_default_secret()",
+    "definition": "CREATE OR REPLACE FUNCTION private.ussd_default_secret()\n RETURNS text\n LANGUAGE sql\n IMMUTABLE\n SET search_path TO ''\nAS $function$ select '0000'::text; $function$\n"
+  },
+  {
+    "acl": "{postgres=X/postgres}",
+    "name": "ussd_secret_revision",
+    "schema": "private",
+    "identity": "private.ussd_secret_revision()",
+    "definition": "CREATE OR REPLACE FUNCTION private.ussd_secret_revision()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  new.version:=old.version+1;\n  new.revision:=gen_random_uuid();\n  return new;\nend $function$\n"
+  },
+  {
+    "acl": "{postgres=X/postgres}",
+    "name": "ussd_secret_settings",
+    "schema": "private",
+    "identity": "private.ussd_secret_settings(text,text)",
+    "definition": "CREATE OR REPLACE FUNCTION private.ussd_secret_settings(p_network text, p_actor text)\n RETURNS jsonb\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n  select coalesce((select jsonb_build_object('value',c.secret_code,\n      'revision',c.revision::text)\n    from private.ussd_secret_configuration c where c.network=p_network and c.actor_scope in (p_actor,'both')\n    order by (c.actor_scope=p_actor) desc limit 1),\n    jsonb_build_object('value',private.ussd_default_secret(),'revision','default-v1'));\n$function$\n"
+  },
+  {
+    "acl": "{postgres=X/postgres}",
+    "name": "ussd_variable_name",
+    "schema": "private",
+    "identity": "private.ussd_variable_name(text)",
+    "definition": "CREATE OR REPLACE FUNCTION private.ussd_variable_name(p_token text)\n RETURNS text\n LANGUAGE plpgsql\n IMMUTABLE\n SET search_path TO ''\nAS $function$\ndeclare v text:=translate(lower(p_token),\n  'àáâãäåçèéêëìíîïñòóôõöùúûüýÿ','aaaaaaceeeeiiiinooooouuuuyy');\nbegin\n  v:=regexp_replace(v,U&'[\\0300-\\036f]','','g');\n  return case\n    when v in ('msisdn_local','numero_du_destinataire','numero','beneficiaire') then 'msisdn_local'\n    when v in ('amount','montant') then 'amount'\n    when v in ('offer_code','code_offre','code offre') then 'offer_code'\n    when v in ('quantity','quantite') then 'quantity'\n    when v in ('secret_code','code_secret','code secret') then 'secret_code'\n    else null end;\nend $function$\n"
+  },
+  {
+    "acl": "{postgres=X/postgres}",
+    "name": "ussd_normalize_template",
+    "schema": "private",
+    "identity": "private.ussd_normalize_template(text)",
+    "definition": "CREATE OR REPLACE FUNCTION private.ussd_normalize_template(p_template text)\n RETURNS text\n LANGUAGE plpgsql\n IMMUTABLE\n SET search_path TO ''\nAS $function$\ndeclare v text:=''; token text:=''; canonical text; c text; i integer:=1; closing integer;\nbegin\n  if p_template is null or length(p_template)>512 then return p_template; end if;\n  -- Same whitespace plus clipboard format marks as UssdEngine._templatePadding.\n  p_template:=btrim(p_template,U&'\\0009\\000A\\000B\\000C\\000D\\0020\\0085\\00A0\\1680\\2000\\2001\\2002\\2003\\2004\\2005\\2006\\2007\\2008\\2009\\200A\\200B\\2028\\2029\\202F\\205F\\2060\\3000\\FEFF');\n  if upper(p_template) in ('MAXIT','APP:MAXIT') then return 'APP:MAXIT';end if;\n  while i<=length(p_template) loop\n    if substr(p_template,i,2)='{{' then\n      closing:=strpos(substr(p_template,i+2),'}}');\n      if closing=0 then return v||substr(p_template,i); end if;\n      token:=substr(p_template,i+2,closing-1);\n      canonical:=private.ussd_variable_name(token);\n      v:=v||'{{'||coalesce(canonical,token)||'}}';\n      i:=i+closing+3;\n    else\n      c:=substr(p_template,i,1);\n      if c in ('*','#','{','}') then v:=v||c; i:=i+1;\n      else\n        token:='';\n        while i<=length(p_template) and substr(p_template,i,1) not in ('*','#','{','}') loop\n          token:=token||substr(p_template,i,1); i:=i+1;\n        end loop;\n        canonical:=private.ussd_variable_name(token);\n        v:=v||case when canonical is null then token else '{{'||canonical||'}}' end;\n      end if;\n    end if;\n  end loop;\n  return v;\nend $function$\n"
+  },
+  {
+    "acl": "{postgres=X/postgres}",
+    "name": "ussd_generate",
+    "schema": "private",
+    "identity": "private.ussd_generate(text,text,bigint,text,integer,text)",
+    "definition": "CREATE OR REPLACE FUNCTION private.ussd_generate(p_template text, p_beneficiary text, p_amount bigint, p_offer_code text, p_quantity integer, p_secret_code text)\n RETURNS text\n LANGUAGE plpgsql\n IMMUTABLE\n SET search_path TO ''\nAS $function$\ndeclare names text[]:=private.ussd_template(p_template); v text:=private.ussd_normalize_template(p_template);\n  secret text:=coalesce(p_secret_code,private.ussd_default_secret());\nbegin\n  if 'msisdn_local'=any(names) then v:=replace(v,'{{msisdn_local}}',private.ussd_phone(p_beneficiary)); end if;\n  if 'amount'=any(names) then\n    if p_amount is null or p_amount not between 1 and 100000000 then raise exception 'missing_amount'; end if;\n    v:=replace(v,'{{amount}}',p_amount::text);\n  end if;\n  if 'offer_code'=any(names) then\n    if p_offer_code is null or p_offer_code !~ '^[0-9]{1,20}$' then raise exception 'missing_offer_code'; end if;\n    v:=replace(v,'{{offer_code}}',p_offer_code);\n  end if;\n  if 'quantity'=any(names) then\n    if p_quantity is null or p_quantity not between 1 and 999999 then raise exception 'missing_quantity'; end if;\n    v:=replace(v,'{{quantity}}',p_quantity::text);\n  end if;\n  if 'secret_code'=any(names) then\n    if secret !~ '^[0-9]{1,20}$' then raise exception 'invalid_secret_code'; end if;\n    v:=replace(v,'{{secret_code}}',secret);\n  end if;\n  if v='APP:MAXIT' then return v;end if;\n  if length(v)>182 or v !~ '^(\\*{1,2}|#)[0-9]+(\\*[0-9]+)*#$' then raise exception 'invalid_template'; end if;\n  return v;\nend $function$\n"
+  }
+]

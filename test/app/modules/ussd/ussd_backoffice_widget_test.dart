@@ -171,6 +171,69 @@ void main() {
     });
   }
 
+  for (final size in [const Size(1400, 1000), const Size(430, 900)]) {
+    testWidgets('commercial routes are visible by default at ${size.width}', (
+      tester,
+    ) async {
+      final repo = _CommercialRoutesRepository();
+      await mount(tester, repo, UserRole.administrator, size: size);
+      expect(find.text('13 règle(s) dans cette sélection'), findsOneWidget);
+      expect(find.text('Actif'), findsWidgets);
+      expect(find.text('Désactivé'), findsNothing);
+      expect(find.text('MAXIT'), findsOneWidget);
+      expect(find.text('APP:MAXIT'), findsNWidgets(2));
+      expect(find.text('*999*{{msisdn_local}}#'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.text('13 règle(s) dans cette sélection'));
+      await tester.pumpAndSettle();
+      await capture(tester, 'commercial-routes-${size.width.toInt()}');
+      final actions = find.byTooltip('Actions sur la règle').first;
+      await tester.ensureVisible(actions);
+      await tester.pumpAndSettle();
+      await tester.tap(actions);
+      await tester.pumpAndSettle();
+      expect(find.text('Validations de la catégorie'), findsOneWidget);
+      expect(find.text('Modifier (remet en brouillon)'), findsNothing);
+      expect(find.text('Désactiver'), findsNothing);
+      await tester.tapAt(const Offset(1, 1));
+      await tester.pumpAndSettle();
+      final legacy = find.widgetWithText(
+        FilterChip,
+        'Anciennes souscriptions (1)',
+      );
+      await tester.ensureVisible(legacy);
+      await tester.pumpAndSettle();
+      await tester.tap(legacy);
+      await tester.pumpAndSettle();
+      expect(find.text('1 règle(s) dans cette sélection'), findsOneWidget);
+      expect(find.text('Remplacé'), findsOneWidget);
+      expect(find.text('APP:MAXIT'), findsNothing);
+      expect(find.text('*999*{{msisdn_local}}#'), findsOneWidget);
+      final oldActions = find.byTooltip('Actions sur la règle');
+      expect(oldActions, findsOneWidget);
+      await tester.ensureVisible(oldActions);
+      await tester.pumpAndSettle();
+      await tester.tap(oldActions);
+      await tester.pumpAndSettle();
+      expect(find.text('Historique'), findsOneWidget);
+      expect(find.text('Activer après validation SIM'), findsNothing);
+      expect(repo.statusChanges, 0);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+  testWidgets('Manager can see commercial routes without mutation controls', (
+    tester,
+  ) async {
+    await mount(tester, _CommercialRoutesRepository(), UserRole.manager);
+    expect(find.text('13 règle(s) dans cette sélection'), findsOneWidget);
+    expect(find.text('Actif'), findsWidgets);
+    expect(find.text('MAXIT'), findsOneWidget);
+    expect(find.byTooltip('Actions sur la règle'), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets(
     'Max it is saved in the existing editor for an associated Orange offer',
     (tester) async {
@@ -1001,6 +1064,51 @@ void main() {
       expect(repo.saved, isNotNull);
     },
   );
+}
+
+class _CommercialRoutesRepository extends UssdTestRepository {
+  @override
+  Future<Map<String, dynamic>> configuration() async {
+    final base = await super.configuration();
+    const routes = [
+      ('orange', 'maxit', 'APP:MAXIT'),
+      ('orange', 'calls', 'APP:MAXIT'),
+      ('orange', 'internet', '#154*1*{{msisdn_local}}*2*2#'),
+      ('orange', 'mixed', '#154*1*{{msisdn_local}}*2*1#'),
+      ('mtn', 'cchic', '*133*6*8*{{msisdn_local}}#'),
+      ('mtn', 'internet', '*133*6*3*{{msisdn_local}}#'),
+      ('mtn', 'mixed', '*133*6*2*{{msisdn_local}}#'),
+      ('moov', 'folie', '*412*4*{{msisdn_local}}#'),
+      ('moov', 'internet', '*412*2*{{msisdn_local}}#'),
+      ('moov', 'mixed', '*412*2*{{msisdn_local}}#'),
+    ];
+    final prototype = Map<String, dynamic>.from(
+      (base['rules'] as List).first as Map,
+    );
+    base['rules'] = [
+      for (final route in routes)
+        {
+          ...prototype,
+          'id': '${route.$1}-${route.$2}',
+          'network': route.$1,
+          'commercial_category': route.$2,
+          'service': 'all',
+          'ussd_template': route.$3,
+          'status': 'active',
+        },
+      for (final network in ['orange', 'mtn', 'moov'])
+        {
+          ...prototype,
+          'id': 'transfer-$network',
+          'network': network,
+          'service': 'unitTransfer',
+          'ussd_template': '*000*{{msisdn_local}}*{{amount}}#',
+          'status': 'active',
+        },
+      {...prototype, 'status': 'disabled'},
+    ];
+    return base;
+  }
 }
 
 class _AutomaticGroupRepository extends UssdTestRepository {

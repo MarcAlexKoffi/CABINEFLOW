@@ -1,0 +1,40 @@
+{
+  "verifiedAt": "2026-11-21T10:30:59.688Z",
+  "url": "https://izytel-backoffice-4bca7.web.app",
+  "httpStatus": 200,
+  "sha256": "5b8aef3e2c7b654c871fd7aedbbf30c9c801f27e35d9bf8682968b6b074607e9",
+  "expectedSha256": "5b8aef3e2c7b654c871fd7aedbbf30c9c801f27e35d9bf8682968b6b074607e9",
+  "matches": true,
+  "cacheControl": "no-cache",
+  "visibleLegacyFilter": true,
+  "files": [
+    "lib/app/modules/ussd/views/backoffice_ussd_page.dart",
+    "test/app/modules/ussd/ussd_backoffice_widget_test.dart"
+  ],
+  "cause": "The default screen excluded commercial category rules and therefore displayed replaced disabled subscription rules.",
+  "correction": "Current category rules and transfers appear by default. Replaced subscription rules are available through a separate filter and labelled Remplacé.",
+  "tests": {
+    "targetedPassed": 42,
+    "newRegressionPassed": 3,
+    "analysis": "no issues",
+    "visualSizes": [
+      {
+        "width": 1400,
+        "height": 1000
+      },
+      {
+        "width": 430,
+        "height": 900
+      }
+    ]
+  },
+  "serverState": {
+    "activeCategoryRules": 10,
+    "activeTransfers": 3,
+    "activeOffers": 109,
+    "retainedLegacySubscriptions": 12
+  },
+  "databaseChanges": false,
+  "operatorPhoneValidation": "not performed",
+  "hostingVersion": "869cf02847385ff2"
+}

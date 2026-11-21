@@ -296,8 +296,13 @@ class SupabasePhase4AssignmentRepository {
   SupabasePhase4AssignmentRepository({
     SupabaseClient? client,
     Future<String> Function()? executionKey,
+    Future<String> Function(String)? operationKey,
+    Future<void> Function(String)? finishOperation,
   }) : _client = client ?? Supabase.instance.client,
-       _executionKey = executionKey ?? OrderExecutionSession.key;
+       _executionKey = executionKey ?? OrderExecutionSession.key,
+       _operationKey = operationKey ?? OrderExecutionSession.operationKey,
+       _finishOperation =
+           finishOperation ?? OrderExecutionSession.finishOperation;
 
   static const String ordersTable = 'phase4_assignment_orders';
   static const String plansTable = 'phase4_assignment_plans';
@@ -306,6 +311,8 @@ class SupabasePhase4AssignmentRepository {
 
   final SupabaseClient _client;
   final Future<String> Function() _executionKey;
+  final Future<String> Function(String) _operationKey;
+  final Future<void> Function(String) _finishOperation;
 
   Future<Phase4AssignmentSnapshot> syncOrder(QueueOrder order) async {
     if (!order.isFundedForProcessing ||
@@ -560,7 +567,24 @@ class SupabasePhase4AssignmentRepository {
           'Autorisation de traitement non confirmée.',
         );
       }
-      if (raw['ready'] == true) return _requireSnapshot(raw['order']);
+      if (raw['ready'] == true) {
+        final result = _requireSnapshot(raw['order']);
+        if (result.orderId != orderId.trim() ||
+            result.assignmentVersion != expectedVersion ||
+            !const [
+              'accepted',
+              'handed_off',
+            ].contains(result.assignmentState) ||
+            !const [
+              QueueOrderStatus.inProgress,
+              QueueOrderStatus.onHold,
+            ].contains(result.orderStatus)) {
+          throw const FormatException(
+            'Autorisation de traitement incohérente.',
+          );
+        }
+        return result;
+      }
       final delay = (raw['retry_after_ms'] as num?)?.toInt();
       if (delay == null || delay < 0 || delay > 5000) {
         throw const FormatException('Délai de préparation invalide.');
@@ -629,22 +653,31 @@ class SupabasePhase4AssignmentRepository {
     String orderId,
     String reason,
   ) async {
-    final request = await OrderExecutionSession.operationKey(
-      'requeue.$orderId',
-    );
+    final id = orderId.trim();
+    if (id.isEmpty) throw ArgumentError.value(orderId, 'orderId');
+    final operation = 'requeue.$id';
+    final request = await _operationKey(operation);
     final raw = await _client
         .rpc(
           'izytel_return_order_to_queue',
           params: {
-            'p_order_id': orderId.trim(),
+            'p_order_id': id,
             'p_reason': reason.trim(),
             'p_request_id': request,
           },
         )
         .timeout(const Duration(seconds: 15));
     final result = _requireSnapshot(raw);
-    await OrderExecutionSession.finishOperation('requeue.$orderId');
-    if (result.assignmentState != 'waiting' || result.assignedAgentId != null) {
+    if (result.orderId != id) {
+      throw const FormatException(
+        'Remise en file non confirmée pour cette commande.',
+      );
+    }
+    await _finishOperation(operation);
+    if (result.assignmentState != 'waiting' ||
+        result.assignedAgentId != null ||
+        result.assignmentRoute != 'shared' ||
+        result.orderStatus != QueueOrderStatus.paidReady) {
       throw StateError('Cette commande a déjà évolué. Actualisez la file.');
     }
     return result;
@@ -655,14 +688,16 @@ class SupabasePhase4AssignmentRepository {
     String reason,
     int assignmentVersion,
   ) async {
-    await _client.rpc(
-      'izytel_verify_order_not_executed',
-      params: {
-        'p_order_id': orderId.trim(),
-        'p_reason': reason.trim(),
-        'p_expected_version': assignmentVersion,
-      },
-    );
+    await _client
+        .rpc(
+          'izytel_verify_order_not_executed',
+          params: {
+            'p_order_id': orderId.trim(),
+            'p_reason': reason.trim(),
+            'p_expected_version': assignmentVersion,
+          },
+        )
+        .timeout(const Duration(seconds: 15));
   }
 
   Future<Phase4AssignmentSnapshot> importLegacyRefusals({

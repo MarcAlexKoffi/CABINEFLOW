@@ -14,6 +14,10 @@ import 'package:cabine_flow/app/modules/backoffice/views/catalog/catalog_bulk_di
 import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
 import 'package:cabine_flow/app/shared/widgets/izytel/izytel_feedback.dart';
 import 'package:flutter/material.dart';
+import 'package:cabine_flow/app/data/repositories/supabase_catalog_bonus_repository.dart';
+import 'package:cabine_flow/app/domain/repositories/catalog_bonus_repository.dart';
+import 'package:cabine_flow/app/modules/backoffice/views/catalog/catalog_bonus_dialogs.dart';
+import 'package:cabine_flow/app/modules/backoffice/widgets/backoffice_modal.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -26,11 +30,13 @@ class BackofficeOffersPage extends StatefulWidget {
     required this.user,
     required this.repository,
     this.importRepository,
+    this.bonusRepository,
   });
 
   final AppUser user;
   final AdminOfferRepository repository;
   final CatalogImportRepository? importRepository;
+  final CatalogBonusRepository? bonusRepository;
 
   @override
   State<BackofficeOffersPage> createState() => _BackofficeOffersPageState();
@@ -147,6 +153,21 @@ class _BackofficeOffersPageState extends State<BackofficeOffersPage> {
                         runSpacing: 8,
                         alignment: WrapAlignment.end,
                         children: <Widget>[
+                          OutlinedButton.icon(
+                            onPressed: _busy
+                                ? null
+                                : () => showBackofficeModal<void>(
+                                    context: context,
+                                    builder: (_) => CatalogCampaignsDialog(
+                                      repository:
+                                          widget.bonusRepository ??
+                                          SupabaseCatalogBonusRepository(),
+                                      offers: all,
+                                    ),
+                                  ),
+                            icon: const Icon(Symbols.calendar_month_rounded),
+                            label: const Text('Jours de bonus'),
+                          ),
                           if (_imports != null) ...[
                             OutlinedButton.icon(
                               onPressed: _busy ? null : _openImport,

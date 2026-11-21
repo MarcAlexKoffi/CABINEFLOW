@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IzyTel — Livraison catalogue, routage et bonus</title>
+<style>body{font:16px/1.55 system-ui;max-width:1140px;margin:32px auto;padding:0 20px;color:#172637}h1,h2{line-height:1.25}table{border-collapse:collapse;width:100%;font-size:14px}td,th{border:1px solid #d6dfe5;padding:8px;text-align:left;vertical-align:top}pre{background:#f1f5f8;padding:14px;white-space:pre-wrap;overflow-wrap:anywhere}code{overflow-wrap:anywhere}.note{border-left:4px solid #bb7700;padding:12px;background:#fff7e8}a{color:#005c9d}</style>
+<h1>Catalogue, raccourcis de souscription et jours de bonus</h1>
+<p>Branche : <code>codex/catalog-routing-bonus-20261121</code>. Candidat préparé et testé le 21 novembre 2026, puis publié à la demande explicite de l’utilisateur. Les deux migrations sont appliquées et les interfaces <a href="https://cabineflow-4bca7.web.app">client</a> et <a href="https://izytel-backoffice-4bca7.web.app">back-office</a> sont en ligne. Les empreintes des fichiers servis correspondent aux builds testés ; les 109 routes et les deux offres MAXIT ont été revérifiées en production. <a href="production_verification.json">Relevé de mise en ligne</a>.</p>
+<p>Les scénarios détaillés ci-dessous ont été exécutés sur PostgreSQL local isolé avec les métadonnées du catalogue audité et des commandes fictives. Aucun achat télécom réel n’a été exécuté ; la validation opérateur sur téléphone reste à effectuer. Aucune campagne n’a été créée ou activée automatiquement.</p>
+<p><strong>Correctif d’affichage publié le 21 novembre :</strong> l’écran Raccourcis USSD excluait les nouvelles règles commerciales et affichait les anciennes souscriptions désactivées. Il affiche désormais les dix règles de catégorie actives et les trois transferts ; les douze anciennes souscriptions sont consultables séparément avec la mention « Remplacé ». Contrôles : 42 tests ciblés réussis, trois scénarios de non-régression dont rendus mobile/ordinateur, analyse sans problème et compilation Web réussie. Le fichier servi a été comparé au build local. Aucun changement en base pour ce correctif. <a href="ussd_visibility_fix.json">Preuve de publication du correctif</a>.</p>
+<p><a href="offers_routing.html">Tableau des 109 offres et actions exactes</a> · <a href="verification.json">Preuves JSON : avant/après, anciennes règles, transferts et scénarios SQL</a></p>
+
+<h2>Résultat de l’audit et correction des deux offres</h2>
+<p>La lecture du projet Supabase IzyTel <code>zrxeztxaxnzxevjuhzcc</code> a confirmé 110 offres enregistrées, dont 109 actives. Le contrôle agrégé des commandes liées au catalogue n’a trouvé aucune incohérence de type d’opération existante. Les deux pass possèdent déjà un binding compatible vers la famille Orange MAXIT <code>6134c277-2b27-4fe1-9dfa-bf70ea0872d1</code> : ces bindings sont conservés intégralement.</p>
+<table><tr><th>Offre / identifiant conservé</th><th>Avant</th><th>Après, vérifié localement</th><th>Prix conservé</th></tr>
+<tr><td>OR-DAT-20261118-003 — Pass semaine 750 Mo<br><code>952c2ec4-08f9-4623-b1ab-207bf5cac335</code></td><td>Internet ; famille INTERNET</td><td>MAXIT ; famille MAXIT ; APP:MAXIT</td><td>800 FCFA</td></tr>
+<tr><td>OR-DAT-20261118-004 — Pass 7 jours 10 Go<br><code>4e4db7fb-5964-4877-a5e2-bf6f8468ea04</code></td><td>Internet ; famille INTERNET</td><td>MAXIT ; famille MAXIT ; APP:MAXIT</td><td>2 500 FCFA</td></tr></table>
+<p>Les deux lignes reçoivent le <code>category_id</code> MAXIT existant <code>0de33f79-c3d0-46c6-93bf-eaa36e173e58</code>. Seuls catégorie, famille, <code>catalog_data.famille</code> et version technique du catalogue changent. Prix, codes, identifiants, descriptions, volumes, durées, autres métadonnées et associations restent identiques. Les tests utilisent les déclencheurs réels de validation, présentation et version du catalogue. Deux commandes historiques fictives gardent leurs données exactes et leurs identifiants d’offres après migration.</p>
+
+<h2>Répartition et sélection des raccourcis</h2>
+<table><tr><th>Opérateur</th><th>Catégorie</th><th>Offres actives</th><th>Action configurée</th></tr>
+<tr><td>Orange</td><td>MAXIT</td><td>8</td><td>APP:MAXIT</td></tr>
+<tr><td>Orange</td><td>Internet</td><td>10</td><td>#154*1*{{msisdn_local}}*2*2#</td></tr>
+<tr><td>Orange</td><td>Appel</td><td>1</td><td>APP:MAXIT</td></tr>
+<tr><td>Orange</td><td>Mixte</td><td>10</td><td>#154*1*{{msisdn_local}}*2*1#</td></tr>
+<tr><td>MTN</td><td>C’CHIC</td><td>20</td><td>*133*6*8*{{msisdn_local}}#</td></tr>
+<tr><td>MTN</td><td>Internet</td><td>12</td><td>*133*6*3*{{msisdn_local}}#</td></tr>
+<tr><td>MTN</td><td>Mixte</td><td>10</td><td>*133*6*2*{{msisdn_local}}#</td></tr>
+<tr><td>Moov</td><td>Folie</td><td>15</td><td>*412*4*{{msisdn_local}}#</td></tr>
+<tr><td>Moov</td><td>Internet</td><td>14</td><td>*412*2*{{msisdn_local}}#</td></tr>
+<tr><td>Moov</td><td>Mixte</td><td>9</td><td>*412*2*{{msisdn_local}}#</td></tr></table>
+<p>Le serveur vérifie l’offre active, son opérateur, son type métier et la cohérence catégorie/identifiant de catégorie, puis sélectionne exactement une règle par opérateur et catégorie. Les familles SOCIAL historiquement rattachées aux offres MTN C’CHIC ne détournent plus ce choix. Une offre inactive, un type incohérent, une règle absente ou deux règles concurrentes produisent une erreur explicite. Aucun repli générique de souscription n’est utilisé.</p>
+<p>Le client transmet désormais le type canonique <code>operation_type</code> du catalogue, y compris pour les offres mixtes sans badge « Mixte ». Un bonus change uniquement la présentation. Le service et le type de l’offre Orange Appel restent inchangés.</p>
+<p>Sur les 13 anciennes règles de souscription inventoriées, 9 actives sont désactivées ; 3 déjà désactivées restent désactivées avec historique de version ; 1 déjà archivée est conservée telle quelle. Le détail par identifiant, syntaxe et statut figure dans <code>verification.json → archivedRules</code>. Aucune suppression physique de règle, commande ou historique. Les 10 nouvelles règles commencent au niveau « Configuré » ; leur validation technique et leur validation opérateur restent distinctes, sans preuve opérateur préremplie.</p>
+<p>Les trois règles de transfert de crédit et tous leurs champs existants sont comparés avant/après et restent identiques. Le résolveur de transfert antérieur est conservé, avec ses validations et contrôles d’accès. Les trois parcours ont été exercés localement avec numéro, montant et secret fictifs ; aucun transfert réel n’a été lancé.</p>
+
+<h2>Campagnes de bonus</h2>
+<p><code>offer_bonus_campaigns</code> contient opérateur, jours ISO (lundi=1), dates, horaires Abidjan, statut, mode, valeur numérique, référence opérateur et validation datée. <code>offer_bonus_campaign_offers</code> associe des identifiants précis d’offres à leur volume structuré en Mo. <code>private.offer_bonus_audit</code> conserve auteur et changements. Aucun bonus ni jour récurrent n’est créé à l’installation.</p>
+<ul>
+<li>Modes : pourcentage ajouté, volume ajouté en Mo, volume total garanti en Mo. 750 Mo +200 % = 2 250 Mo = 2,25 Go. Un total garanti de 2 500 Mo affiche 2,50 Go. Conversion : 1 Go = 1 000 Mo.</li>
+<li>La base est vérifiée contre <code>catalog_data.volume_data</code> et <code>unite_data</code>, jamais déduite du titre. La catégorie sert à filtrer la sélection ; l’éligibilité dépend des identifiants, donc MAXIT, C’CHIC et Folie peuvent recevoir un bonus.</li>
+<li>Enregistrer crée un brouillon et invalide toute validation précédente. Valider demande une référence opérateur explicite ; activer est une action séparée. Suspendre et archiver masquent la campagne. Les écritures sont réservées à Admin, avec version attendue et journal d’audit.</li>
+<li>Fenêtres récurrentes <code>[début, fin[</code>, fuseau Africa/Abidjan, passage à minuit ancré sur le jour de début. Horaires égaux = journée de 24 heures. Période maximale : cinq ans.</li>
+<li>L’expiration est effective côté serveur sans cron : aucune projection après la fin ; le back-office présente le statut effectif « Expiré ». Le statut enregistré reste traçable. Les chevauchements sur une même offre sont refusés à la validation/activation, y compris entre jours adjacents. Aucun cumul automatique.</li>
+<li>La projection publique n’accepte aucune heure client et ne publie que les campagnes validées, actives, applicables à une offre actuelle. Les tables et l’audit ne sont pas lisibles directement par les clients ; les fonctions Admin vérifient le rôle. Les RLS existantes sont préservées.</li>
+<li>Rafraîchissement du catalogue et des bonus toutes les 15 secondes, plus signal de changement. Une projection expire au plus tard à la fin de sa fenêtre ou après 30 secondes, budget réseau déduit ; un minuteur retire le bonus même hors ligne. Une reprise de l’application invalide l’ancienne projection. Une erreur de lecture restitue le catalogue habituel. Une suspension distante peut prendre jusqu’à 30 secondes pour disparaître sur un client déconnecté ; elle ne survit pas indéfiniment en cache.</li>
+</ul>
+
+<h2>Fichiers de cette mission</h2>
+<p>Les modifications précédentes concernant la libération des agents, l’affectation et l’autoremplissage de connexion sont conservées. Elles ne font pas partie de cette livraison catalogue. Liste exacte des sources, tests, migrations et preuves ajoutés ou modifiés pour cette mission :</p>
+<pre>lib/app/data/repositories/firestore_customer_order_repository.dart
+lib/app/data/repositories/supabase_customer_offer_repository.dart
+lib/app/data/repositories/supabase_catalog_bonus_repository.dart
+lib/app/domain/entities/customer/customer_offer.dart
+lib/app/domain/entities/customer/customer_order_draft.dart
+lib/app/domain/entities/offers/offer_bonus.dart
+lib/app/domain/policies/ussd/ussd_engine.dart
+lib/app/domain/repositories/ussd_repository.dart
+lib/app/domain/repositories/catalog_bonus_repository.dart
+lib/app/modules/backoffice/views/catalog/backoffice_offers_page.dart
+lib/app/modules/backoffice/views/catalog/catalog_bonus_dialogs.dart
+lib/app/modules/customer/views/customer_catalog_page.dart
+lib/app/modules/customer/views/customer_offer_page.dart
+lib/app/modules/customer/widgets/live_offer_bonus.dart
+lib/app/modules/ussd/views/backoffice_ussd_page.dart
+supabase/migrations/20261121011133_catalog_commercial_subscription_routes.sql
+supabase/migrations/20261121011322_offer_bonus_campaigns.sql
+supabase/operations/catalog_bonus_preflight.sql
+supabase/operations/catalog_bonus_rollback.sql
+test/app/core/resilience/operational_repositories_http_test.dart
+test/core/resilience/operational_repositories_http_test.dart
+test/app/data/customer/repositories/customer_offer_bonus_http_test.dart
+test/app/domain/customer/catalog_operation_type_test.dart
+test/app/domain/offers/offer_bonus_test.dart
+test/app/domain/ussd/commercial_routing_test.dart
+test/app/modules/backoffice/catalog_bonus_dialogs_test.dart
+test/app/modules/customer/catalog_bonus_filter_test.dart
+test/app/modules/ussd/ussd_backoffice_widget_test.dart
+test/catalog_bonus/run.mjs
+test/catalog_bonus/fixtures/catalog_before.json
+test/catalog_bonus/fixtures/functions_before.json
+test/catalog_bonus/fixtures/catalog_triggers_before.json
+docs/catalog_bonus/verification.json
+docs/catalog_bonus/offers_routing.html
+docs/catalog_bonus/production_verification.json
+docs/catalog_bonus/ussd_visibility_fix.json
+docs/catalog_bonus/validation.html</pre>
+<p>Sauvegardes d’audit locales ignorées par Git : <code>.izytel_backups/catalog_bonus_before_20261121.json</code> et <code>.izytel_backups/catalog_validator_metadata_20261121.json</code>. La migration crée aussi une sauvegarde transactionnelle ciblée, privée, des deux offres, règles précédentes, fonctions remplacées et empreinte des transferts.</p>
+
+<h2>Vérifications exécutées</h2>
+<table><tr><th>Contrôle</th><th>Résultat</th><th>Preuve</th></tr>
+<tr><td>PostgreSQL catalogue/bonus</td><td>10 groupes de scénarios réussis ; 109/109 actions vérifiées individuellement ; 9 APP:MAXIT ; 0 absence/conflit dans le catalogue migré ; retour arrière exercé</td><td>verification.json</td></tr>
+<tr><td>Exécution exclusive, affectation et clôture</td><td>18 scénarios SQL réussis, dont commande échouée ou remboursée libérant l’agent et clôture financière</td><td>node test/shared_queue/integration.mjs --exclusive-execution</td></tr>
+<tr><td>Flutter ciblé</td><td>272 tests réussis : bonus/calendrier public et rechargement, filtres, droits, USSD/Max it, authentification, création/récupération, affectation, capacité, commissions et charge utile des notifications</td><td>scratch/catalog_bonus_tests_final.log</td></tr>
+<tr><td>Analyse statique</td><td>Aucun problème</td><td>scratch/catalog_bonus_analyze_final.log</td></tr>
+<tr><td>Compilations Web</td><td>Back-office réussi (134,1 s) ; client réussi (98,2 s). Sorties dans build/catalog_bonus/backoffice et build/catalog_bonus/customer.</td><td>scratch/catalog_bonus_build_backoffice.log ; scratch/catalog_bonus_build_customer.log</td></tr></table>
+<p>Commandes reproductibles depuis la racine, avec Flutter, Node et les dépendances PostgreSQL locales déjà installées :</p>
+<pre>node test/catalog_bonus/run.mjs
+node test/shared_queue/integration.mjs --exclusive-execution
+flutter analyze --no-pub
+flutter test --no-pub test/app/domain/offers/offer_bonus_test.dart test/app/domain/ussd/commercial_routing_test.dart test/app/domain/customer/catalog_operation_type_test.dart test/app/data/customer/repositories/customer_offer_bonus_http_test.dart test/app/modules/backoffice/catalog_bonus_dialogs_test.dart test/app/modules/customer/catalog_bonus_filter_test.dart test/app/modules/customer/customer_catalog_retry_filter_test.dart test/app/modules/backoffice/catalog_publication_ui_test.dart test/app/modules/ussd/ussd_backoffice_widget_test.dart test/app/modules/ussd/ussd_mobile_widget_test.dart test/app/domain/ussd/ussd_engine_test.dart test/app/data/ussd/ussd_repository_http_test.dart test/app/data/platform/ussd_dialer_test.dart test/app/core/resilience/operational_repositories_http_test.dart test/core/resilience/operational_repositories_http_test.dart test/app/modules/agent_orders/controllers/exclusive_execution_test.dart test/app/data/auth/firebase_auth_access_failure_test.dart test/app/modules/backoffice/backoffice_login_autofill_test.dart test/app/data/customer/repositories/fake_customer_order_repository_test.dart test/app/modules/customer/controllers/customer_order_recovery_test.dart test/app/modules/customer/controllers/customer_order_view_model_test.dart test/app/data/orders/repositories/fake_orders_assignment_test.dart test/app/data/orders/repositories/fake_orders_automatic_assignment_test.dart test/app/domain/orders/services/agent_capacity_policy_test.dart test/app/domain/commissions/commission_v2_models_test.dart test/app/core/notifications/izytel_notification_payload_test.dart --reporter expanded
+flutter build web --no-pub -t lib/main_backoffice.dart --output build/catalog_bonus/backoffice
+flutter build web --no-pub -t lib/main_customer.dart --output build/catalog_bonus/customer
+git diff --check</pre>
+<p>Dans cette session Windows, l’analyse, les tests et les builds ont été lancés via le snapshot Flutter du SDK local (<code>FLUTTER_ALREADY_LOCKED=true</code>) pour éviter le verrou du lanceur Flutter. Aucun paiement, achat, appel USSD, notification FCM ou écriture de commande réelle n’a été effectué. Les contrôles automatiques de notifications portent sur leur charge utile et l’outbox synthétique. Ils ne prouvent pas la réception réseau sur un appareil réel.</p>
+
+<h2>Validation manuelle à effectuer en préproduction</h2>
+<ol>
+<li><strong>Back-office Admin :</strong> Catalogue → vérifier les deux codes dans MAXIT uniquement, prix 800/2 500, puis bouton « Jours de bonus ». Créer une campagne avec des dates de test, un jour choisi explicitement, le seul identifiant 750 Mo, et +200 %. Enregistrer : brouillon, invisible publiquement. Valider avec une source opérateur vérifiée puis activer. Suspendre et archiver ; vérifier l’absence de bonus. Modifier une campagne : retour au brouillon. Tester aussi le mode total garanti 2 500 Mo et le refus d’une campagne chevauchante.</li>
+<li><strong>Écran USSD existant :</strong> ouvrir « Souscriptions par catégorie » ; vérifier les 10 lignes et leurs effectifs. « Tester techniquement » ne doit renseigner que la validation technique. Une validation opérateur requiert la source et le parcours constatés. Manager peut consulter les routes ; il ne peut pas valider ni administrer les campagnes.</li>
+<li><strong>Web/PWA client :</strong> filtres Internet et MAXIT, carte et sélection d’offre, affichage 750 Mo / +200 % / 2,25 Go / 800 FCFA, actualisation et second onglet. Tester horaires limites, nuit traversant minuit, suspension, expiration hors ligne et mise en veille/reprise. Retour aux informations habituelles sans modifier le catalogue. Vérifier sur largeurs mobile et bureau.</li>
+<li><strong>Agent Android :</strong> sur neuf commandes fictives Orange concernées, vérifier forfait, prix, bénéficiaire et opérateur, puis l’action « Ouvrir Max it ». Tester téléphone avec Max it installé et sans Max it : erreur claire dans le second cas, aucun USSD de secours, aucune clôture ni déduction de capacité du seul fait de l’ouverture. Le parcours de preuve/confirmation reste requis.</li>
+<li><strong>Parcours existants :</strong> connexions Admin/Manager/Agent et rôles, commande fictive créée/récupérée, affectation manuelle/automatique, acceptation/refus, échec puis nouvelle commande, preuves et historiques ; contrôle des soldes et commissions avant/après, réception des notifications dans un environnement de test. Ne pas utiliser les commandes réelles pour cette recette.</li>
+</ol>
+<div class="note">Le package Android existant est <code>com.orange.myorange.oci</code>, cohérent avec la <a href="https://play.google.com/store/apps/details?id=com.orange.myorange.oci&amp;hl=fr">fiche Google Play Orange</a>. Le code Android utilise le lancement explicite du package ; aucun lien profond ni achat automatique n’a été ajouté. L’ouverture et les menus réels n’ont pas été testés sur téléphone pendant cette mission.</div>
+<p>La consultation des pages officielles Moov (<a href="https://www.moov-africa.ci/codes-utiles/">codes utiles</a>, <a href="https://www.moov-africa.ci/assistance/comment-souscrire-forfait-internet-moov/">souscription Internet</a>) n’a pas confirmé que le menu exact <code>*412*2*numéro#</code> permet d’acheter les offres Internet <em>et</em> Mixte. La configuration demandée est conservée avec « Validation opérateur nécessaire ». Faire confirmer sur SIM de test les parcours Orange Internet/Mixte, MTN C’CHIC/Internet/Mixte et Moov Folie/Internet/Mixte, le bon bénéficiaire et le choix du forfait. Toute activation payante réelle demande une autorisation distincte et un budget de test ; aucune preuve d’achat n’est revendiquée ici.</p>
+
+<h2>Migrations, déploiement et retour arrière</h2>
+<ol>
+<li>Avant tout déploiement autorisé : rejouer <code>supabase/operations/catalog_bonus_preflight.sql</code> en lecture seule ; exporter les résultats et une sauvegarde récente. Contrôler 110/109, les deux codes/identifiants/prix, la catégorie MAXIT, les fonctions et l’inventaire des règles. Toute dérive doit être revue. Les migrations refusent un effectif ou une répartition différents ; ne pas contourner ces gardes pour forcer l’application.</li>
+<li>Relire les 37 fichiers listés, en séparant les modifications antérieures déjà présentes. Rejouer sur une base de préproduction compatible : <code>20261121011133_catalog_commercial_subscription_routes.sql</code>, puis <code>20261121011322_offer_bonus_campaigns.sql</code>. Chaque migration est transactionnelle. Le retour arrière est également testé localement. Effectuer la recette ci-dessus avec données fictives.</li>
+<li>Obtenir la validation avant toute écriture distante ou publication. Prévoir une courte fenêtre de maintenance des nouvelles souscriptions et diffuser les clients compatibles, notamment le Web qui transmet le type canonique. Vérifier le renouvellement des anciens caches PWA et la version Agent. Ne pas réécrire les commandes historiques pour compenser un ancien client.</li>
+<li>Après autorisation, appliquer uniquement ces deux migrations, dans cet ordre, via le circuit versionné retenu. Vérifier au préalable l’historique des migrations distantes ; ne pas pousser aveuglément les autres migrations locales. Ne pas inclure le correctif antérieur de libération Agent dans cette livraison. Publier les builds vérifiés en respectant la configuration Hosting existante : les sorties de cette mission sont des artefacts locaux, pas les répertoires de publication configurés automatiquement.</li>
+<li>Après application : relever la répartition attendue, les deux lignes et leurs bindings, les 10 routes et 9 actions Max it, l’empreinte des transferts et les droits Admin/Manager/anonyme. Aucun bonus ne doit apparaître avant création, validation et activation explicites. Vérifier que les offres permanentes n’ont subi aucune autre modification.</li>
+</ol>
+<p><strong>Retour arrière :</strong> sauvegarder à nouveau, suspendre toutes les campagnes actives, rétablir des clients compatibles puis exécuter <code>supabase/operations/catalog_bonus_rollback.sql</code> dans une transaction. Il restaure les catégories/familles des deux offres et les fonctions d’origine, désactive les règles commerciales ajoutées, restaure les statuts historiques avec de nouvelles versions et retire l’accès aux nouvelles RPC publiques. Commandes, transferts, historiques, campagnes et audits ne sont pas supprimés. Le script refuse le retour arrière si les offres ou anciennes règles ont été modifiées depuis : examiner ces écarts avant toute restauration. Les tables/colonnes ajoutées restent pour préserver l’audit ; une réactivation ultérieure nécessite une migration corrective nouvelle, pas la réexécution aveugle des mêmes migrations.</p>
+<p><strong>Limites résiduelles :</strong> les migrations et les deux interfaces Web sont publiées ; pas de recette téléphone ni d’achat opérateur, pas de compilation APK supplémentaire. Les mécanismes natifs Max it existants ont été inspectés et les interactions Dart testées avec doubles. Les 272 tests constituent une suite ciblée, pas la totalité du dépôt. Les statuts opérateur doivent être attestés humainement par une source fiable. Des évolutions ultérieures de l’opérateur, du catalogue ou d’anciens clients doivent être prises en compte avant validation des parcours télécom.</p>
+</html>

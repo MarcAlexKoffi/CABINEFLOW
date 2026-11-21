@@ -11,6 +11,7 @@ import 'package:cabine_flow/app/shared/widgets/design_system/izy_tel_cards.dart'
 import 'package:cabine_flow/app/shared/widgets/design_system/izy_tel_inputs.dart';
 import 'package:cabine_flow/app/shared/widgets/design_system/izy_tel_operator_brand.dart';
 import 'package:flutter/material.dart';
+import 'package:cabine_flow/app/modules/customer/widgets/live_offer_bonus.dart';
 import 'package:flutter/services.dart';
 
 class CustomerOfferPage extends StatefulWidget {
@@ -529,8 +530,10 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
 
   void _scheduleCatalogReconciliation(List<CustomerOffer> offers) {
     final String signature = offers
-        .map((CustomerOffer offer) =>
-            "${offer.id}|${offer.amount}|${offer.catalogLabel}|${offer.title}|${offer.badgeLabel}|${offer.details.join('~')}")
+        .map(
+          (CustomerOffer offer) =>
+              "${offer.id}|${offer.amount}|${offer.catalogLabel}|${offer.title}|${offer.displayBadge}|${offer.displayDetails.join('~')}",
+        )
         .join('||');
     if (_lastCatalogSignature == signature) {
       return;
@@ -560,11 +563,14 @@ class _CustomerOfferPageState extends State<CustomerOfferPage> {
         if (snapshot.hasError) {
           return _OfferLoadMessage(
             icon: Icons.cloud_off_outlined,
-            message: BackendReadStream.readErrorMessage(snapshot.error!,
-                fallback: 'Impossible de charger les offres pour le moment.'),
+            message: BackendReadStream.readErrorMessage(
+              snapshot.error!,
+              fallback: 'Impossible de charger les offres pour le moment.',
+            ),
             onRetry: () => setState(() {
               _offersStream = widget.offerRepository.watchOffers(
-                service: _service, network: _network,
+                service: _service,
+                network: _network,
               );
             }),
           );
@@ -663,7 +669,10 @@ class _OfferOptionCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      LiveOfferBonus(offer: offer, builder: _buildCard);
+
+  Widget _buildCard(BuildContext context) {
     return Semantics(
       button: true,
       selected: isSelected,
@@ -698,7 +707,7 @@ class _OfferOptionCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  if (offer.badgeLabel != null) ...[
+                  if (offer.displayBadge != null) ...[
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 9,
@@ -711,7 +720,7 @@ class _OfferOptionCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        offer.badgeLabel!,
+                        offer.displayBadge!,
                         style: const TextStyle(
                           color: CustomerAppColors.primary,
                           fontSize: 10,
@@ -726,7 +735,7 @@ class _OfferOptionCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   const SizedBox(height: 9),
-                  ...offer.details.map((String detail) {
+                  ...offer.displayDetails.map((String detail) {
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 4),
                       child: Row(
@@ -796,7 +805,11 @@ class _OfferOptionCard extends StatelessWidget {
 }
 
 class _OfferLoadMessage extends StatelessWidget {
-  const _OfferLoadMessage({required this.icon, required this.message, this.onRetry});
+  const _OfferLoadMessage({
+    required this.icon,
+    required this.message,
+    this.onRetry,
+  });
 
   final IconData icon;
   final String message;
@@ -821,8 +834,11 @@ class _OfferLoadMessage extends StatelessWidget {
           ),
           if (onRetry != null) ...[
             const SizedBox(height: 12),
-            TextButton.icon(onPressed: onRetry,
-                icon: const Icon(Icons.refresh), label: const Text('Réessayer')),
+            TextButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Réessayer'),
+            ),
           ],
         ],
       ),

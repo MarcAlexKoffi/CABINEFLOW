@@ -249,6 +249,7 @@ class UssdRule {
     required this.status,
     this.familyId,
     this.offerGroup,
+    this.commercialCategory,
     this.offerId,
     required this.effectiveFrom,
     this.effectiveUntil,
@@ -262,7 +263,11 @@ class UssdRule {
   final String purpose;
   bool get isMaxIt =>
       UssdEngine.normalizeTemplate(template) == UssdEngine.maxItCommand;
-  final String? familyId, offerId, validationSimType, offerGroup;
+  final String? familyId,
+      offerId,
+      validationSimType,
+      offerGroup,
+      commercialCategory;
   final int version, priority;
   final DateTime effectiveFrom;
   final DateTime? effectiveUntil, updatedAt;
@@ -279,6 +284,7 @@ class UssdRule {
     status: row['status'] as String,
     familyId: row['family_id'] as String?,
     offerGroup: row['offer_group'] as String?,
+    commercialCategory: row['commercial_category'] as String?,
     offerId: row['offer_id'] as String?,
     effectiveFrom: DateTime.parse(row['effective_from'] as String),
     effectiveUntil: DateTime.tryParse(row['effective_until'] as String? ?? ''),
@@ -305,6 +311,7 @@ class UssdRule {
     String? offerId,
     String? familyId,
     String? offerGroup,
+    String? commercialCategory,
   }) {
     final matching =
         rules
@@ -312,6 +319,9 @@ class UssdRule {
               (r) =>
                   r.network == network &&
                   r.purpose == 'order' &&
+                  (commercialCategory != null && service != 'unitTransfer'
+                      ? r.commercialCategory == commercialCategory
+                      : r.commercialCategory == null) &&
                   (r.service == 'all' || r.service == service) &&
                   (r.scope == 'both' || r.scope == actor) &&
                   r.status == 'active' &&
@@ -319,7 +329,9 @@ class UssdRule {
                   (r.effectiveUntil == null ||
                       now.isBefore(r.effectiveUntil!)) &&
                   (r.offerId == null || r.offerId == offerId) &&
-                  (r.familyId == null || r.familyId == familyId) &&
+                  (r.commercialCategory != null ||
+                      r.familyId == null ||
+                      r.familyId == familyId) &&
                   (r.offerGroup == null || r.offerGroup == offerGroup),
             )
             .toList()

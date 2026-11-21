@@ -943,7 +943,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
       'clientWhatsappPhone': '',
       'service': draft.service!.name,
       'network': draft.network!.name,
-      'operationType': _operationTypeValue(draft),
+      'operationType': draft.operationType!.name,
       'offerId': draft.offer?.id,
       'offerLabel': offerLabel,
       'isCustomOffer': draft.usesCustomOffer,
@@ -1037,6 +1037,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
               catalogLabel: offerLabel,
               amount: amount,
               details: const <String>[],
+              operationType: _readOperationType(operationType),
               badgeLabel: operationType == OrderOperationType.mixedBundle.name
                   ? 'Mixte'
                   : null,
@@ -1123,6 +1124,7 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
               catalogLabel: offerLabel,
               amount: amount,
               details: const <String>[],
+              operationType: _readOperationType(data['operation_type']),
               badgeLabel:
                   _readNullableString(data['operation_type']) ==
                       OrderOperationType.mixedBundle.name
@@ -1218,22 +1220,13 @@ class FirestoreCustomerOrderRepository implements CustomerOrderRepository {
     }
   }
 
-  String _operationTypeValue(CustomerOrderDraft draft) {
-    switch (draft.service!) {
-      case CustomerService.unitTransfer:
-        return OrderOperationType.unitTransfer.name;
-
-      case CustomerService.internetSubscription:
-        return OrderOperationType.internetSubscription.name;
-
-      case CustomerService.calls:
-        final bool isMixedOffer =
-            draft.offer?.badgeLabel?.toLowerCase() == 'mixte';
-
-        return isMixedOffer
-            ? OrderOperationType.mixedBundle.name
-            : OrderOperationType.callBundle.name;
+  OrderOperationType? _readOperationType(Object? value) {
+    for (final type in OrderOperationType.values) {
+      if (type.name == value) {
+        return type;
+      }
     }
+    return null;
   }
 
   QueueOrderStatus _readOrderStatus(Object? value) {

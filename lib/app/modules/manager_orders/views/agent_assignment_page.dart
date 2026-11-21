@@ -126,7 +126,7 @@ class _AgentAssignmentPageState extends State<AgentAssignmentPage> {
         elevation: 0,
         titleSpacing: 4,
         title: const Text(
-          'Affecter une commande',
+          'Réaffecter une commande',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
@@ -142,7 +142,7 @@ class _AgentAssignmentPageState extends State<AgentAssignmentPage> {
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
                 children: [
                   const Text(
-                    'Affecter la commande',
+                    'Réaffecter la commande',
                     style: TextStyle(
                       color: IzyTelColors.textPrimary,
                       fontSize: 28,
@@ -151,7 +151,7 @@ class _AgentAssignmentPageState extends State<AgentAssignmentPage> {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'Sélectionne un agent disponible et capable de traiter cette opération.',
+                    'Remettez la commande dans la file d’attente de sa zone, ou choisissez un Agent compatible.',
                     style: TextStyle(color: IzyTelColors.textSecondary),
                   ),
                   const SizedBox(height: 22),

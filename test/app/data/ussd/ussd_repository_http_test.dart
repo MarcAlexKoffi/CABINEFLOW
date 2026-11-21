@@ -8,6 +8,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../support/ussd_test_doubles.dart';
 
+Map<String, dynamic> assignmentRow() => {
+  'order_id': 'synthetic-order',
+  'order_reference': 'TEST-1',
+  'network': 'moov',
+  'amount': 1000,
+  'assignment_version': 7,
+  'assignment_route': 'shared',
+  'assignment_state': 'waiting',
+  'order_status': 'paidReady',
+  'source': 'operatorApp',
+  'operation_type': 'internetSubscription',
+  'payment_status': 'confirmed',
+  'updated_at': '2026-11-19T00:00:00Z',
+  'firebase_created_at': '2026-11-19T00:00:00Z',
+};
+
 void main() {
   late HttpServer server;
   late SupabaseClient client;
@@ -200,6 +216,112 @@ void main() {
       expect(calls.length, 1);
     },
   );
+
+  test(
+    'requeue retries keep the key until the server confirms the result',
+    () async {
+      final operations = <String>[];
+      final finished = <String>[];
+      final key = 'c' * 64;
+      final repository = SupabasePhase4AssignmentRepository(
+        client: client,
+        operationKey: (operation) async {
+          operations.add(operation);
+          return key;
+        },
+        finishOperation: (operation) async {
+          finished.add(operation);
+        },
+      );
+      responseStatus = 500;
+      response = {'code': 'XX000', 'message': 'synthetic interrupted response'};
+      await expectLater(
+        repository.returnToQueue(' synthetic-order ', 'Zone'),
+        throwsA(isA<PostgrestException>()),
+      );
+      expect(finished, isEmpty);
+      responseStatus = 200;
+      response = assignmentRow();
+      final result = await repository.returnToQueue('synthetic-order', 'Zone');
+      expect(result.assignmentRoute, 'shared');
+      expect(operations, [
+        'requeue.synthetic-order',
+        'requeue.synthetic-order',
+      ]);
+      expect(finished, ['requeue.synthetic-order']);
+      expect(calls, hasLength(2));
+      for (final call in calls) {
+        expect(call.path, '/rest/v1/rpc/izytel_return_order_to_queue');
+        expect(call.body, {
+          'p_order_id': 'synthetic-order',
+          'p_reason': 'Zone',
+          'p_request_id': key,
+        });
+      }
+    },
+  );
+
+  test(
+    'a requeue response for another order never clears the retry key',
+    () async {
+      final finished = <String>[];
+      response = assignmentRow()..['order_id'] = 'another-order';
+      final repository = SupabasePhase4AssignmentRepository(
+        client: client,
+        operationKey: (_) async => 'c' * 64,
+        finishOperation: (operation) async {
+          finished.add(operation);
+        },
+      );
+      await expectLater(
+        repository.returnToQueue('synthetic-order', 'Zone'),
+        throwsA(isA<FormatException>()),
+      );
+      expect(finished, isEmpty);
+    },
+  );
+
+  test(
+    'replaying a requeue after another acceptance requires a refresh',
+    () async {
+      response = assignmentRow()
+        ..['assignment_state'] = 'accepted'
+        ..['assigned_agent_id'] = 'another-agent';
+      final repository = SupabasePhase4AssignmentRepository(
+        client: client,
+        operationKey: (_) async => 'c' * 64,
+        finishOperation: (_) async {},
+      );
+      await expectLater(
+        repository.returnToQueue('synthetic-order', 'Zone'),
+        throwsA(isA<StateError>()),
+      );
+      expect(calls, hasLength(1));
+    },
+  );
+
+  for (final invalid in [
+    {'order_id': 'another-order'},
+    {'assignment_version': 6},
+    {'order_status': 'failed'},
+  ]) {
+    test('an inconsistent execution response is rejected: $invalid', () async {
+      response = {
+        'retry_after_ms': 1,
+        'order': assignmentRow()
+          ..['assignment_state'] = 'accepted'
+          ..['order_status'] = 'inProgress'
+          ..addAll(invalid),
+      };
+      await expectLater(
+        SupabasePhase4AssignmentRepository(
+          client: client,
+          executionKey: () async => 'a' * 64,
+        ).startProcessing('synthetic-order', expectedVersion: 7),
+        throwsA(isA<FormatException>()),
+      );
+    });
+  }
   test(
     'malformed configuration fails in the read Future for an explicit retry state',
     () async {

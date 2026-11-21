@@ -29,6 +29,17 @@ void main() {
         await request.response.close();
         return;
       }
+      if (request.uri.path == '/rest/v1/rpc/izytel_public_offer_bonuses') {
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(
+          jsonEncode({
+            'server_now': DateTime.now().toUtc().toIso8601String(),
+            'promotions': [],
+          }),
+        );
+        await request.response.close();
+        return;
+      }
       requests.add(request.uri);
       expect(
         request.method,

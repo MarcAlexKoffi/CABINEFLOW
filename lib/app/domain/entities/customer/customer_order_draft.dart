@@ -32,6 +32,19 @@ class CustomerOrderDraft {
 
   bool get usesCustomOffer => customOfferLabel != null;
 
+  /// Preserve the catalogue's business type independently of promotional labels.
+  OrderOperationType? get operationType => switch (service) {
+    CustomerService.unitTransfer => OrderOperationType.unitTransfer,
+    CustomerService.internetSubscription =>
+      offer?.operationType ?? OrderOperationType.internetSubscription,
+    CustomerService.calls =>
+      offer?.operationType ??
+          (offer?.badgeLabel?.toLowerCase() == 'mixte'
+              ? OrderOperationType.mixedBundle
+              : OrderOperationType.callBundle),
+    null => null,
+  };
+
   String? get selectedOfferLabel {
     if (service == CustomerService.unitTransfer) {
       return 'Transfert d’unités';

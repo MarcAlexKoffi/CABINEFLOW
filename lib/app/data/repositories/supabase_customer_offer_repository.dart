@@ -4,6 +4,7 @@ import 'package:cabine_flow/app/domain/entities/customer/customer_service.dart';
 import 'package:cabine_flow/app/domain/repositories/customer_offer_repository.dart';
 import 'package:cabine_flow/app/domain/entities/orders/queue_order.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cabine_flow/app/domain/entities/offers/offer_bonus.dart';
 
 /// Source canonique des offres visibles sur le Web client IzyTel.
 ///
@@ -58,7 +59,9 @@ class SupabaseCustomerOfferRepository implements CustomerOfferRepository {
         .order('display_order')
         .order('selling_price');
 
-    return _mapRows(response, forcedNetwork: network, forcedType: expectedType);
+    return _decorateBonuses(
+      _mapRows(response, forcedNetwork: network, forcedType: expectedType),
+    );
   }
 
   @override
@@ -82,7 +85,35 @@ class SupabaseCustomerOfferRepository implements CustomerOfferRepository {
         .order('display_order')
         .order('selling_price');
 
-    return _mapRows(response);
+    return _decorateBonuses(_mapRows(response));
+  }
+
+  Future<List<CustomerOffer>> _decorateBonuses(
+    List<CustomerOffer> offers,
+  ) async {
+    final roundTrip = Stopwatch()..start();
+    try {
+      final raw = await _client
+          .rpc('izytel_public_offer_bonuses')
+          .timeout(const Duration(seconds: 8));
+      final data = Map<String, dynamic>.from(raw as Map);
+      final serverNow = DateTime.parse(data['server_now'] as String);
+      final bonuses = <String, OfferBonus>{};
+      for (final row in data['promotions'] as List) {
+        final value = Map<String, dynamic>.from(row as Map);
+        bonuses[value['offer_id'] as String] = OfferBonus.fromJson(
+          value,
+          serverNow,
+          transportBudget: roundTrip.elapsed,
+        );
+      }
+      return offers
+          .map((o) => o.withBonus(bonuses[o.id]))
+          .toList(growable: false);
+    } catch (_) {
+      // A failed promotion read must never publish an old or unverified bonus.
+      return offers;
+    }
   }
 
   Stream<List<CustomerOffer>> _watchRefresh(
@@ -92,6 +123,8 @@ class SupabaseCustomerOfferRepository implements CustomerOfferRepository {
       fetch: loader,
       label: 'CustomerOffers.read',
       refreshSignals: _catalogSignals,
+      refreshInterval: const Duration(seconds: 15),
+      fallbackInterval: const Duration(seconds: 15),
     );
   }
 
@@ -138,6 +171,8 @@ class SupabaseCustomerOfferRepository implements CustomerOfferRepository {
           amount: amount,
           details: _stringList(row['details']),
           badgeLabel: _optionalString(row['badge_label']),
+          category: _optionalString(row['category']),
+          operationType: _operationType(row['operation_type']),
         ),
       );
     }
@@ -167,6 +202,15 @@ class SupabaseCustomerOfferRepository implements CustomerOfferRepository {
     for (final MobileNetwork network in MobileNetwork.values) {
       if (network.name == value) {
         return network;
+      }
+    }
+    return null;
+  }
+
+  OrderOperationType? _operationType(Object? value) {
+    for (final type in OrderOperationType.values) {
+      if (type.name == value) {
+        return type;
       }
     }
     return null;

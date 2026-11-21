@@ -11,6 +11,9 @@ import 'package:cabine_flow/app/domain/policies/ussd/ussd_engine.dart';
 import 'package:cabine_flow/app/domain/repositories/ussd_repository.dart';
 import 'package:cabine_flow/app/modules/ussd/views/ussd_activity_page.dart';
 import 'package:flutter/material.dart';
+import 'package:cabine_flow/app/data/repositories/supabase_catalog_bonus_repository.dart';
+import 'package:cabine_flow/app/domain/repositories/catalog_bonus_repository.dart';
+import 'package:cabine_flow/app/modules/backoffice/views/catalog/catalog_bonus_dialogs.dart';
 import 'package:cabine_flow/app/shared/widgets/izytel/izytel_feedback.dart';
 
 part 'package:cabine_flow/app/modules/ussd/widgets/ussd_rule_dialogs.dart';
@@ -27,6 +30,14 @@ const ussdServices = {
   'other': 'Autre',
 };
 const ussdOfferGroups = {'folie': 'Folie', 'cchic': 'C’Chic'};
+const ussdCommercialCategories = {
+  'maxit': 'MAXIT',
+  'internet': 'Internet',
+  'calls': 'Appel',
+  'mixed': 'Mixte',
+  'cchic': 'C’CHIC',
+  'folie': 'Folie',
+};
 const ussdScopes = {
   'agent': 'Agent',
   'cabiniste': 'Cabiniste',
@@ -39,9 +50,15 @@ const ussdStatuses = {
 };
 
 class BackofficeUssdPage extends StatefulWidget {
-  const BackofficeUssdPage({super.key, required this.user, this.repository});
+  const BackofficeUssdPage({
+    super.key,
+    required this.user,
+    this.repository,
+    this.bonusRepository,
+  });
   final AppUser user;
   final UssdRepository? repository;
+  final CatalogBonusRepository? bonusRepository;
   @override
   State<BackofficeUssdPage> createState() => _BackofficeUssdPageState();
 }
@@ -54,6 +71,7 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
   final _tableScroll = ScrollController();
   String _network = '', _service = '', _family = '', _status = '', _scope = '';
   bool _busy = false;
+  bool _showLegacySubscriptions = false;
   bool get _admin => widget.user.role == UserRole.administrator;
   @override
   void initState() {
@@ -79,6 +97,14 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
       _future = future;
     });
   }
+
+  void _showCategoryRoutes() => showBackofficeModal<void>(
+    context: context,
+    builder: (_) => CatalogRoutesDialog(
+      repository: widget.bonusRepository ?? SupabaseCatalogBonusRepository(),
+      canValidate: _admin,
+    ),
+  );
 
   List<Map<String, dynamic>> _rows(Object? value) => (value as List? ?? [])
       .map((e) => Map<String, dynamic>.from(e as Map))
@@ -422,10 +448,23 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
       final data = snapshot.data!;
       final families = _rows(data['families']);
       final offers = _rows(data['offers']);
-      final rules = _rows(data['rules'])
-          .map(UssdRule.fromJson)
+      final allRules = _rows(data['rules']).map(UssdRule.fromJson).toList();
+      final commercialRules = allRules
+          .where((r) => r.commercialCategory != null)
+          .toList();
+      final commercialNetworks = commercialRules.map((r) => r.network).toSet();
+      bool replacedSubscription(UssdRule r) =>
+          r.commercialCategory == null &&
+          r.purpose == 'order' &&
+          r.service != 'unitTransfer' &&
+          commercialNetworks.contains(r.network);
+      final legacyCount = allRules.where(replacedSubscription).length;
+      final rules = allRules
           .where(
             (r) =>
+                (_showLegacySubscriptions
+                    ? replacedSubscription(r)
+                    : !replacedSubscription(r)) &&
                 (_network.isEmpty || r.network == _network) &&
                 (_service.isEmpty ||
                     (r.purpose == 'order' &&
@@ -466,7 +505,7 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
             const SizedBox(height: 8),
             Text(
               _admin
-                  ? 'Syntaxes centralisées, activation dès la création et historique des versions.'
+                  ? 'Raccourcis de souscription par catégorie, transferts et historique des versions.'
                   : 'Consultation des règles utiles à votre territoire. Les modifications sont réservées à l’Administrateur.',
             ),
             const SizedBox(height: IzyTelSpacing.xl),
@@ -508,9 +547,24 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
                   tooltip: 'Actualiser',
                   icon: const Icon(Icons.refresh),
                 ),
+                OutlinedButton.icon(
+                  onPressed: _showCategoryRoutes,
+                  icon: const Icon(Icons.route_outlined),
+                  label: const Text('Souscriptions par catégorie'),
+                ),
               ],
             ),
             if (_busy) const LinearProgressIndicator(),
+            if (commercialRules.isNotEmpty) ...[
+              const SizedBox(height: IzyTelSpacing.xl),
+              BackofficeModalSection(
+                title: 'Souscriptions par catégorie',
+                icon: Icons.route_outlined,
+                child: Text(
+                  '${commercialRules.where((r) => r.status == 'active').length} raccourcis actifs pour les forfaits. Les anciennes syntaxes remplacées sont conservées dans « Anciennes souscriptions ».',
+                ),
+              ),
+            ],
             const SizedBox(height: IzyTelSpacing.xl),
             BackofficeModalSection(
               title: 'Filtrer les règles',
@@ -520,6 +574,13 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
                 spacing: 10,
                 runSpacing: 8,
                 children: [
+                  if (legacyCount > 0)
+                    FilterChip(
+                      label: Text('Anciennes souscriptions ($legacyCount)'),
+                      selected: _showLegacySubscriptions,
+                      onSelected: (value) =>
+                          setState(() => _showLegacySubscriptions = value),
+                    ),
                   _filter(
                     'Réseau',
                     _network,
@@ -608,7 +669,7 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
     const specs = [
       ('Opérateur', 3),
       ('Service', 4),
-      ('Famille / offre', 5),
+      ('Catégorie / offre', 5),
       ('Cible', 3),
       ('Syntaxe USSD', 6),
       ('Priorité / version', 3),
@@ -655,6 +716,8 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
                         child: Text(
                           r.purpose == 'balance'
                               ? 'Consultation du solde'
+                              : r.commercialCategory != null
+                              ? 'Souscription par catégorie'
                               : ussdServices[r.service] ?? r.service,
                           maxLines: 2,
                         ),
@@ -665,12 +728,18 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              offerLabel(r.offerId),
+                              r.commercialCategory == null
+                                  ? offerLabel(r.offerId)
+                                  : ussdCommercialCategories[r
+                                            .commercialCategory] ??
+                                        r.commercialCategory!,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
                             Text(
-                              r.offerGroup == null
+                              r.commercialCategory != null
+                                  ? 'Toutes les offres de cette catégorie'
+                                  : r.offerGroup == null
                                   ? 'Famille : ${familyLabel(r.familyId)}'
                                   : 'Reconnaissance automatique : ${ussdOfferGroups[r.offerGroup] ?? r.offerGroup}',
                               maxLines: 1,
@@ -710,7 +779,9 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
                       BackofficeTableCellSpec(
                         flex: 3,
                         child: BackofficeStatusBadge(
-                          label: ussdStatuses[r.status] ?? r.status,
+                          label: _showLegacySubscriptions
+                              ? 'Remplacé'
+                              : ussdStatuses[r.status] ?? r.status,
                           color: r.status == 'active'
                               ? BackofficePalette.success
                               : r.status == 'draft'
@@ -773,33 +844,48 @@ class _BackofficeUssdPageState extends State<BackofficeUssdPage> {
                                       _statusChange(r);
                                     case 'delete':
                                       _deleteRule(r);
+                                    case 'validation':
+                                      _showCategoryRoutes();
                                   }
                                 },
                                 itemBuilder: (_) => [
-                                  const PopupMenuItem(
-                                    value: 'edit',
-                                    child: Text(
-                                      'Modifier (remet en brouillon)',
+                                  if (r.commercialCategory == null &&
+                                      !_showLegacySubscriptions)
+                                    const PopupMenuItem(
+                                      value: 'edit',
+                                      child: Text(
+                                        'Modifier (remet en brouillon)',
+                                      ),
                                     ),
-                                  ),
+                                  if (r.commercialCategory != null)
+                                    const PopupMenuItem(
+                                      value: 'validation',
+                                      child: Text(
+                                        'Validations de la catégorie',
+                                      ),
+                                    ),
                                   const PopupMenuItem(
                                     value: 'history',
                                     child: Text('Historique'),
                                   ),
-                                  PopupMenuItem(
-                                    value: 'status',
-                                    child: Text(
-                                      r.status == 'active'
-                                          ? 'Désactiver'
-                                          : r.isMaxIt
-                                          ? 'Activer après validation d’ouverture'
-                                          : 'Activer après validation SIM',
+                                  if (r.commercialCategory == null &&
+                                      !_showLegacySubscriptions)
+                                    PopupMenuItem(
+                                      value: 'status',
+                                      child: Text(
+                                        r.status == 'active'
+                                            ? 'Désactiver'
+                                            : r.isMaxIt
+                                            ? 'Activer après validation d’ouverture'
+                                            : 'Activer après validation SIM',
+                                      ),
                                     ),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 'delete',
-                                    child: Text('Supprimer'),
-                                  ),
+                                  if (r.commercialCategory == null &&
+                                      !_showLegacySubscriptions)
+                                    const PopupMenuItem(
+                                      value: 'delete',
+                                      child: Text('Supprimer'),
+                                    ),
                                 ],
                                 child: const Padding(
                                   padding: EdgeInsets.all(12),
