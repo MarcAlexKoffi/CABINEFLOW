@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {join} from 'node:path';
 import {withPostgres,root} from '../shared_queue/postgres.mjs';
+import {runWebShortcutCases} from './web_shortcut_cases.mjs';
 const fixture=JSON.parse(await readFile(new URL('./fixtures/catalog_before.json',import.meta.url),'utf8'));
 const functions=JSON.parse(await readFile(new URL('./fixtures/functions_before.json',import.meta.url),'utf8'));
 const catalogTriggers=JSON.parse(await readFile(new URL('./fixtures/catalog_triggers_before.json',import.meta.url),'utf8'));
@@ -189,11 +190,13 @@ await withPostgres(async({admin})=>{
  report.offers=results;report.distribution=distribution;report.transfers=transferResults;
  report.archivedRules=fixture.rules.filter(r=>r.purpose==='order'&&r.service!=='unitTransfer').map(r=>({id:r.id,network:r.network,service:r.service,template:r.ussd_template,previous_status:r.status,status:'disabled',action:r.status==='active'?'deactivated':r.deleted_at?'retained_archived':'retained_disabled_revision'}));
  report.movedOffers=moved.map(o=>({before:before.find(b=>b.id===o.id),after:o}));
+ await runWebShortcutCases({q,json,identity,note,root,offers,routes});
  // Rollback is tested on this disposable database, without deleting audit rows.
  await q(await readFile(join(root,'supabase/operations/catalog_bonus_rollback.sql'),'utf8'));
  for(const o of moved){const restored=await json('select to_jsonb(c) v from catalog_offers c where id=$1',[o.id]);assert.equal(restored.category,before.find(b=>b.id===o.id).category);}
  note('targeted rollback restores both categories and prior routing while retaining history and campaign data');
 });
+if(process.argv.includes('--no-report'))process.exit(0);
 await mkdir(join(root,'docs/catalog_bonus'),{recursive:true});
 await writeFile(join(root,'docs/catalog_bonus/verification.json'),JSON.stringify({executedAt:new Date().toISOString(),environment:'isolated local PostgreSQL; catalogue metadata snapshot; synthetic orders only',checks,...report},null,2));
 const escape=s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
